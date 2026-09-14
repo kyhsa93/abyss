@@ -835,6 +835,26 @@ prose already says it: *"골드샤이어에서 거의 정남쪽, 스톤필드 �
 사이"*. `quests.py` prints what it leaves out every bake, because a thing
 dropped in silence is a thing nobody can weigh later.
 
+**A number written in two places goes stale in one of them.** The performance
+budget page opened with *"every number above is a draft, not one of them is
+measured"* while `budgetcheck` had been measuring four of them for rounds and
+going red on one — the document was behind the harness. The fix was not to
+write the numbers down again: `docs/budget.md` is **written by the check**
+(`npm run budgetcheck -- --write`) and a plain run fails when the file on disk
+is not what it would write, which is the bargain `manifestcheck` already makes
+with the baked world. The wiki page keeps the *decisions* — why the decoded
+ratchet is 24 and not 64, why one world is counted and not two — and points at
+the file for the figures. Lines nothing measures are named as such: **a budget
+with no measurement behind it is a hope, and it says so.**
+
+**`git lfs` stays out, and the measurement is why.** The pack is 59.5 MiB after
+590 commits with the world re-baked every round, the deploy carries 25 MB, and
+the biggest single file is 3.5 MB — against a 100 MB file limit and a 1 GB
+Pages site. And LFS does not fix what this repository actually does: re-baking
+and committing the world churns blobs, and LFS moves that churn to a metered
+store rather than removing it. 200 MB is where it gets reconsidered, and that
+line is in `budgetcheck`.
+
 **A time saved against a clock that restarts is not a time.** Cooldowns were
 stored as moments on `clock`, and `clock` starts at nought on every load — so a
 character saved five minutes in came back with every ability he had used on

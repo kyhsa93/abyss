@@ -13,15 +13,37 @@
  * stays visible rather than becoming an excuse.
  */
 import { gzipSync } from 'node:zlib'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const KB = 1024, MB = 1024 * 1024
 let bad = 0
+/**
+ * Every line of the budget, as it is measured.
+ *
+ * Collected rather than only printed, because issue 207's complaint was not
+ * that nothing was measured — this file has measured since it was written —
+ * but that **the document was behind the harness**: the wiki opened with
+ * *"every number above is a draft, not one of them is measured"* while CI was
+ * already going red on four of them.
+ *
+ * So the document is written from here.  `npm run budgetcheck -- --write`
+ * rewrites `docs/budget.md`, and a plain run fails when the file on disk is
+ * not what it would write — the same bargain `manifestcheck` makes with the
+ * baked world.  One list, and a document that cannot fall behind it.
+ */
+const rows = []
 const check = (what, ok, detail) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}   -> ${detail}`)
   if (!ok) bad++
 }
+/** A measured line: what it is, what it came to, what it may not pass. */
+const budget = (what, got, limit, unit, note) => {
+  rows.push({ what, got, limit, unit, note })
+  return got <= limit
+}
+const shown = (v, unit) => unit === 'MB' ? `${(v / MB).toFixed(2)} MB`
+  : unit === 'KB' ? `${(v / KB).toFixed(0)} KB` : `${v}`
 
 const gz = (path) => gzipSync(readFileSync(path)).length
 const walk = (dir, out = []) => {
@@ -43,7 +65,9 @@ const files = walk(dist)
 // The script, gzipped, which is what the browser is handed.
 const js = files.filter((f) => f.endsWith('.js') && !f.endsWith('sw.js'))
 const jsBytes = js.reduce((n, f) => n + gz(f), 0)
-check('the script fits in the budget', jsBytes <= 500 * KB,
+check('the script fits in the budget',
+  budget('the script a browser is handed', jsBytes, 500 * KB, 'KB',
+    'gzipped; `dist` less the service worker'),
   `${(jsBytes / KB).toFixed(0)} KB gzipped of 500`)
 
 // One world.  The client's terrain if it is there, and everything that is not
@@ -55,7 +79,10 @@ const terrain = files.filter((f) => /data[\\/]terrain/.test(f))
 const fallback = files.filter((f) => /world[\\/]terrain/.test(f))
 const need = [...oneWorld, ...(terrain.length ? terrain : fallback)]
 const dataBytes = need.reduce((n, f) => n + gz(f), 0)
-check('and so does the world a visitor downloads', dataBytes <= 4 * MB,
+check('and so does the world a visitor downloads',
+  budget('the world a first visit downloads', dataBytes, 4 * MB, 'MB',
+    'gzipped; one world — the client\'s terrain plus everything that is not '
+    + 'terrain'),
   `${(dataBytes / MB).toFixed(2)} MB gzipped of 4 — `
   + `${need.length} files, the terrain being ${(terrain.length ? terrain : fallback)
     .reduce((n, f) => n + gz(f), 0) / MB > 0 ? ((terrain.length ? terrain : fallback)
@@ -69,6 +96,29 @@ const spare = fallback.length && terrain.length
 console.log(`      (a second terrain rides along at ${(spare / MB).toFixed(2)} MB `
   + `gzipped — the synthesised world, which the page uses only when there is `
   + `no client bake)`)
+
+// What the deploy carries, which is not what a visit downloads.
+//
+// The issue that asked for this counted `public` at 25.7 MB and the page said
+// every number was a draft.  Both halves matter and they are different
+// numbers: a visitor fetches one world and the sheets the scene opens, and the
+// deploy carries every sheet, both worlds and every icon.  A budget that only
+// watched the first would let the second grow until a deploy stopped fitting.
+const carried = files.reduce((n, f) => n + statSync(f).size, 0)
+check('and the whole deploy fits in what a Pages site may be',
+  budget('everything the deploy carries', carried, 200 * MB, 'MB',
+    'on disk, not gzipped, and every file — both worlds, all 157 sheets, '
+    + 'every icon.  A Pages site may be a gigabyte; two hundred megabytes is '
+    + 'where this repository would start thinking about `git lfs` again'),
+  `${(carried / MB).toFixed(1)} MB on disk of 200`)
+
+// The sounds, which are eight files nobody had weighed.
+const heard = files.filter((f) => f.endsWith('.wav') || f.endsWith('.ogg'))
+check('and the sounds are a rounding error',
+  budget('the sounds', heard.reduce((n, f) => n + statSync(f).size, 0),
+    2 * MB, 'KB', `${heard.length} files, on disk — see issue 208`),
+  `${(heard.reduce((n, f) => n + statSync(f).size, 0) / KB).toFixed(0)} KB `
+  + `over ${heard.length} files of 2,048`)
 
 /**
  * The sheets, by what they cost once decoded — which is not what they cost on
@@ -142,7 +192,10 @@ const all = files.filter((f) => f.endsWith('.png'))
 // one more, so what it actually guards is the atlas quietly doubling: a
 // transparent pixel is free in a PNG and full price in memory, and this
 // repository has already been caught by that once.
-check('and the sheets do not creep', pixels * 4 <= 24 * MB,
+check('and the sheets do not creep',
+  budget('the sheets the scene opens, decoded', pixels * 4, 24 * MB, 'MB',
+    '`width × height × 4`, not the file size — a transparent pixel is free in '
+    + 'a PNG and full price in memory.  A ratchet rather than a device limit'),
   `${(pixels * 4 / MB).toFixed(1)} MB of 24 — a phone's headroom is not `
   + `a desktop's, and the ratchet is what stops the atlas doubling`)
 console.log(`      (of which ${(inHand / MB).toFixed(2)} MB is whatever is in `
@@ -151,11 +204,61 @@ console.log(`      (of which ${(inHand / MB).toFixed(2)} MB is whatever is in `
   + Object.entries(worn).map(([k, v]) =>
     `${k} ${v.key.replace(k + '-', '')} ${(v.px / MB).toFixed(2)}`).join(', ')
   + ')')
-check('the sheets fit in memory once decoded', pixels * 4 <= 64 * MB,
+check('the sheets fit in memory once decoded',
+  budget('and against the desktop ceiling', pixels * 4, 64 * MB, 'MB',
+    'the same pixels against the figure the budget page has always carried'),
   `${((pixels * 4) / MB).toFixed(1)} MB of 64 over the ${loaded.length} the `
   + `scene opens (of ${all.length} shipped, `
   + `${((all.reduce((n, f) => n + size(f), 0) * 4) / MB).toFixed(0)} MB if all `
   + `were held at once)`)
+
+/**
+ * And the document, written from the rows above rather than beside them.
+ *
+ * `--write` rewrites it; a plain run fails when what is on disk is not what
+ * this would write.  The wiki keeps the *decisions* — why twenty-four and not
+ * sixty-four, why one world and not two — and points here for the numbers,
+ * because a number in two places is a number that goes stale in one of them.
+ */
+const DOC = 'docs/budget.md'
+const table = [
+  '# The performance budget, measured',
+  '',
+  '**Written by `npm run budgetcheck -- --write`.  Do not edit by hand** — a',
+  'plain `npm run budgetcheck` fails when this file is not what the check',
+  'would write, which is the same bargain `manifestcheck` makes with the baked',
+  'world.',
+  '',
+  'The wiki page [성능 예산] keeps the *decisions* — why the decoded-sheet',
+  'ratchet is twenty-four and not sixty-four, why one world is counted and not',
+  'two — and points here for the numbers.  A number written in two places is a',
+  'number that goes stale in one of them, which is what issue 207 found: the',
+  'page opened with *"every number above is a draft"* while this check had been',
+  'going red on four of them for rounds.',
+  '',
+  '| what | measured | budget |',
+  '| --- | ---: | ---: |',
+  ...rows.map((r) => `| ${r.what} | ${shown(r.got, r.unit)} | `
+    + `${shown(r.limit, r.unit)} |`),
+  '',
+  ...rows.flatMap((r) => [`* **${r.what}** — ${r.note}.`]),
+  '',
+]
+const want = table.join('\n')
+if (process.argv.includes('--write')) {
+  writeFileSync(DOC, want)
+  console.log(`wrote ${DOC}`)
+} else {
+  let had = null
+  try { had = readFileSync(DOC, 'utf8') } catch { /* not written yet */ }
+  check('and the budget document says what was just measured', had === want,
+    had === want ? `${DOC}, ${rows.length} lines, every one of them measured `
+      + 'by this run'
+      : had === null
+        ? `${DOC} is not there — run \`npm run budgetcheck -- --write\``
+        : 'the file on disk is not what this run would write; '
+          + 'run `npm run budgetcheck -- --write`')
+}
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)
