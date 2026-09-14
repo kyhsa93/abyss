@@ -484,19 +484,65 @@ def main(out):
         kinds[name] = {'first': first, 'frames': len(spec['cells'][0]),
                        'people': False, 'yards': spec['yards']}
 
-    cols = 18
-    rows = (len(frames) + cols - 1) // cols
-    atlas = Image.new('RGBA', (cols * CELL, rows * CELL))
-    for i, fr in enumerate(frames):
-        atlas.paste(fr, ((i % cols) * CELL, (i // cols) * CELL))
+    # --- one row of the atlas a kind, at the kind's own height -------------
+    #
+    # The atlas was a flat 18-column grid of 64-pixel cells, which is the
+    # obvious layout and costs **a third of its own weight in air**: a chicken
+    # is sixteen rows tall and a rabbit twenty, and both were being stored in
+    # sixty-four.  Measured over the whole sheet, 19,816 of its 59,904 cell
+    # rows were transparent — 14.62 MiB decoded, of which nearly five was
+    # nothing.  A transparent pixel is free in a PNG and full price in memory,
+    # which is this repository's own line about atlases, and the one sheet it
+    # had never been applied to is the biggest one.
+    #
+    # A row a kind rather than a shelf packer: every frame of a kind is the
+    # same 64 wide, a kind is at most 24 frames, and the arithmetic a reader
+    # has to do to find a frame stays `index * 64` instead of a lookup table
+    # of eight hundred boxes.
+    #
+    # **The box is the kind's and not the frame's**, on purpose.  Trimming
+    # each frame to itself would make a walking animal breathe: the legs of
+    # one frame reach lower than the next, and a per-frame box moves the
+    # ground line under it every step.  The kind's own union does not.
+    widest = max((v['frames'] * 4 for v in kinds.values()), default=1)
+    band = {}
+    height = 0
+    for name, meta in kinds.items():
+        mine = frames[meta['first']:meta['first'] + meta['frames'] * 4]
+        top, bottom = CELL, 0
+        for fr in mine:
+            got = fr.getbbox()
+            if not got:
+                continue
+            top = min(top, got[1])
+            bottom = max(bottom, got[3])
+        if bottom <= top:
+            top, bottom = 0, CELL
+        band[name] = (top, bottom - top, height, mine)
+        height += bottom - top
+    atlas = Image.new('RGBA', (widest * CELL, height))
+    for name, (top, tall, y, mine) in band.items():
+        for i, fr in enumerate(mine):
+            atlas.paste(fr.crop((0, top, CELL, top + tall)), (i * CELL, y))
+        meta = kinds[name]
+        del meta['first']
+        # Where this kind sits, how tall it is, and how far back up the
+        # 64-pixel cell its top was — which is what puts it on the ground line
+        # again at the far end.
+        meta['y'] = y
+        meta['rows'] = tall
+        meta['top'] = top
     os.makedirs(out, exist_ok=True)
     atlas.save(os.path.join(out, 'npcs.png'), optimize=True)
     with open(os.path.join(out, 'npcs.json'), 'w') as f:
-        json.dump({'cell': CELL, 'cols': cols, 'anchor': ANCHOR, 'kinds': kinds}, f, indent=1)
+        json.dump({'cell': CELL, 'anchor': ANCHOR, 'kinds': kinds}, f, indent=1)
 
     credits(used)
 
     px = atlas.width * atlas.height * 4
+    air = sum((CELL - v['rows']) * v['frames'] * 4 for v in kinds.values())
+    print(f'  {air * CELL * 4 / 1048576:.1f} MiB of the old 64-pixel cell was '
+          f'air over the animals\' heads, and is not in this')
     print(f'{len(frames)} frames in {len(kinds)} kinds, atlas {atlas.width}x{atlas.height}, '
           f'{os.path.getsize(os.path.join(out, "npcs.png")) / 1024:.0f} KiB on disk, '
           f'{px / 1048576:.1f} MiB decoded')
@@ -504,7 +550,7 @@ def main(out):
     print('  in hand: ' + ', '.join(WEAPONS) + '  (each in two halves)')
     print('  animals: ' + ', '.join(f'{k} {v["yards"]}yd' for k, v in
                                     sorted(ANIMALS.items(), key=lambda kv: -kv[1]['yards'])))
-    contact(frames, kinds, out)
+    contact(band, kinds, out)
 
 
 def credits(used):
@@ -556,14 +602,19 @@ def credits(used):
         f.write('both carry, so the game carries them too — see the wiki page 아트 방향.\n')
 
 
-def contact(frames, kinds, out):
+def contact(band, kinds, out):
     """One sheet with every kind facing all four ways, because the direction
-    order is the thing most likely to be wrong and it is invisible in a count."""
+    order is the thing most likely to be wrong and it is invisible in a count.
+
+    Drawn from the untrimmed frames the packer was handed rather than from the
+    atlas, so that a mistake in the *trim* shows up as the contact sheet and
+    the game disagreeing rather than as both being wrong together."""
     n = len(kinds)
     sheet = Image.new('RGB', (CELL * 4 * 2, CELL * n * 2), (40, 44, 56))
     for i, (name, k) in enumerate(kinds.items()):
+        mine = band[name][3]
         for d in range(4):
-            fr = frames[k['first'] + d * k['frames']]
+            fr = mine[d * k['frames']]
             fr = fr.resize((CELL * 2, CELL * 2), Image.NEAREST)
             sheet.paste(fr, (d * CELL * 2, i * CELL * 2), fr)
     sheet.save(os.path.join(out, 'npcs-contact.png'))

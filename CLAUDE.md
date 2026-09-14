@@ -247,6 +247,23 @@ nobody recorded the author of. A CC-BY tile with no author cannot be complied
 with, so `pipeline/bake_tiles.py` refuses a piece that names none, and all
 three credit files are generated from the tables the art is built from.
 
+**A transparent pixel is free in a PNG and full price in memory, and the
+biggest sheet had never been asked.** `npcs.png` was a flat grid of 64-pixel
+cells and **19,816 of its 59,904 cell rows were transparent** — a chicken is
+sixteen rows tall and a rabbit twenty, and both were stored in sixty-four. One
+row of the atlas a kind, at the kind's own height, and the sheet went 14.62 MiB
+to 11.9. The box is the **kind's** and not the frame's on purpose: trimming
+each frame to itself makes a walking animal breathe, because one frame's legs
+reach lower than the next and the ground line moves under it every step.
+
+That is where the room for more scenery came from. `__variety()` counts each
+word's pictures against the client's models for it, and the floor is half; the
+words that cannot reach it are declared in `viewcheck` with the reason, and
+every reason is a fact about the source. **`tree` is two pictures for
+thirty-one models and stays that way**: the LPC set drew two oak silhouettes,
+and the rest of that sheet's trees are the same shapes recoloured for snow and
+autumn. An autumn tree in a summer forest is variety this world has not got.
+
 **A spritesheet's grid is measured, not divided.** Four of the animal packs
 disagree about cell size and about which row faces which way — the wolf sheet
 is two zones at 32x64 and 64x32, and the bear and the deer are ordered up,

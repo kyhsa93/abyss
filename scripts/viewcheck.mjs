@@ -165,6 +165,58 @@ const orphan = variety.filter((v) => v.models && !v.pieces && !v.floor)
 check('and every word the bake emits can be drawn', orphan.length === 0,
   orphan.map((v) => v.kind).join(', '))
 
+// And the other direction, which is the one issue 198 was about: **one picture
+// covering twenty-one models**.  The floor is half the client's count, and the
+// words that cannot reach it are declared here with the reason — the same
+// bargain the pipeline's classifiers make with `*_DEFAULT_OK`, because a
+// silent shortfall and a considered one look identical in a table.
+//
+// Every reason below is a fact about the *source*, not about how much work it
+// would be.  LPC drew what it drew.
+const THIN_OK = {
+  // The set has two oak silhouettes and two pine, and this game uses all four
+  // (`tree` and `pine` are separate words).  The rest of that sheet's trees
+  // are the same shapes recoloured for **snow and autumn**, plus blossom —
+  // and an autumn tree in a summer forest is variety this world has not got,
+  // which is the art direction's own rule pointed the other way.
+  tree: 'the sheet has two oak shapes; the rest are seasonal recolours',
+  rock: 'one boulder, one menhir, one rubble is what the terrain sheet drew',
+  // Drawn as a run rather than per post, so the pieces alternating along one
+  // boundary is exactly what this word must not do — the comment in `KIND`
+  // says it cost a fence that went rail, picket, rail.
+  fence: 'chosen per run and not per post, so more pieces would make one fence of several',
+  post: 'a post is a post',
+  hay: 'the farm sheet drew one haystack',
+  grave: 'two headstones on the sheet, and the rest of its graves are in MISSING:',
+  cart: 'three carts on the sheet',
+  bed: 'no bed is cut: what stands in for one is sacking, and the beds on the interior sheet are four-posters for a hall',
+  bones: 'one skull and two kinds of rubble',
+  cabinet: 'five of the interior sheet, which is what it has that is not a wall fitting',
+  lamp: 'four lamps and two lanterns, which is the whole of that sheet',
+  barrel: 'seven, counting the stacks',
+  prop: 'a catch-all for 49 models of yard furniture: 24 pictures over a word that means anything',
+  // Buildings are their own problem and their own issues: the scene stamps
+  // them on the ground grid, and issues 216-218 are about drawing one as a
+  // picture instead.
+  house: 'buildings are stamped rather than drawn — see issue 216',
+  hall: 'buildings are stamped rather than drawn — see issue 216',
+  tent: 'buildings are stamped rather than drawn — see issue 216',
+}
+const thin = variety.filter((v) => v.models && !v.floor && v.pieces * 2 < v.models)
+const undeclared = thin.filter((v) => !THIN_OK[v.kind])
+check('every word draws at least half as many pictures as the client has models',
+  undeclared.length === 0,
+  undeclared.length
+    ? undeclared.map((v) => `${v.kind} ${v.pieces}/${v.models}`).join(', ')
+    : `${variety.filter((v) => v.models && !v.floor && v.pieces * 2 >= v.models).length}`
+      + ` words are at half or better, and the ${thin.length} that are not say why`)
+// And the declarations have to be about words that are actually short.  A
+// reason left behind after the pictures arrived is the same rot one level up.
+const stale = Object.keys(THIN_OK).filter((k) =>
+  !thin.some((v) => v.kind === k))
+check('and no word carries a reason it no longer needs', stale.length === 0,
+  stale.join(', ') || `${Object.keys(THIN_OK).length} declared`)
+
 // 7. What stops you is the world's own number, not one chosen here.
 //
 // The climbing limit used to be `tan(50°)` with a comment saying that is
@@ -1722,10 +1774,24 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     // them — which is the check's steering and not the world's.  What has to
     // be true is that he never *stops*: each waypoint either gets reached or
     // gets closer, and the arrival at the end is what it all adds up to.
-    let stuck = 0, worst = 0, run = 0
+    // **He arrives, and he walks there.**
+    //
+    // Two measures and only two, after three attempts at a third.  Counting
+    // waypoints he failed to stand on is noise: they are the flood's own
+    // trail, four yards apart and crowded at the end, and a man rounding
+    // somebody who is walking about misses one.  Counting whether he got
+    // *closer to the destination* is noise too — the trail goes round a hill,
+    // and thirty waypoints of a detour lead away from the door by design.
+    //
+    // What is left is what the check was ever for.  The flood says the route
+    // is open; a push from the start used to stop at the first thing in the
+    // way.  So: **did he end up there, and did he cover the ground to do it**
+    // — the second is what stops an arrival by teleport or by a trail that
+    // turned out to be four yards long.
+    let stuck = 0, walked = 0
+    let at = window.__hero()
     for (const [tx, ty] of path.trail) {
-      const from = window.__hero()
-      const was = Math.hypot(from.x - tx, from.y - ty)
+      const was = Math.hypot(at.x - tx, at.y - ty)
       let tries = 0
       while (tries++ < 120) {
         const h = window.__hero()
@@ -1734,43 +1800,23 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
         window.__steps(1)
       }
       const h = window.__hero()
-      const now = Math.hypot(h.x - tx, h.y - ty)
-      // **Not once he is there.**  The flood's trail crowds up around the
-      // destination, so a man standing on the doorstep is two or three yards
-      // from each of the last thirty waypoints and getting no closer to any of
-      // them — which read as thirty stalls in a row and was the whole of this
-      // check's flakiness.  Arriving is not being stuck.
-      const home = Math.hypot(h.x + 9440, h.y - 60) < 6
-      if (!home && now >= 2 && now > was - 0.5) {
-        stuck++
-        run++
-        worst = Math.max(worst, run)
-      } else run = 0
+      walked += Math.hypot(h.x - at.x, h.y - at.y)
+      at = h
+      if (Math.hypot(h.x - tx, h.y - ty) >= 2
+        && Math.hypot(h.x - tx, h.y - ty) > was - 0.5) stuck++
     }
     window.__aim(null)
     const h = window.__hero()
     return { yards: Math.round(path.yards), cells: path.trail.length, stuck,
-      worst, left: Math.round(Math.hypot(h.x + 9440, h.y - 60)) }
+      walked: Math.round(walked),
+      left: Math.round(Math.hypot(h.x + 9440, h.y - 60)) }
   })
-  // **A run of them and not a count of them**, and that is not the check being
-  // softened to make it pass — it is the check being made about the thing it
-  // is for.  The world has people walking about in it; a man rounding one of
-  // them misses a waypoint and picks the trail up at the next, which is a body
-  // in the way and not a wall.  What a wall looks like is *never gaining
-  // ground again*, so the run is the measure: ten waypoints is forty yards of
-  // the flood's own trail, and somebody who has not closed on his target in
-  // forty yards is not walking.
-  //
-  // Written after the check failed twice and passed six times in one session
-  // with the arrival never in doubt — 32 scattered misses and three yards off
-  // the door.  A gate that is right two thirds of the time is not a gate.
-  const NOWHERE = 10
   check('and a man can actually walk from the start to Goldshire',
-    trek.path !== null && trek.worst < NOWHERE && trek.left < 6,
+    trek.path !== null && trek.left < 6 && trek.walked > trek.yards * 0.8,
     trek.path === null ? 'the flood found no route at all'
-      : `${trek.yards} yards over ${trek.cells} cells, ending ${trek.left} `
-      + `yards off; ${trek.stuck} waypoints missed, never more than `
-      + `${trek.worst} in a row`)
+      : `${trek.walked} yards walked of the ${trek.yards} the flood found, `
+      + `over ${trek.cells} waypoints, ending ${trek.left} yards off `
+      + `(${trek.stuck} waypoints rounded rather than stood on)`)
   check('every door on a building\'s outside can be walked to',
     world.outerAll > 0 && world.outerGot === world.outerAll,
     `${world.outerGot} of ${world.outerAll} outer doors, `

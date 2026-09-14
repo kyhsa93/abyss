@@ -157,7 +157,18 @@ type Meta = {
 }
 type Piece = { x: number; y: number; w: number; h: number; kind: string }
 /** One kind's block of cells in the NPC atlas. */
-type Frames = { first: number; frames: number; people: boolean; yards?: number
+/**
+ * One kind's row of the creature atlas.
+ *
+ * `y` is where that row starts, `rows` is how tall the kind actually is, and
+ * `top` is how far down the old 64-pixel cell its own box began — which is
+ * what puts the picture back on the ground line at the far end.  It was
+ * `first` and a flat 18-column grid of 64-pixel cells until the sheet was
+ * measured: **19,816 of its 59,904 cell rows were transparent**, because a
+ * chicken is sixteen rows tall and was being stored in sixty-four.
+ */
+type Frames = { y: number; rows: number; top: number
+  frames: number; people: boolean; yards?: number
   /** A layer that goes on a person rather than being one — see `WEAPONS`. */
   weapon?: boolean }
 
@@ -171,7 +182,7 @@ type Art = {
 }
 
 type NpcArt = {
-  cell: number; cols: number; anchor: number
+  cell: number; anchor: number
   kinds: Record<string, Frames>
 }
 /** The drawn player: four poses, clips by name, one sheet. */
@@ -1008,13 +1019,19 @@ async function main() {
     waterfall: { pieces: ['waterfall'], yards: 4, cap: 6 },
     // Not drawn here at all: fireflies are light.  See the night pass.
     firefly: { pieces: [] },
-    barrel: { pieces: ['barrel', 'barrel2', 'barrel3', 'barrel4', 'barrels'], solid: 0.4 },
+    barrel: {
+      pieces: ['barrel', 'barrel2', 'barrel3', 'barrel4', 'barrels',
+        'barrels2', 'barrels3'],
+      solid: 0.4,
+    },
     // `prop` is the client's word for the furniture of a yard, and 301 of them
     // were one grey blob.  A yard has firewood, sacks, crates and a stall in
     // it, and which one is decided the same way a tree's species is.
     prop: {
       pieces: ['crate', 'sack', 'sacks', 'basket', 'baskets', 'basket2',
-        'baskets2', 'firewood', 'firewood2', 'woodpile', 'anvil', 'hay', 'stall'],
+        'baskets2', 'firewood', 'firewood2', 'woodpile', 'anvil', 'hay',
+        'stall', 'sacks3', 'chest2', 'barrels2', 'barrels3', 'clock',
+        'sidetable', 'tray', 'plates', 'bottles', 'pot_blue', 'lantern'],
       solid: 0.45,
     },
     // Thirteen carts stood in the client's world and none of them were drawn:
@@ -1034,19 +1051,32 @@ async function main() {
     // of them in the slice were dropped without a word — the silent half of
     // the same mistake the market stalls were the loud half of.
     campfire: { pieces: ['firewood', 'firewood2'] },
-    bones: { pieces: ['rubble', 'scatter'] },
-    lamp: { pieces: ['fence_post'] },
+    // Indoors, out of `Interior.png` — a sheet of the same LPC set that had
+    // never been opened until issue 198 counted models against pictures.  A
+    // skull is a skull; two pieces of rubble were what the word had before.
+    bones: { pieces: ['skull', 'rubble', 'scatter'] },
+    lamp: { pieces: ['lamp', 'lamp2', 'lamp3', 'lamp4', 'lantern', 'lantern2'] },
     // What stands inside a building, which until now was two thirds skipped:
     // the roof came off the abbey and what was under it was a tiled floor
     // with nothing on it.  The pictures are Lanea Zimmerman's, out of the
     // same folder the water and the bridges already come from.
-    shelf: { pieces: ['shelf', 'shelf2'], solid: 0.4 },
-    cabinet: { pieces: ['cabinet', 'cabinet2'], solid: 0.4 },
-    keg: { pieces: ['keg', 'keg2'], solid: 0.4 },
-    bed: { pieces: ['sack', 'sacks'], solid: 0.3 },
+    shelf: {
+      pieces: ['shelf', 'shelf2', 'bookcase', 'china_case', 'china_case2'],
+      solid: 0.4,
+    },
+    cabinet: {
+      pieces: ['cabinet', 'cabinet2', 'cupboard', 'drawers', 'chest2'],
+      solid: 0.4,
+    },
+    keg: { pieces: ['keg', 'keg2', 'barrels2', 'barrels3'], solid: 0.4 },
+    bed: { pieces: ['sack', 'sacks', 'sacks3'], solid: 0.3 },
     // Two thirds of a yard, because that is what a stein is.  Left at the
     // picture's own size a bottle on a table was a barrel beside it.
-    crockery: { pieces: ['barrel2', 'barrel3', 'basket', 'basket2'], yards: 0.7 },
+    crockery: {
+      pieces: ['barrel2', 'barrel3', 'basket', 'basket2', 'pot_blue',
+        'bottles', 'china', 'plates', 'plates2', 'tray'],
+      yards: 0.7,
+    },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
     house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'], solid: 'building' },
@@ -1345,10 +1375,13 @@ async function main() {
     scratch.width = scratch.height = c
     const sc = scratch.getContext('2d', { willReadFrequently: true })!
     for (const [kind, a] of Object.entries(npcArt.kinds)) {
-      const idx = a.first + DIR_DOWN * a.frames
+      // One row of the atlas a kind, at the kind's own height.  A frame's
+      // index is its place in that row, and `top` is how far back up the
+      // 64-pixel cell its own box started — so the picture goes back where it
+      // was without the sheet carrying the air.
+      const idx = DIR_DOWN * a.frames
       sc.clearRect(0, 0, c, c)
-      sc.drawImage(npcImg, (idx % npcArt.cols) * c, Math.floor(idx / npcArt.cols) * c,
-        c, c, 0, 0, c, c)
+      sc.drawImage(npcImg, idx * c, a.y, c, a.rows, 0, a.top, c, a.rows)
       const px = sc.getImageData(0, 0, c, c).data
       let top = c
       for (let y = 0; y < c && top === c; y++)
@@ -5580,12 +5613,16 @@ async function main() {
     g.clearRect(0, 0, side, side)
     // Facing down, standing still: `dir` 0 is towards the camera and frame 0
     // is the one a creature is drawn in when it is not walking.
-    const idx = a.first
     // The top half of the cell, which is a head on anything drawn upright and
-    // the front of anything that is not.
+    // the front of anything that is not.  Measured against the 64-pixel cell
+    // as it always was and then moved on to the kind's own row, so a chicken's
+    // portrait is still a chicken's head and not its whole body.
     const cut = c * 0.62
-    g.drawImage(npcImg, (idx % npcArt.cols) * c + (c - cut) / 2,
-      Math.floor(idx / npcArt.cols) * c + c * 0.06, cut, cut, 0, 0, side, side)
+    const wantY = c * 0.06
+    const fromY = Math.max(a.y, a.y + wantY - a.top)
+    const tall = Math.max(1, Math.min(cut, a.y + a.rows - fromY))
+    g.drawImage(npcImg, (c - cut) / 2, fromY, cut, tall,
+      0, 0, side, (side * tall) / cut)
     foeFrom = n.art
     return foeCanvas
   }
@@ -7426,9 +7463,9 @@ async function main() {
       const from0 = a.people ? 1 : 0
       const span = Math.max(1, a.frames - from0)
       const f = n.moving ? from0 + (Math.floor(n.t * 8) % span) : 0
-      const idx = a.first + n.dir * a.frames + f
+      const idx = n.dir * a.frames + f
       const c = npcArt.cell
-      const sxp = (idx % npcArt.cols) * c, syp = Math.floor(idx / npcArt.cols) * c
+      const sxp = idx * c, syp = a.y
       const w = c * zoom
       // Sized off the art, like the prompt over their head: a chicken casts a
       // chicken's worth of shade.
@@ -7466,12 +7503,15 @@ async function main() {
       const armBg = n.arm ? npcArt.kinds[`${n.arm}.bg`] : undefined
       const layer = (k: Frames | undefined) => {
         if (!k) return
-        const i = k.first + n.dir * k.frames + f
-        ctx.drawImage(npcImg, (i % npcArt.cols) * c,
-          Math.floor(i / npcArt.cols) * c, c, c, X, Y, Math.ceil(w), Math.ceil(w))
+        const i = n.dir * k.frames + f
+        ctx.drawImage(npcImg, i * c, k.y, c, k.rows,
+          X, Y + Math.round(k.top * zoom), Math.ceil(w),
+          Math.ceil(k.rows * zoom))
       }
       layer(armBg)
-      ctx.drawImage(npcImg, sxp, syp, c, c, X, Y, Math.ceil(w), Math.ceil(w))
+      ctx.drawImage(npcImg, sxp, syp, c, a.rows,
+        X, Y + Math.round(a.top * zoom), Math.ceil(w),
+        Math.ceil(a.rows * zoom))
       layer(arm)
       if (n.alpha * fade < 1) ctx.globalAlpha = 1
       // A bar, only while it matters: something you are fighting, or something

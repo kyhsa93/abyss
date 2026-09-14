@@ -91,6 +91,12 @@ ROOTS = {
 SHEETS = {
     'Terrain and Outside.png': 'tiles',
     'Outside Objects.png': 'tiles',
+    # The third sheet of the same set, and it had never been opened.  Every
+    # indoor word this game has — a cabinet, a shelf, a bed, a lamp, the
+    # crockery on a table — was being drawn out of the two outdoor sheets or
+    # not at all: fifteen cabinet models in the client against two pictures
+    # here, fifteen lamps against one.  See issue 198.
+    'Interior.png': 'tiles',
     'water.png': 'base',
     'bridges.png': 'base',
     'roofs-preview.png': 'roofs',
@@ -381,6 +387,49 @@ OBJECTS = [
     # than cut down to a 32 pixel cell: these are the shrubs, not the trees.
     ('shrub',      'Outside Objects.png', 194,   0, 94, 80, 'sharm'),
     ('shrub2',     'Outside Objects.png', 290,  16, 94, 80, 'sharm'),
+
+    # --- indoors, out of the third sheet nobody had opened -----------------
+    #
+    # Issue 198 counted the client's models against our pictures and the worst
+    # of it was all indoor: fifteen cabinets to two, fifteen lamps to one,
+    # twenty pieces of crockery to four.  `Interior.png` is the answer and it
+    # was not in `SHEETS`.
+    #
+    # Boxes are 32-aligned and generous: the objects on this sheet are drawn
+    # one to a cell and `trim` cuts each piece back to its own outline, so a
+    # box that is a little large costs nothing and a box that is a little small
+    # takes a leg off.  `tiles-contact.png` is what says which happened.
+    #
+    # Sharm drew all of these — the attribution document names the
+    # bookshelves, the cabinets above them, the china, the flower vases, the
+    # candle-holders, the grandfather clock and the skeletons — except where
+    # a line below says otherwise.
+    ('clock',      'Interior.png',  736, 160, 32, 32, 'sharm'),
+    ('cupboard',   'Interior.png',  640, 208, 32, 48, 'sharm'),
+    ('bookcase',   'Interior.png',  672, 208, 32, 48, 'sharm'),
+    ('china_case', 'Interior.png',  704, 208, 32, 48, 'sharm'),
+    ('china_case2', 'Interior.png', 736, 208, 32, 48, 'sharm'),
+    ('drawers',    'Interior.png',  768, 208, 32, 48, 'sharm'),
+    ('pot_blue',   'Interior.png',  800, 200, 32, 32, 'sharm'),
+    ('sacks3',     'Interior.png',  832, 192, 32, 32, 'sharm'),
+    ('chest2',     'Interior.png',  640, 256, 64, 40, 'sharm'),
+    ('bottles',    'Interior.png',  928, 224, 32, 32, 'sharm'),
+    ('china',      'Interior.png',  992, 224, 32, 32, 'sharm'),
+    ('barrels2',   'Interior.png',  608, 256, 48, 64, 'sharm'),
+    ('barrels3',   'Interior.png',  656, 256, 48, 56, 'sharm'),
+    ('lamp',       'Interior.png',  960, 288, 32, 32, 'sharm'),
+    ('lamp2',      'Interior.png',  992, 288, 32, 32, 'sharm'),
+    ('lamp3',      'Interior.png',  960, 320, 32, 32, 'sharm'),
+    ('lamp4',      'Interior.png',  992, 320, 32, 32, 'sharm'),
+    ('lantern',    'Interior.png',  768, 352, 32, 32, 'sharm'),
+    ('lantern2',   'Interior.png',  800, 352, 32, 32, 'sharm'),
+    ('plates',     'Interior.png',  576, 320, 32, 32, 'sharm'),
+    ('plates2',    'Interior.png',  608, 320, 32, 32, 'sharm'),
+    ('tray',       'Interior.png',  640, 320, 32, 32, 'sharm'),
+    ('sidetable',  'Interior.png',  960, 352, 32, 32, 'sharm'),
+    # Commissioned by William Thompsonj and drawn by Sharm, which the
+    # attribution document says in a paragraph of its own.
+    ('skull',      'Interior.png',  704, 384, 32, 32, 'sharm'),
 ]
 
 
