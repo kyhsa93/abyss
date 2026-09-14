@@ -35,7 +35,7 @@ import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
 import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, RANK_WORD, SIDE_WORD, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
-import { hud as makeHud, type Layout, type ShopRow, type Slot } from './hud.ts'
+import { hud as makeHud, type Layout, type ShopRow, type Slot, type Worn } from './hud.ts'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
   short, take, walked, wants, type Errand,
@@ -4575,11 +4575,33 @@ async function main() {
    * `check_recipes` are what make that true — and when they ever do not, the
    * bag says something rather than `물건 766`.
    */
-  const intoBag = (item: number, many: number, word: string): string => {
+  const intoBag = (item: number, many: number, word: string): Said => {
     const key = String(item)
     you.bag[key] = (you.bag[key] ?? 0) + many
     const it = itemOf(item)
-    return `${goodsOf(it ? (it[I_WORD] as string) : word)} ${many}`
+    const text = `${goodsOf(it ? (it[I_WORD] as string) : word)} ${many}`
+    return [it ? [text, tintOf(it)] as [string, string] : text]
+  }
+
+  /**
+   * What came off something, as pieces that may carry a colour.
+   *
+   * `[text, colour]` where the thing has a quality and a bare string where it
+   * has not — **the moment a thing falls is the one moment a player meets it
+   * for the first time**, and the colour was on the shelf, on the sheet and
+   * in the bag, and not there.
+   *
+   * One list and not two: the plain sentence is `flat()` of this, so the
+   * float over the corpse and the line in the log cannot come to say
+   * different things.
+   */
+  type Said = (string | [string, string])[]
+  const flat = (parts: Said): string =>
+    parts.map((b) => (typeof b === 'string' ? b : b[0])).join('')
+  const joined = (bits: Said[]): Said => {
+    const out: Said = []
+    bits.forEach((b, i) => { if (i) out.push(', '); out.push(...b) })
+    return out
   }
 
   /**
@@ -4682,6 +4704,37 @@ async function main() {
     (rep ?? []).filter(([f]) => SIDE_WORD[f])
       .map(([f, n]) => `, ${SIDE_WORD[f]} +${n}`).join('')
 
+  /**
+   * The thirteen squares, grouped the way the original groups them.
+   *
+   * The order and the side come off `layout.json` and not out of this file:
+   * `PaperDollFrame.xml` states them and `pipeline/layout.py` reads them.
+   * Without a client the shipped list is empty, and then it falls back to the
+   * one order this game has of its own — which is a list, and says so.
+   */
+  const wornSquares = (): Worn => {
+    const one = (slot: string): [string, string, string, string] => {
+      const id = gear[slot]
+      const it = id !== undefined ? itemOf(id) : null
+      return [SLOT_WORD[slot] ?? slot,
+        it ? iconFor(it) : (art.slots[slot] ?? ''),
+        it ? tintOf(it) : '',
+        it ? `${describe(it)} — ${detail(it)}` : '']
+    }
+    const doll = (layout?.spec?.doll ?? {}) as Record<string, string[]>
+    const known = new Set([...(doll['left'] ?? []), ...(doll['right'] ?? []),
+      ...(doll['bottom'] ?? [])])
+    // Anything the original has a place for that this game grew later lands
+    // in the left column rather than nowhere — a square that exists and is not
+    // drawn is the shape this repository keeps finding.
+    const spare = SLOTS.filter((s2) => !known.has(s2))
+    return {
+      left: [...(doll['left'] ?? SLOTS.slice()), ...spare].map(one),
+      right: (doll['right'] ?? []).map(one),
+      bottom: (doll['bottom'] ?? []).map(one),
+    }
+  }
+
   /** "66 회복, 6초" — what pressing a thing in the bag would do. */
   const useWord = (use: [string, number, number]): string => {
     const [word, total, seconds] = use
@@ -4778,7 +4831,7 @@ async function main() {
    * to a player and one fewer list to keep: nothing is carrying loot until
    * somebody looks.
    */
-  const loot = (n: Npc): string => {
+  const loot = (n: Npc): Said => {
     if (n.looted && n.hide && !n.skinned) {
       // **And what it asks for was found in the end.**  A herb and a vein
       // state their own requirement — `Lock.dbc` gives a number per node —
@@ -4791,27 +4844,27 @@ async function main() {
       // `Spell::EffectSkinning` (SpellEffects.cpp:4914) is the line that
       // actually decides it and it asks **nothing below level ten**, then
       // climbs in tens.  So the gate is openable after all — see `skinAsks`.
-      if (!can(SKINNING)) return `${TRADE_WORD[SKINNING]}을(를) 배워야 한다`
+      if (!can(SKINNING)) return [`${TRADE_WORD[SKINNING]}을(를) 배워야 한다`]
       const asks = skinAsks(n.level)
       if (rankIn(SKINNING) < asks)
-        return `${TRADE_WORD[SKINNING]} ${asks} 필요`
+        return [`${TRADE_WORD[SKINNING]} ${asks} 필요`]
       n.skinned = true
-      const off: string[] = []
+      const off: Said[] = []
       for (const row of n.hide[2]) {
         const [idx, chance, clo, chi, , item] = row as number[]
         if (roll() * 100 >= chance!) continue
         off.push(intoBag(item!, between(clo!, chi!), GOODS[idx!] ?? 'oddment'))
       }
-      off.push(...rise(SKINNING))
+      off.push(...rise(SKINNING).map((t) => [t] as Said))
       if (off.length) play('loot')
-      return off.join(', ')
+      return joined(off)
     }
     n.looted = true
-    if (!n.haul) return '아무것도 없다'
+    if (!n.haul) return ['아무것도 없다']
     const [lo, hi, items] = n.haul
-    const got: string[] = []
+    const got: Said[] = []
     const copper = between(lo, hi)
-    if (copper > 0) { you.purse += copper; got.push(coin(copper)) }
+    if (copper > 0) { you.purse += copper; got.push([coin(copper)]) }
     for (const row of items) {
       const [idx, chance, clo, chi, , item, need] = row as number[]
       // What `conditions` says has to be true first.  A quest item that falls
@@ -4825,7 +4878,7 @@ async function main() {
       // also be cooked.
       got.push(intoBag(item!, between(clo!, chi!), GOODS[idx!] ?? 'oddment'))
     }
-    return got.length ? got.join(', ') : '아무것도 없다'
+    return got.length ? joined(got) : ['아무것도 없다']
   }
 
   /**
@@ -4853,23 +4906,23 @@ async function main() {
    * from scenery into the reason to walk about — earthroot wants fifteen and
    * you get there by pulling fifteen peacebloom.
    */
-  const gather = (n: Node): string => {
+  const gather = (n: Node): Said => {
     if (n.trade && !can(n.trade))
-      return `${TRADE_WORD[n.trade] ?? n.trade}을(를) 배워야 한다`
+      return [`${TRADE_WORD[n.trade] ?? n.trade}을(를) 배워야 한다`]
     if (n.trade && rankIn(n.trade) < n.skill)
-      return `${TRADE_WORD[n.trade] ?? n.trade} ${n.skill} 필요`
+      return [`${TRADE_WORD[n.trade] ?? n.trade} ${n.skill} 필요`]
     n.up = false
     n.due = clock + Math.max(5, n.back)
-    const got: string[] = []
+    const got: Said[] = []
     for (const row of n.haul) {
       const [word, chance, lo, hi, , item] =
         row as [string, number, number, number, number, number]
       if (roll() * 100 >= chance) continue
       got.push(intoBag(item, between(lo, hi), word))
     }
-    if (n.trade) got.push(...rise(n.trade))
+    if (n.trade) got.push(...rise(n.trade).map((t) => [t] as Said))
     if (got.length) play('loot')
-    return got.length ? got.join(', ') : '아무것도 없다'
+    return got.length ? joined(got) : ['아무것도 없다']
   }
 
   /**
@@ -5177,16 +5230,28 @@ async function main() {
    * times the size because a 64-pixel man is a thumbnail.
    */
   const meCanvas = document.createElement('canvas')
-  const paintMe = () => {
+  /**
+   * And the same sprite for the character sheet.
+   *
+   * A second canvas rather than a second painter: the screen that makes a
+   * character and the panel that describes one are looking at the same man,
+   * and two ways of drawing him is how the two come to disagree.  Issue 184
+   * shelved the *composed* paperdoll — the layer sheets, which cannot draw
+   * trousers — and this is not that: it is the picture the player has been
+   * looking at all game, already open, in the middle of the squares that say
+   * what is on it.
+   */
+  const sheetCanvas = document.createElement('canvas')
+  const paintMe = (into = meCanvas, hair = makeHair, beard = makeBeard,
+    k = 3) => {
     const c = heroMeta.cell, rowH = heroMeta.row ?? c, lid = heroMeta.body?.top ?? 0
-    const k = 3
-    meCanvas.width = c * k
-    meCanvas.height = c * k
-    const g = meCanvas.getContext('2d')!
+    into.width = c * k
+    into.height = c * k
+    const g = into.getContext('2d')!
     g.imageSmoothingEnabled = false
-    g.clearRect(0, 0, meCanvas.width, meCanvas.height)
+    g.clearRect(0, 0, into.width, into.height)
     const clip = heroMeta.clips['idle'] ?? heroMeta.clips['walk']
-    if (!clip) return meCanvas
+    if (!clip) return into
     // Facing the camera, which is LPC's third row, and the first frame of it.
     const idx = clip.first + 2 * clip.count
     const sx = (idx % heroMeta.cols) * c
@@ -5202,9 +5267,9 @@ async function main() {
     if (heroImg.complete && heroImg.naturalWidth) {
       g.drawImage(heroImg, sx, sy, c, rowH, 0, lid * k, c * k, rowH * k)
     }
-    put(makeBeard ? `beard-${makeBeard}` : null)
-    put(`hair-${makeHair}`)
-    return meCanvas
+    put(beard ? `beard-${beard}` : null)
+    put(`hair-${hair}`)
+    return into
   }
 
   const drawCreate = () => {
@@ -5965,15 +6030,15 @@ async function main() {
    * moves and the grey ones are where it stops — and that, rather than a
    * number on a screen, is the decision the crafting list is made of.
    */
-  const makeOne = (r: Recipe): string => {
+  const makeOne = (r: Recipe): Said => {
     const at = you.trades[String(r[R_SKILL])]
-    if (!at) return '배우지 않은 기술이다'
+    if (!at) return ['배우지 않은 기술이다']
     if (at[0] < r[R_RANK])
-      return `${TRADE_WORD[r[R_SKILL]] ?? ''} ${r[R_RANK]} 필요`
+      return [`${TRADE_WORD[r[R_SKILL]] ?? ''} ${r[R_RANK]} 필요`]
     const missing = lacking(r[R_NEEDS], you.bag)
     if (missing.length) {
       const it = itemOf(missing[0]![0])
-      return `${it ? describe(it) : `물건 ${missing[0]![0]}`} ${missing[0]![1]} 모자란다`
+      return [`${it ? describe(it) : `물건 ${missing[0]![0]}`} ${missing[0]![1]} 모자란다`]
     }
     for (const [item, many] of r[R_NEEDS]) {
       const key = String(item)
@@ -5984,14 +6049,14 @@ async function main() {
     const made = itemOf(r[R_MAKES])
     const got = intoBag(r[R_MAKES], r[R_COUNT], made
       ? (made[I_WORD] as string) : 'oddment')
-    const said = [got]
+    const said: Said[] = [got]
     if (at[0] < at[1]
       && roll() * 1000 < riseChance(at[0], r[R_YELLOW], r[R_GREY])) {
       at[0] += 1
-      said.push(`${TRADE_WORD[r[R_SKILL]] ?? ''} ${at[0]}`)
+      said.push([`${TRADE_WORD[r[R_SKILL]] ?? ''} ${at[0]}`])
     }
     play('loot')
-    return said.join(', ')
+    return joined(said)
   }
 
   /**
@@ -6728,16 +6793,16 @@ async function main() {
     const body = corpse()
     if (body) {
       const got = loot(body)
-      say(body.x, body.y, got, true)
-      ui.log(`${nameOf(body.kind)}에게서 ${got}`, 'gain')
+      say(body.x, body.y, flat(got), true)
+      ui.log([`${nameOf(body.kind)}에게서 `, ...got], 'gain')
       return
     }
     // And whatever is growing or standing there, for the same reason.
     const thing = atHand()
     if (thing && !inReach()) {
       const got = gather(thing)
-      say(thing.x, thing.y, got, true)
-      ui.log(`${nameOf(thing.kind)} — ${got}`, 'gain')
+      say(thing.x, thing.y, flat(got), true)
+      ui.log([`${nameOf(thing.kind)} — `, ...got], 'gain')
       return
     }
     const n = inReach()
@@ -8795,19 +8860,16 @@ async function main() {
      * portrait comes from if the layers go too is the second half of 184, and
      * it is written down in the wiki rather than decided here.
      */
-    ], undefined,
-    // And the thirteen squares, empty ones included.  What is worn rather
-    // than which squares are full, which is what this said before — and with
-    // no item names in this game a word could never have said the difference.
-    SLOTS.map((slot) => {
-      const id = gear[slot]
-      const it = id !== undefined ? itemOf(id) : null
-      return [SLOT_WORD[slot] ?? slot,
-        it ? iconFor(it) : (art.slots[slot] ?? ''),
-        it ? tintOf(it) : '',
-        it ? `${describe(it)} — ${detail(it)}` : ''] as
-        [string, string, string, string]
-    }))
+    ],
+    // The man himself, between the two columns.  `me` is nought before a
+    // character has been made, and the sheet is not reachable then.
+    me ? paintMe(sheetCanvas, me.hair ?? 'plain', me.beard ?? '', 2) : undefined,
+    // And the thirteen squares, empty ones included, **in the shape the
+    // original lays them out in** — see `doll_columns` in `layout.py`.  What
+    // is worn rather than which squares are full, which is what this said
+    // before, and with no item names in this game a word could never have
+    // said the difference.
+    wornSquares())
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
     ui.setBag(bagOpen, coin(you.purse),
       Object.entries(you.bag)
@@ -8822,8 +8884,9 @@ async function main() {
           return [goodsOf(word), n,
             coin(((it?.[I_SELL] as number) ?? 0) * n),
             art.goods[`${word}|`] ?? '',
-            use ? useWord(use) : '', Number(id)] as
-            [string, number, string, string, string, number]
+            use ? useWord(use) : '', Number(id),
+            it ? tintOf(it) : ''] as
+            [string, number, string, string, string, number, string]
         })
         .sort((a, b) => b[1] - a[1]),
       (id) => ui.log(useItem(id), 'gain'))
@@ -9288,7 +9351,7 @@ async function main() {
     const r = rows.find((x) => x[R_SPELL] === spell)
     if (!r) return { said: '모르는 조리법' }
     const before = { ...you.bag }
-    return { said: makeOne(r), before, after: { ...you.bag },
+    return { said: flat(makeOne(r)), before, after: { ...you.bag },
              at: tradesNow()[String(skill)] ?? null }
   }
   /**
@@ -9491,7 +9554,7 @@ async function main() {
         .sort((a, b) => b.skill - a.skill)
       if (!want.length || !want[0]!.skill) return null
       const n = want[0]!
-      return { skill: n.skill, got: gather(n), up: n.up }
+      return { skill: n.skill, got: flat(gather(n)), up: n.up }
     }
   ;(window as unknown as { __take: (kind: string) => unknown }).__take = (kind) => {
     // The easiest standing one, which is the one a new player meets: the
@@ -9503,7 +9566,7 @@ async function main() {
     placeHero(n.x - 1, n.y)
     camX = hero.x; camY = hero.y
     const before = tradesNow()
-    const got = gather(n)
+    const got = flat(gather(n))
     return { kind, trade: n.trade, skill: n.skill, got, before,
       after: tradesNow(), up: n.up, due: n.due }
   }
@@ -9532,6 +9595,71 @@ async function main() {
    * `__cam` will not do for the check that guards this: it calls `placeHero`
    * twice, once an axis, which is two landings and not one.
    */
+  /**
+   * Hand him something wearable he has not got on, for the check that the
+   * sheet's picture does not change when the squares do.
+   *
+   * Out of the shipped shelf rather than an invented row: a check that dresses
+   * a character in an item this world does not have is dressing somebody else.
+   */
+  /**
+   * Open a shopkeeper's window without walking there, and take what falls off
+   * the nearest body — both for the checks that read the *colour* on the
+   * glass rather than the call that put it there.
+   *
+   * Through `openShop` and `loot`, which are the paths a player takes: a check
+   * that builds its own rows is reading its own copy, which is how `__buy`
+   * once bought past a limited shelf.
+   */
+  ;(window as unknown as { __openShopAt: (entry: number) => unknown })
+    .__openShopAt = (entry) => {
+      const who = npcs.find((n) => n.entry === entry)
+      if (!who) return null
+      openShop(who)
+      return { kind: who.kind, rows: shelf.stock?.[String(entry)]?.length ?? 0 }
+    }
+  ;(window as unknown as { __lootNearby: () => unknown }).__lootNearby = () => {
+    // **Until something actually falls.**  A haul is a roll, so the first body
+    // is often empty — and a check that reads a colour off a line saying
+    // `아무것도 없다` is reading whatever was in the log before it.
+    for (let tries = 0; tries < 40; tries++) {
+      let at = npcs.find((n) => n.dead && !n.looted && n.haul?.[2]?.length)
+      if (!at) {
+        const foe = npcs.find((n) => !n.dead && n.fight && n.haul?.[2]?.length)
+        if (!foe) return null
+        foe.hp = 0; foe.dead = clock; foe.looted = false
+        at = foe
+      }
+      placeHero(at.x - 1, at.y)
+      const got = loot(at)
+      const said = flat(got)
+      // Coin is not a thing with a quality on it, so a body that dropped only
+      // money proves nothing about the colour.
+      if (!got.some((b) => Array.isArray(b))) continue
+      ui.log([`${nameOf(at.kind)}에게서 `, ...got], 'gain')
+      return { kind: at.kind, said,
+        tinted: got.filter((b) => Array.isArray(b)).length }
+    }
+    return null
+  }
+  ;(window as unknown as { __giveItem: () => unknown }).__giveItem = () => {
+    // **For a slot he has nothing in**, so putting it on is certain: `dressUp`
+    // only wears an upgrade, and anything beats nothing.  A check that dresses
+    // a character and cannot be sure he got dressed is a check that passes on
+    // an empty change.
+    const empty = SLOTS.filter((s2) => gear[s2] === undefined)
+    for (const slot of empty) {
+      for (const key of Object.keys(shelf.items ?? {})) {
+        const id = Number(key)
+        const it = itemOf(id)
+        if (!it || it[I_SLOT] !== slot) continue
+        if (!canWear(it, you.level, myClass)) continue
+        held.push(id)
+        return { id, slot, had: held.length }
+      }
+    }
+    return null
+  }
   ;(window as unknown as { __put: (x: number, y: number) => unknown })
     .__put = (x, y) => { placeHero(x, y); return { x: hero.x, y: hero.y } }
   /**

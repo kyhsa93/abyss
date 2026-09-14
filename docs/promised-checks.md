@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **106 promises across 14 pages, 85 of them kept.**
+Counted: **114 promises across 15 pages, 85 of them kept.**
 
 `npm run wikicheck` is the gate, and it is deliberately two checks with
 different reaches:
@@ -148,7 +148,7 @@ keeps it honest.
 | 상인 창의 자리와 크기가 `layout.json` 에서 온다 | `scripts/uicheck.mjs: "a shop is the original's window"` |
 | 재고가 열 칸을 넘으면 쪽이 넘어간다 | `scripts/uicheck.mjs: "a shop is the original's window"` |
 | 화면의 글씨 크기가 전부 `spec.font` 에서 나온 값이다 | `scripts/padcheck.mjs: "the phone type is the client's own ladder"` |
-| **정보창에 3D 모델이 없다** | `scripts/viewcheck.mjs: "the character sheet has no paperdoll on it"` |
+| **정보창에 3D 모델이 없다** | `scripts/viewcheck.mjs: "the character sheet does not claim to show what you are wearing"` |
 | 정보창이 입은 것 전부를 보여 준다 | `scripts/viewcheck.mjs: "and shows every slot as a square instead"` |
 | **실내에서 미니맵이 바깥 지형을 안 그린다** | — 실내 미니맵이 아직 없다 (#205) |
 | 실내 미니맵이 지금 층만 그린다 | — 실내 미니맵이 아직 없다 (#205) |
@@ -165,6 +165,19 @@ keeps it honest.
 | 초상이 비어 있지 않고, 장비를 바꾸면 바뀐다 | `scripts/viewcheck.mjs: "and what he is wearing changes the picture"` |
 | 내보낸 숫자에 파일 이름도 문장도 없다 | `scripts/uicheck.mjs: "and what it does not take is written down"` |
 | `shotcheck` 기준을 다시 뜰 때 사람이 본다 | `scripts/shotcheck.mjs: " is a picture of somewhere"` |
+
+## [자동-시전과-주문서](https://github.com/kyhsa93/abyss/wiki/자동-시전과-주문서)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| **자동 공격이 바의 칸을 차지하지 않는다** | — 첫 칸은 아직 조준 단추다 (#222) |
+| 대상이 없고 닿는 곳에 적이 있으면 저절로 대상이 잡힌다 | — (#222) |
+| **자동 시전이 켜져 있으면 바에 올린 것이 실제로 시전된다** | — 지금은 대상만 잡는다 (#224) |
+| 자동 시전이 쓸 수 없는 것을 안 쓴다 (`why(sp) !== null`) | — (#224) |
+| 자동 시전을 켠 쪽이 끈 쪽보다 많이 이긴다 | — `simcheck` 의 4% 대 69%를 화면에서 재는 줄이 없다 (#224) |
+| 주문서의 모든 주문을 창에서 볼 수 있다 | — 창이 없다 (#223) |
+| **바에 놓은 자리가 다시 켜도 그대로다** | — 놓을 수가 없다 (#225) |
+| 전화기와 데스크톱에서 같은 자동 시전이 돈다 | — (#224) |
 
 ## [전화기](https://github.com/kyhsa93/abyss/wiki/전화기)
 

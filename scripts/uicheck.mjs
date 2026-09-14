@@ -717,6 +717,79 @@ for (const [W, H] of SIZES) {
         + `${moved.before.price} -> ${moved.after.price}`)
     }
   }
+  // Quality, which was baked, shipped, and read in three places out of five.
+  //
+  // Issue 157 closed on *"it is baked and never read"* and nobody looked at
+  // the screen afterwards.  353 green items, 34 blue and 8 purple against 976
+  // white ones, and in the original the colour is the first thing you read
+  // about an item — before the name.  **This game ships no names at all**, so
+  // the colour has to do more work here and not less.
+  {
+    const spread = await p.evaluate(async () => {
+      const doc = await (await fetch('./world/items.json')).json()
+      const by = {}
+      for (const v of Object.values(doc.items)) by[v[2]] = (by[v[2]] ?? 0) + 1
+      return by
+    })
+    check('this world has items of more than one quality',
+      Object.keys(spread).length > 1,
+      Object.entries(spread).map(([q, n]) => `${q}:${n}`).join(' '))
+    // Every place an item has a face.  Read as *colours on the glass* rather
+    // than as calls to `tintOf`, because the failure this is for is a panel
+    // that draws the item and forgets the colour — and a grep would not see it.
+    await p.evaluate(() => window.__give({ 2589: 4, 1251: 1, 2302: 1 }))
+    // The bag.
+    await p.keyboard.press('b')
+    await p.waitForTimeout(250)
+    const bagTints = await p.evaluate(() =>
+      [...document.querySelectorAll('#bag li *')]
+        .map((e) => e.style.color).filter(Boolean))
+    await p.keyboard.press('b')
+    check('and the bag shows what quality a thing is',
+      bagTints.length > 0, `${bagTints.length} coloured, e.g. ${bagTints[0]}`)
+    // The character sheet.
+    await p.keyboard.press('c')
+    await p.waitForTimeout(250)
+    const sheetTints = await p.evaluate(() =>
+      [...document.querySelectorAll('#sheet .worn .square:not(.bare) .pic')]
+        .map((e) => e.style.color).filter(Boolean))
+    await p.keyboard.press('c')
+    check('and the character sheet does', sheetTints.length > 0,
+      `${sheetTints.length} coloured`)
+    // The shop, which had it first — and read off the window rather than off
+    // the row builder, for the same reason as the two above.
+    const vendor = await p.evaluate(async () => {
+      const doc = await (await fetch('./world/items.json')).json()
+      const e = Object.keys(doc.stock).find((k) => doc.stock[k].length > 3)
+      return e ? Number(e) : null
+    })
+    if (vendor !== null) {
+      await p.evaluate((v) => window.__openShopAt?.(v), vendor)
+      await p.waitForTimeout(250)
+      const shopTints = await p.evaluate(() =>
+        [...document.querySelectorAll('#shop li .pic')]
+          .map((e) => e.style.color).filter(Boolean))
+      check('and a shop row does', shopTints.length > 0,
+        `${shopTints.length} of the rows carry a colour`)
+    }
+    // And the log, which is the one place a thing is met for the first time:
+    // the moment it falls.
+    const fell = await p.evaluate(() => {
+      const got = window.__lootNearby?.()
+      return got
+    })
+    await p.waitForTimeout(200)
+    // Matched on the text that just fell, not on "some span somewhere is
+    // coloured": the log holds seven lines and one of the others could have
+    // put a colour there.
+    const logTints = await p.evaluate((said) =>
+      [...document.querySelectorAll('#log div span')]
+        .filter((e) => e.style.color && said.includes(e.textContent))
+        .map((e) => `${e.textContent}:${e.style.color}`), fell?.said ?? '')
+    check('and the line that says a thing just fell does',
+      !!fell && fell.tinted > 0 && logTints.length >= fell.tinted,
+      `${logTints.join(' ')} — ${JSON.stringify(fell)}`)
+  }
   await p.close()
 }
 

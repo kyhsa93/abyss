@@ -45,6 +45,21 @@ export type Unit = {
  * nothing in it, which is what the bar looks like before you have learned
  * anything — the twelve are always there and most of them are always empty.
  */
+/**
+ * The thirteen squares, in the shape the original lays them out in.
+ *
+ * Three lists rather than one, because the shape *is* the information: which
+ * side a slot is on and how far down it is say where it goes on a body.  See
+ * `doll_columns` in `pipeline/layout.py`, which reads the order out of
+ * `PaperDollFrame.xml`.
+ */
+export type Worn = {
+  /** `[our word for the slot, picture, quality colour, what it is]`. */
+  left: [string, string, string, string][]
+  right: [string, string, string, string][]
+  bottom: [string, string, string, string][]
+}
+
 export type Slot = {
   key: string
   label: string
@@ -198,6 +213,14 @@ export type Layout = {
      * `create` above.
      */
     pick?: Record<string, number | number[]>
+    /**
+     * Which of the thirteen squares go down the left, down the right, and
+     * along the bottom — `PaperDollFrame.xml`, read by `doll_columns`.
+     *
+     * Our words, their order.  Six of the original's nineteen are not in it
+     * because no item in this slice goes in them.
+     */
+    doll?: Record<string, string[]>
     unread: string[]
   }
   /** Which races and classes there are, and which pairs are legal. */
@@ -258,6 +281,17 @@ function pin(node: HTMLElement, b: Box | undefined, s: number) {
   if (at.includes('TOP')) node.style.top = `${Math.round(b.y * s)}px`
   else if (at.includes('BOTTOM')) node.style.bottom = `${Math.round(b.y * s)}px`
   else node.style.top = `${Math.round((384 + b.y) * s)}px`
+}
+
+/** One square of the paperdoll: a picture in its quality's colour, or empty. */
+function square(into: HTMLElement, row: [string, string, string, string]) {
+  const [slot, icon, tint, what] = row
+  const box = el('div', 'square', into)
+  box.title = what ? `${slot} — ${what}` : `${slot} — 비어 있다`
+  if (!what) box.classList.add('bare')
+  const p = el('span', 'pic', box)
+  p.style.setProperty('--pic', `url(./art/ui/${icon})`)
+  if (tint) p.style.color = tint
 }
 
 export function hud(layout?: Layout) {
@@ -552,7 +586,7 @@ export function hud(layout?: Layout) {
      * cannot be used is the shape of bug this repository keeps finding.
      */
     setBag(open: boolean, purse: string,
-      items: [string, number, string, string, string, number][],
+      items: [string, number, string, string, string, number, string][],
       use: (id: number) => void) {
       bagPanel.hidden = !open
       if (!open) return
@@ -565,14 +599,20 @@ export function hud(layout?: Layout) {
         el('li', 'empty', bagList).textContent = '비어 있다'
         return
       }
-      for (const [word, many, worth, icon, does, id] of items) {
+      for (const [word, many, worth, icon, does, id, tint] of items) {
         const li = el('li', does ? 'usable' : '', bagList)
         const what = el('span', 'what', li)
         if (icon) {
           const p = el('span', 'pic', what)
           p.style.setProperty('--pic', `url(./art/ui/${icon})`)
+          // The quality, where the player actually keeps the thing.  It was on
+          // the shelf and on the sheet and not in the bag, so a green drop
+          // looked exactly like the 976 white ones the moment it was picked up.
+          if (tint) p.style.color = tint
         }
-        what.append(document.createTextNode(word))
+        const name = el('span', '', what)
+        name.textContent = word
+        if (tint) name.style.color = tint
         el('span', 'many', li).textContent = `${many}`
         if (does) li.onclick = () => use(id)
         li.onmouseenter = () => {
@@ -938,9 +978,31 @@ export function hud(layout?: Layout) {
      * is a log nobody reads, and the ten most recent lines are the ones that
      * are still about what you are doing.
      */
-    log(text: string, kind: 'hit' | 'hurt' | 'gain' | 'note') {
+    /**
+     * A line of what just happened.
+     *
+     * `text` may be pieces rather than a string, and a piece may carry a
+     * colour: `['주웠다: ', ['가죽 2', '#6fc25b']]`.  That exists because the
+     * one place a player meets an item for the first time is the moment it
+     * falls, and until now the line said `가죽 2` in the same grey as
+     * everything else — the quality was baked, shipped, coloured in three
+     * panels and not in the one that matters most.
+     */
+    log(text: string | (string | [string, string])[],
+      kind: 'hit' | 'hurt' | 'gain' | 'note') {
       const li = el('div', kind, logBox)
-      li.textContent = text
+      if (typeof text === 'string') li.textContent = text
+      else {
+        for (const bit of text) {
+          if (typeof bit === 'string') {
+            li.append(document.createTextNode(bit))
+          } else {
+            const span = el('span', '', li)
+            span.textContent = bit[0]
+            span.style.color = bit[1]
+          }
+        }
+      }
       lines.push(li)
       while (lines.length > 7) lines.shift()!.remove()
     },
@@ -956,7 +1018,7 @@ export function hud(layout?: Layout) {
      * fill that gap.  A picture in the quality's own colour says both at once.
      */
     setSheet(open: boolean, rows: [string, string][], doll?: HTMLCanvasElement,
-      worn?: [string, string, string, string][]) {
+      worn?: Worn) {
       const was = sheet.hidden
       sheet.hidden = !open
       if (was !== sheet.hidden) seat()
@@ -971,33 +1033,44 @@ export function hud(layout?: Layout) {
         innerHeight - parseFloat(helpLine.style.bottom || '0')
         - helpLine.offsetHeight - sheet.getBoundingClientRect().top - 8))}px`
       const want = rows.map(([k, v]) => `${k}\t${v}`).join('\n')
-        + '\n' + (worn ?? []).map((w) => w.join('\t')).join('\n')
+        + '\n' + [...(worn?.left ?? []), ...(worn?.right ?? []),
+          ...(worn?.bottom ?? [])].map((w) => w.join('\t')).join('\n')
       if (sheet.dataset['now'] === want) return
       sheet.dataset['now'] = want
       sheet.textContent = ''
       el('div', 'title', sheet).textContent = whoAmI
-      // The paperdoll, if the scene has drawn one.  It goes at the top,
-      // because that is the one thing on this panel that is a picture of you
-      // rather than a number about you.
-      if (doll) {
-        const box = el('div', 'doll', sheet)
-        box.appendChild(doll)
-      }
       for (const [k, v] of rows) {
         const line = el('div', 'row', sheet)
         el('span', 'k', line).textContent = k
         el('span', 'v', line).textContent = v
       }
-      if (worn && worn.length) {
-        const grid = el('div', 'worn', sheet)
-        for (const [slot, icon, tint, what] of worn) {
-          const box = el('div', 'square', grid)
-          box.title = what ? `${slot} — ${what}` : `${slot} — 비어 있다`
-          if (!what) box.classList.add('bare')
-          const p = el('span', 'pic', box)
-          p.style.setProperty('--pic', `url(./art/ui/${icon})`)
-          if (tint) p.style.color = tint
+      // The squares, **where the original puts them**.
+      //
+      // They were a grid in reading order, which is a spreadsheet of what you
+      // own: head next to shoulder next to back because that is the order the
+      // list happened to be in.  `PaperDollFrame.xml` states two columns and a
+      // row of weapons under them — head at the top of the left, feet at the
+      // bottom of the right, main hand and off hand and bow along the bottom —
+      // and `pipeline/layout.py` reads the order out of it rather than
+      // transcribing nineteen coordinates.  Two columns with a man between
+      // them is a body; a grid is a list.
+      //
+      // What goes between them is the sprite the player has been looking at
+      // all game and not the composed paperdoll, which issue 184 shelved.
+      if (worn) {
+        const body = el('div', 'body', sheet)
+        const column = (which: 'left' | 'right') => {
+          const col = el('div', `worn ${which}`, body)
+          for (const row of worn[which] ?? []) square(col, row)
         }
+        column('left')
+        // The middle, and it is allowed to be empty: a world baked without the
+        // sheets it is drawn from still has thirteen squares to show.
+        const mid = el('div', 'figure', body)
+        if (doll) mid.appendChild(doll)
+        column('right')
+        const feet = el('div', 'worn bottom', sheet)
+        for (const row of worn.bottom ?? []) square(feet, row)
       }
     },
 

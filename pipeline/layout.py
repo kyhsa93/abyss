@@ -393,6 +393,91 @@ def who(client):
     return got
 
 
+#: What the original calls each of the thirteen places this game has, and what
+#: we call it.
+#:
+#: The seam every other id in this pipeline sits on, one more time: the name on
+#: the left is Blizzard's and the word on the right is ours.  Six of the
+#: original's nineteen are not here at all — neck, tabard, two rings and two
+#: trinkets — because no item in this slice goes in them, and a square nothing
+#: can ever fill is a square that teaches the player the game is unfinished.
+DOLL_SLOTS = {
+    'CharacterHeadSlot': 'head',
+    'CharacterShoulderSlot': 'shoulder',
+    'CharacterBackSlot': 'back',
+    'CharacterChestSlot': 'chest',
+    'CharacterShirtSlot': 'shirt',
+    'CharacterWristSlot': 'wrist',
+    'CharacterHandsSlot': 'hands',
+    'CharacterWaistSlot': 'belt',
+    'CharacterLegsSlot': 'legs',
+    'CharacterFeetSlot': 'feet',
+    'CharacterMainHandSlot': 'weapon',
+    'CharacterSecondaryHandSlot': 'offhand',
+    'CharacterRangedSlot': 'ranged',
+}
+
+
+def doll_columns(client):
+    """Where the original puts the squares: two columns and a row of weapons.
+
+    `PaperDollFrame.xml` anchors nineteen slot buttons and **only three of them
+    carry a position** — 21,-74 for the head, 305,-74 for the hands and
+    122,127 up from the bottom for the main hand.  Everything else hangs four
+    pixels under the one above it, so the file states an *order* and a *side*
+    rather than nineteen coordinates, and the order is the thing worth having:
+    head at the top and feet at the bottom is a body, and our grid of thirteen
+    squares in reading order was a spreadsheet.
+
+    Followed rather than transcribed: the chain is walked from whichever
+    buttons anchor to the frame itself, so a slot that moves in the file moves
+    here.  Returns `{'left': [...], 'right': [...], 'bottom': [...]}` in our
+    own words, with the six this game has no items for left out.
+    """
+    data, _src = client.read('Interface\\FrameXML\\PaperDollFrame.xml')
+    if not data:
+        return {}
+    text = data.decode('utf-8', 'replace')
+    anchor, roots = {}, []
+    for m in re.finditer(r'<Button name="(Character\w+Slot)"([\s\S]{0,900}?)</Button>',
+                         text):
+        name, body = m.group(1), m.group(2)
+        rel = re.search(r'<Anchor point="\w+" relativeTo="(Character\w+Slot)"', body)
+        if rel:
+            anchor[rel.group(1)] = name
+        else:
+            roots.append(name)
+    if len(roots) != 3:
+        sys.exit('PaperDollFrame.xml anchors %d columns, not three: %s'
+                 % (len(roots), roots))
+
+    def chain(head):
+        out_, at = [], head
+        while at and len(out_) < 20:
+            out_.append(at)
+            at = anchor.get(at)
+        return out_
+
+    # Which of the three is which, out of the file rather than by name: the two
+    # that hang from the top are the columns, left before right by their own x,
+    # and the one measured up from the bottom is the weapons.
+    where = {}
+    for name in roots:
+        m = re.search(r'<Button name="%s"([\s\S]{0,900}?)</Button>' % name, text)
+        body = m.group(1) if m else ''
+        rel = re.search(r'relativePoint="(\w+)"', body)
+        pos = re.search(r'<AbsDimension x="(-?[\d.]+)" y="(-?[\d.]+)"', body)
+        where[name] = ((rel.group(1) if rel else 'TOPLEFT'),
+                       float(pos.group(1)) if pos else 0.0)
+    bottom = [n for n in roots if 'BOTTOM' in where[n][0]]
+    tops = sorted((n for n in roots if n not in bottom), key=lambda n: where[n][1])
+    if len(bottom) != 1 or len(tops) != 2:
+        sys.exit('PaperDollFrame.xml does not lay out two columns and a row')
+    ours = lambda names: [DOLL_SLOTS[n] for n in names if n in DOLL_SLOTS]  # noqa: E731
+    return {'left': ours(chain(tops[0])), 'right': ours(chain(tops[1])),
+            'bottom': ours(chain(bottom[0]))}
+
+
 def spec(client, found):
     """The rest of the interface, as numbers.
 
@@ -417,6 +502,8 @@ def spec(client, found):
     own stacking model to mean anything.
     """
     out = {}
+    # Where the thirteen squares go — see `doll_columns`.
+    out['doll'] = doll_columns(client)
     # Backdrops: how thick an edge is and how far the ground is inset.
     #
     # `edgeSize` is a child element and not an attribute — `<EdgeSize><AbsValue

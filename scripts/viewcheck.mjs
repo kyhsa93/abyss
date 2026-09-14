@@ -859,7 +859,8 @@ if (bare) {
     `${bare.layers.join(', ')} → ${dressed.layers.join(', ')}`)
 }
 
-// 9s2. And it is not on the character sheet, by the owner's decision.
+// 9s2. And the composed paperdoll is not on the character sheet, by the
+// owner's decision.
 //
 // It was 56 by 56 of a 384 by 512 panel — two per cent of it — and nine per
 // cent of that was opaque.  What carried the information was the thirteen
@@ -868,29 +869,77 @@ if (bare) {
 // the set and `weapon` was not in the slot list at all.
 //
 // The composition stays, because the portrait in the corner is a window on to
-// it (issue 137) — what goes is the picture on the panel.
+// it (issue 137) — what goes is the *claim*, on the panel, that the picture
+// says what you are wearing.
+//
+// **Counting canvases is not that claim**, which is what this check used to
+// do.  Issue 204 put the two columns where `PaperDollFrame.xml` puts them and
+// the man the world draws between them, and that picture is a canvas and says
+// nothing about gear — it is the same sprite before and after you put a
+// breastplate on.  So the check asks the question it meant: does the picture
+// on this panel change when what is worn changes?  A composed doll would.
 {
   // Opened with the key a player uses, because the panel is only built while
   // it is up — read with it hidden it is an empty box, which is the answer to
   // a different question.
-  await p.keyboard.press('c')
+  const readSheet = async () => {
+    await p.keyboard.press('c')
+    await p.waitForTimeout(350)
+    const got = await p.evaluate(() => {
+      const el = document.getElementById('sheet')
+      const c = el.querySelector('.figure canvas')
+      return { hidden: el.hidden,
+        picture: c ? c.getContext('2d')
+          .getImageData(0, 0, c.width, c.height).data.reduce(
+            (a, v, i) => (i % 401 ? a : a * 31 + v) >>> 0, 7) : 0,
+        squares: el.querySelectorAll('.worn .square').length,
+        filled: [...el.querySelectorAll('.worn .square')]
+          .filter((s2) => !s2.classList.contains('bare')).length }
+    })
+    await p.keyboard.press('c')
+    await p.waitForTimeout(200)
+    return got
+  }
+  const bareSheet = await readSheet()
+  // Given something and made to put it on, through the same key a player
+  // presses — `dressUp` is bound to `g`.
+  await p.evaluate(() => window.__giveItem?.())
+  await p.keyboard.press('g')
   await p.waitForTimeout(300)
-  const sheetNow = await p.evaluate(() => {
-    const el = document.getElementById('sheet')
-    return { hidden: el.hidden,
-      dolls: el.querySelectorAll('.doll, canvas').length,
-      squares: el.querySelectorAll('.worn .square').length,
-      filled: [...el.querySelectorAll('.worn .square')]
-        .filter((s) => !s.classList.contains('bare')).length }
+  const worn = await readSheet()
+  // Non-vacuous by construction: a square has to have *become* full, or the
+  // picture staying the same says nothing at all.
+  check('the character sheet does not claim to show what you are wearing',
+    bareSheet.hidden === false && worn.filled > bareSheet.filled
+    && bareSheet.picture === worn.picture,
+    `${worn.filled - bareSheet.filled} more square full and the picture is `
+    + `${bareSheet.picture === worn.picture ? 'the same' : 'different'}`)
+  check('and shows every slot as a square instead',
+    worn.squares === 13,
+    `${worn.squares} squares, ${worn.filled} of them full`)
+  // And the squares are laid out the way the original lays them out, which is
+  // the other half of issue 204: head at the top of the left column, feet at
+  // the bottom of the right, weapons along the bottom.  Read off the shipped
+  // `spec.doll`, so the panel and the bake cannot come to disagree.
+  const shape = await p.evaluate(async () => {
+    const r = await fetch('./world/layout.json')
+    const doll = r.ok ? (await r.json()).spec.doll : null
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' }))
+    return doll
   })
   await p.keyboard.press('c')
-  await p.waitForTimeout(200)
-  check('the character sheet has no paperdoll on it',
-    sheetNow.hidden === false && sheetNow.dolls === 0,
-    `${sheetNow.dolls} canvases in the panel`)
-  check('and shows every slot as a square instead',
-    sheetNow.squares === 13,
-    `${sheetNow.squares} squares, ${sheetNow.filled} of them full`)
+  await p.waitForTimeout(300)
+  const drawn = await p.evaluate(() =>
+    ['left', 'right', 'bottom'].map((k) =>
+      [...document.querySelectorAll(`#sheet .worn.${k} .square`)]
+        .map((s2) => (s2.title || '').split(' — ')[0])))
+  await p.keyboard.press('c')
+  check('and they are in the two columns the original puts them in',
+    !!shape && shape.left.length > 0 && drawn[0].length === shape.left.length
+    && drawn[1].length === shape.right.length
+    && drawn[2].length === shape.bottom.length,
+    `${drawn[0].length} down the left, ${drawn[1].length} down the right, `
+    + `${drawn[2].length} along the bottom — ${drawn[0].join(' ')}`)
 }
 
 // 9t. The frame rate does not change the game.  `requestAnimationFrame`'s own

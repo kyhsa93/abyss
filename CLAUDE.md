@@ -753,6 +753,25 @@ shop that is shut is still a shop you open — and exempts anything with no
 Hangul in it, because that is the reason the floor exists: `0 / 400` on a bar
 has none.
 
+**Two columns with a man between them is a body; a grid is a list.** The
+thirteen squares of what is worn were laid out in reading order — head beside
+shoulder beside back, because that is the order the list happened to be in.
+`PaperDollFrame.xml` states two columns and a row of weapons, and it states
+them as an *order and a side* rather than as nineteen coordinates: only three
+buttons carry a position and the rest hang four pixels under the one above.
+`doll_columns` in `layout.py` walks that chain, so a slot that moves in the
+file moves here, and six of the original's nineteen — neck, tabard, two rings,
+two trinkets — are left out because no item in this slice goes in them.
+
+**The colour is the only name an item has here.** The original puts the
+quality colour first, before the name; this game ships no names at all, so it
+has to do more work and not less. It was read on the shop row, on the sheet's
+squares and on a quest reward, and not in the bag or in the log — and the log
+is the one place a thing is met for the first time. `ui.log` takes pieces now,
+each of which may carry a colour. The checks read the colour **off the glass**
+rather than counting calls to `tintOf`, because the failure they are for is a
+panel that draws the item and forgets the colour, and a grep cannot see that.
+
 **A check that names what it leaves out can still be missing what it meant to
 keep.** `padcheck`'s "nothing is drawn on a thumb" carried a paragraph about
 the conversation panel being the one that had to be in it, and its selector
