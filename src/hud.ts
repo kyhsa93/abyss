@@ -60,6 +60,9 @@ export type Worn = {
   bottom: [string, string, string, string][]
 }
 
+/** `[id, word, picture, what it says, whether it can be used now]`. */
+export type BookRow = [number, string, string, string, boolean]
+
 export type Slot = {
   key: string
   label: string
@@ -221,6 +224,12 @@ export type Layout = {
      * because no item in this slice goes in them.
      */
     doll?: Record<string, string[]>
+    /**
+     * The spellbook: `page` is `SPELLS_PER_PAGE`, `row` is one button's size,
+     * `across` and `down` the pitch between them, `order` the ids the twelve
+     * buttons carry — which is what says the columns fill downwards.
+     */
+    book?: Record<string, number | number[]>
     unread: string[]
   }
   /** Which races and classes there are, and which pairs are legal. */
@@ -293,6 +302,11 @@ function square(into: HTMLElement, row: [string, string, string, string]) {
   p.style.setProperty('--pic', `url(./art/ui/${icon})`)
   if (tint) p.style.color = tint
 }
+
+/** What is being dragged from the bar or the book, and whether it landed. */
+let dragging: number | null = null
+let dropped = false
+let onDrop: ((slot: number, id: number | null) => void) | undefined
 
 export function hud(layout?: Layout) {
   const helpLine = document.getElementById('help') as HTMLElement
@@ -474,6 +488,21 @@ export function hud(layout?: Layout) {
   const shopNext = el('button', 'page', shopFoot) as HTMLButtonElement
   shopNext.textContent = '▶'
   const shopPurse = el('span', 'purse', shopFoot)
+
+  // The spellbook, which the original puts at the same corner and the same
+  // size as the merchant's window — 384 by 512, twelve to a page.  Built the
+  // same way for the same reason: one shape of panel, learned once.
+  const bookBox = el('div', '', ui)
+  bookBox.id = 'book'
+  bookBox.hidden = true
+  el('div', 'title', bookBox).textContent = '주문서'
+  const bookList = el('ul', '', bookBox)
+  const bookFoot = el('div', 'foot', bookBox)
+  const bookPrev = el('button', 'page', bookFoot) as HTMLButtonElement
+  bookPrev.textContent = '◀'
+  const bookWhich = el('span', 'which', bookFoot)
+  const bookNext = el('button', 'page', bookFoot) as HTMLButtonElement
+  bookNext.textContent = '▶'
 
   // The character sheet.  Everything the fight arithmetic is working from,
   // said once in one place — because the numbers exist and nothing showed them.
@@ -1007,6 +1036,69 @@ export function hud(layout?: Layout) {
       while (lines.length > 7) lines.shift()!.remove()
     },
 
+    /**
+     * The spellbook: everything this character knows, twelve to a page.
+     *
+     * There was no book on the screen at all — **the bar was the book**, in
+     * the order things were learned — so a character with a dozen abilities
+     * had nowhere to look at them and nowhere to take one from.  Its place,
+     * its size and its twelve are the original's own, out of
+     * `SpellBookFrame.xml` and `SpellBookFrame.lua` by way of
+     * `pipeline/layout.py`: 384 by 512 at the same corner the merchant and the
+     * gossip window use, two columns of six, 37-pixel buttons.
+     *
+     * A page is a page and not a scroll, for the reason the merchant's is:
+     * buttons that sit still are buttons you learn the position of.
+     */
+    setBook(open: boolean, page: number, pages: number, rows: BookRow[],
+      turn: (to: number) => void, take?: (id: number) => void) {
+      const was = bookBox.hidden
+      bookBox.hidden = !open
+      if (was !== bookBox.hidden) seat()
+      if (!open) return
+      bookWhich.textContent = pages > 1 ? `${page + 1} / ${pages}` : ''
+      bookPrev.hidden = pages < 2
+      bookNext.hidden = pages < 2
+      bookPrev.disabled = page <= 0
+      bookNext.disabled = page >= pages - 1
+      bookPrev.onclick = () => turn(page - 1)
+      bookNext.onclick = () => turn(page + 1)
+      const want = rows.map((r) => r.join('|')).join('\n') + `|${page}`
+      if (bookList.dataset['now'] === want) return
+      bookList.dataset['now'] = want
+      bookList.textContent = ''
+      if (!rows.length) {
+        el('li', 'empty', bookList).textContent = '아직 아무것도 못 배웠다'
+        return
+      }
+      for (const [id, word, icon, tip, ready] of rows) {
+        const li = el('li', ready ? '' : 'poor', bookList)
+        const what = el('span', 'what', li)
+        if (icon) {
+          const pic = el('span', 'pic', what)
+          pic.style.setProperty('--pic', `url(./art/ui/${icon})`)
+        }
+        const name = el('span', 'name', what)
+        el('span', 'word', name).textContent = word
+        if (tip) el('span', 'does', name).textContent = tip.split('\n')[1] ?? ''
+        li.draggable = true
+        li.ondragstart = (e) => {
+          e.dataTransfer?.setData('text/plain', String(id))
+          dragging = id
+          dropped = false
+        }
+        li.ondragend = () => { dragging = null }
+        // And a press, because a phone has no drag on to a bar it cannot see:
+        // pressing a row puts it in the first free square.
+        li.onclick = () => take?.(id)
+        li.onmouseenter = () => {
+          const box = li.getBoundingClientRect()
+          this_.setTip(tip, box.left + box.width / 2, box.top - 4)
+        }
+        li.onmouseleave = () => this_.setTip(null, 0, 0)
+      }
+    },
+
     /** The character sheet, or nothing. */
     /**
      * The character sheet, and the thirteen squares of what he is wearing.
@@ -1117,7 +1209,16 @@ export function hud(layout?: Layout) {
      * the cooling sweep and the lit state are set every frame, and those are
      * two style writes rather than a new element.
      */
-    setBar(next: Slot[]) {
+    /**
+     * `drop` is what happens when something is dragged on to square `i`, and
+     * `id` is what was dragged: an ability from the book, an ability from
+     * another square, or nothing at all, which clears it.
+     *
+     * The arrangement is a decision (issue 225), so it has to be *made* here
+     * rather than fallen out of the order things were learned.
+     */
+    setBar(next: Slot[], drop?: (slot: number, id: number | null) => void) {
+      onDrop = drop
       const shape = next.map((s) => `${s.key}\u0000${s.label}\u0000${s.icon}`)
         .join('\u0001')
       if (shape !== builtFrom) {
@@ -1149,6 +1250,32 @@ export function hud(layout?: Layout) {
           }
           root.onmouseleave = () => this_.setTip(null, 0, 0)
           root.onclick = () => shownNow[i]?.use?.()
+          // Dragging, which is how a thing gets on to the bar and how it gets
+          // off.  The id travels in the drag rather than an index, because
+          // "the third square" means something different once the drag has
+          // started moving things around.
+          root.draggable = true
+          root.ondragstart = (e) => {
+            const id = shownNow[i]?.id
+            if (id === undefined) { e.preventDefault(); return }
+            e.dataTransfer?.setData('text/plain', String(id))
+            dragging = id
+          }
+          root.ondragover = (e) => { if (onDrop) e.preventDefault() }
+          root.ondrop = (e) => {
+            e.preventDefault()
+            const raw = e.dataTransfer?.getData('text/plain')
+            const id = raw ? Number(raw) : dragging
+            if (id !== null && !Number.isNaN(id)) onDrop?.(i, id)
+            dropped = true
+            dragging = null
+          }
+          // Dropped on nothing, which is how a square is emptied.
+          root.ondragend = () => {
+            if (dragging !== null && dropped === false) onDrop?.(i, null)
+            dragging = null
+            dropped = false
+          }
           slots.push({ root, icon, sweep })
         })
         shown = []
@@ -1175,7 +1302,7 @@ export function hud(layout?: Layout) {
    */
   /** Everything either layout touches, so the other one can start clean. */
   const placed = () => [units, foe.root, mapBox, logBox, bagPanel, sheet, deck,
-    bar, micro, xpBar, swingBar, helpLine, track,
+    bar, micro, xpBar, swingBar, helpLine, track, bookBox,
     document.getElementById('talk')].filter(Boolean) as HTMLElement[]
 
   const loose = (node: HTMLElement) => {
@@ -1434,7 +1561,8 @@ export function hud(layout?: Layout) {
       name === 'sheet' ? sheet
         : name === 'talk' ? document.getElementById('talk')
           : name === 'shop' ? shopBox
-            : name === 'world' ? worldBox : null
+            : name === 'book' ? bookBox
+              : name === 'world' ? worldBox : null
     // Who is up now, and since when.
     for (const name of Object.keys(rule)) {
       const el = box(name)
@@ -1561,6 +1689,8 @@ export function hud(layout?: Layout) {
     document.getElementById('talk')?.style.removeProperty('max-height')
     pin(sheet, f['sheet'], s)
     pin(shopBox, f['shop'] ?? f['sheet'], s)
+    pin(bookBox, f['book'] ?? f['shop'] ?? f['sheet'], s)
+    bookBox.style.height = `${Math.round((f['book']?.h ?? 512) * s)}px`
     // And the shop keeps the height the original gives it, the same as the
     // log does.  `pin` leaves height to the content on purpose — a gossip
     // window with three lines in it should be three lines tall — but a shop is

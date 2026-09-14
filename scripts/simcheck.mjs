@@ -73,10 +73,27 @@ const creature = (level) => {
   return { level, stats: [0, 0, 0, 0, 0, 0], line }
 }
 
-const heroic = (book.books?.[String(WARRIOR)] ?? []).find((s) => s.id === 78)
-const opener = heroic
-  ? { rage: heroic.cost, adds: heroic.does.find((d) => d[0] === 58)?.[1] ?? 0 }
-  : undefined
+/**
+ * The bar, as the automatic hand walks it: every ability a level one warrior
+ * has that puts something on the next swing, cheapest first.
+ *
+ * **A list and not one ability**, because issue 224 made the automatic hand
+ * walk the bar left to right and the simulation has to be the same rule — a
+ * `rota` that presses one thing is a stand-in for a bar with no arrangement,
+ * which is what there was.
+ *
+ * Cheapest first here and not "best", because the order is the *player's* and
+ * this file must not decide it: what is being measured is that pressing beats
+ * not pressing, and any order the player could actually arrange will do.
+ */
+const E_WEAPON_ADD = 58
+const bar = (book.books?.[String(WARRIOR)] ?? [])
+  .filter((s) => s.level <= 1 && s.cost > 0
+    && s.does?.some((d) => d[0] === E_WEAPON_ADD))
+  .map((s) => ({ rage: s.cost,
+    adds: s.does.find((d) => d[0] === E_WEAPON_ADD)?.[1] ?? 0 }))
+  .sort((a, b) => a.rage - b.rage)
+const opener = bar[0]
 
 console.log('a fight, run without a browser\n')
 console.log(`     ${'against'.padEnd(12)}${'policy'.padEnd(8)}${'survived'.padStart(9)}`
@@ -86,7 +103,7 @@ for (const [level, many] of [[1, 1], [3, 1], [3, 2], [5, 1]]) {
   for (const policy of ['auto', 'rota']) {
     reseed(20260913)
     const got = duel(player(1), creature(level), who,
-      { many, runs: 400, policy, opener })
+      { many, runs: 400, policy, bar })
     table.push({ level, many, policy, ...got })
     console.log(`     ${`level ${level} x${many}`.padEnd(12)}${policy.padEnd(8)}`
       + `${`${(got.survived * 100).toFixed(0)}%`.padStart(9)}`

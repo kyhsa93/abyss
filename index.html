@@ -297,14 +297,15 @@
       #log .gain { color: #a9e39a; }
 
       /* Every panel is the same panel: parchment dark, gold edge, a title rule. */
-      #sheet, #bag, #world, #tip, #shop {
+      #sheet, #bag, #world, #tip, #shop, #book {
         background: var(--panel); border: 1px solid var(--gold-dark);
         border-radius: 4px; color: var(--ink);
         box-shadow: inset 0 0 0 1px #000, 0 3px 10px rgba(0,0,0,.6);
       }
+      #book[hidden],
       #sheet[hidden], #bag[hidden], #world[hidden], #tip[hidden],
       #shop[hidden] { display: none; }
-      #sheet .title, #bag .title, #world .title, #shop .title {
+      #sheet .title, #bag .title, #world .title, #shop .title, #book .title {
         color: var(--gold); font: var(--font-small)/1.8 var(--mono); letter-spacing: .04em;
         border-bottom: 1px solid var(--gold-dark);
         padding-bottom: 4px; margin-bottom: 5px; text-align: center;
@@ -653,40 +654,49 @@
          is made of.  Ten rows to a page, which is `MERCHANT_ITEMS_PER_PAGE`,
          and page buttons because our own stock needs them: 78 vendors fit on
          one page and 12 do not. */
-      #shop {
+      #shop, #book {
         position: fixed; z-index: 6; box-sizing: border-box;
         padding: 8px 10px 6px; display: flex; flex-direction: column;
         font: var(--font-small)/1.5 var(--mono);
       }
-      #shop ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
-      #shop li {
+      #shop ul, #book ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+      #shop li, #book li {
         display: flex; align-items: center; gap: 6px; cursor: pointer;
         /* 44 is `MerchantItemTemplate`'s own height — a row of that window. */
         min-height: 26px; padding: 2px 4px; border-radius: 3px;
       }
-      #shop li:hover { background: rgba(201,168,106,.12); }
-      #shop li.poor { opacity: .45; cursor: default; }
-      #shop li.empty { justify-content: center; color: #8a8f9e; cursor: default; }
-      #shop .what { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
-      #shop .name { display: flex; flex-direction: column; min-width: 0; }
-      #shop .does {
+      #shop li:hover, #book li:hover { background: rgba(201,168,106,.12); }
+      #shop li.poor, #book li.poor { opacity: .45; cursor: default; }
+      #shop li.empty, #book li.empty { justify-content: center; color: #8a8f9e; cursor: default; }
+      #shop .what, #book .what { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+      #shop .name, #book .name { display: flex; flex-direction: column; min-width: 0; }
+      #shop .does, #book .does {
         font: var(--font-tiny)/1.3 var(--mono); color: #8a8f9e;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       #shop .price { color: var(--gold); white-space: nowrap; }
-      #shop .foot {
+      #shop .foot, #book .foot {
         display: flex; align-items: center; gap: 8px;
         margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--gold-dark);
       }
       /* The purse goes bottom right, which is `MerchantMoneyFrame`. */
       #shop .purse { margin-left: auto; color: var(--gold); }
-      #shop .page {
+      #shop .page, #book .page {
         background: rgba(201,168,106,.1); border: 1px solid var(--gold-dark);
         color: var(--ink);
         border-radius: 3px; cursor: pointer; font: inherit; padding: 0 6px;
       }
       #shop .page:disabled { opacity: .35; cursor: default; }
-      #shop .which { color: #8a8f9e; }
+      #shop .which, #book .which { color: #8a8f9e; }
+      /* The book is two columns of six, which is what `SpellBookFrame.xml`
+         says: button 2 sits 157 to the right of button 1 and button 3 sits
+         under it.  A drag out of here is how a thing gets on to the bar. */
+      #book ul {
+        display: grid; grid-template-columns: 1fr 1fr;
+        grid-auto-rows: min-content; gap: 4px 10px; align-content: start;
+      }
+      #book li { cursor: grab; }
+      #book li:active { cursor: grabbing; }
       #talk .who { color: #c9a86a; font: var(--font-small)/1.5 var(--mono); letter-spacing: .02em; }
       #talk .say { margin: 6px 0 10px; }
       #talk ol { margin: 0; padding: 0; list-style: none; }
@@ -818,7 +828,7 @@
   </head>
   <body>
     <div id="hud" class="plain" hidden>불러오는 중…</div>
-    <div id="help">WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  T: 제작  C: 정보  M: 지도  `: 수치</div>
+    <div id="help">WASD: 이동  E: 대화·줍기  B: 가방  P: 주문서  T: 제작  Y: 자동  C: 정보  M: 지도  `: 수치</div>
     <div id="talk" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

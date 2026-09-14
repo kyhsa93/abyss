@@ -474,16 +474,21 @@ for (const [W, H] of SIZES) {
       filled: !el.classList.contains('bare'),
     })),
     spells: window.__bar().spells,
+    bar: window.__bar().bar,
   }))
 
   const before = await onScreen()
   const filled = (bar) => bar.squares.filter((sq) => sq.filled).length
-  // `1 +` and not `2 +`: attack keeps the first square and **talk gave its up**
-  // when the spellbook outgrew one row (issue 155).  Talking was never an
-  // ability, the original has no button for it either — you click the person —
-  // and the help line says `E`.
+  // **No `1 +` any more.**  Attack had the first square, and what that square
+  // did was aim — `you.target ??= inSwing()`, one answer, never a choice.
+  // Issue 222 took it off the bar; issue 225 made what is left an arrangement
+  // the player owns rather than the order things were learned.
+  //
+  // A new character's arrangement is still that order, because dropping each
+  // new thing into the first free square is what "the order they were learned"
+  // *is* — it is a starting arrangement now and not a rule.
   check('the bar starts with what the character knows',
-    filled(before) === 1 + before.spells.length,
+    filled(before) === before.spells.length && before.spells.length > 0,
     `${filled(before)} filled, ${before.spells.length} spells`)
 
   // Learn everything a trainer in this slice teaches, at the level that can
@@ -508,21 +513,24 @@ for (const [W, H] of SIZES) {
   })
   const after = await onScreen()
   check('and it grows when the character learns',
-    filled(after) === 1 + after.spells.length && after.spells.length > before.spells.length,
+    filled(after) === after.spells.length && after.spells.length > before.spells.length,
     `${before.spells.length} -> ${after.spells.length} spells, ${filled(after)} filled`)
   // And there is a square for every one of them.  The count of squares is a
   // decision — the original's bar is twelve and ours is two rows of eight —
   // and the thing that must hold is that a character who has bought everything
   // can press all of it.
   check('and there is room for everything a character can hold',
-    after.squares.length >= 1 + after.spells.length,
-    `${after.squares.length} squares for ${1 + after.spells.length}`)
+    after.squares.length >= after.spells.length,
+    `${after.squares.length} squares for ${after.spells.length}`)
 
   // And every square answers to the letter written on it.  Pressed for real
   // through the keyboard, because the bug was in the handler and a check that
   // calls the table would have passed while it was broken.
+  // **Against the arrangement and not against the spellbook.**  The two were
+  // the same list until issue 225 and are not any more: `bar` says what is in
+  // square `i`, which is the thing pressing its key has to fire.
   const wrong = []
-  for (let i = 1; i < after.squares.length; i++) {
+  for (let i = 0; i < after.squares.length; i++) {
     const sq = after.squares[i]
     if (!sq.filled) continue
     // A filled square with no letter on it is the same bug seen from the
@@ -530,12 +538,287 @@ for (const [W, H] of SIZES) {
     if (!sq.key) { wrong.push(`${sq.label} has no key`); continue }
     await p.keyboard.press(sq.key)
     const heard = await p.evaluate(() => window.__bar().asked)
-    if (heard !== after.spells[i - 1]) {
-      wrong.push(`${sq.key}=${sq.label} fired ${heard} not ${after.spells[i - 1]}`)
+    if (heard !== after.bar[i]) {
+      wrong.push(`${sq.key}=${sq.label} fired ${heard} not ${after.bar[i]}`)
     }
   }
   check('and every square answers to the letter on it', wrong.length === 0,
     wrong.join('; ') || `${after.spells.length} squares pressed`)
+
+  // --- the book, the arrangement and the automatic hand --------------------
+  //
+  // Issues 222 to 225, which are one system: the bar stopped being the
+  // spellbook, so there had to be a spellbook; the arrangement became a
+  // decision, so it had to be saved; the first square stopped being the aim,
+  // so aiming had to happen; and the toggle called autocast had to cast.
+
+  // 222.  The square whose whole body was `you.target ??= inSwing()`.
+  check('no square on the bar is the attack',
+    after.squares.every((sq) => sq.label !== '공격'),
+    after.squares.filter((sq) => sq.filled).map((sq) => sq.label).join(' '))
+  check('and the first ability is on the first key',
+    after.squares[0]?.key === '1' && after.squares[0]?.filled === true,
+    `${after.squares[0]?.key} = ${after.squares[0]?.label}`)
+  // And aiming happens by itself once something is angry.  Made angry the way
+  // anything is: by being hit.
+  {
+    // Into the world first.  This page never made a character — the checks
+    // above read the bar from behind the screen that makes one — and a click
+    // that lands on that panel is a click the world never hears.  And the
+    // shop the block above opened has to go with it.
+    await p.evaluate(() => window.__openShopAt(0))
+    const any = p.locator('#create button', { hasText: '아무렇게나' })
+    if (await any.count()) { await any.click(); await p.waitForTimeout(500) }
+    const go = p.locator('#create button', { hasText: '세상으로' })
+    if (await go.count()) { await go.click(); await p.waitForTimeout(900) }
+    await p.waitForTimeout(200)
+    // **Something that survives being hit**, and followed rather than
+    // remembered: `__foe` walks to the nearest, the nearest is usually a
+    // rabbit with one health, and everything in this world wanders — so a
+    // screen point worked out a moment ago is a yard out and three yards is
+    // all the aim allows.  Both are handled by asking again each time.
+    // Walked to it the way the other fight checks do, so the thing clicked is
+    // near the middle of the glass and the camera has somewhere to settle —
+    // and **level three or better**, because a rabbit dies on the first swing
+    // and then there is nothing left angry to aim at.
+    const what = await p.evaluate(() => window.__foe(3))
+    await p.waitForTimeout(700)
+    // Where it is *now*, each attempt: everything in this world wanders, and
+    // three yards is all the aim allows.
+    const nearest = () => p.evaluate(() => {
+      const h = window.__hero()
+      const foe = window.__all()
+        .filter((n) => !n.dead && n.stance === 'quarry')
+        .map((n) => ({ n, d: Math.hypot(n.x - h.x, n.y - h.y) }))
+        .sort((a2, b2) => a2.d - b2.d)[0]
+      return foe ? window.__screenAt(foe.n.x, foe.n.y) : null
+    })
+    let took = null
+    for (let go = 0; go < 8 && !took; go++) {
+      const now = await nearest()
+      if (!now) break
+      await p.mouse.click(Math.round(now[0]), Math.round(now[1]))
+      await p.waitForTimeout(150)
+      took = await p.evaluate(() => window.__you().target)
+    }
+    check('a click on the world is how a fight starts now',
+      took !== null,
+      `clicked a ${what?.kind} — the target is ${took}`)
+
+    // And aiming comes back by itself at whatever is already angry, which is
+    // the half of the old attack square that was never a decision.  Being
+    // angry takes a blow, and the swing is nearly three seconds.
+    // And aiming comes back by itself at whatever is already angry, which is
+    // the half of the old attack square that was never a decision.
+    //
+    // **The anger is set, not fought for.**  `takeAim` is a rule about state —
+    // something is angry and nothing is aimed at — and getting to that state by
+    // actually fighting means waiting on a three-second swing while the thing
+    // wanders out of reach, and the nearest thing is usually a rabbit that dies
+    // before it can be angry at anybody.  A check that waits on the weather is
+    // a check that fails for reasons that are not the rule.  `__anger` sets the
+    // same field a landed blow sets, exactly as `__pull` does for a pack.
+    const angry = await p.evaluate(() => {
+      window.__unaim()
+      const hot = window.__anger()
+      return hot ? { ...hot, target: window.__you().target } : null
+    })
+    if (angry) {
+      let back = null
+      for (let i = 0; i < 20 && !back; i++) {
+        await p.waitForTimeout(100)
+        back = await p.evaluate(() => window.__you().target)
+      }
+      check('and something already angry is aimed at without being asked',
+        angry.target === null && back !== null,
+        `a ${angry.kind} ${angry.away.toFixed(1)} yards off, `
+        + `cleared to ${angry.target}, came back as ${back}`)
+    } else {
+      check('and something already angry is aimed at without being asked',
+        false, 'nothing fightable was near enough to anger')
+    }
+  }
+
+  // 223.  The book, which did not exist.
+  await p.keyboard.press('p')
+  await p.waitForTimeout(300)
+  const book = await p.evaluate(() => {
+    const box = document.getElementById('book')
+    return { up: box && !box.hidden,
+      rows: [...box.querySelectorAll('li')].length,
+      pages: (box.querySelector('.which')?.textContent ?? '').trim() }
+  })
+  check('there is a spellbook and a key that opens it',
+    book.up === true && book.rows > 0,
+    `${book.rows} rows, ${book.pages || 'one page'}`)
+  // Every spell in it, over however many pages the original's twelve make.
+  const seen = await p.evaluate(async () => {
+    const doc = await (await fetch('./world/layout.json')).json()
+    const per = doc.spec?.book?.page ?? 12
+    const all = window.__bar().spells
+    const out = new Set()
+    const pages = Math.max(1, Math.ceil(all.length / per))
+    for (let i = 0; i < pages; i++) {
+      window.__book(i)
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      for (const id of window.__book()) out.add(id)
+    }
+    return { per, pages, seen: [...out], all }
+  })
+  check('and every spell the character knows is in it',
+    seen.all.length > 0 && seen.all.every((id) => seen.seen.includes(id)),
+    `${seen.seen.length} of ${seen.all.length} over ${seen.pages} pages of ${seen.per}`)
+  await p.keyboard.press('p')
+
+  // 225.  The arrangement, which has to be a choice and has to survive.
+  {
+    const moved = await p.evaluate(() => {
+      const was = window.__bar().bar.slice()
+      // Square 0 and square 3 swap, through the same call the drag makes.
+      window.__place(3, was[0])
+      return { was, now: window.__bar().bar.slice() }
+    })
+    check('an ability can be moved to another square',
+      moved.now[3] === moved.was[0] && moved.now[0] === moved.was[3],
+      `${moved.was.slice(0, 4)} -> ${moved.now.slice(0, 4)}`)
+    const cleared = await p.evaluate(() => {
+      window.__place(3, null)
+      return window.__bar().bar.slice()
+    })
+    check('and a square can be emptied', cleared[3] === null,
+      `${cleared.slice(0, 4)}`)
+    // And it comes back.  Round-tripped through the save the game writes, so
+    // this is the arrangement surviving *the thing that saves it* and not a
+    // field being copied from one object to another.
+    const kept = await p.evaluate(() => {
+      window.__place(3, window.__bar().spells[1])
+      const want = window.__bar().bar.slice()
+      const raw = JSON.parse(JSON.stringify(window.__save()))
+      // Scrambled first, so restoring cannot pass by leaving it alone.
+      window.__place(3, null)
+      window.__place(0, null)
+      window.__load(raw)
+      return { want, back: window.__bar().bar.slice() }
+    })
+    check('and the arrangement comes back out of the save',
+      JSON.stringify(kept.want) === JSON.stringify(kept.back),
+      `${kept.want.slice(0, 5)} -> ${kept.back.slice(0, 5)}`)
+  }
+
+  // 224.  The toggle called autocast, which cast nothing.
+  //
+  // What it is worth is measured in `simcheck` and printed every run — 4%
+  // against 68% at level five — and that number is the *outcome*.  What is
+  // asked here is the **mechanism**, on the screen: with it on, the leftmost
+  // thing on the bar that can be used goes off without anybody pressing a key;
+  // with it off, nothing does.  A browser cannot run four hundred fights, and
+  // a check that pretended to would be measuring its own patience.
+  {
+    const armed = await p.evaluate(() => {
+      window.__earn(100000)
+      window.__unaim()
+      return { level: window.__you().level, bar: window.__bar().bar }
+    })
+    void armed
+    // Something to fight that will not die on the first swing, **and actually
+    // aimed at**: `inSwing` reads the list of who is nearby, which is built a
+    // frame later than the walk, so asking once answers for where he was.
+    const ready = await p.evaluate(() => window.__foe(3))
+    await p.waitForTimeout(700)
+    let aimedAt = null
+    for (let i = 0; i < 20 && !aimedAt; i++) {
+      aimedAt = await p.evaluate(() => {
+        const h = window.__hero()
+        const hot = window.__all()
+          .filter((n) => !n.dead && n.stance === 'quarry')
+          .map((n) => ({ n, d: Math.hypot(n.x - h.x, n.y - h.y) }))
+          .sort((a2, b2) => a2.d - b2.d)[0]
+        if (hot && hot.d > 2) window.__put(hot.n.x - 1.2, hot.n.y)
+        return window.__aimAtNearest()
+      })
+      if (!aimedAt) await p.waitForTimeout(150)
+    }
+    check('and there is something to try it on', aimedAt !== null,
+      `${ready?.kind ?? 'nothing'} — aimed at ${aimedAt}`)
+    if (ready) {
+      // Off first: aimed at something, full of rage, and nothing is cast.
+      const quiet = await p.evaluate(async () => {
+        window.__setAuto(false)
+        window.__aimAtNearest()
+        const before = window.__bar().asked
+        await new Promise((r) => setTimeout(r, 2500))
+        return { before, after: window.__bar().asked }
+      })
+      check('with the automatic hand off, nothing casts itself',
+        quiet.before === quiet.after,
+        `asked ${quiet.before} -> ${quiet.after}`)
+      const loud = await p.evaluate(async () => {
+        window.__setAuto(true)
+        window.__aimAtNearest()
+        const before = window.__bar().asked
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 100))
+          if (window.__bar().asked !== before) break
+        }
+        return { before, after: window.__bar().asked, on: window.__bar().auto }
+      })
+      check('and with it on, the bar casts itself',
+        loud.on === true && loud.after !== null && loud.after !== loud.before,
+        `asked ${loud.before} -> ${loud.after} — `
+        + await p.evaluate(() => {
+          const d = window.__bar()
+          return `target ${window.__you().target}, auto ${d.auto}, `
+            + `usable ${d.usable} of bar ${d.bar.filter(Boolean)}`
+        }))
+      // And it is the leftmost thing it can use, which is the rule that makes
+      // the arrangement the fighting order.
+      // **Read before the cast, not after.**  A moment later the global
+      // cooldown is running and nothing is usable, so "the leftmost usable" is
+      // undefined and the comparison passes without meaning anything.
+      const which = await p.evaluate(async () => {
+        window.__setAuto(false)
+        // Wait until there is something usable that is *not* a stance, so
+        // "the leftmost usable" is a thing the automatic hand would pick.
+        const pickable = () => {
+          const d2 = window.__bar()
+          return d2.bar.find((id) => id !== null && d2.usable.includes(id)
+            && !d2.stances.includes(id))
+        }
+        for (let i = 0; i < 80; i++) {
+          await new Promise((r) => setTimeout(r, 100))
+          if (pickable() !== undefined) break
+        }
+        const d = window.__bar()
+        // A stance is usable and is never cast by the automatic hand — it is
+        // a decision, and one that would flip back and forth for ever.
+        const want = d.bar.find((id) => id !== null && d.usable.includes(id)
+          && !d.stances.includes(id))
+        const was = d.asked
+        window.__setAuto(true)
+        window.__aimAtNearest()
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 100))
+          if (window.__bar().asked !== was) break
+        }
+        const d2 = window.__bar()
+        return { fired: d2.asked, want, usable: d.usable.length,
+          order: d2.bar.slice() }
+      })
+      // **At or before**, and not "exactly": the list is sampled a moment
+      // before the cast and a cooldown can come back in between, so a square
+      // further *left* becoming usable is the rule working rather than
+      // breaking.  Further right is the failure this is for.
+      const place = (id) => which.order.indexOf(id)
+      check('and it is the leftmost square it can use',
+        which.want !== undefined && which.fired !== null
+        && place(which.fired) >= 0 && place(which.fired) <= place(which.want),
+        `fired ${which.fired} at square ${place(which.fired) + 1}, and the `
+        + `leftmost it could use was ${which.want} at ${place(which.want) + 1}`
+        + ` — bar ${which.order.filter((x) => x !== null)}, `
+        + `${which.usable} usable`)
+      await p.evaluate(() => window.__setAuto(false))
+    }
+  }
   await p.close()
 }
 

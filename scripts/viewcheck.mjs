@@ -1527,7 +1527,20 @@ const faces = await p.evaluate(async () => {
   await new Promise((r) => setTimeout(r, 2000))
   return { mine, foe: paint(document.querySelector('#foe .face canvas')) }
 })
-await p.keyboard.press('1')
+// Aimed with a click on the thing rather than with a key: issue 222 took the
+// aiming square off the bar, and a click on the world is the gesture that
+// replaced it.
+{
+  const at2 = await p.evaluate(() => {
+    const h = window.__hero()
+    const foe = window.__all()
+      .filter((n) => !n.dead && n.stance === 'quarry')
+      .map((n) => ({ n, d: Math.hypot(n.x - h.x, n.y - h.y) }))
+      .sort((a, b) => a.d - b.d)[0]
+    return foe ? window.__screenAt(foe.n.x, foe.n.y) : null
+  })
+  if (at2) await p.mouse.click(Math.round(at2[0]), Math.round(at2[1]))
+}
 await p.waitForTimeout(900)
 const foeFace = await p.evaluate(() => {
   const c = document.querySelector('#foe .face canvas')

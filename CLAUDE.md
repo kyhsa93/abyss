@@ -778,6 +778,49 @@ the conversation panel being the one that had to be in it, and its selector
 was `#ui > *` — and `#talk` is a child of `body`. Widening it turned up a
 landscape screen that printed every conversation on top of the log.
 
+**The bar was the spellbook and now it is an arrangement.** `squares` was
+rebuilt from `spells` every frame in the order things were learned, so
+`SPELL_KEYS[i]` meant "the i-th thing you bought": nothing to move, no way to
+leave a square empty, nothing to save, and no book to look at. `you.bar` is
+sixteen entries of an id or nothing, saved, and pruned against what is
+actually known on every load — two lists that could drift, joined on purpose.
+A newly learned ability drops into the first free square, which *is* the old
+order and is now a starting arrangement rather than a rule. **Only newly
+learned ones**: filling every gap on every fit put back the squares the player
+had emptied, because "not on the bar" and "never put on the bar" look the same
+from there.
+
+**The first square was aiming, and aiming had one answer.** Its whole body was
+`you.target ??= inSwing()` — the nearest thing that can be fought — so it was
+never a choice, and issue 140 already called choosing what to hit this game's
+only combat decision. The square is gone; what replaced it is narrower than
+the issue asked for, and the slice is why: of the 934 spawns with a fight row
+**none is `ENEMY`** (835 `FRIEND`, 99 `QUARRY`), so "an enemy in reach" has no
+referent and aiming at anything fightable would kill every chicken you walked
+past. Aiming happens by itself at whatever is **already angry at you**, and
+starting a fight stays a gesture — the phone's tap, and now a mouse click on
+the world, because taking the key away without that would be a cage.
+
+**The toggle called autocast cast nothing.** Its body was the same aim line.
+What it is worth is printed by `simcheck` every run — 4% against 68% at level
+five — so it is not a convenience. It casts the **leftmost square it can use**,
+which costs one line and hands the ordering back to the player: the
+arrangement is the fighting order. `why(sp)` is the single question (resource,
+cooldown, global cooldown, stance, reach) and the bar already dims every
+square with it. It skips stances, because a stance is a decision and because a
+free always-usable ability would be flipped for ever. The flag moved from
+`touch.ts` on to `you`, where a keyboard can reach it.
+
+**A check that waits on the weather fails for reasons that are not the rule.**
+Four of the screen checks for this did: the nearest thing to click was a rabbit
+that died before it could be angry at anybody; the screen point was worked out
+before the camera stopped moving; everything in this world wanders, so a
+position from a moment ago is a yard out and three yards is all the aim allows;
+and "leftmost usable" sampled before the cast is a different list from the one
+the cast saw. Where a rule is about *state*, put the state there and measure
+the rule — `__anger` sets the same field a landed blow sets, exactly as
+`__pull` already did for a pack.
+
 **A constant with a source in the comment and no check behind it is a
 comment.** `npm run corecheck` goes and reads the server's own line back and
 fails when the copy here has drifted from it — the `derive_body` /

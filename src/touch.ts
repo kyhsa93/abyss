@@ -54,14 +54,15 @@ const DEADZONE = 0.24
 /**
  * Five, as before.  One action is one slot; the shape is there for the rest.
  *
- * The corner is always the attack, so **four of the five turn**: a character
- * with sixteen abilities is four pages deep and every one of them is under a
- * thumb in at most three presses of the page ring.  Five buttons was never
- * the problem — five buttons *and no way past them* was, which is issue 203.
+ * **All five turn now.**  The corner used to be the attack, which was really
+ * the aim — and aiming stopped being a button in issue 222, so the corner is
+ * an ability like the other four.  A character with sixteen on the bar is four
+ * pages deep and every one of them is under a thumb in at most three presses
+ * of the page ring.  Five buttons was never the problem — five buttons *and no
+ * way past them* was, which is issue 203.
  */
 const MAX_SLOTS = 5
-export const FIXED_SLOTS = 1
-export const PER_PAGE = MAX_SLOTS - FIXED_SLOTS
+export const PER_PAGE = MAX_SLOTS
 
 /**
  * How much of each edge the phone itself has taken.
@@ -228,8 +229,16 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
   let pinchGap = 0
   let scale = 1
   let tap: Push | null = null
-  /** Whether the player has asked to keep swinging — see `autoAt`. */
+  /**
+   * Whether the automatic hand is on.
+   *
+   * Held by the *scene* now and mirrored here — `setAuto` writes it in and the
+   * toggle asks for a change rather than making one.  It used to live only
+   * here, which meant a keyboard could not reach the one switch worth 4%
+   * against 69% (issue 224).
+   */
   let auto = false
+  let wantAuto: ((on: boolean) => void) | null = null
   /**
    * Which page of abilities the four turning slots are showing.
    *
@@ -281,10 +290,18 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
 
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
-    // A mouse only drives the pad once the pad is already showing.  Otherwise
-    // a click on the world quietly relocates a stick nobody can see, and the
-    // hero walks off while the player wonders what they pressed.
-    if (e.pointerType === 'mouse' && !on) return
+    // A mouse only *drives the pad* once the pad is already showing.
+    // Otherwise a click on the world quietly relocates a stick nobody can see,
+    // and the hero walks off while the player wonders what they pressed.
+    //
+    // **It still taps, though.**  A tap on the world is how you choose what to
+    // hit, and issue 222 took the aiming key off the bar — so a keyboard with
+    // no tap would be a keyboard that cannot start a fight with anything that
+    // is not already angry.  The original targets on a click too.
+    if (e.pointerType === 'mouse' && !on) {
+      down = { at: at(e), id: e.pointerId }
+      return
+    }
     if (e.pointerType === 'touch') on = true
     const p = at(e)
     // Where the finger went down, so the lift can tell a tap from a drag.
@@ -309,7 +326,7 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     if (Math.hypot(p.x - l.autoAt.x, p.y - l.autoAt.y) <= l.autoR * 1.3) {
       e.preventDefault()
       down = null
-      auto = !auto
+      if (wantAuto) wantAuto(!auto); else auto = !auto
       return
     }
     // And the page turn beside it, on the same rule and checked before the
@@ -464,6 +481,8 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
 
     /** Whether autocast is on, which the scene reads every frame. */
     get auto() { return auto },
+    /** The scene tells the pad what the flag is, and who to tell when it turns. */
+    setAuto(on: boolean, ask: (want: boolean) => void) { auto = on; wantAuto = ask },
     /**
      * Which page of abilities the four turning slots are showing, and how
      * many there are.

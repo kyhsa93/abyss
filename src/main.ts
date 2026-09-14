@@ -35,7 +35,7 @@ import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
 import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, RANK_WORD, SIDE_WORD, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
-import { hud as makeHud, type Layout, type ShopRow, type Slot, type Worn } from './hud.ts'
+import { hud as makeHud, type BookRow, type Layout, type ShopRow, type Slot, type Worn } from './hud.ts'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
   short, take, walked, wants, type Errand,
@@ -3021,6 +3021,38 @@ async function main() {
    */
   let recipes: number[] = []
   /**
+   * What is on the bar, by ability id, one entry a square — **and nothing
+   * when the square is empty.**
+   *
+   * The bar used to *be* the spellbook: `squares` was rebuilt from `spells`
+   * every frame in the order things were learned, so `SPELL_KEYS[i]` meant
+   * "the i-th thing you bought" and there was no way to move it, no way to
+   * leave a square empty, and nothing to save.  With two abilities that is
+   * invisible; with a level ten mage's dozen and a bag of food beside it,
+   * **what to put within reach is a decision** — and issue 224 makes the
+   * order of them the fighting order as well, so it is two decisions.
+   *
+   * Sixteen because that is what the keys are.  Pruned on load and on every
+   * change of class against what is actually known, so an id from another
+   * character or another bake cannot sit there unpressable.
+   */
+  let bar: (number | null)[] = []
+  /**
+   * The sixteen keys the bar is pressed with, and therefore how many squares
+   * there are.
+   *
+   * The number row and then four letters the game was not already using.  Not
+   * `W`: that walks you forward, and a key that both walks and swings is the
+   * same class of mistake as a square labelled one higher than the key that
+   * presses it, which this file has already made once.
+   *
+   * `1` is one of them again.  It used to be the attack, which was really the
+   * aim, and aiming is not a button — see `takeAim`.
+   */
+  const BAR_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
+    'Q', 'R', 'T', 'F'] as const
+  const BAR_SLOTS = BAR_KEYS.length
+  /**
    * Where he stands with everybody, by faction id.
    *
    * Seeded from `player.json` rather than empty, because a human is not
@@ -3322,6 +3354,15 @@ async function main() {
      */
     trades: {} as Record<string, [number, number]>,
     /**
+     * Whether the automatic hand is on — see `autoCast`.
+     *
+     * On `you` and not inside `touch.ts`, which is where it lived: a toggle
+     * that only exists in the phone's pad is a toggle a keyboard cannot reach,
+     * and what it turns on is the difference between surviving four times in a
+     * hundred and sixty-nine.
+     */
+    auto: false,
+    /**
      * Which stance he is standing in — the client's own form number, 17
      * Battle or 18 Defensive, or nought before he has been given one.
      *
@@ -3491,7 +3532,7 @@ async function main() {
     // nothing, because rage is earned.
     you.power = you.powerWord === 'rage' ? 0 : powerMax()
     you.combo = 0; you.comboOn = null; you.absorb = 0; you.casting = null
-    spells = known(you.level)
+    relearn()
   }
   /**
    * Which picture goes with what, out of `pipeline/bake_ui.py`.
@@ -4000,7 +4041,7 @@ async function main() {
       // And whatever the new level opened.  The list is a function of the
       // level now; before this it was decided once at load and never again.
       const had = spells.length
-      spells = known(you.level)
+      relearn()
       say(hero.x, hero.y, `${you.level}레벨`, true)
       // The bar is built from `spells` every frame, so there is nothing to
       // rebuild — only something to say.  And what opened is not a new button
@@ -4735,6 +4776,164 @@ async function main() {
     }
   }
 
+  /**
+   * Everything the bar is, in one place.
+   *
+   * `fitBar` is the whole of the rule: **what a character knows and what is on
+   * his bar are two lists**, and two lists drift — an ability bought for
+   * another class, a world re-baked under an old save, a spell that stopped
+   * being learnable.  So the bar is pruned against `spells` every time either
+   * could have changed, and anything newly learned drops into the first empty
+   * square rather than nowhere.
+   *
+   * That last part is what keeps this from being a worse game on the day it
+   * ships: dropping in the first free square *is* the old behaviour — the
+   * order things were learned — and it is now a **starting arrangement**
+   * rather than a rule.  You can move it.
+   */
+  const fitBar = () => {
+    const known = new Set(spells.map((sp) => sp.id))
+    while (bar.length < BAR_SLOTS) bar.push(null)
+    bar.length = BAR_SLOTS
+    for (let i = 0; i < bar.length; i++) {
+      if (bar[i] !== null && !known.has(bar[i]!)) bar[i] = null
+    }
+  }
+
+  /**
+   * Put newly learned abilities in the first free square.
+   *
+   * **Only the new ones**, and that is the whole of the difference between a
+   * starting arrangement and a rule.  Filling every gap on every fit undid the
+   * player's own emptying the moment anything reloaded: a square cleared on
+   * purpose came back full, because "not on the bar" and "never put on the
+   * bar" look the same from here.  What is new is known where the learning
+   * happens, so it is passed rather than guessed.
+   */
+  const stockBar = (fresh: Iterable<number>) => {
+    fitBar()
+    const on = new Set(bar.filter((x): x is number => x !== null))
+    for (const id of fresh) {
+      if (on.has(id)) continue
+      const free = bar.indexOf(null)
+      if (free < 0) break
+      bar[free] = id
+      on.add(id)
+    }
+  }
+
+  /**
+   * Work out what is known again, and hand anything new a square.
+   *
+   * One place, because every caller wants the same two things in the same
+   * order and the difference between them is only *whether there is a save to
+   * respect* — which `keep` says.
+   */
+  const relearn = (keep = false) => {
+    const had = new Set(spells.map((sp) => sp.id))
+    spells = known(you.level)
+    if (keep) fitBar()
+    else stockBar(spells.filter((sp) => !had.has(sp.id)).map((sp) => sp.id))
+  }
+
+  /**
+   * Put an ability on a square, or take it off, or swap two.
+   *
+   * One place, because the book, the bar and a check all want it and three
+   * copies of "move this there" is three ways for the bar to end up holding
+   * the same spell twice.
+   */
+  const putOnBar = (slot: number, id: number | null) => {
+    if (slot < 0 || slot >= BAR_SLOTS) return
+    if (id !== null) {
+      // An ability lives in one square.  Dragging it on to a second takes it
+      // off the first, and dropping it on an occupied square swaps them,
+      // which is what the original does and what every player expects.
+      const was = bar.indexOf(id)
+      if (was >= 0) bar[was] = bar[slot]
+    }
+    bar[slot] = id
+  }
+
+  // The first fill, which nothing else does: `spells` is worked out before
+  // this function exists, so a fresh character's bar would have been empty
+  // until the first level or the first lesson.
+  stockBar(spells.map((sp) => sp.id))
+
+  /**
+   * Aim at whatever is already fighting you, if nothing is aimed at.
+   *
+   * This is the square that went.  Its body was `you.target ??= inSwing()` —
+   * *the nearest thing that can be fought* — and pressing it was never a
+   * decision: it had one answer.  Issue 140 called choosing what to hit this
+   * game's only combat decision, and that decision is the tap, not the key.
+   *
+   * **Narrower than the square was, and the slice is why.**  `inSwing` takes
+   * anything `fightable`, and of the 934 spawns with a fight row in this world
+   * **none is `ENEMY`** — 835 are `FRIEND` and 99 are `QUARRY`.  So "an enemy
+   * in reach" has no referent here, and aiming at anything fightable would
+   * mean killing every chicken you walked past.  What is left is the case
+   * where aiming really is not a decision: **something is already angry at
+   * you** — you were jumped, or your target died and its friend is still on
+   * you.  Starting a fight stays a choice and stays a gesture.
+   */
+  const takeAim = () => {
+    if (chat || you.died || you.target) return
+    let best: Npc | null = null, bd = Infinity
+    for (const n of active) {
+      if (n.dead || !n.angry || !fightable(n.fight)) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    if (best) you.target = best
+  }
+
+  /**
+   * Keep fighting: cast the leftmost thing on the bar that can be cast.
+   *
+   * The toggle was called autocast and cast nothing — its whole body was
+   * `you.target ??= inSwing()`, which aims.  What it is worth is already
+   * measured and printed by `npm run simcheck` every run:
+   *
+   *     and pressing something beats pressing nothing -> 4% vs 69%
+   *
+   * Against a level five, a character who presses nothing survives four times
+   * in a hundred and one who presses anything survives sixty-nine.  So this is
+   * not a convenience; it is whether the game can be won with one thumb.
+   *
+   * **Leftmost first, and that is the whole rule.**  Three orders were on the
+   * table — bar order, damage a second, a hand-written priority a class — and
+   * the last is six lists of constants this repository would have to keep, and
+   * the middle needs a damage model that cannot see a resource curve.  Bar
+   * order costs one line *and hands the ordering back to the player*: issue
+   * 225 made the arrangement a decision, and this makes the arrangement the
+   * fighting order too.
+   *
+   * `why(sp)` is the one question, and the bar already dims every square with
+   * it: resource, cooldown, global cooldown, stance and reach in one call.
+   *
+   * What it does not do is change stance or change target.  Both are
+   * decisions, and an automatic hand that makes them is an automatic hand that
+   * has taken the game over.
+   */
+  const autoCast = () => {
+    if (!you.auto || chat || you.died || !you.target) return
+    if (you.casting || you.gcd > clock) return
+    for (const id of bar) {
+      if (id === null) continue
+      const sp = spells.find((x) => x.id === id)
+      if (!sp || why(sp) !== null) continue
+      // **Not a stance.**  A stance is a decision — it is the one lever this
+      // stretch of the game has that is not "which button" — and an automatic
+      // hand that changes it has taken that decision away.  It is also free
+      // and always usable, so an automatic hand that did not skip it would
+      // stand there flipping between two stances for ever.
+      if (sp.stance) continue
+      cast(sp)
+      return
+    }
+  }
+
   /** "66 회복, 6초" — what pressing a thing in the bag would do. */
   const useWord = (use: [string, number, number]): string => {
     const [word, total, seconds] = use
@@ -5022,6 +5221,21 @@ async function main() {
     // list of abilities is a binding that leaves when the list is rearranged.
     if (k === 'e') { e.preventDefault(); toggleTalk() }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
+    // The book.  `P` is the original's own key for it, and this game was not
+    // using it.
+    if (k === 'p') {
+      e.preventDefault()
+      bookOpen = !bookOpen
+      if (bookOpen) bookPage = 0
+      drawBook()
+    }
+    // And the automatic hand, which lived inside the phone's pad and could not
+    // be reached from a keyboard at all — see `autoCast`.
+    if (k === 'y') {
+      e.preventDefault()
+      you.auto = !you.auto
+      ui.log(you.auto ? '자동 시전을 켰다.' : '자동 시전을 껐다.', 'note')
+    }
     // The workbench.  One key, and pressing it again with two trades open
     // turns the page rather than shutting it — a person with cooking and
     // first aid wants both lists off one finger.
@@ -5110,12 +5324,14 @@ async function main() {
    * press loop each need this list, and a bar drawn from one index and fired
    * from another is what puts the wrong spell under the right picture.
    */
+  const onBar = () => bar
+    .map((id) => (id === null ? null : spells.find((x) => x.id === id) ?? null))
+    .filter((sp): sp is Spell => sp !== null)
   const phonePages = () =>
-    Math.max(1, Math.ceil(spells.length / (PHONE_SLOTS - 1)))
+    Math.max(1, Math.ceil(onBar().length / PHONE_SLOTS))
   const onPhonePage = () => {
-    const per = PHONE_SLOTS - 1
-    const from = Math.min(pad.page, phonePages() - 1) * per
-    return spells.slice(from, from + per)
+    const from = Math.min(pad.page, phonePages() - 1) * PHONE_SLOTS
+    return onBar().slice(from, from + PHONE_SLOTS)
   }
   // The original's own frame places, read out of its `FrameXML` by
   // `pipeline/layout.py`.  Missing is fine: without it the stylesheet's
@@ -5489,7 +5705,8 @@ async function main() {
       level: you.level, xp: you.xp, hp: you.hp, power: you.power,
       purse: you.purse, kills: you.kills,
       bag: you.bag, trades: you.trades, cools: you.cools,
-      items: held, gear, taught, bought, recipes, stands,
+      items: held, gear, taught, bought, recipes, stands, bar,
+      auto: you.auto ? 1 : 0,
       rest: you.rest, restedIn: resting() ? 1 : 0,
       finished: you.finished, born: you.born,
       ...(me ? { who: { ...me } } : {}),
@@ -5525,6 +5742,8 @@ async function main() {
     taught = save.you.taught ?? []
     recipes = save.you.recipes ?? []
     stands = save.you.stands ?? {}
+    bar = (save.you.bar ?? []).slice(0, BAR_SLOTS)
+    you.auto = !!save.you.auto
     bought = save.you.bought ?? {}
     you.rest = save.you.rest ?? 0
     you.finished = save.you.finished ?? 0
@@ -5535,7 +5754,10 @@ async function main() {
     you.line = lineFor(you.level)
     you.max = you.line[HP]!
     you.hp = Math.min(you.max, save.you.hp || you.max)
-    spells = known(you.level)
+    // **Keeping the arrangement**, which is the whole point of saving it: a
+    // square the player emptied on purpose stays empty, and only what is no
+    // longer known is taken off.
+    relearn(true)
     reseed(save.seed >>> 0)
     const q = save.quests as { held?: Held[]; done?: number[] } | undefined
     log.held = q?.held ?? []
@@ -5827,6 +6049,43 @@ async function main() {
    */
   const HEAT_TINT: Record<string, string> = {
     orange: '#d98032', yellow: '#d9c04a', green: '#6fbf5a', grey: '#8a8a8a',
+  }
+
+  /** Whether the spellbook is up, and which page of it. */
+  let bookOpen = false
+  let bookPage = 0
+  /**
+   * The book, twelve to a page — the original's own number out of
+   * `SpellBookFrame.lua`.
+   *
+   * Everything known, not everything on the bar: the book is what you have and
+   * the bar is what you chose to keep within reach.  Those were the same list
+   * until issue 225, which is why there was no book.
+   */
+  const drawBook = () => {
+    if (!bookOpen) {
+      ui.setBook(false, 0, 0, [], () => {})
+      return
+    }
+    const per = (layout?.spec?.book?.['page'] as number) ?? 12
+    const pages = Math.max(1, Math.ceil(spells.length / per))
+    bookPage = Math.max(0, Math.min(bookPage, pages - 1))
+    const rows = spells.slice(bookPage * per, bookPage * per + per)
+      .map((sp) => {
+        const [word, what] = abilityOf(sp.id)!
+        const on = bar.includes(sp.id)
+        return [sp.id, word + (on ? '  ·' : ''), iconOf(sp.id),
+          `${word}\n${what}`, why(sp) === null] as BookRow
+      })
+    ui.setBook(true, bookPage, pages, rows,
+      (to) => { bookPage = to; drawBook() },
+      // Pressed rather than dragged, because a phone has no drag on to a bar
+      // it cannot see while the book is up: the first free square takes it.
+      (id) => {
+        if (bar.includes(id)) return
+        const free = bar.indexOf(null)
+        if (free >= 0) { putOnBar(free, id); drawBook() }
+      })
   }
 
   /** Whether the crafting window is up, and which trade's page it shows. */
@@ -6664,7 +6923,7 @@ async function main() {
             if (you.purse < price) return ['돈이 모자라오.']
             you.purse -= price
             taught.push(id!)
-            spells = known(you.level)
+            relearn()
             ui.log(`${word[0]}을(를) 배웠다. ${coin(price)}`, 'gain')
             return [`${word[0]}. ${coin(you.purse)} 남았소.`]
           },
@@ -7504,6 +7763,9 @@ async function main() {
 
     // --- the thumbs, before the keys, because they answer the same question
     pad.setBusy(chat !== null)
+    // One flag, two interfaces.  The pad draws it and asks for changes; the
+    // scene owns it, so `Y` and the thumb are the same switch.
+    pad.setAuto(you.auto, (want) => { you.auto = want })
     // A pinch takes the zoom over — the same as a wheel.  A `1` is nobody
     // pinching, so a frame where nothing happened does not count as a
     // decision and a rotated phone still gets its fit back.
@@ -7536,19 +7798,17 @@ async function main() {
       const near = inReach()
       if (near && (!best || !fightable(best.fight))) toggleTalk()
     }
-    // Autocast, which the old prototype had and this one lost: the toggle
-    // says "keep swinging", so a thumb that has picked a target does not have
-    // to keep pressing the corner to stay in the fight.
-    if (pad.auto && !chat && !you.died && !you.target) you.target = inSwing()
+    // Aiming, which is not a button any more — see `takeAim`.
+    takeAim()
+    // And the autocast, which says "keep fighting" and until now only picked a
+    // target.  See `autoCast`.
+    autoCast()
     for (const slot of pad.taken()) {
       if (chat || you.died) continue
       // A press that turned into a question is not a press.
       if (pad.asking) continue
-      if (slot === 0) you.target = you.target ?? inSwing()
-      else {
-        const sp = onPhonePage()[slot - 1]
-        if (sp) cast(sp)
-      }
+      const sp = onPhonePage()[slot]
+      if (sp) cast(sp)
     }
 
     // Steering happens on the glass, both for the keys and for the thumb.
@@ -8601,8 +8861,6 @@ async function main() {
 
     // The pad last of all, over everything including the prompt.
     pad.draw(ctx, [
-      { label: '공격', icon: art.chrome['attack'],
-        ready: you.target !== null || inSwing() !== null },
       ...onPhonePage().map((sp) => ({
         label: abilityOf(sp.id)?.[0] ?? '', icon: iconOf(sp.id),
         ready: why(sp) === null,
@@ -8622,8 +8880,8 @@ async function main() {
       // was right while the cluster could only ever show the first four
       // abilities: turn a page and the finger asks about one spell and is
       // answered about another.  The id is the join, so the two cannot drift.
-      const want = asked.slot === 0 ? null : onPhonePage()[asked.slot - 1]
-      const sq = want ? squares.find((x) => x.id === want.id) : squares[0]
+      const want = onPhonePage()[asked.slot]
+      const sq = want ? squares.find((x) => x.id === want.id) : null
       const lines = (sq?.tip ?? '').split('\n').filter(Boolean)
       if (lines.length) {
         ctx.font = `12px ${getComputedStyle(document.documentElement)
@@ -8669,7 +8927,7 @@ async function main() {
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
         ? '끌어서 이동  ·  눌러서 고르기\n오므려서 확대'
-        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  T: 제작  G: 장비  N: 소리  C: 정보  M: 지도  `: 수치'
+        : 'WASD: 이동  E: 대화·줍기  B: 가방  P: 주문서  T: 제작  Y: 자동  G: 장비  N: 소리  C: 정보  M: 지도  `: 수치'
     }
 
     acc += dt; frames++
@@ -8779,6 +9037,12 @@ async function main() {
       { key: 'C', label: '정보', on: sheetOpen, use: () => { sheetOpen = !sheetOpen } },
       { key: 'B', label: '가방', on: bagOpen, use: () => { bagOpen = !bagOpen } },
       { key: 'T', label: '제작', on: craftOpen, use: () => showCraft(!craftOpen) },
+      { key: 'P', label: '주문서', on: bookOpen, use: () => {
+        bookOpen = !bookOpen
+        if (bookOpen) bookPage = 0
+        drawBook()
+      } },
+      { key: 'Y', label: '자동', on: you.auto, use: () => { you.auto = !you.auto } },
       { key: 'N', label: '소리', on: !muteIsOn(), use: () => mute(!muteIsOn()) },
       { key: 'M', label: '지도', on: mapOpen, use: () => {
         mapOpen = !mapOpen
@@ -8910,13 +9174,6 @@ async function main() {
     // Not `W`: that walks you forward, and a key that both walks and swings
     // is the same class of mistake as a square labelled one higher than the
     // key that presses it, which this file has already made once.
-    const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
-      'Q', 'R', 'T', 'F']
-    // Attack takes the first key and the rest are the abilities in the order
-    // they are learned.  Fifteen is what a warrior can hold by level ten,
-    // which is where this game ends — measured by learning the whole book
-    // rather than counted off a list.
-    const SPELL_KEYS = KEYS.slice(1)
     // One table, read twice: the letter drawn on a square and the key that
     // presses it come out of the same place.  They used to be worked out
     // separately — the bar drew `KEYS[i + 2]` and the keyboard did
@@ -8924,48 +9181,39 @@ async function main() {
     // key that used it, `2` did nothing on the bar and everything on the
     // keyboard, and the last thing learned had no key at all because the bar
     // drew out to `=` and the handler stopped at `9`.
-    squares = [
-      {
-        key: '1', label: '공격', icon: art.chrome['attack'] ?? '',
-        tip: `공격  —  ${you.line[LO]}–${you.line[HI]} 피해\n`
-          + `${(you.line[SWING]! / 1000).toFixed(1)}초마다 한 번\n`
-          + (you.target ? `대상: ${nameOf(you.target.kind)}`
-            : inSwing() ? '가장 가까운 적을 친다' : '닿는 곳에 적이 없다'),
-        use: () => { if (!chat && !you.died) you.target = you.target ?? inSwing() },
-        // The shutter falls as the swing comes back, so a full square is a
-        // swing you have not taken rather than one you cannot.
-        cooling: you.target
-          ? Math.max(0, (you.next - clock * 1000) / you.line[SWING]!) : 0,
-        live: you.target !== null || inSwing() !== null,
-      },
-      ...spells.map((sp, i) => {
-        const [word, what] = abilityOf(sp.id)!
-        const stop = why(sp)
-        const ready = you.cools[sp.id] ?? 0
-        return {
-          key: SPELL_KEYS[i] ?? '', label: word, id: sp.id,
-          icon: iconOf(sp.id),
-          tip: `${word}  —  ${POWER_KOR[POWER_WORD[sp.power] ?? you.powerWord]
-            ?? ''} ${costOf(sp, baseFor(sp))}\n${what}`
-            + (sp.cast ? `\n시전 ${(sp.cast / 1000).toFixed(1)}초` : '')
-            + (sp.cool ? `\n재사용 ${(sp.cool / 1000).toFixed(0)}초` : '')
-            + (sp.gcd ? `\n전역 대기 ${(gcdOf(sp) / 1000).toFixed(1)}초`
-              : '\n다음 공격에 실린다')
-            + (stop ? `\n${stop}` : ''),
-          use: () => { if (!chat) cast(sp) },
-          // The shutter falls for whichever wait is longer, so the global one
-          // is visible on every square it applies to rather than nowhere.
-          cooling: Math.max(
-            sp.cool ? Math.max(0, (ready - clock) / (sp.cool / 1000)) : 0,
-            sp.gcd ? Math.max(0, (you.gcd - clock) / (gcdOf(sp) / 1000)) : 0),
-          live: stop === null,
-        }
-      }),
-      ...SPELL_KEYS.slice(spells.length).map((key) => ({
-        key, label: '', icon: '', tip: '', cooling: 0, live: false,
-      })),
-    ]
-    ui.setBar(squares)
+    //
+    // **And the first key is no longer the attack.**  That square's whole
+    // body was `you.target = you.target ?? inSwing()` — it aimed, and the
+    // swing goes out on its own once something is aimed at.  Aiming at the
+    // nearest was never a choice, so it is not a button; see `takeAim`.
+    squares = BAR_KEYS.map((key, i) => {
+      const id = bar[i] ?? null
+      const sp = id === null ? null : spells.find((x) => x.id === id) ?? null
+      if (!sp) return { key, label: '', icon: '', tip: '', cooling: 0, live: false }
+      const [word, what] = abilityOf(sp.id)!
+      const stop = why(sp)
+      const ready = you.cools[sp.id] ?? 0
+      return {
+        key, label: word, id: sp.id,
+        icon: iconOf(sp.id),
+        tip: `${word}  —  ${POWER_KOR[POWER_WORD[sp.power] ?? you.powerWord]
+          ?? ''} ${costOf(sp, baseFor(sp))}\n${what}`
+          + (sp.cast ? `\n시전 ${(sp.cast / 1000).toFixed(1)}초` : '')
+          + (sp.cool ? `\n재사용 ${(sp.cool / 1000).toFixed(0)}초` : '')
+          + (sp.gcd ? `\n전역 대기 ${(gcdOf(sp) / 1000).toFixed(1)}초`
+            : '\n다음 공격에 실린다')
+          + (stop ? `\n${stop}` : ''),
+        use: () => { if (!chat) cast(sp) },
+        // The shutter falls for whichever wait is longer, so the global one
+        // is visible on every square it applies to rather than nowhere.
+        cooling: Math.max(
+          sp.cool ? Math.max(0, (ready - clock) / (sp.cool / 1000)) : 0,
+          sp.gcd ? Math.max(0, (you.gcd - clock) / (gcdOf(sp) / 1000)) : 0),
+        live: stop === null,
+      }
+    })
+    ui.setBar(squares, (slot, id) => { putOnBar(slot, id); drawBook() })
+    drawBook()
     // And the keyboard reads the same table.  Lower-cased because `E` is
     // drawn on a square and typed in lower case, and only the squares that do
     // something go in — an empty one has no `use`.
@@ -9613,6 +9861,10 @@ async function main() {
    */
   ;(window as unknown as { __openShopAt: (entry: number) => unknown })
     .__openShopAt = (entry) => {
+      // Nought shuts it, through the same call the conversation uses: a check
+      // that leaves a window open is a check that makes the next one click on
+      // a panel.
+      if (!entry) { shutShop(); return null }
       const who = npcs.find((n) => n.entry === entry)
       if (!who) return null
       openShop(who)
@@ -10149,16 +10401,21 @@ async function main() {
     const lv = mineLevel ?? you.level
     const foe = (spawns.npcs ?? []).find((r) => r[4] === level && (r[7] ?? -1) >= 0)
     const line = foe ? spawns.fights?.[foe[7]!] : null
-    const opener = spells.find((sp) => sp.id === 78)
+    // **The character's own bar, in the character's own order.**  It was one
+    // ability found by id, which made the simulation reachable from the page a
+    // different rule from the one the page follows — and issue 224 made the
+    // arrangement the fighting order, so the order is the whole point.
+    const rota = bar
+      .map((id) => (id === null ? null : spells.find((sp) => sp.id === id)))
+      .filter((sp): sp is Spell => !!sp && sp.cost > 0)
+      .map((sp) => ({ rage: sp.cost,
+        adds: sp.does.find((d) => d[0] === E_WEAPON_ADD)?.[1] ?? 0 }))
+      .filter((sp) => sp.adds > 0)
     return duel(
       { level: lv, stats: statsAt(lv), line: lineFor(lv) },
       { level, stats: statsAt(1), line: line ?? [60, 3, 5, 2000, 20, 2] },
       who,
-      { many, runs, policy: policy === 'rota' ? 'rota' : 'auto',
-        ...(opener ? { opener: {
-          rage: opener.cost,
-          adds: opener.does.find((d) => d[0] === E_WEAPON_ADD)?.[1] ?? 0,
-        } } : {}) })
+      { many, runs, policy: policy === 'rota' ? 'rota' : 'auto', bar: rota })
   }
 
   /** What is for sale and what is taught nearby, and buying and learning it. */
@@ -10311,8 +10568,26 @@ async function main() {
   ;(window as unknown as { __bar: () => unknown }).__bar = () => ({
     squares: squares.map((sq) => ({ key: sq.key, label: sq.label, filled: !!sq.icon })),
     spells: spells.map((sp) => sp.id),
+    // What is actually on each square, which is not the same list as the
+    // spellbook any more — see `fitBar`.
+    bar: bar.slice(),
+    auto: you.auto,
+    // Which of them could go off right now, which is the one question the
+    // automatic hand asks — `why(sp) === null`.
+    usable: spells.filter((sp) => why(sp) === null).map((sp) => sp.id),
+    /** Which of them are stances, which the automatic hand never casts. */
+    stances: spells.filter((sp) => !!sp.stance).map((sp) => sp.id),
     asked,
   })
+  /** The automatic hand, set from a check the way `Y` sets it. */
+  ;(window as unknown as { __setAuto: (on: boolean) => unknown })
+    .__setAuto = (on) => { you.auto = on; return you.auto }
+  /** Aim the way a click aims, for the checks that need something aimed at. */
+  ;(window as unknown as { __aimAtNearest: () => unknown })
+    .__aimAtNearest = () => {
+      you.target = you.target ?? inSwing()
+      return you.target?.kind ?? null
+    }
   ;(window as unknown as { __learn: (id: number) => unknown }).__learn = (id) => {
     const had = spells.length
     // Refused rather than quietly dropped a second time.  A trainer used to
@@ -10322,7 +10597,7 @@ async function main() {
     // longer offers them; this is the other end of the same rule.
     if (!abilityOf(id)) return { had, now: had, refused: id }
     taught.push(id)
-    spells = known(you.level)
+    relearn()
     return { had, now: spells.length, taught: [...taught] }
   }
   ;(window as unknown as { __dress: () => unknown }).__dress = () => {
@@ -10377,6 +10652,45 @@ async function main() {
     fighting()
     return { was, now: { x: hero.x, y: hero.y, hp: you.hp, max: you.max },
       walked: Math.hypot(hero.x - was.x, hero.y - was.y) }
+  }
+  /**
+   * The bar and the book, for the checks that the arrangement is a choice.
+   *
+   * `__place` is `putOnBar` and not a second way to move things — the drag and
+   * the check press the same function, which is the lesson `__buy` taught.
+   */
+  ;(window as unknown as { __place: (slot: number, id: number | null) => unknown })
+    .__place = (slot, id) => { putOnBar(slot, id); return bar.slice() }
+  ;(window as unknown as { __book: (page?: number) => unknown })
+    .__book = (page) => {
+      if (page !== undefined) { bookOpen = true; bookPage = page; drawBook() }
+      const per = (layout?.spec?.book?.['page'] as number) ?? 12
+      return spells.slice(bookPage * per, bookPage * per + per).map((sp) => sp.id)
+    }
+  /**
+   * Make the nearest thing that can be fought angry, the way a landed blow
+   * does — the same field, set the same way `__pull` sets it for a pack.
+   *
+   * For the check on `takeAim`, which is a rule about *state*: something is
+   * angry and nothing is aimed at.  Getting there by actually fighting means
+   * waiting on a swing timer while the thing wanders, and a rabbit dies before
+   * it can be angry at anybody — so the check would be measuring the weather.
+   */
+  ;(window as unknown as { __anger: () => unknown }).__anger = () => {
+    let best: Npc | null = null, bd = Infinity
+    for (const n of active) {
+      if (n.dead || !fightable(n.fight)) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    if (!best) return null
+    best.angry = true
+    return { kind: best.kind, away: Math.sqrt(bd) }
+  }
+  /** Let go of whatever is aimed at, for the check that aim comes back. */
+  ;(window as unknown as { __unaim: () => unknown }).__unaim = () => {
+    you.target = null
+    return null
   }
   /** The save, round-tripped, for the check that closing the tab costs nothing. */
   ;(window as unknown as { __save: () => unknown }).__save = () => snapshot()
@@ -10801,17 +11115,23 @@ async function main() {
     placeHero(best.x - 1.4, best.y)
     return { kind: best.kind, level: best.level, hp: best.hp }
   }
-  ;(window as unknown as { __foe: () => unknown }).__foe = () => {
-    let best: Npc | null = null, bd = Infinity
-    for (const n of npcs) {
-      if (!fightable(n.fight) || n.dead) continue
-      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
-      if (d < bd) { bd = d; best = n }
+  ;(window as unknown as { __foe: (least?: number) => unknown })
+    .__foe = (least = 0) => {
+      // `least` is the smallest level worth walking to.  A check that needs
+      // something to *still be alive* after one swing cannot use the nearest,
+      // because the nearest is a rabbit with one health — and a check that
+      // quietly got a corpse is a check that measured nothing.
+      let best: Npc | null = null, bd = Infinity
+      for (const n of npcs) {
+        if (!fightable(n.fight) || n.dead || n.level < least) continue
+        const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+        if (d < bd) { bd = d; best = n }
+      }
+      if (!best) return null
+      placeHero(best.x - 1.4, best.y)
+      return { kind: best.kind, level: best.level, hp: best.hp,
+        x: best.x, y: best.y }
     }
-    if (!best) return null
-    placeHero(best.x - 1.4, best.y)
-    return { kind: best.kind, level: best.level, hp: best.hp, x: best.x, y: best.y }
-  }
 
   // Driven from the screenshot script: a scene is not finished until it has
   // been looked at, and looking means putting the camera somewhere on purpose.

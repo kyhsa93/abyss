@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **114 promises across 15 pages, 85 of them kept.**
+Counted: **114 promises across 15 pages, 93 of them kept.**
 
 `npm run wikicheck` is the gate, and it is deliberately two checks with
 different reaches:
@@ -170,14 +170,14 @@ keeps it honest.
 
 | 약속 | 지키는 검사 |
 | --- | --- |
-| **자동 공격이 바의 칸을 차지하지 않는다** | — 첫 칸은 아직 조준 단추다 (#222) |
-| 대상이 없고 닿는 곳에 적이 있으면 저절로 대상이 잡힌다 | — (#222) |
-| **자동 시전이 켜져 있으면 바에 올린 것이 실제로 시전된다** | — 지금은 대상만 잡는다 (#224) |
-| 자동 시전이 쓸 수 없는 것을 안 쓴다 (`why(sp) !== null`) | — (#224) |
-| 자동 시전을 켠 쪽이 끈 쪽보다 많이 이긴다 | — `simcheck` 의 4% 대 69%를 화면에서 재는 줄이 없다 (#224) |
-| 주문서의 모든 주문을 창에서 볼 수 있다 | — 창이 없다 (#223) |
-| **바에 놓은 자리가 다시 켜도 그대로다** | — 놓을 수가 없다 (#225) |
-| 전화기와 데스크톱에서 같은 자동 시전이 돈다 | — (#224) |
+| **자동 공격이 바의 칸을 차지하지 않는다** | `scripts/uicheck.mjs: "no square on the bar is the attack"` |
+| 대상이 없고 닿는 곳에 적이 있으면 저절로 대상이 잡힌다 | `scripts/uicheck.mjs: "and something already angry is aimed at without being asked"` |
+| **자동 시전이 켜져 있으면 바에 올린 것이 실제로 시전된다** | `scripts/uicheck.mjs: "and with it on, the bar casts itself"` |
+| 자동 시전이 쓸 수 없는 것을 안 쓴다 (`why(sp) !== null`) | `scripts/uicheck.mjs: "and it is the leftmost square it can use"` |
+| 자동 시전을 켠 쪽이 끈 쪽보다 많이 이긴다 (화면이 아니라 시뮬에서 — 브라우저는 400판을 못 돌린다) | `scripts/simcheck.mjs: "and pressing something beats pressing nothing"` |
+| 주문서의 모든 주문을 창에서 볼 수 있다 | `scripts/uicheck.mjs: "and every spell the character knows is in it"` |
+| **바에 놓은 자리가 다시 켜도 그대로다** | `scripts/uicheck.mjs: "and the arrangement comes back out of the save"` |
+| 전화기와 데스크톱에서 같은 자동 시전이 돈다 | `src/touch.ts: setAuto` |
 
 ## [전화기](https://github.com/kyhsa93/abyss/wiki/전화기)
 

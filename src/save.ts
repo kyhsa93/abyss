@@ -71,6 +71,22 @@ export type Save = {
      */
     stands?: Record<string, number>
     /**
+     * What is on each of the sixteen squares, by ability id, `null` for empty.
+     *
+     * Saved because it is a *decision* — what to keep within reach — and
+     * because issue 224 made the order of it the fighting order as well.  It
+     * was not saved and could not have been: the bar was the spellbook in the
+     * order things were learned, rebuilt every frame.
+     *
+     * Pruned against what the character actually knows on load, so an id from
+     * another class or an older bake cannot sit there unpressable — see
+     * `fitBar`.  The save already carries the world's hash, which is the other
+     * half of that.
+     */
+    bar?: (number | null)[]
+    /** Whether the automatic hand is on — see `autoCast`. */
+    auto?: number
+    /**
      * What has been bought off a limited shelf — `"<vendor>:<item>"` to
      * `[which turn of that shelf's clock, how many]`.
      *

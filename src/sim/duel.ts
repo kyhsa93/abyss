@@ -34,12 +34,24 @@ export type Duel = {
   /**
    * What the player does.
    *
-   * `auto` presses nothing at all.  `rota` spends rage on the one thing a
-   * level one warrior has the moment it can, which is the simplest fixed
+   * `auto` presses nothing at all.  `rota` spends rage **down the bar, left to
+   * right, on the first thing it can afford** — which is exactly the rule the
+   * automatic hand in the game follows (issue 224), and the simplest fixed
    * order anybody could write on a macro.  The gap between them is how much of
    * this game is a decision.
+   *
+   * It used to press one ability, because there was one to press: the scene's
+   * `rota` was a stand-in for a bar that had no arrangement.  It has one now,
+   * so the simulation takes a list and the two are the same rule.
    */
   policy?: 'auto' | 'rota'
+  /**
+   * What the bar holds, left to right — `[what it costs, what it adds]`.
+   *
+   * `opener` is the same thing with one entry and is kept because a check that
+   * only has one ability to hand should not have to build a list to say so.
+   */
+  bar?: { rage: number; adds: number }[]
   /** What that one thing costs and adds, if the policy presses it. */
   opener?: { rage: number; adds: number }
 }
@@ -67,6 +79,8 @@ const LONGEST = 60_000
 export function duel(mine: Side, theirs: Side, who: Who | null,
   opts: Duel): Result {
   const { many, runs, policy = 'auto', opener } = opts
+  // One list, whichever way the caller said it.
+  const bar = opts.bar ?? (opener ? [opener] : [])
   let won = 0, ticks = 0, presses = 0
   for (let r = 0; r < runs; r++) {
     let hp = mine.line[HP]!
@@ -91,10 +105,18 @@ export function duel(mine: Side, theirs: Side, who: Who | null,
         foes[target]! -= dealt
         rage = Math.min(100,
           rage + rageFrom(dealt, mine.level, mine.line[SWING]! / 1000, true))
-        if (policy === 'rota' && opener && rage >= opener.rage) {
-          rage -= opener.rage
-          extra += opener.adds
-          pressed += 1
+        // **Left to right, first one affordable** — the scene's rule exactly.
+        // Not the cheapest and not the biggest: the order is the player's, and
+        // making it anything else here would be this file deciding something
+        // the bar is for.
+        if (policy === 'rota') {
+          for (const sp of bar) {
+            if (rage < sp.rage) continue
+            rage -= sp.rage
+            extra += sp.adds
+            pressed += 1
+            break
+          }
         }
       }
       for (let i = 0; i < many; i++) {

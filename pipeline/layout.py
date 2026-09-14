@@ -72,6 +72,10 @@ WANT = {
     'MerchantFrame': 'shop',
     # And making a character, which happens before any of the above exists.
     'CharacterSelectCharacterFrame': 'pick',
+    # The spellbook.  There was no book on the screen at all — the bar *was*
+    # the book, in the order things were learned — so a character with twelve
+    # abilities had nowhere to look at them and nowhere to take one from.
+    'SpellBookFrame': 'book',
 }
 
 # And the screens that come before the world.  `GlueXML` is its own directory
@@ -134,7 +138,7 @@ FILES = ['PlayerFrame.xml', 'TargetFrame.xml', 'Minimap.xml', 'MainMenuBar.xml',
          'FloatingChatFrame.xml', 'BuffFrame.xml', 'ContainerFrame.xml',
          'WorldMap.xml', 'UIPanelTemplates.xml', 'MainMenuBarBagButtons.xml',
          'MainMenuBarMicroButtons.xml', 'ActionBarFrame.xml',
-         'MerchantFrame.xml',
+         'MerchantFrame.xml', 'SpellBookFrame.xml',
          'UnitFrame.xml', 'TargetFrameTemplate.xml']
 
 
@@ -582,6 +586,57 @@ def spec(client, found):
         got = size_of(found, row)
         if got:
             out.setdefault('shop', {})['row'] = [got[0], got[1]]
+    # The spellbook: how many to a page and how big one of its buttons is.
+    #
+    # `SPELLS_PER_PAGE` sits at the top of `SpellBookFrame.lua` the way
+    # `MERCHANT_ITEMS_PER_PAGE` sits at the top of the merchant's, and the
+    # button's size is its template's own `<Size>`.  Twelve to a page in two
+    # columns of six, which is what the anchors say: button 2 is 157 to the
+    # right of button 1 and button 3 is 14 under it.
+    lua, _src = client.read('Interface\\FrameXML\\SpellBookFrame.lua')
+    if lua:
+        m = re.search(r'\bSPELLS_PER_PAGE\s*=\s*(\d+)',
+                      lua.decode('utf-8', 'replace'))
+        if m:
+            out.setdefault('book', {})['page'] = int(m.group(1))
+    node = found.get('SpellButtonTemplate')
+    if node is not None:
+        got = size_of(found, node)
+        if got:
+            out.setdefault('book', {})['row'] = [got[0], got[1]]
+    # How the twelve are arranged, out of the anchors rather than out of a
+    # memory of the screen.
+    #
+    # **The relative point is half the answer.**  Button 2 hangs off button 1's
+    # `TOPLEFT` at (157, 0) — a column gap.  Button 3 hangs off its
+    # `BOTTOMLEFT` at (0, -14), which is fourteen *under the bottom edge* and
+    # not fourteen under the top: reading the offset alone gives a row pitch of
+    # fourteen on a button thirty-seven tall, and six rows on top of each
+    # other.  So the pitch is the offset plus whatever of the button's own size
+    # the relative point already moved past.
+    size = out.get('book', {}).get('row') or [0, 0]
+    for key, name in (('across', 'SpellButton2'), ('down', 'SpellButton3')):
+        b = found.get(name)
+        if b is None:
+            continue
+        for point, _rel, rp, dx, dy in anchors_of(b):
+            if not point or point.upper() != 'TOPLEFT':
+                continue
+            at = (rp or point).upper()
+            x = int(dx) + (size[0] if 'RIGHT' in at else 0)
+            y = int(dy) - (size[1] if 'BOTTOM' in at else 0)
+            out.setdefault('book', {})[key] = [x, y]
+            break
+    # And which six are the left column, which is the button's own `id`: the
+    # first six carry 1..6 and the second six carry 7..12, so the file says the
+    # columns fill top-to-bottom and not left-to-right.
+    down = []
+    for i in range(1, 13):
+        b = found.get('SpellButton%d' % i)
+        if b is not None and b.get('id'):
+            down.append(int(b.get('id')))
+    if len(down) == 12:
+        out.setdefault('book', {})['order'] = down
     # The character-creation screen: what each control is, and how far apart
     # two of them stand.  See `CREATE`.
     made = {}

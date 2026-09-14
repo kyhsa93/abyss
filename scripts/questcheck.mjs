@@ -251,9 +251,18 @@ check('which is the next link of the chain',
   })
   check('something in this slice carries a hide', !!spot, JSON.stringify(spot))
   if (spot) {
+    // Started with a click on the thing, because issue 222 took the aiming key
+    // off the bar: choosing what to hit is the gesture, and on a keyboard the
+    // gesture is a click on the world.  Once something is aimed at the swing
+    // goes out on its own.
     let dead = false
     for (let i = 0; i < 60 && !dead; i++) {
-      await p.keyboard.press('1')
+      const at2 = await p.evaluate(() => {
+        const foe = window.__all().find((n) => !n.dead && n.stance === 'quarry'
+          && Math.hypot(n.x - window.__hero().x, n.y - window.__hero().y) < 6)
+        return foe ? window.__screenAt(foe.x, foe.y) : null
+      })
+      if (at2) await p.mouse.click(Math.round(at2[0]), Math.round(at2[1]))
       await p.waitForTimeout(200)
       dead = await p.evaluate(() => {
         const h = window.__hero()
