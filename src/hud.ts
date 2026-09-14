@@ -1455,10 +1455,37 @@ export function hud(layout?: Layout) {
       height: Math.max(0, floor - top2 - 8) })
     track.style.overflow = 'hidden'
 
-    // What just happened, above the stick rather than under it.
+    // What just happened, **in the original's own corner and at the original's
+    // own proportions** — but above the stick rather than at the original's
+    // own height off the bottom.
+    //
+    // `layout.json` reads `log BOTTOMLEFT (32, 95) 430 x 120` off `FrameXML`,
+    // which against its 1024 x 768 screen is 3.1% in from the left, 42% of the
+    // width and 15.6% of the height.  The corner was already right; the size
+    // was not, and the same box was used standing up and lying down — so a
+    // screen twice as wide got the tall narrow box turned on its side.  The
+    // same blindness `#227` found on the screen that makes a character, and
+    // `placePhone` has the `tall` it needed all along.
+    //
+    // **The one number that is not the original's is how far up it sits.**
+    // Moved to the original's 12.4% it lands on the stick: 16% of it standing
+    // up and **78% lying down**.  That is not the case the experience bar made
+    // — a bar is read and not pressed, so it can share a thumb's strip — this
+    // is read *and* covered by the hand that is driving. So it keeps the one
+    // rule this screen has: above the stick.
+    // Read out of the spec rather than typed: the shares are the client's own
+    // box over the client's own screen, so a different `FrameXML` moves this
+    // without anybody editing three per cents.
+    const said = layout?.frames['log']
+    const ref = layout?.ref ?? [1024, 768]
+    const share = (v: number | undefined, of: number, fall: number) =>
+      (v !== undefined && of ? v / of : fall)
+    const wide = Math.round(w * share(said?.w, ref[0]!, 0.42))
+    const deep2 = Math.round(h * share(said?.h, ref[1]!, 0.156))
     const room = stickTop - under - 24
-    put(logBox, { left: 8, bottom: h - stickTop + 8, width: 160,
-      height: Math.max(36, Math.min(88, room)) })
+    put(logBox, { left: Math.round(w * share(said?.x, ref[0]!, 0.031)),
+      bottom: h - stickTop + 8, width: wide,
+      height: Math.max(36, Math.min(deep2, room)) })
 
     // How to play, under the player's own block — which is the one strip of
     // either screen that is neither a corner nor a thumb.  A fixed width
@@ -1514,7 +1541,12 @@ export function hud(layout?: Layout) {
     // past the log's column rather than the log moving out of the corner it
     // was given — and it still stops short of the thumbs, which is what the
     // width above is for.
-    const clearOfLog = tall ? 8 : 8 + logBox.offsetWidth + 8
+    // Clear of the log's **right edge**, not of eight plus its width: the log
+    // sits at the original's own inset now, which is not eight, and lying down
+    // it is 354 wide rather than 160.  Read the other way the conversation
+    // panel landed on top of it — which `padcheck` caught, because the day the
+    // talk panel was allowed to overlap is the day this check was written.
+    const clearOfLog = tall ? 8 : logBox.offsetLeft + logBox.offsetWidth + 8
     for (const node of [sheet, document.getElementById('talk')]) {
       if (!node) continue
       // Tall enough for what is in it and no taller, stopped at the thumbs.

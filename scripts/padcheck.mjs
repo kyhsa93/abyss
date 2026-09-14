@@ -578,6 +578,37 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
     // never heard of.
     [L2.pageAt.x, L2.pageAt.y, L2.pageR * 1.3],
     ...L2.slots.map((sl) => [sl.x, sl.y, L2.hit])]
+  // The chat window is in the original's corner, at the original's shares of
+  // the glass — `log BOTTOMLEFT (32, 95) 430 x 120` over a 1024 x 768 screen,
+  // so 3.1% in and 42% by 15.6% — and **lying down that is a different box**,
+  // twice as wide and a third as deep.  It was the same 160 x 88 at all three
+  // sizes: the portrait box turned on its side, which is the blindness issue
+  // 227 found on the screen that makes a character.
+  //
+  // The one number that is not the original's is how far up it sits.  At the
+  // original's 12.4% it lands on the stick — 16% of it standing up and 78%
+  // lying down — and unlike the experience bar this is read *and* covered by
+  // the hand that is driving.  So: the original's corner and shape, and this
+  // screen's own rule about the bottom third.
+  {
+    const box = await p.evaluate(() => {
+      const r = document.getElementById('log')?.getBoundingClientRect()
+      return r ? { x: r.x, y: r.y, w: r.width, h: r.height, b: r.bottom } : null
+    })
+    const stickTop = L2.home.y - L2.base
+    check(`${name}: the chat window is the original's shape`,
+      !!box && Math.abs(box.w / w - 0.42) < 0.03
+      && Math.abs(box.x / w - 0.031) < 0.02,
+      box ? `${Math.round(box.w)} x ${Math.round(box.h)} at `
+        + `${Math.round(box.x)},${Math.round(box.y)} — `
+        + `${(100 * box.w / w).toFixed(0)}% of the width, `
+        + `${(100 * box.x / w).toFixed(1)}% in` : 'no chat window')
+    check(`${name}: and it stops above the stick`,
+      !!box && box.b <= stickTop + 1,
+      box ? `bottom ${Math.round(box.b)} of a stick starting at `
+        + `${Math.round(stickTop)}` : '')
+  }
+
   // **One exception, written down rather than quietly allowed.**
   //
   // The experience bar sits on the bottom edge, which is where the original

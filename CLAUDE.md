@@ -163,6 +163,22 @@ character sheet. And the **ratio is set rather than left to the content**,
 which came out 116 x 37 — 3.1 : 1 reads as a different frame — so the height is
 pinned and `box-sizing: border-box` puts the rim and the padding inside it.
 
+**The chat window was the portrait box turned on its side.** Its corner was
+already the original's — `log BOTTOMLEFT (32, 95) 430 x 120` — but the size was
+not, and the same 160 by 88 was used at all three phone sizes, so a screen
+twice as wide got a tall narrow box lying down. Same blindness as the screen
+that makes a character, and `placePhone` has had the `tall` it needed all
+along. The shares are read out of the spec rather than typed — the client's box
+over the client's screen — so 42% and 15.6% follow a different `FrameXML`
+without anybody editing three per cents.
+
+**The one number that is not the original's is how far up it sits.** At the
+original's 12.4% it lands on the stick: 16% of it standing up and **78% lying
+down**. That is not the case the experience bar made — a bar is read and not
+pressed, so it can share a thumb's strip — this is read *and* covered by the
+hand that is driving. The original's corner and shape, this screen's own rule
+about the bottom third.
+
 **The experience bar is back on the bottom edge, and the rule it breaks is
 written down.** It is where the original has it — `layout.json` reads `xp
 BOTTOM (0, 40) 1024 x 13`, the full width — and it had been moved to the top
@@ -1301,9 +1317,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and sixty-nine lines of "we should
+pages end in a 붙일 검사 table — a hundred and seventy-one lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and forty-six are; the rest are waiting on a feature nobody has built,
+A hundred and forty-eight are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1311,7 +1327,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 444 check labels in the harness, 96 were promised and **348 were written
+of 446 check labels in the harness, 97 were promised and **349 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1321,7 +1337,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone six and the paint one: 169. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight and the paint one: 171. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

@@ -224,6 +224,8 @@ keeps it honest.
 | 스틱과 버튼이 안전영역 밖이다 | `scripts/padcheck.mjs: "the thumbs rest above whatever the phone has taken"` |
 | 경험치바가 엄지와 안 겹치고 아래 변에 붙어 있다 | `scripts/padcheck.mjs: "the strip that is read and not pressed is under the thumbs"` |
 | 경험치바가 홈 인디케이터 위에 꽂혀 있다 | `scripts/padcheck.mjs: "and it is pinned above the home indicator"` |
+| 채팅창이 원작의 모서리·비율이다 | `scripts/padcheck.mjs: "the chat window is the original's shape"` |
+| 채팅창이 스틱 위에서 멈춘다 | `scripts/padcheck.mjs: "and it stops above the stick"` |
 | 세계 캔버스가 `pixelated` 다 | — 캔버스의 CSS 를 읽는 것이 없다 |
 | 예산표에 전화기 열이 있고 넘긴 것이 없다 | — `docs/budget.md` 는 실측이지만 전화기 열이 따로 없다 |
 | **두 마리가 붙었을 때의 사망률을 전화기에서도 잰다** | — 전화기에서 싸움을 재는 것이 없다 |
