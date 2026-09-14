@@ -432,6 +432,35 @@ in the abbey — and they go through the same `classify` and the same audit as
 everything the terrain places. What stands under a roof is not drawn while you
 are outside it, people included: they were standing on the tiles.
 
+**A building is drawn once, in the axes it was built in.** The roof used to be
+stamped on every 1.33 yard square of the *world* a footprint covered, and the
+world's grid is not the building's: Northshire's abbey stands at 158.5 degrees,
+so all four of its walls came out as staircases and no finer tile would have
+helped. What is drawn now is the plan's own outline — traced as runs of set
+bits, a few hundred rectangles for the abbey's 4,900 cells — filled with the
+roof as a repeating pattern, under a transform that takes the model's axes to
+the glass. The walls are straight because in model space they *are* straight,
+and the turn happens to the whole shape at once. 41 of the world's 43 buildings
+stand at an angle the tile grid could not hold.
+
+Three things about it are worth keeping. The transform is **`planCell` read
+backwards** and its determinant is negative: the screen flips both axes, so a
+building's turn on the glass is a *reflection* and `ctx.rotate` cannot express
+it — it is a `setTransform`. The ground pass became **two passes over the same
+box**, because knowing whether a tile is inside a footprint or on the fringe of
+it needs its four neighbours, which the painting loop did not have yet for the
+tile one step north; `inBuilding` still runs once a tile, because the whole
+answer is kept rather than only which building. And it is **cheaper, not dearer**:
+a tile inside a footprint is not drawn at all now, so the view that used to
+cost 684 tile blits at Goldshire costs 86 and three fills.
+
+The fringe is the part that needed care. A tile the outline only half covers is
+drawn as **ordinary ground**, with the fill laid over the half that is inside —
+but it still has to know it is covered, because the client cuts its own terrain
+away where a building brings a floor and a hole with nothing over it is painted
+black. That is the bug that made the middle of Goldshire a thirty-yard black
+square, and passing `null` for the cover would have brought it back.
+
 **And each model gets a brief, of which half ships.** `pipeline/facade.py`
 writes two things per model: an underlay `.png` — the up-facing triangles
 projected and shaded by height, which is Blizzard's silhouette and is

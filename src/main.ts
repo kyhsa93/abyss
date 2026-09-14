@@ -2190,6 +2190,47 @@ async function main() {
   }
   const bitAt = (bits: Uint8Array, n: number) =>
     n >= 0 && ((bits[n >> 3]! >> (n & 7)) & 1) === 1
+
+  /**
+   * A building's outline as one shape, **in the model's own axes**.
+   *
+   * The scene drew a big building by stamping a roof tile on every 1.33 yard
+   * square of the world its outline covered, and the world's grid is not the
+   * building's: Northshire's abbey is turned 158.5 degrees, so every wall of it
+   * came out as a staircase.  That is issue 216, and what fixes it is not finer
+   * tiles — it is drawing the building **once, in its own frame**, and letting
+   * the canvas turn it.
+   *
+   * The path is in *cell* units, because the plan is a bitmap and a run of set
+   * bits along a row is a rectangle.  One rectangle per run, unioned by the
+   * fill: the abbey's 4,900 cells come to a few hundred rectangles and its
+   * walls are straight lines again — straight in model space, which is where
+   * the building was built, and turned as a whole afterwards.
+   *
+   * Traced once a model and kept on the plan, which is shared by every
+   * placement of it: thirteen farms are one trace.
+   */
+  const planPaths = new Map<Plan, { path: Path2D; cells: number; runs: number }>()
+  const planPath = (p: Plan) => {
+    let got = planPaths.get(p)
+    if (got) return got
+    const path = new Path2D()
+    let cells = 0, runs = 0
+    for (let j = 0; j < p.h; j++) {
+      let run = -1
+      for (let i = 0; i <= p.w; i++) {
+        const on = i < p.w && bitAt(p.bits, i * p.h + j)
+        if (on) cells++
+        if (on && run < 0) run = i
+        else if (!on && run >= 0) {
+          path.rect(run, j, i - run, 1); runs++; run = -1
+        }
+      }
+    }
+    got = { path, cells, runs }
+    planPaths.set(p, got)
+    return got
+  }
   /**
    * The buildings, in a coarse grid.
    *
@@ -7789,9 +7830,15 @@ async function main() {
   let plateKey = ''
   let platesDrawn = 0
   /** Thrown away when the zoom changes, because the tinted strip is. */
+  /** Roof pictures cut from the tinted atlas — see `roofPattern`. */
+  const patterns = new Map<string, CanvasPattern | null>()
   const forgetPlates = () => {
     plates.clear()
     plateBytes = 0
+    // The roof patterns are cut from the same tinted atlas, so they go with
+    // it: a pattern is a *copy*, and a copy of an atlas that no longer exists
+    // is a roof drawn at the last zoom's size.
+    patterns.clear()
   }
   let baked: { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
   function tintedGround() {
@@ -7844,6 +7891,41 @@ async function main() {
     })
     baked = { key, px, c, at }
     return baked
+  }
+
+  /**
+   * One tile of the atlas, at one shade, as a repeating pattern.
+   *
+   * A building is filled in its own axes now (issue 216) and a fill wants a
+   * pattern, not a blit.  Kept because `createPattern` copies the source: one
+   * per roof word per shade per zoom, which over the six roofs this world has
+   * is a handful of 32-pixel squares.
+   *
+   * The pattern is scaled to **one plan cell**, not to one pixel, because the
+   * transform the fill runs under is in cell units — so the roof lands one
+   * picture to a 1.33 yard square exactly as the tile pass laid it, and turns
+   * with the building instead of with the world.
+   */
+  const roofPattern = (id: string, sl: number, px: number) => {
+    const step = Math.max(0, Math.min(SHADES - 1, Math.round(
+      ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))))
+    const key = `${id}:${step}:${px}`
+    const got = patterns.get(key)
+    if (got !== undefined) return got
+    const ground = tintedGround()
+    const at = ground.at[id]
+    let pat: CanvasPattern | null = null
+    if (at !== undefined) {
+      const c = document.createElement('canvas')
+      c.width = px; c.height = px
+      const g = c.getContext('2d')!
+      g.imageSmoothingEnabled = false
+      g.drawImage(ground.c, at, step * px, px, px, 0, 0, px, px)
+      pat = ctx.createPattern(c, 'repeat')
+      pat?.setTransform(new DOMMatrix().scaleSelf(1 / px))
+    }
+    patterns.set(key, pat)
+    return pat
   }
 
   /**
@@ -8475,11 +8557,19 @@ async function main() {
      * loop already has is written down and read back.
      */
     const cw = xHi - xLo + 1
-    const under: ((typeof buildings)[number] | null)[] =
+    /**
+     * The whole answer and not just which building, because the paint pass
+     * now runs *after* this is filled in and would otherwise ask `inBuilding`
+     * a second time for every tile — which is the expensive half of the loop.
+     */
+    const under: (ReturnType<typeof inBuilding>)[] =
       new Array(cw * (yHi - yLo + 1)).fill(null)
-    const roofOf = (ti: number, tj: number) =>
+    /** Which of them are on screen, gathered as the box is walked. */
+    const standing = new Set<(typeof buildings)[number]>()
+    const coverOf = (ti: number, tj: number) =>
       (ti < xLo || ti > xHi || tj < yLo || tj > yHi) ? null
         : under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] ?? null
+    const roofOf = (ti: number, tj: number) => coverOf(ti, tj)?.b ?? null
     /**
      * One tile of the outdoor ground, drawn into `g`.
      *
@@ -8499,7 +8589,20 @@ async function main() {
      */
     const paintGround = (g: CanvasRenderingContext2D, ti: number, tj: number,
       cx: number, cy: number, covers: ReturnType<typeof inBuilding>,
-      mode: 'all' | 'plain' | 'over'): number => {
+      mode: 'all' | 'plain' | 'over',
+      /**
+       * This tile is under a building that is drawn **as one piece**, so the
+       * ground under it is ordinary ground and the roof is somebody else's
+       * job.  Only ever true on the fringe of a footprint: a tile with the
+       * same building on all four sides is skipped before this is called.
+       *
+       * Not the same as passing `null` for `covers`.  The client cuts its own
+       * terrain away where a building brings its own floor, and a hole with
+       * nothing over it is painted black — the middle of Goldshire was a
+       * thirty-yard black square for exactly that reason.  So the hole still
+       * has to know it is covered even when the roof is not drawn here.
+       */
+      roofless = false): number => {
       const wx = ti * T, wy = tj * T
       // No floor here at all: the client took this square out of its own
       // ground to make the mouth of something.  Painted as the dark behind
@@ -8577,7 +8680,7 @@ async function main() {
       // for the wall.  In the ground pass because from above a building is
       // mostly a floor with a line around it, and because a plan ninety
       // yards across is not a thing that can be a sprite.
-      const built = span ? null : covers
+      const built = span || roofless ? null : covers
       // The roof comes off the building you are standing in.  There are no
       // interiors here and the abbey holds the people who hand out the work,
       // so a roof drawn over them is a roof with a quest giver under it —
@@ -8925,6 +9028,15 @@ async function main() {
           }
         }
       }
+      // **Who is under what, before anything is painted.**
+      //
+      // This used to be one loop: ask `inBuilding`, write the answer down,
+      // paint.  A building is drawn as one piece now (issue 216), and to know
+      // whether a tile is *inside* a footprint or on the fringe of it you need
+      // its four neighbours — which the painting loop did not have yet for the
+      // tile one step north.  So the asking and the painting are two passes
+      // over the same box, and the expensive half, `inBuilding`, still runs
+      // once a tile: the whole answer is kept rather than only which building.
       for (let ti = xLo; ti <= xHi; ti++) {
         for (let tj = yLo; tj <= yHi; tj++) {
           const wx = ti * T, wy = tj * T
@@ -8935,80 +9047,112 @@ async function main() {
           // Asked at the tile's own width, which is the same question the
           // paint asks, so it is asked once.
           const covers = inBuilding(wx, wy, T)
-          // Written down before the tile can be skipped, because the outline
-          // of a building that runs off the edge of the screen is not on the
-          // edge of the screen.
-          if (covers) under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] = covers.b
+          if (covers) {
+            under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] = covers
+            if (covers.b.plan) standing.add(covers.b)
+          }
+        }
+      }
+      for (let ti = xLo; ti <= xHi; ti++) {
+        for (let tj = yLo; tj <= yHi; tj++) {
+          const wx = ti * T, wy = tj * T
+          const cx = screenX(wx, wy), cy = screenY(wx, wy)
+          const edge = px * grain
+          if (cx < -edge || cx > canvas.width + edge
+            || cy < -edge || cy > canvas.height + edge) continue
           tilesInView++
+          const covers = coverOf(ti, tj)
+          const b = covers?.b
+          // A building with a plan is drawn in one piece, in its own axes.
+          // Inside its footprint there is nothing for this loop to do at all —
+          // **the tile is not drawn**, which is where the cost of the new pass
+          // comes from: the abbey is two thousand blits this loop no longer
+          // makes.  On the fringe the ground is drawn as ordinary ground,
+          // because the true outline cuts across the tile and what is outside
+          // it has to be somewhere to stand.
+          if (b?.plan && !indoors) {
+            if (roofOf(ti + 1, tj) === b && roofOf(ti - 1, tj) === b
+              && roofOf(ti, tj + 1) === b && roofOf(ti, tj - 1) === b) continue
+          }
           const on = done.has(`${Math.floor(ti / PLATE)},${Math.floor(tj / PLATE)}`)
           tilesDrawn += paintGround(ctx, ti, tj, cx, cy, covers,
-            on ? 'over' : 'all')
+            on ? 'over' : 'all', !!b?.plan && !indoors)
         }
       }
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
 
-    // --- a building's shadow and its edge --------------------------------
+    // --- a building, drawn once, in the axes it was built in --------------
     //
-    // From above a building was ninety yards of one grey tile with nothing at
-    // all to say where it stopped or that it stood on the ground: no outline,
-    // no eaves, no shadow.  Both are drawn off the plan this pass wrote down,
-    // so neither costs a second reading of it.
+    // Issue 216.  A roof used to be stamped on every 1.33 yard square of the
+    // *world* a footprint covered, and the world's grid is not the building's:
+    // Northshire's abbey stands at 158.5 degrees, so all four of its walls
+    // came out as staircases and no finer tile would have helped.
     //
-    // The shadow first, and only on ground: a tile is in shadow when the tile
-    // one step towards the light is roofed.  The light in this scene is
-    // north-west and above — `LIGHT`, which the hillside tint has always used
-    // — and north-west is up and to the left of the glass, so the shadow falls
-    // down and to the right.  Drawn on the ground rather than under the roof
-    // because this is a drop shadow: what it says is that the roof is *above*
-    // the ground beside it, which is the one thing a flat plan cannot say.
+    // What is drawn instead is the plan's own outline — `planPath`, a few
+    // hundred rectangles in cell units — filled with the roof as a repeating
+    // pattern, under a transform that takes the model's axes to the glass.
+    // The walls are straight because in model space they *are* straight, and
+    // the turn happens to the whole shape at once.
+    //
+    // The transform is `planCell` read backwards.  That function takes
+    // `(u, v) = (wx - bx, -(wy - by))` to `lx = u*sn + v*c`, `ly = u*c - v*sn`
+    // — a matrix that is its own inverse — and the screen puts `X` on `-wy` and
+    // `Y` on `-wx`, so a cell `(i, j)` lands at
+    //
+    //   dX =  k*s*( c*i - sn*j),   dY = k*s*(-sn*i - c*j)
+    //
+    // about the building's own centre, plus the `(x0, y0)` the plan is cut
+    // from.  Its determinant is negative, which is right and is the thing to
+    // remember: two axis flips and a turn is a *reflection*, not a rotation,
+    // and `ctx.rotate` cannot express it.
+    //
+    // Three things are drawn from the one path: the drop shadow, offset down
+    // and to the right in screen space because the light is north-west; the
+    // roof; and the edge.  That is three fills a building where it used to be
+    // one blit a tile plus four line segments a tile.
     if (!indoors) {
-      const wide = px * grain
       shaded = 0
       outlined = 0
       ctx.save()
-      ctx.fillStyle = 'rgba(8, 12, 16, 0.30)'
-      for (let ti = xLo; ti <= xHi; ti++) {
-        for (let tj = yLo; tj <= yHi; tj++) {
-          if (roofOf(ti, tj)) continue
-          if (!roofOf(ti + 1, tj + 1)) continue
-          const cx = screenX(ti * T, tj * T), cy = screenY(ti * T, tj * T)
-          if (cx < -wide || cx > canvas.width + wide
-            || cy < -wide || cy > canvas.height + wide) continue
-          ctx.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
-            wide, wide)
-          shaded++
+      const kk = k()
+      const wide = px * grain
+      for (const b of standing) {
+        const p = b.plan!
+        const { path, cells } = planPath(p)
+        const Ox = screenX(b.x, b.y), Oy = screenY(b.x, b.y)
+        const q = kk * p.s
+        const a = q * p.c, bb = -q * p.sn, c = -q * p.sn, d = -q * p.c
+        // The plan's own corner, in cells, folded into the offset so the path
+        // can be drawn at the origin.
+        const i0 = p.x0 / p.s, j0 = p.y0 / p.s
+        const e = Ox + a * i0 + c * j0, f = Oy + bb * i0 + d * j0
+        // The shadow: the same shape, one tile down and to the right on the
+        // glass.  On the glass and not in the model's axes, because the sun
+        // does not turn with the building.
+        ctx.setTransform(a, bb, c, d, e + wide, f + wide)
+        ctx.fillStyle = 'rgba(8, 12, 16, 0.30)'
+        ctx.fill(path)
+        shaded++
+        ctx.setTransform(a, bb, c, d, e, f)
+        const id = ROOF_OF[b.k] ?? ROOF_TILE
+        const pat = roofPattern(id, shadeAt(b.x, b.y), px)
+        if (pat) {
+          ctx.fillStyle = pat
+          ctx.fill(path)
+          // What a building's outline got painted with, which `viewcheck`
+          // reads.  One fill and not two thousand blits, so it is counted as
+          // the cells it covers — the same number the tile pass used to
+          // report, off the same mask.
+          indoorPaint.set(id, (indoorPaint.get(id) ?? 0) + cells)
         }
+        ctx.strokeStyle = 'rgba(22, 18, 14, 0.85)'
+        // In model-cell units, because the path is: one screen pixel is
+        // `1 / q` of a cell.
+        ctx.lineWidth = Math.max(1, Math.round(zoom)) / q
+        ctx.stroke(path)
+        outlined++
       }
-      ctx.restore()
-      // And the edge: one line where a roofed tile meets something that is not
-      // the same building.  Not a stroke round the whole footprint — a plan is
-      // not a polygon and the abbey's is 80,746 cells — but the four sides of
-      // each tile that has a neighbour it does not belong with, which comes to
-      // the same line and is one comparison a side.
-      ctx.save()
-      ctx.strokeStyle = 'rgba(22, 18, 14, 0.85)'
-      ctx.lineWidth = Math.max(1, Math.round(zoom))
-      ctx.beginPath()
-      for (let ti = xLo; ti <= xHi; ti++) {
-        for (let tj = yLo; tj <= yHi; tj++) {
-          const b = roofOf(ti, tj)
-          if (!b) continue
-          const cx = screenX(ti * T, tj * T), cy = screenY(ti * T, tj * T)
-          if (cx < -wide || cx > canvas.width + wide
-            || cy < -wide || cy > canvas.height + wide) continue
-          const x0 = Math.round(cx - wide / 2), y0 = Math.round(cy - wide / 2)
-          const x1 = x0 + wide, y1 = y0 + wide
-          // `ti + 1` is one tile north, which is *up* the glass — see
-          // `screenY`.  Getting this pair the wrong way round draws the line
-          // on the far side of the building it belongs to.
-          if (roofOf(ti + 1, tj) !== b) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); outlined++ }
-          if (roofOf(ti - 1, tj) !== b) { ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); outlined++ }
-          if (roofOf(ti, tj + 1) !== b) { ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); outlined++ }
-          if (roofOf(ti, tj - 1) !== b) { ctx.moveTo(x1, y0); ctx.lineTo(x1, y1); outlined++ }
-        }
-      }
-      ctx.stroke()
       ctx.restore()
     }
 
@@ -10364,6 +10508,69 @@ async function main() {
     return {
       rows: SHADES, flat: FLAT_ROW, high: g.c.height, tile: g.px,
       indoor: [...indoorRows],
+    }
+  }
+  /**
+   * How the buildings were drawn last frame, and which of them could not be.
+   *
+   * Issue 216 asked for both halves out loud: a building with a plan is one
+   * fill in its own axes, and a building **without** one is still the old
+   * stamp — so the second number is the one that has to be printed rather than
+   * left to be noticed.  `doors` is the join the same issue asked to check:
+   * the door coordinates come from the model's own portals (`MOPT`) and the
+   * outline comes from its triangles, and a door that is not on the edge of
+   * the shape is a picture and a doorstep that disagree.
+   */
+  ;(window as unknown as { __built: () => unknown }).__built = () => {
+    const rows = buildings.map((b) => {
+      const p = b.plan
+      const path = p ? planPath(p) : null
+      let inside = 0, deepest = 0
+      for (const [dx, dy] of b.doors) {
+        if (!p) continue
+        const n = planCell(p, b, dx, dy)
+        if (!bitAt(p.bits, n)) continue
+        inside++
+        // And how far inside.  A door is a hole cut in the edge of a roof, so
+        // it has to be *near* the boundary as well as within it — a door in
+        // the middle of a ninety-yard shape is a door nobody can reach.
+        // Measured as rings out from the door's own cell until one of them
+        // leaves the shape, in yards.
+        const i = Math.floor(n / p.h), j = n % p.h
+        const out = (a: number, c: number) =>
+          a < 0 || a >= p.w || c < 0 || c >= p.h || !bitAt(p.bits, a * p.h + c)
+        let r = 1
+        for (; r <= 16; r++) {
+          let hit = false
+          for (let t = -r; t <= r && !hit; t++) {
+            hit = out(i + r, j + t) || out(i - r, j + t)
+              || out(i + t, j + r) || out(i + t, j - r)
+          }
+          if (hit) break
+        }
+        deepest = Math.max(deepest, r * p.s)
+      }
+      return {
+        kind: b.k, turn: Math.round(Math.atan2(p?.sn ?? 0, p?.c ?? 1) * 180 / Math.PI),
+        plan: !!p, cells: path?.cells ?? 0, runs: path?.runs ?? 0,
+        doors: b.doors.length, inside, deepest: +deepest.toFixed(1),
+      }
+    })
+    return {
+      all: rows.length,
+      /** Drawn as one piece, turned the way the placement turns it. */
+      onePiece: rows.filter((r) => r.plan).length,
+      /** And the ones that are not, which is what must not go quietly. */
+      stamped: rows.filter((r) => !r.plan).length,
+      /** How many tile squares the one-piece fills stand in for. */
+      cells: rows.reduce((a, r) => a + r.cells, 0),
+      runs: rows.reduce((a, r) => a + r.runs, 0),
+      doors: rows.reduce((a, r) => a + r.doors, 0),
+      inside: rows.reduce((a, r) => a + r.inside, 0),
+      /** The deepest any door sits inside its own roof, in yards. */
+      deepest: Math.max(0, ...rows.map((r) => r.deepest)),
+      turned: rows.filter((r) => r.plan && r.turn % 90 !== 0).length,
+      rows,
     }
   }
   ;(window as unknown as { __plates: () => unknown }).__plates = () => ({

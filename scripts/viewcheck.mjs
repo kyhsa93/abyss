@@ -2013,8 +2013,43 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
   const edges = await p.evaluate(() => window.__edges())
   check(`the ${name} has an edge and a shadow`,
     edges.outlined > 0 && edges.shaded > 0,
-    `${edges.outlined} sides of a tile drawn as its edge, `
-    + `${edges.shaded} tiles of ground in its shadow`)
+    `${edges.outlined} buildings outlined, ${edges.shaded} shadowed`)
+}
+
+// 13a2. And it stands at its own angle, not the world's.
+//
+// Issue 216.  A roof was stamped on every 1.33 yard square of the *world* a
+// footprint covered, and the world's grid is not the building's: Northshire's
+// abbey is turned 158.5 degrees and all four of its walls came out as
+// staircases.  It is one fill in the model's own axes now — `planPath`, the
+// outline traced as runs of set bits, under a transform that is `planCell`
+// read backwards.
+{
+  const built = await p.evaluate(() => window.__built())
+  console.log(`      (${built.onePiece} buildings in one piece, ${built.cells} `
+    + `cells over ${built.runs} runs, ${built.turned} of them off the axes)`)
+  // **The ones that are not drawn this way have to be counted out loud**, or a
+  // model that quietly falls back to the stamp is a model nobody notices is
+  // wrong.  The issue asked for this in those words.
+  check('every building the world stands is drawn in one piece',
+    built.stamped === 0 && built.onePiece > 20,
+    `${built.onePiece} of ${built.all} have a plan; ${built.stamped} still `
+    + 'stamped on the world grid')
+  // And the turn is real.  With no rotation at all this number is nought, and
+  // a check that passes on an axis-aligned world is a check that would have
+  // passed before any of this.
+  check('and most of them stand at an angle the world grid cannot hold',
+    built.turned > built.onePiece * 0.8,
+    `${built.turned} of ${built.onePiece} are turned off a right angle`)
+  // **The doors and the shape come from two different readings of the model**
+  // — the doors from its portals (`MOPT`), the outline from its triangles —
+  // and the promise the wiki makes is that they agree.  A door outside the
+  // shape is a doorstep in the open air; the whole point of drawing the
+  // building as one piece is that its edge is now exact enough to say so.
+  check('and every door the bake put on a building is inside the shape it draws',
+    built.inside === built.doors && built.doors > 20,
+    `${built.inside} of ${built.doors} doors, the deepest ${built.deepest} yd `
+    + 'inside its own roof')
 }
 
 // 13b. And a hall is not a cottage.

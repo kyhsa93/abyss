@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **178 promises across 22 pages, 155 of them kept.**
+Counted: **181 promises across 22 pages, 158 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -46,6 +46,9 @@ keeps it honest.
 | 그린 그림의 문 자리가 구운 문 좌표와 맞는다 | — 건물 스프라이트가 아직 없다 (#216) |
 | 건물마다 그림이 있고, 없으면 세어 출력한다 | `pipeline/facade.py: "sheets cover half the placements"` |
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |
+| **세계가 세운 건물이 전부 한 장으로 그려진다** | `scripts/viewcheck.mjs: "every building the world stands is drawn in one piece"` |
+| **대부분이 타일 격자가 못 담는 각도로 선다** | `scripts/viewcheck.mjs: "and most of them stand at an angle the world grid cannot hold"` |
+| **구운 문이 전부 그려진 형태 안에 있다** | `scripts/viewcheck.mjs: "and every door the bake put on a building is inside the shape it draws"` |
 | **설명서에 클라이언트의 것이 하나도 없다** | `scripts/bordercheck.mjs: "nothing of the client is in the building briefs"` |
 | **설명서의 표면 낱말이 전부 우리 것이다** | `scripts/bordercheck.mjs: "and every surface word in them is one of ours"` |
 | **설명서의 크기가 구운 평면도와 맞는다** | `scripts/bordercheck.mjs: "and a brief is the same size as the building the world was baked from"` |
