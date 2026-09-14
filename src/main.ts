@@ -1249,6 +1249,17 @@ async function main() {
     house?: number
     /** Whose roof it is under, if anybody's — worked out once, not per frame. */
     in?: unknown
+    /** Where it stands, which is the half of *whose* that says which floor. */
+    z?: number
+    /**
+     * And which storey that comes to — worked out once, for the same reason.
+     *
+     * `-1` is the ground floor, the same numbering the player's own `storey`
+     * uses.  Before issue 221 the drawing asked only *whose building is this*,
+     * so a barrel on the abbey's ground floor stood on the gallery above it and
+     * a man on the gallery was visible from the nave.
+     */
+    storey?: number
     /** The object it draws, for the ones that are taken and come back. */
     node?: { up: boolean }
   }
@@ -1349,7 +1360,7 @@ async function main() {
             x: d.x + (r - (rows - 1) / 2) * step * 1.6 + jx * step * 0.5,
             y: d.y + (c - (cols - 1) / 2) * step + jy * step * 0.5,
             piece: tilesMeta[k.pieces[(r + c) % k.pieces.length]!] ?? piece,
-            s: size, kind: d.k, ...(d.h ? { house: d.h } : {}),
+            s: size, kind: d.k, ...(d.h ? { house: d.h, z: d.z } : {}),
           })
         }
       }
@@ -1370,7 +1381,7 @@ async function main() {
         const off = (i - (n - 1) / 2) * sec
         placed.push({
           x: d.x + (r.alongX ? off : 0), y: d.y + (r.alongX ? 0 : off),
-          piece: piece2, s: size, kind: d.k, ...(d.h ? { house: d.h } : {}),
+          piece: piece2, s: size, kind: d.k, ...(d.h ? { house: d.h, z: d.z } : {}),
         })
       }
       const half = (n * sec) / 2
@@ -1386,7 +1397,7 @@ async function main() {
     // is and how big.
     if (!(asPlan(d) && (d.rooms?.length || d.p))) {
       placed.push({
-        x: d.x, y: d.y, piece, s: size, kind: d.k, ...(d.h ? { house: d.h } : {}),
+        x: d.x, y: d.y, piece, s: size, kind: d.k, ...(d.h ? { house: d.h, z: d.z } : {}),
         ...(stem ? { trunk: stem } : {}),
       })
     }
@@ -2011,6 +2022,13 @@ async function main() {
       })
       return {
         x: d.x, y: d.y, l: d.bl!, w: d.bw!,
+        /**
+         * The model origin's own height, which is what the floors' sills are
+         * measured from — they come out of the model's portals and stay in
+         * the model's space.  Carried since issue 221: without it nothing
+         * could say which storey a barrel is on.
+         */
+        z: d.z,
         c: Math.cos(a), s: Math.sin(a), k: d.k,
         area: d.a ?? 0,
         /** The bake's number for this placement, which its furniture cites. */
@@ -2648,6 +2666,25 @@ async function main() {
    * middle of it to within a yard and a half is asking him to find a door
    * that is not drawn.
    */
+  /**
+   * Which storey a thing at this height is on, numbered the way the player's
+   * own `storey` is: `-1` the ground floor, `0` upwards for the rest.
+   *
+   * A building's sills come out of its own portals and stay in the **model's**
+   * space, so they are measured from the placement's `z` rather than from sea
+   * level — which is why that number had to start travelling with the
+   * building.  Half a body of tolerance, because a barrel stands *on* a floor
+   * and a floor has a thickness; the sills here are six to ten yards apart, so
+   * nothing is close.
+   */
+  const storeyOf = (b: { z: number; floors: { z: number }[] }, z: number) => {
+    const up = z - b.z
+    let n = -1
+    for (let i = 0; i < b.floors.length; i++) {
+      if (up >= b.floors[i]!.z - BODY_YARDS / 2) n = i
+    }
+    return n
+  }
   const doorstepOf = (b: (typeof buildings)[number]) =>
     b.k === 'mine' ? MOUTH : DOORSTEP
   /**
@@ -3070,7 +3107,7 @@ async function main() {
     // bookcases.  The bake knows exactly which building each piece came out
     // of and now says so, which leaves nothing to get wrong.
     const b = (o.house ? byHouse.get(o.house) : undefined) ?? inRoom(o.x, o.y)
-    if (b) o.in = b
+    if (b) { o.in = b; o.storey = storeyOf(b, o.z ?? b.z) }
   }
 
   /**
@@ -3291,6 +3328,9 @@ async function main() {
     mouths.push(mouth)
     caves.push({
       x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2, w: (dug.w * dug.cell) / 2,
+      // The mouth's own height: a cave this scene dug has no model, so there
+      // is nothing else for a storey to be measured from — and it has one.
+      z: groundAt(mouth[0], mouth[1]),
       c: 1, s: 0, k: 'mine', area, house: 0, doors: [mouth],
       // A cave has one floor by construction: it is cut out of the height
       // grid, and the height grid has one z for an (x, y).
@@ -8387,6 +8427,17 @@ async function main() {
    */
   let shaded = 0, outlined = 0
   /**
+   * What the last frame actually drew **inside a building**, by storey.
+   *
+   * Read off the draw loop's own decision rather than re-derived, because the
+   * failure this exists for is exactly a second copy of the rule agreeing with
+   * itself: before issue 221 both filters asked *whose building is this* and
+   * neither asked *which floor*, and a check that recomputed that pair of
+   * conditions would have agreed that everything was fine.
+   */
+  const indoorProps: number[][] = []
+  const indoorFolk: (number | string)[][] = []
+  /**
    * How many pictures the last frame put the hero together out of.
    *
    * One is a man with nothing in his hands.  Counted where the images are
@@ -8881,6 +8932,8 @@ async function main() {
     tilesDrawn = 0
     tilesInView = 0
     indoorPaint.clear()
+    indoorProps.length = 0
+    indoorFolk.length = 0
     edged = 0
     /**
      * Which building covers each tile of the box, kept so the pass after this
@@ -9965,7 +10018,14 @@ async function main() {
       // the abbey's yard under the open sky, and made anybody who wandered
       // across the silhouette's edge blink.
       const roof = mine ?? roofOver(n.x, n.y)
-      if (indoors ? roof !== indoors : !!roof) {
+      // And which floor of it.  A creature's height is the server's, the same
+      // number the mines already lean on, so this is the same question asked
+      // of a spawn instead of a barrel.
+      const up = roof ? storeyOf(roof, n.z) : -1
+      if (indoors && roof === indoors && up === storey) {
+        indoorFolk.push([n.x, n.y, up, n.kind])
+      }
+      if (indoors ? (roof !== indoors || up !== storey) : !!roof) {
         // Why, so the check can ask whether it was deserved.  Three reasons
         // and they are not the same: a roof cut from the building's own
         // triangles, a building with no plan at all — which is drawn as a
@@ -9997,7 +10057,18 @@ async function main() {
           // The same two-way test the people get: a room holds its own
           // furniture and nothing else, and a field holds everything that is
           // not in a room.
-          if (indoors ? o.in !== indoors : !!o.in) continue
+          // **And which floor of it** — issue 221.  This asked only *whose
+          // building*, so the abbey's ground-floor barrels stood on the
+          // gallery above them at every storey the player climbed to.  A
+          // building with one floor answers `-1` either way, which is what
+          // `storey` is on the ground.
+          if (indoors
+            ? (o.in !== indoors || (o.storey ?? -1) !== storey)
+            : !!o.in) continue
+          // What got through, when there is a floor to be on.  Kept so a check
+          // can ask *what is on screen* rather than re-deriving the rule it is
+          // checking — the mistake `viewcheck` has paid for more than once.
+          if (indoors) indoorProps.push([o.x, o.y, o.storey ?? -1])
           if (o.node && !o.node.up) continue
           // Whether it is on the glass, asked *here* rather than after the
           // sort.  A bucket is 40 yards and the widest view is 350, so the
@@ -11727,6 +11798,12 @@ async function main() {
    * 220 could not tell a latch that would not release from a staircase that
    * only ever points one way.
    */
+  /** What the last frame drew inside a building, by storey — see the pair. */
+  ;(window as unknown as { __shown: () => unknown }).__shown = () => ({
+    storey, inside: indoors ? indoors.k : null,
+    props: indoorProps.map((r) => r.slice()),
+    folk: indoorFolk.map((r) => r.slice()),
+  })
   ;(window as unknown as { __rungs: () => unknown }).__rungs = () => {
     const b = indoors
     const here = planNow()
@@ -12194,7 +12271,7 @@ async function main() {
     placed.filter((o) => o.in).length
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
-    buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,
+    buildings.map((b) => ({ x: b.x, y: b.y, z: b.z, l: b.l, w: b.w, k: b.k,
       c: b.c, s: b.s, area: b.area, doors: b.doors, house: b.house,
       floors: b.floors?.map((f) => f.z) ?? [] }))
   /**

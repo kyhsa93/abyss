@@ -461,6 +461,26 @@ away where a building brings a floor and a hole with nothing over it is painted
 black. That is the bug that made the middle of Goldshire a thirty-yard black
 square, and passing `null` for the cover would have brought it back.
 
+**A building had storeys and the drawing did not know it.** Both of the
+filters that decide what you can see from inside asked *whose building is
+this* — `o.in !== indoors` for the furniture, `roof !== indoors` for the people
+— and neither asked *which floor*. Measured at the same spot with only the
+storey changed: **40 pieces and 2 people on the ground against 38 and 1 one
+floor up.** The abbey's ground-floor barrels stood on the gallery above them
+and its ground-floor people were visible from it. The same shape as the bug
+that let you see through a wall, one level in: there it was the *building*
+boundary that had nothing to do with what a man can see, here the *floor* one.
+
+A building's sills come out of its own portals and stay in the **model's**
+space, which is why the placement's own `z` had to start travelling with it —
+without that number nothing could say which storey a barrel is on. Both
+answers are worked out once rather than per frame, the same as `o.in` already
+was. Three checks read `__shown`, which is what actually got through the
+filter: a building with an upstairs has something on every floor, changing
+floor changes what is drawn — by *content*, because two floors of a barracks
+could hold the same number of barrels and be different barrels — and
+everything drawn on a floor belongs to it.
+
 **The stairs went all the way up the whole time; the check stopped at the
 first landing.** Issue 220 was written as *there is no check, so nobody knows*,
 and that was the right shape: nothing in the game was broken and three things

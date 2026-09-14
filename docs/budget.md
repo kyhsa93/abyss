@@ -14,7 +14,7 @@ going red on four of them for rounds.
 
 | what | measured | budget |
 | --- | ---: | ---: |
-| the script a browser is handed | 77 KB | 500 KB |
+| the script a browser is handed | 78 KB | 500 KB |
 | the world a first visit downloads | 3.37 MB | 4.00 MB |
 | everything the deploy carries | 31.13 MB | 200.00 MB |
 | the sounds | 135 KB | 2048 KB |

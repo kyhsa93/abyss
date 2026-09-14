@@ -2743,6 +2743,66 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     climbed ? `ended on floor ${climbed.down[climbed.down.length - 1]}` : '')
 }
 
+// 20b. And what is on one floor is not on the next.
+//
+// Both of the drawing's filters asked *whose building is this* and neither
+// asked *which floor* — `o.in !== indoors` for the furniture and
+// `roof !== indoors` for the people.  Issue 170 gave a building storeys and
+// the drawing did not follow, so measured at the same spot with only the
+// storey changed it was **40 pieces and 2 people on the ground against 38 and
+// 1 one floor up**: the abbey's ground-floor barrels stood on the gallery
+// above them and its ground-floor people were visible from it.
+//
+// The same shape as issue 173 one level in: there it was the *building*
+// boundary that had nothing to do with what a man can see, here it is the
+// *floor* boundary.
+//
+// Read off the draw loop's own decision — `__shown` is what got through the
+// filter — because a check that recomputes the pair of conditions it is
+// checking agrees with itself.
+{
+  const tall = await p.evaluate(() => window.__buildings()
+    .filter((b) => (b.floors ?? []).length >= 2)
+    .map((b) => ({ k: b.k, floors: b.floors.length, door: b.doors[0] })))
+  const seen = []
+  for (const h of tall) {
+    await p.evaluate(([x, y]) => { window.__put(x, y); window.__seam() }, h.door)
+    const rows = []
+    for (let s = -1; s < h.floors; s++) {
+      await p.evaluate((n) => window.__floor(n), s)
+      await p.waitForTimeout(220)
+      const g = await p.evaluate(() => window.__shown())
+      rows.push({
+        storey: g.storey,
+        props: g.props.length, folk: g.folk.length,
+        // Everything on screen has to belong to the floor you are standing on.
+        off: g.props.filter((r) => r[2] !== g.storey).length
+          + g.folk.filter((r) => r[2] !== g.storey).length,
+        // And the list itself, so *changed* can mean changed rather than
+        // "a different number of things".
+        key: JSON.stringify(g.props.map((r) => `${r[0]}|${r[1]}`).sort()),
+      })
+    }
+    seen.push({ k: h.k, floors: h.floors, rows })
+    console.log(`      (${h.k}: `
+      + rows.map((r) => `${r.storey}:${r.props}+${r.folk}`).join(' ') + ')')
+  }
+  check('a building with an upstairs has something on every floor of it',
+    seen.length > 0 && seen.every((b) => b.rows.every((r) => r.props > 0)),
+    seen.map((b) => `${b.k} ${b.rows.map((r) => r.props).join('/')}`).join('; '))
+  // **The lists differ**, which is the thing that was not true.  By content
+  // and not by count: two floors of a barracks could hold the same number of
+  // barrels and be different barrels.
+  check('and changing floor changes what is drawn',
+    seen.every((b) => new Set(b.rows.map((r) => r.key)).size === b.rows.length),
+    seen.map((b) => `${b.k}: ${new Set(b.rows.map((r) => r.key)).size} distinct `
+      + `of ${b.rows.length}`).join('; '))
+  check('and everything drawn on a floor belongs to that floor',
+    seen.every((b) => b.rows.every((r) => r.off === 0)),
+    seen.flatMap((b) => b.rows.filter((r) => r.off)
+      .map((r) => `${b.k} floor ${r.storey}: ${r.off} from elsewhere`)).join('; '))
+}
+
 // 21. The edge of the slice is the edge of the world.
 //
 // `outside()` asks the area grid, which answers nought past the bake's own
