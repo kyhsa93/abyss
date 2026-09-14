@@ -456,6 +456,20 @@ bigger than a body's width or you walk through a fence post; and **a teleport
 has to move where he *was* as well as where he is**, or the camera spends a
 step being dragged back toward wherever he came from.
 
+**A shared slot turns on the clock, and the clock is the wall's.**
+`pool_creature` and `pool_gameobject` say several spawn points share one slot
+and `pool_template.max_limit` says how many stand at once. Both were read;
+*which* of them stood was the first `most` in file order, which is a constant —
+the same rare spawn on the same rock every time the page was opened, for ever.
+`src/sim/pools.ts` makes it a function of the clock, and everything about that
+is taken rather than chosen: the period is the members' own `spawntimesecs`
+(two hours for three of the slice's four creature pools, five minutes for most
+of its fifty herb and ore pools), the ordering is a mix of the member and the
+turn number rather than a stream (a stream has a position and a position is a
+thing that has to be saved), and the clock is the wall's — so **respawn time
+passes while the tab is closed**, which is the wiki's own open question
+answered in the only direction that fixes anything.
+
 **There is one stream of chance and it has a state.** `Math.random` was called
 from fifteen places and none of them could be reproduced, which is two problems:
 a save that does not carry the stream's position is a save you reload to

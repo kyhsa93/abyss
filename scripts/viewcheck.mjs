@@ -639,6 +639,34 @@ if (pulled) {
 }
 check('and a shared slot stands up only its share', packs.waiting > 0,
   `${packs.pooled} spawns share slots, ${packs.waiting} of them waiting a turn`)
+// And **which** of them stands is the clock's, which it was not: the first
+// `most` in file order is a constant, so the same rare spawn stood on the same
+// rock every time the page was opened.  `simcheck` tests the function; this
+// asks the scene, because a function nothing calls is the other half of the
+// same bug.
+{
+  const turning = await p.evaluate(() => {
+    const worlds = new Set()
+    for (let h = 0; h < 24; h++) {
+      const got = window.__pools(1_800_000_000 + h * 3600)
+      worlds.add([...got.creatures, ...got.nodes].map((x) => x.up).join('|'))
+    }
+    const now = window.__pools(1_800_000_000)
+    return {
+      worlds: worlds.size,
+      pools: now.creatures.length + now.nodes.length,
+      stable: JSON.stringify(now)
+        === JSON.stringify(window.__pools(1_800_000_000)),
+      periods: [...new Set([...now.creatures, ...now.nodes]
+        .map((x) => x.period))].sort((a, b) => a - b),
+    }
+  })
+  check('and the scene turns its slots by the clock', turning.worlds >= 2,
+    `${turning.worlds} different worlds over a day across ${turning.pools} `
+    + `pools, turning on ${turning.periods.join(', ')} seconds`)
+  check('and the same moment is the same world', turning.stable === true,
+    turning.stable ? 'asked twice, answered twice the same' : 'it rolled itself')
+}
 
 // 9o. Where you stop matters.  Rest accrues four times as fast in an inn —
 // `Player::LoadFromDB` (PlayerStorage.cpp:5523) — and in a browser closing the

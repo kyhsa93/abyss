@@ -25,6 +25,7 @@ import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
 import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
+import { cycleOf, standing } from './sim/pools.ts'
 import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Card, type Save } from './save.ts'
 import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
@@ -1592,19 +1593,44 @@ async function main() {
    * the same mechanic the herb nodes use: `pool_template.max_limit` says how
    * many of a slot stand at once.
    */
+  const byPoolNpc = new Map<number, Npc[]>()
+  for (const n of npcs) {
+    if (!n.pool) continue
+    const got = byPoolNpc.get(n.pool)
+    if (got) got.push(n)
+    else byPoolNpc.set(n.pool, [n])
+  }
+  /**
+   * Turn the shared slots to whatever the clock says.
+   *
+   * Which member stood used to be *the first `most` in file order*, which is
+   * a constant — the same rare spawn on the same rock every time the page was
+   * opened, for ever.  `src/sim/pools.ts` makes it a function of the wall
+   * clock instead, with the period taken from the members' own respawn.
+   *
+   * The wall clock and not the game's, which is the answer to the wiki's own
+   * question about whether respawn time passes while the tab is closed: **it
+   * does.**  Coming back tomorrow to a world that has not moved is the thing
+   * being fixed.
+   */
+  const poolTurn = new Map<number, number>()
+  const turnPools = (at: number): number => {
+    let moved = 0
+    for (const [pool, members] of byPoolNpc) {
+      const period = members[0]?.back ?? 0
+      const turn = cycleOf(period, at)
+      if (poolTurn.get(pool) === turn) continue
+      poolTurn.set(pool, turn)
+      moved += 1
+      const up = new Set(standing(members.map((_m, i) => i),
+        members[0]?.most || members.length, period, at))
+      members.forEach((m, i) => { m.up = up.has(i) })
+    }
+    return moved
+  }
+  turnPools(Date.now() / 1000)
   {
-    const byPoolNpc = new Map<number, Npc[]>()
-    for (const n of npcs) {
-      if (!n.pool) continue
-      const got = byPoolNpc.get(n.pool)
-      if (got) got.push(n)
-      else byPoolNpc.set(n.pool, [n])
-    }
-    let asleep = 0
-    for (const [, members] of byPoolNpc) {
-      const most = members[0]?.most || members.length
-      members.forEach((m, i) => { if (i >= most) { m.up = false; asleep += 1 } })
-    }
+    const asleep = npcs.filter((n) => n.pool && !n.up).length
     if (asleep) console.info(`${asleep} spawns are waiting their turn in a pool`)
   }
 
@@ -2534,10 +2560,33 @@ async function main() {
     if (got) got.push(n)
     else byPool.set(n.pool, [n])
   }
-  for (const [pool, members] of byPool) {
-    const limit = things.pools?.[String(pool)] ?? members.length
-    members.forEach((m, i) => { m.up = i < limit })
+  /**
+   * And the same turn for the gathering slots, which are fifty of them.
+   *
+   * A herb pool's period is five minutes where a rare spawn's is two hours, so
+   * this is the half of the world that visibly moves: walk away from a
+   * clearing and walk back and the silverleaf is somewhere else.  That is what
+   * the pool is *for* — `restock` below already moved one that was picked, and
+   * this moves the ones nobody touched.
+   */
+  const nodeTurn = new Map<number, number>()
+  const turnNodes = (at: number): number => {
+    let moved = 0
+    for (const [pool, members] of byPool) {
+      const period = members[0]?.back ?? 0
+      const turn = cycleOf(period, at)
+      if (nodeTurn.get(pool) === turn) continue
+      nodeTurn.set(pool, turn)
+      moved += 1
+      const limit = things.pools?.[String(pool)] ?? members.length
+      const up = new Set(standing(members.map((_m, i) => i), limit, period, at))
+      // A member that is on its own cooldown because somebody picked it stays
+      // down: the slot turning does not undo the picking.
+      members.forEach((m, i) => { m.up = up.has(i) && m.due <= 0 })
+    }
+    return moved
   }
+  turnNodes(Date.now() / 1000)
   /** Bring a taken slot back, somewhere else in the same pool. */
   const restock = (n: Node) => {
     const members = n.pool ? byPool.get(n.pool) : null
@@ -3926,6 +3975,13 @@ async function main() {
       n.due = 0
       restock(n)
     }
+    // And the shared slots, turned by the wall clock rather than by the
+    // game's.  Fifty-four pools is a cheap thing to ask twenty times a second
+    // and the answer changes four times an hour at most, so the work is the
+    // comparison and not the turning.
+    const at = Date.now() / 1000
+    turnPools(at)
+    turnNodes(at)
   }
 
   function fighting() {
@@ -8409,6 +8465,34 @@ async function main() {
    * `take` walks the player to the nearest standing one of a kind and presses
    * the key, which is the only way to find out that gathering works.
    */
+  /**
+   * The shared slots, and what the clock is doing to them.
+   *
+   * `at` lets a check ask about a moment rather than about now — the whole
+   * claim being that the standing set is a function of the clock, and a check
+   * that can only see one moment cannot test a function.
+   */
+  ;(window as unknown as { __pools: (at?: number) => unknown }).__pools =
+    (at) => {
+      const when = at ?? Date.now() / 1000
+      const which = (members: { back: number; most?: number }[],
+        limit: number) => standing(members.map((_m, i) => i), limit,
+        members[0]?.back ?? 0, when).join(',')
+      return {
+        creatures: [...byPoolNpc].map(([pool, members]) => ({
+          pool, members: members.length,
+          most: members[0]?.most || members.length,
+          period: members[0]?.back ?? 0,
+          up: which(members, members[0]?.most || members.length),
+        })),
+        nodes: [...byPool].map(([pool, members]) => ({
+          pool, members: members.length,
+          most: things.pools?.[String(pool)] ?? members.length,
+          period: members[0]?.back ?? 0,
+          up: which(members, things.pools?.[String(pool)] ?? members.length),
+        })),
+      }
+    }
   ;(window as unknown as { __things: () => unknown }).__things = () => ({
     total: nodes.length,
     up: nodes.filter((n) => n.up).length,

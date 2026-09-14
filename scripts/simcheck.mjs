@@ -24,6 +24,8 @@ const check = (what, ok, detail = '') => {
   if (!ok) bad++
 }
 
+import { standing } from '../src/sim/pools.ts'
+
 const world = (name) =>
   JSON.parse(readFileSync(`public/world/${name}.json`, 'utf8'))
 const roster = world('player')
@@ -113,6 +115,78 @@ const twice = duel(player(1), creature(3), who, { many: 1, runs: 200 })
 check('and the same seed gives the same fight',
   once.won === twice.won && once.seconds === twice.seconds,
   `${once.won} and ${twice.won} won of 200, ${once.seconds.toFixed(2)}s each`)
+
+// --- the world is not the same world twice ---------------------------------
+//
+// Issue 193: `pool_creature` says several spawn points share one slot and
+// `pool_template.max_limit` says how many stand at once — and which of them
+// stood was *the first `most` in file order*, which is a constant.  The same
+// rare spawn on the same rock every time the page was opened, for ever.
+//
+// Checked here rather than in a browser because the claim is about a
+// function: **the standing set is a function of the clock**, and a check that
+// can only see one moment cannot test a function.  The numbers are the baked
+// world's own — the pools, their members, and the period each one turns on,
+// which is the members' own `spawntimesecs`.
+{
+  const moves = spawns.moves ?? []
+  const pools = new Map()
+  for (const r of spawns.npcs ?? []) {
+    const pool = r[12] ?? 0
+    if (!pool) continue
+    const way = moves[r[10] ?? -1] ?? []
+    const got = pools.get(pool) ?? { members: [], most: r[13] ?? 0, period: way[4] ?? 0 }
+    got.members.push(got.members.length)
+    pools.set(pool, got)
+  }
+  check('the world has shared slots in it', pools.size > 0,
+    `${pools.size} pools over ${[...pools.values()]
+      .reduce((n, p) => n + p.members.length, 0)} spawns`)
+
+  // A day, walked in ten-minute steps: the set has to move more than once or
+  // "it turns" is a claim about a thing that does not turn.
+  const DAY = 86400, STEP = 600, FROM = 1_800_000_000
+  let mostSets = 0
+  const worlds = new Set()
+  for (const [, p] of pools) {
+    const seen = new Set()
+    for (let at = FROM; at < FROM + DAY; at += STEP) {
+      seen.add(standing(p.members, p.most, p.period, at).join(','))
+    }
+    mostSets = Math.max(mostSets, seen.size)
+  }
+  for (let at = FROM; at < FROM + DAY; at += STEP) {
+    worlds.add([...pools.values()]
+      .map((p) => standing(p.members, p.most, p.period, at).join(',')).join('|'))
+  }
+  check('and a day does not find the same world twice', worlds.size >= 2,
+    `${worlds.size} different worlds over a day, `
+    + `the busiest pool showing ${mostSets} sets`)
+
+  // And the other half, which is the one that keeps the first honest: the
+  // same moment is the same world.  A world that rolled itself at load would
+  // pass the check above and be exactly the bug this repository's one stream
+  // of chance exists to prevent.
+  const twiceSame = [...pools.values()].every((p) =>
+    standing(p.members, p.most, p.period, FROM).join(',')
+    === standing(p.members, p.most, p.period, FROM).join(','))
+  const nextTurn = [...pools.values()].some((p) =>
+    standing(p.members, p.most, p.period, FROM).join(',')
+    !== standing(p.members, p.most, p.period, FROM + p.period).join(','))
+  check('and the same moment is always the same world',
+    twiceSame && nextTurn,
+    twiceSame ? 'and one period on is a different one' : 'it rolled itself')
+
+  // And nothing stands that the data did not allow to stand.
+  const overfull = [...pools.entries()].filter(([, p]) =>
+    standing(p.members, p.most, p.period, FROM).length
+      > Math.min(p.most || p.members.length, p.members.length))
+  check('and never more of a slot than max_limit allows',
+    overfull.length === 0,
+    overfull.map(([id]) => id).join(', ')
+    || [...pools.entries()].map(([id, p]) =>
+      `${id}: ${p.most} of ${p.members.length}`).join(', '))
+}
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)
