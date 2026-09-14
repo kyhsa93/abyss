@@ -10467,7 +10467,13 @@ async function main() {
         if (bookOpen) bookPage = 0
         drawBook()
       } },
-      { key: 'Y', label: '자동', on: you.auto, use: () => { you.auto = !you.auto } },
+      // Not on a phone, where the toggle is already on the glass beside the
+      // ability buttons it drives: two switches for one flag, one of them
+      // inside a menu that has to be opened, is a phone with two answers to
+      // "is it on".
+      ...(pad.on ? [] : [
+        { key: 'Y', label: '자동', on: you.auto, use: () => { you.auto = !you.auto } },
+      ]),
       { key: 'N', label: '소리', on: !muteIsOn(), use: () => mute(!muteIsOn()) },
       { key: 'M', label: '지도', on: mapOpen, use: () => {
         mapOpen = !mapOpen

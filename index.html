@@ -855,6 +855,12 @@
         gap: 3px; padding-bottom: 0;
       }
       body.touch.lying #micro { display: flex; }
+      /* **The third time `display` beat `hidden` on this screen.**  Both rules
+         above are more specific than the attribute's own UA rule, so the menu
+         `placePhone` had shut stood open over the world from the first frame
+         and pressing the map toggled an attribute nobody could see.  `#create`
+         and `#pick` carry the same line for the same reason. */
+      body.touch #micro[hidden] { display: none; }
       body.touch #micro button { font-size: var(--font-tiny); padding: 5px 2px; }
       /* On a phone the backpack is a sheet, like the character panel and the
          map: the corner it used to take is the attack button. */

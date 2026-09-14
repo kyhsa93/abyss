@@ -716,9 +716,32 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
 await p.setViewportSize({ width: 390, height: 844 })
 await p.waitForTimeout(250)
 {
-  const shut = await p.evaluate(() => document.getElementById('micro').hidden)
+  // Nobody is being talked to first.  A conversation takes the menu away on
+  // purpose — `body.touch.talking #micro` — and one was still going here,
+  // which the attribute check below could not see and the glass check can.
+  // Ended the way a thumb ends it, as in 10: **not with `Escape`**, because
+  // any key turns the pad off and the page is a desktop from then on.
+  const talkingNow = () => p.evaluate(() => document.body.classList.contains('talking'))
+  if (await talkingNow()) {
+    const top = await p.evaluate(() => document.getElementById('talk').getBoundingClientRect().top)
+    await touch('touchStart', [[195, Math.round(top - 24)]])
+    await touch('touchEnd', [])
+    await p.waitForTimeout(250)
+  }
+  check('the menu is asked about with nobody being talked to', !(await talkingNow()),
+    await p.evaluate(() => document.body.className))
+  // **Asked of the glass, not of the attribute.**  This read `.hidden` and
+  // passed for as long as the menu stood open over the world: the attribute
+  // was set and `body.touch #micro { display: grid }` beat it.  What a player
+  // sees is a box with a size, so that is what is measured.
+  const onGlass = () => p.evaluate(() => {
+    const m = document.getElementById('micro')
+    const r = m.getBoundingClientRect()
+    return getComputedStyle(m).display !== 'none' && r.width > 0 && r.height > 0
+  })
+  const shut = !(await onGlass())
   check('the buttons are not on the glass at rest', shut === true,
-    `micro hidden: ${shut}`)
+    `micro on the glass: ${!shut}`)
   const mapAt = await p.evaluate(() => {
     const r = document.getElementById('map').getBoundingClientRect()
     return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]
@@ -729,21 +752,29 @@ await p.waitForTimeout(250)
     const m = document.getElementById('micro')
     const r = m.getBoundingClientRect()
     return { hidden: m.hidden, n: m.querySelectorAll('button').length,
+      display: getComputedStyle(m).display, body: document.body.className,
       box: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)] }
   })
   check('pressing the map brings them out',
-    open.hidden === false && open.n >= 5, JSON.stringify(open))
+    open.hidden === false && open.n >= 5 && await onGlass(), JSON.stringify(open))
+  // One switch for autocast on a phone, and it is the one beside the ability
+  // buttons.  The menu carried a second, so the same flag had two places to
+  // be turned and one of them was behind a press on the map.
+  const autos = await p.evaluate(() => [...document.querySelectorAll('#micro button')]
+    .filter((b) => b.textContent.includes('자동')).length)
+  check('and autocast is not one of them — the cluster has it', autos === 0,
+    `${autos} autocast buttons in the menu`)
   await p.touchscreen.tap(mapAt[0], mapAt[1])
   await p.waitForTimeout(250)
-  check('and pressing it again puts them away',
-    (await p.evaluate(() => document.getElementById('micro').hidden)) === true)
+  check('and pressing it again puts them away', !(await onGlass()))
 
   // And what is left standing is a readout.  Not a list of ids — a rule: the
   // things that are always up are the ones that *say* something, and a thing
   // that says something takes no press.
   const pressy = await p.evaluate(() =>
     [...document.querySelectorAll('#ui > *, #hud, #help')]
-      .filter((e) => !e.hidden && e.getBoundingClientRect().width > 0)
+      .filter((e) => getComputedStyle(e).display !== 'none'
+        && e.getBoundingClientRect().width > 0)
       .filter((e) => [e, ...e.querySelectorAll('*')].some((n) =>
         (n.tagName === 'BUTTON' || n.onclick)
         && getComputedStyle(n).pointerEvents !== 'none'
