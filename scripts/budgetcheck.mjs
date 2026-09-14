@@ -224,6 +224,45 @@ check('the sheets fit in memory once decoded',
   + `${((all.reduce((n, f) => n + size(f), 0) * 4) / MB).toFixed(0)} MB if all `
   + `were held at once)`)
 
+// --- and the buildings, which are the row issue 218 asked for ------------
+//
+// It weighed nineteen per-model bitmaps at the ground's own 24 pixels a yard
+// and came to **145 MB**, the abbey 19.3 of it — and proposed three ways to
+// cut that down: draw the parts separately, drop the scale on the big ones,
+// hold only what is on screen.
+//
+// None of them is needed, because a building here is not a picture of a
+// building.  Since issue 216 it is **a mask and a tileset**: the footprint,
+// which the plans have always carried and which ships inside the world
+// already counted above, and a roof laid over it as a repeating 32-pixel
+// picture under the model's own transform.  So the abbey costs what a cottage
+// costs.  A per-model sheet was also what made the transparency argument bite
+// — a building turned 45 degrees is half empty in its own rectangle — and in
+// the model's own axes there is no diagonal to store.
+//
+// What is weighed here is the alternative that was rejected, against the
+// footprints that were chosen, because a decision with no number under it goes
+// back to being an opinion the next time somebody wants a sprite.
+{
+  const t = JSON.parse(readFileSync('public/data/terrain.json', 'utf8'))
+  const stood = new Set((t.doodads ?? []).filter((o) => o.p).map((o) => o.p))
+  let masks = 0, sheets = 0
+  for (const [key, p] of Object.entries(t.plans ?? {})) {
+    const [w, h, cell] = p
+    // Five masks a storey — outline, stone, floor, roofed, stairs — at one bit
+    // a cell, which is what a browser holds once it has unpacked them.
+    masks += 5 * Math.ceil((w * h) / 8)
+    if (stood.has(Number(key))) sheets += w * h * (cell * 24) ** 2 * 4
+  }
+  check('a building is a mask and a tileset, not a picture of itself',
+    budget('the buildings, decoded', masks, 4 * MB, 'MB',
+      'every footprint the world ships, unpacked to one bit a cell — five '
+      + 'masks a storey.  The rejected alternative, one bitmap a model at the '
+      + `ground's own 24 pixels a yard, is ${(sheets / MB).toFixed(0)} MB`),
+    `${(masks / MB).toFixed(2)} MB of footprint against `
+    + `${(sheets / MB).toFixed(0)} MB for one sheet a model`)
+}
+
 /**
  * And the document, written from the rows above rather than beside them.
  *

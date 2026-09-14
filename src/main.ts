@@ -10556,8 +10556,26 @@ async function main() {
         doors: b.doors.length, inside, deepest: +deepest.toFixed(1),
       }
     })
+    let art = 0
+    for (const pat of patterns.values()) if (pat) art += tintedGround().px ** 2 * 4
+    let masks = 0
+    for (const p of new Set(buildings.map((b) => b.plan))) {
+      if (p) masks += p.bits.length + p.solid.length + p.floor.length
+        + p.over.length + p.steps.length
+    }
     return {
       all: rows.length,
+      /**
+       * What the buildings cost to hold, which is the question issue 218
+       * asked and the answer it did not expect.  `art` is every roof picture
+       * the scene has cut; `masks` is the footprints themselves; `asSheets` is
+       * what nineteen per-model bitmaps at the ground's own 24 pixels a yard
+       * would have been.
+       */
+      art,
+      masks,
+      asSheets: [...new Set(buildings.map((b) => b.plan))]
+        .reduce((a, p) => a + (p ? p.w * p.h * (p.s * PPY) ** 2 * 4 : 0), 0),
       /** Drawn as one piece, turned the way the placement turns it. */
       onePiece: rows.filter((r) => r.plan).length,
       /** And the ones that are not, which is what must not go quietly. */

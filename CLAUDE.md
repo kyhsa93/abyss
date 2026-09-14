@@ -461,6 +461,27 @@ away where a building brings a floor and a hole with nothing over it is painted
 black. That is the bug that made the middle of Goldshire a thirty-yard black
 square, and passing `null` for the cover would have brought it back.
 
+**And that answered how much a building may cost, which was about to be a
+sprite budget.** Nineteen per-model bitmaps at the ground's own 24 pixels a
+yard is **145 MB**, the abbey 19.3 of it and a gate 17.9, and three ways of
+cutting that down were on the table: draw the parts separately, drop the scale
+on the big ones, hold only what is on screen. None of them is needed. A
+building is **a mask and a tileset** — the footprint the plans have always
+carried, at one bit a cell, and a roof laid over it as a repeating 32-pixel
+picture — so **the abbey costs what a cottage costs**: 0.39 MB of footprint for
+every building in the world, against 158 MB for one sheet a model. The
+transparency argument went with it: a building turned 45 degrees is half empty
+in its own rectangle, and in the model's own axes there is no diagonal to
+store. `budgetcheck` carries the row and weighs the rejected alternative beside
+it, because a decision with no number under it goes back to being an opinion
+the next time somebody wants a sprite.
+
+One thing the issue assumed turned out not to hold, and it is worth writing
+down: the drawn size was going to be **smaller** than the placement box,
+because `MOHD` includes the grounds and `MOGI` is the building. Measured over
+the nineteen, the union of the group boxes is the same size or *larger* — the
+groups include the fences and the yard walls too. The saving was never there.
+
 **And each model gets a brief, of which half ships.** `pipeline/facade.py`
 writes two things per model: an underlay `.png` — the up-facing triangles
 projected and shaded by height, which is Blizzard's silhouette and is

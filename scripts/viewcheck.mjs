@@ -2050,6 +2050,30 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     built.inside === built.doors && built.doors > 20,
     `${built.inside} of ${built.doors} doors, the deepest ${built.deepest} yd `
     + 'inside its own roof')
+
+  // **What a building costs to hold**, which is issue 218's question and not
+  // the answer it expected.
+  //
+  // It weighed nineteen per-model bitmaps at the ground's own 24 pixels a yard
+  // and came to **145 MB**, the abbey 19.3 of it, and proposed three ways to
+  // cut that down.  None of them is needed, because a building here is not a
+  // bitmap of a building: it is **a mask and a tileset**.  The footprint is
+  // already shipped and already held — the masks the plans have always carried
+  // — and the roof is a repeating 32-pixel picture, so the abbey costs what a
+  // cottage costs and both are rounding errors.
+  //
+  // A per-model sheet was also the thing that made the transparency argument
+  // bite: a building turned 45 degrees is half empty in its own rectangle.
+  // Drawn in the model's own axes there is no diagonal to store, so that cost
+  // does not exist either.
+  const MB = 1048576
+  console.log(`      (buildings: ${(built.art / 1024).toFixed(0)} KB of roof `
+    + `pictures and ${(built.masks / MB).toFixed(2)} MB of footprint, against `
+    + `${(built.asSheets / MB).toFixed(0)} MB for one bitmap a model)`)
+  check('a building costs a mask and a tileset, not a picture of itself',
+    built.art + built.masks < 4 * MB && built.asSheets > 100 * MB,
+    `${((built.art + built.masks) / MB).toFixed(2)} MB of 4, where a sheet a `
+    + `model at 24 px/yd would be ${(built.asSheets / MB).toFixed(0)} MB`)
 }
 
 // 13b. And a hall is not a cottage.
