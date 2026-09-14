@@ -104,7 +104,12 @@ console.log(`      (a second terrain rides along at ${(spare / MB).toFixed(2)} M
 // numbers: a visitor fetches one world and the sheets the scene opens, and the
 // deploy carries every sheet, both worlds and every icon.  A budget that only
 // watched the first would let the second grow until a deploy stopped fitting.
-const carried = files.reduce((n, f) => n + statSync(f).size, 0)
+// Less the service worker, the same as the script above: it is written only
+// when `vite.config.ts` sees `GITHUB_ACTIONS`, so counting it made CI's total
+// a hundredth of a megabyte bigger than any build at a desk and the document
+// could never say both.
+const carried = files.filter((f) => !f.endsWith('sw.js'))
+  .reduce((n, f) => n + statSync(f).size, 0)
 check('and the whole deploy fits in what a Pages site may be',
   budget('everything the deploy carries', carried, 200 * MB, 'MB',
     'on disk, not gzipped, and every file — both worlds, all 157 sheets, '
@@ -278,9 +283,10 @@ const table = [
   '# The performance budget, measured',
   '',
   '**Written by `npm run budgetcheck -- --write`.  Do not edit by hand** — a',
-  'plain `npm run budgetcheck` fails when this file is not what the check',
-  'would write, which is the same bargain `manifestcheck` makes with the baked',
-  'world.',
+  'plain `npm run budgetcheck` fails when this file says something other than',
+  'what the check would write: every word exactly, and every measured number to',
+  'within its last shown digit, so a rounding step between two builds is not a',
+  'failure and a real drift is.',
   '',
   'The wiki page [성능 예산] keeps the *decisions* — why the decoded-sheet',
   'ratchet is twenty-four and not sixty-four, why one world is counted and not',
@@ -302,15 +308,39 @@ if (process.argv.includes('--write')) {
   writeFileSync(DOC, want)
   console.log(`wrote ${DOC}`)
 } else {
+  // **The words exactly, the numbers to their last digit.**  This compared
+  // the whole file as text, so it failed whenever a number crossed a rounding
+  // step: the base path CI builds with moves the script by a few hundred bytes,
+  // and a commit that added a kilobyte of code turned CI red until somebody
+  // ran `--write` — which is what happened on f5f7bbf and again on 613ec35,
+  // each time on a document that was right to the megabyte.  A number is
+  // allowed one step of its own last digit either way; anything more, a row
+  // that is new or gone, or a word that changed, still fails.
   let had = null
   try { had = readFileSync(DOC, 'utf8') } catch { /* not written yet */ }
-  check('and the budget document says what was just measured', had === want,
-    had === want ? `${DOC}, ${rows.length} lines, every one of them measured `
-      + 'by this run'
+  const cells = (text) => new Map((text ?? '').split('\n')
+    .map((line) => line.match(/^\| (.+?) \| ([\d.]+) (MB|KB) \| /))
+    .filter(Boolean).map((m) => [m[1], [Number(m[2]), m[3]]]))
+  const words = (text) => (text ?? '')
+    .replace(/^(\| .+? \| )[\d.]+ (MB|KB)( \| )/gm, '$1# $2$3')
+  const then = cells(had)
+  const drift = rows.filter((r) => {
+    const was = then.get(r.what)
+    const now = Number(shown(r.got, r.unit).split(' ')[0])
+    const step = r.unit === 'MB' ? 0.01 : 1
+    return !was || was[1] !== r.unit || Math.abs(was[0] - now) > step + 1e-9
+  })
+  const same = had !== null && words(had) === words(want) && drift.length === 0
+  check('and the budget document says what was just measured', same,
+    same ? `${DOC}, ${rows.length} lines, every one of them within a digit of `
+      + 'this run'
       : had === null
         ? `${DOC} is not there — run \`npm run budgetcheck -- --write\``
-        : 'the file on disk is not what this run would write; '
-          + 'run `npm run budgetcheck -- --write`')
+        : (drift.length
+          ? `${drift.map((r) => `${r.what}: ${then.get(r.what)?.[0] ?? 'missing'} `
+            + `on disk, ${shown(r.got, r.unit)} now`).join('; ')}`
+          : 'the words on disk are not what this run would write')
+          + '; run `npm run budgetcheck -- --write`')
 }
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')

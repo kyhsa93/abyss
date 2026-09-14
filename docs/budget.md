@@ -1,9 +1,10 @@
 # The performance budget, measured
 
 **Written by `npm run budgetcheck -- --write`.  Do not edit by hand** — a
-plain `npm run budgetcheck` fails when this file is not what the check
-would write, which is the same bargain `manifestcheck` makes with the baked
-world.
+plain `npm run budgetcheck` fails when this file says something other than
+what the check would write: every word exactly, and every measured number to
+within its last shown digit, so a rounding step between two builds is not a
+failure and a real drift is.
 
 The wiki page [성능 예산] keeps the *decisions* — why the decoded-sheet
 ratchet is twenty-four and not sixty-four, why one world is counted and not
@@ -16,7 +17,7 @@ going red on four of them for rounds.
 | --- | ---: | ---: |
 | the script a browser is handed | 81 KB | 500 KB |
 | the world a first visit downloads | 3.37 MB | 4.00 MB |
-| everything the deploy carries | 31.14 MB | 200.00 MB |
+| everything the deploy carries | 31.13 MB | 200.00 MB |
 | the sounds | 135 KB | 2048 KB |
 | the sheets the scene opens, decoded | 21.58 MB | 24.00 MB |
 | and against the desktop ceiling | 21.58 MB | 64.00 MB |

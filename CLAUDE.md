@@ -1527,8 +1527,14 @@ measured"* while `budgetcheck` had been measuring four of them for rounds and
 going red on one — the document was behind the harness. The fix was not to
 write the numbers down again: `docs/budget.md` is **written by the check**
 (`npm run budgetcheck -- --write`) and a plain run fails when the file on disk
-is not what it would write, which is the bargain `manifestcheck` already makes
-with the baked world. The wiki page keeps the *decisions* — why the decoded
+says something other than what it would write, which is the bargain
+`manifestcheck` already makes with the baked world. **Every word exactly and
+every number to within its last shown digit**: compared as bytes, it turned CI
+red twice in one morning on a document that was right to the megabyte — once
+because CI's build carries a service worker a desk's does not, once because a
+commit added a kilobyte of script — so the service worker is out of the total
+and a rounding step is not a failure, while a real drift or a changed row still
+is. The wiki page keeps the *decisions* — why the decoded
 ratchet is 24 and not 64, why one world is counted and not two — and points at
 the file for the figures. Lines nothing measures are named as such: **a budget
 with no measurement behind it is a hope, and it says so.**
