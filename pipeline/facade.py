@@ -37,6 +37,35 @@ window or a hole in a floor" — and they are not: the abbey has two of those an
 the inn one, because a portal is a hole cut for visibility between rooms, not a
 window.  The material list says a building *has* windows and the geometry has
 them, but nothing here finds them yet.
+
+**Then the brief was drawn from, which is the only way to find out what a brief
+is missing.**  Issue 215's last condition was to draw a building from the
+`.json` alone — no client, no triangles, no underlay — and the first attempt
+came out as a 92-yard box with eight doors correctly placed inside it and
+fourteen part *sizes* with **nowhere to put them**.  `MOGI` states each group's
+`(lo, hi)` and both corners were being read; only the difference was written
+out.  A field computed and never read, in a file whose entire purpose is to be
+read.  A part is six numbers now — corner, extent, height and the height of its
+own base — and drawn from those alone the abbey has its cross plan, its
+transepts, its crossing block standing above the rest, and its doors on the
+right walls.
+
+Four things a brief still cannot say, and each of them is a property of a box
+rather than a gap in the reading:
+
+  * **a turned part comes out square.**  The abbey's annex sits at 45 degrees
+    inside the model and `MOGI` states an axis-aligned box, so the brief draws
+    a rectangle where the building has a diamond
+  * **a curved end comes out flat.**  An apse is a semicircle and a box is a box
+  * **a roof has a height and no ridge.**  Which way the pitch runs is in the
+    triangles and nowhere in six numbers
+  * **where the windows are** — unchanged, and now the only one of the four
+    that could be fixed by reading something new rather than by shipping
+    geometry
+
+The first three all have the same answer if they are ever worth having, and it
+is the one this file is careful about: shipping the up-facing outline itself is
+shipping Blizzard's silhouette, which is what the underlay is for.
 """
 import json
 import os
@@ -255,7 +284,7 @@ def main():
     SKIP = ('WALLPIECE', 'WALLPOST', 'BRIDGE', 'FOOTBRIDGE', 'HARBOR', 'DOCKS',
             'SHIP', 'WRECK', 'WORLDTREE', 'STORMWIND.WMO', 'BLACKROCK.WMO')
 
-    briefs, drawn, skipped = [], 0, 0
+    briefs, drawn, skipped, local = [], 0, 0, {}
     for path, count in sorted(placed.items(), key=lambda kv: -kv[1]):
         name = path.split('\\')[-1]
         if any(k in name.upper() for k in SKIP):
@@ -281,28 +310,58 @@ def main():
             last = s
 
         img, (x0, y0, _scale) = sheet(tris, words, ground, PX_PER_YARD)
+        # **The sheet is named after the key, not after the model.**
+        #
+        # It was the model's own file name — `NSABBEY.png`, `GOLDSHIREINN.png`
+        # — and `facade.json` is committed, so a client's file table was
+        # leaving in the one field of the brief nobody had looked at.  The
+        # `.png` is gitignored and the `.json` is not: the rule this repository
+        # keeps is that a *model path* does not enter it, and the leaf of a
+        # path is a path.  `bake_terrain` already solved this for the same
+        # reason and with the same tool — *an opaque number for "the same
+        # model"* — so the brief borrows it, and the readable name is printed
+        # to the terminal where it stays on the machine that has the client.
+        key = zlib.crc32(path.upper().encode())
         stem = name[:-4] if name.upper().endswith('.WMO') else name
-        img.save(os.path.join(out, stem + '.png'))
+        img.save(os.path.join(out, '%d.png' % key))
         drawn += 1
 
         # And the brief beside it: numbers and words, which is what ships.
         tally = Counter(words[t[3]] if t[3] < len(words) else 'wall' for t in tris)
         briefs.append({
-            'model': zlib.crc32(path.upper().encode()),
-            'sheet': stem + '.png',
+            'model': key,
+            'sheet': '%d.png' % key,
             'placements': count,
             'yards': [round(whole[1][0] - whole[0][0], 1),
                       round(whole[1][1] - whole[0][1], 1),
                       round(whole[1][2] - whole[0][2], 1)],
-            'parts': [[round(g[1][0] - g[0][0], 1), round(g[1][1] - g[0][1], 1),
-                       round(g[1][2] - g[0][2], 1)] for g in
-                      [(g[1], g[2]) for g in groups]],
+            # **Six numbers a part, not three**, and the three that were
+            # missing are where it is.
+            #
+            # Issue 215's last condition is *draw one from the brief alone and
+            # write down what is missing*, and what was missing was this: the
+            # abbey came out as a 92-yard box with eight doors in the right
+            # places and fourteen part sizes with **nowhere to put them**.  No
+            # cross plan, no transepts, no crossing tower — the shape of the
+            # building was entirely in the underlay, which does not ship.
+            #
+            # `MOGI` states each group's `(lo, hi)` and both corners were read;
+            # only the difference was written out.  A field computed and never
+            # read, in a file whose whole purpose is to be read.  The corner is
+            # relative to the same origin the doors use, so the two line up.
+            'parts': [[round(lo[0] - x0, 1), round(lo[1] - y0, 1),
+                       round(hi[0] - lo[0], 1), round(hi[1] - lo[1], 1),
+                       round(hi[2] - lo[2], 1), round(lo[2], 1)]
+                      for lo, hi in [(g[1], g[2]) for g in groups]],
             'storeys': [round(s, 1) for s in storeys],
             'doors': [[round(d[1] - x0, 2), round(d[2] - y0, 2)] for d in ground],
             'origin': [round(x0, 2), round(y0, 2)],
             'pixelsPerYard': PX_PER_YARD,
             'surfaces': dict(sorted(tally.items(), key=lambda kv: -kv[1])),
         })
+        # Local only — popped before the file is written, the same way
+        # `bake_terrain` keeps `PLAN_PATH` out of its own output.
+        local[key] = stem
 
     briefs.sort(key=lambda b: -b['placements'])
     with open(os.path.join(out, 'facade.json'), 'w') as f:
@@ -322,14 +381,17 @@ def main():
             break
     print('check: %d of %d sheets cover half the placements (%d of %d)'
           % (cover, drawn, so_far, total))
-    missing = [b['sheet'] for b in briefs if not b['doors']]
+    missing = [local[b['model']] for b in briefs if not b['doors']]
     print('check: %d of %d have no ground-floor door, which is a building you '
           'cannot get into' % (len(missing), drawn))
     for b in briefs[:6]:
         print('   %-28s x%-3d %5.0f x %-5.0f yd  parts %-3d storeys %d  %s'
-              % (b['sheet'], b['placements'], b['yards'][0], b['yards'][1],
+              % (local[b['model']] + '.png', b['placements'],
+                 b['yards'][0], b['yards'][1],
                  len(b['parts']), len(b['storeys']),
                  ' '.join('%s %d' % kv for kv in list(b['surfaces'].items())[:4])))
+    print('   (the sheets on disk are named after the key, because the brief '
+          'is committed and a model name is a model path)')
 
 
 if __name__ == '__main__':

@@ -432,6 +432,35 @@ in the abbey — and they go through the same `classify` and the same audit as
 everything the terrain places. What stands under a roof is not drawn while you
 are outside it, people included: they were standing on the tiles.
 
+**And each model gets a brief, of which half ships.** `pipeline/facade.py`
+writes two things per model: an underlay `.png` — the up-facing triangles
+projected and shaded by height, which is Blizzard's silhouette and is
+gitignored — and `art/facade/facade.json`, which is numbers and words. The
+material names are the half nobody had read: a texture path is a *word*, and
+`MM_ABBEY_WALL` under `MM_WOODROOF` with `MM_STAINED` glass describes a
+building. They are read as **tokens and not substrings** — `MM_STRMWND_WALL_03`
+is a wall and `STRMWND` is Stormwind, and read as a substring the farm came
+back with thirteen hundred window triangles and no walls.
+
+Two things about it are this repository's usual shapes. The brief's `sheet`
+field was the model's **own file name** — `NSABBEY.png` — which is the leaf of
+a client path in a committed file, and it survived because `bake.py`'s
+copyright grep walks the files the *bake* produced and this is produced by a
+script the bake does not run. It is the crc32 key now, the same opaque number
+`bake_terrain` already uses for *the same model*, and `bordercheck` reads the
+brief from now on. And a part was **three numbers where `MOGI` states six**:
+both corners were read and only the difference written out, so drawn from the
+brief alone the abbey was a 92-yard box with eight correctly placed doors and
+fourteen part sizes with nowhere to put them. Drawing from a brief is the only
+way to find out what a brief is missing, which is why issue 215 asked for it.
+
+Four things a brief still cannot say, and three of them are properties of a box
+rather than gaps in the reading: a **turned** part comes out square (the
+abbey's annex sits at 45°), a **curved** end comes out flat (an apse is a
+semicircle), a roof has a height and **no ridge**, and **where the windows
+are** — that last one unchanged, because a portal is a hole cut between rooms
+and not a window: the abbey has two short portals and the inn one.
+
 **The client blends and this stepped it, and a third of the paint was going in
 the bin.** `ground_of` handed back one word a paint cell: up to four texture
 layers, each with its own 64 x 64 alpha map, and whichever layer's mean passed

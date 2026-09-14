@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **174 promises across 22 pages, 151 of them kept.**
+Counted: **178 promises across 22 pages, 155 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -46,6 +46,10 @@ keeps it honest.
 | 그린 그림의 문 자리가 구운 문 좌표와 맞는다 | — 건물 스프라이트가 아직 없다 (#216) |
 | 건물마다 그림이 있고, 없으면 세어 출력한다 | `pipeline/facade.py: "sheets cover half the placements"` |
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |
+| **설명서에 클라이언트의 것이 하나도 없다** | `scripts/bordercheck.mjs: "nothing of the client is in the building briefs"` |
+| **설명서의 표면 낱말이 전부 우리 것이다** | `scripts/bordercheck.mjs: "and every surface word in them is one of ours"` |
+| **설명서의 크기가 구운 평면도와 맞는다** | `scripts/bordercheck.mjs: "and a brief is the same size as the building the world was baked from"` |
+| **평면도가 없는 설명서는 세계가 아무 데도 안 세운 모델이다** | `scripts/bordercheck.mjs: "and a brief with no plan is a model the world placed nowhere"` |
 | 파이프라인의 어떤 줄도 `.blp` 를 열지 않는다 | `scripts/bordercheck.mjs: "and nothing in the pipeline opens one of the client's textures"` |
 | 보이는 건물 스프라이트가 예산 안이다 | — 건물 스프라이트가 아직 없다 (#218 이 값을 재 두었다) |
 | **굴이 지어낸 것이 아니라 모델에서 온다** | `scripts/viewcheck.mjs: "the mines are dug from where the world stands its creatures"` |

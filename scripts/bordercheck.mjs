@@ -193,6 +193,106 @@ check('and they run in Node with no browser at all',
       + 'files, and the only thing any of them does with a texture is read its '
       + 'name and answer with a word of ours')
 
+  // --- and the building briefs, which are a second output nobody was
+  // checking -------------------------------------------------------------
+  //
+  // `pipeline/facade.py` writes two things per model and commits one of them:
+  // an underlay `.png` that is Blizzard's silhouette and is gitignored, and a
+  // brief in `art/facade/facade.json` that is numbers and words.  The brief is
+  // not under `public/`, so **`bake.py`'s copyright grep has never seen it** —
+  // that grep walks the files the bake produced, and this is produced by a
+  // script the bake does not run.  Issue 215 asked for the check by name.
+  //
+  // It found one.  The brief's `sheet` field was the model's own file name —
+  // `NSABBEY.png`, `GOLDSHIREINN.png` — which is the leaf of a client path in
+  // a committed file, in the one field of the brief nobody had read.  It is
+  // the key now, the same opaque number `bake_terrain` uses for *the same
+  // model*, and this is what says so from now on.
+  const facade = JSON.parse(readFileSync(join('art', 'facade', 'facade.json'), 'utf8'))
+  // The same needles `bake.py` carries, plus the two shapes a brief could leak
+  // that a baked world cannot: a material name (`MM_ABBEY_WALL_01`) and a
+  // model stem in a field that should hold a number.
+  const NEEDLES = [/\.(mdx|wmo|blp|adt|dbc|mpq|m2)\b/i, /\bMM_[A-Z]/, /\\/,
+    /\b(world|character|creature|item|interface|tileset)[\\/]/i]
+  const said = JSON.stringify(facade)
+  const leak = NEEDLES.filter((re) => re.test(said)).map(String)
+  check('nothing of the client is in the building briefs', leak.length === 0,
+    leak.length ? leak.join(' ')
+      : `${facade.buildings.length} briefs, ${(said.length / 1024).toFixed(0)} KB, `
+      + 'every sheet named after its key and every surface one of our own words')
+  // And a brief may only say what our own vocabulary can say.  The vocabulary
+  // is read out of `facade.py` rather than repeated here: a list typed twice
+  // is two lists that drift, and the first version of this check had five
+  // words where the script has seven — it failed on `ceiling`, which is the
+  // script being right and the check being a second copy.
+  const WORDS = [...readFileSync(join('pipeline', 'facade.py'), 'utf8')
+    .match(/^WORDS = \(\n([\s\S]*?)^\)/m)[1]
+    .matchAll(/^ {4}\('(\w+)',/gm)].map((m) => m[1])
+  const odd = [...new Set(facade.buildings.flatMap((b) => Object.keys(b.surfaces)))]
+    .filter((w) => !WORDS.includes(w))
+  check('and every surface word in them is one of ours',
+    odd.length === 0 && WORDS.length > 3,
+    odd.length ? odd.join(', ') : `${WORDS.join(', ')} — `
+    + `${WORDS.length} words the script can say, over `
+    + `${facade.buildings.length} briefs`)
+
+  // **Does a brief describe the same building the world was baked from?**
+  //
+  // This is the half that cannot be greppped.  A brief's `yards` is the
+  // model's own `MOHD` box, read by `facade.py`; the baked `plans` are that
+  // model's triangles rasterised by `bake_terrain.wmo_plan` on a 1.33 yard
+  // pitch.  Two scripts, two readings of the same file, joined on the key —
+  // so a brief that has drifted from the world says so here rather than in
+  // somebody's drawing.
+  //
+  // A raster is never smaller than what it covers and rounds up by whole
+  // cells, so the plan is always the larger and the gap is a couple of cells:
+  // measured over the 29 that match, **1.6 to 3.6 yards**, which is 1.2 to 2.7
+  // cells.  Three cells is the bar.
+  const cellOf = (p) => p[2]
+  const drift = []
+  let joined = 0
+  for (const b of facade.buildings) {
+    const plan = terrain.plans[String(b.model)]
+    if (!plan) continue                 // a mine: dug, not built — see below
+    joined++
+    const cell = cellOf(plan)
+    for (const [i, span] of [plan[0] * cell, plan[1] * cell].entries()) {
+      const gap = span - b.yards[i]
+      if (gap < 0 || gap > 3 * cell) {
+        drift.push(`${b.model} ${'xy'[i]} plan ${span.toFixed(1)} vs brief `
+          + `${b.yards[i].toFixed(1)}`)
+      }
+    }
+  }
+  check('and a brief is the same size as the building the world was baked from',
+    drift.length === 0 && joined > 20,
+    drift.length ? drift.join('; ')
+      : `${joined} of ${facade.buildings.length} briefs joined to a baked plan`)
+  // **And the ones that do not join have to say why**, or six silent holes in
+  // a join is a join nobody can trust.
+  //
+  // The first answer written here was wrong and the check said so: *they are
+  // the ones with no floor*.  They all have floors — asked directly, all six
+  // rasterise, and one of them has eight storeys.  The real reason is the gap
+  // this repository already has a name for: **the bake filters by the slice's
+  // rectangle and `facade.py` reads every `MODF` record on the slice's tiles.**
+  // A tile is 533 yards and the slice's bounds cut across them, so a model can
+  // stand on a tile the bake read and outside the box the bake kept.
+  //
+  // So the rule is narrow and it is checkable from what is committed: a brief
+  // with no plan is a model **the world placed nowhere**.  `p` on a baked
+  // building is its plan key, so the set of keys that actually stand in the
+  // world is right there.
+  const stood = new Set(terrain.doodads.filter((o) => o.p).map((o) => o.p))
+  const nomatch = facade.buildings.filter((b) => !terrain.plans[String(b.model)])
+  const orphan = nomatch.filter((b) => stood.has(b.model))
+  check('and a brief with no plan is a model the world placed nowhere',
+    orphan.length === 0,
+    orphan.length ? orphan.map((b) => String(b.model)).join(', ')
+      : `${nomatch.length} of ${facade.buildings.length} stand on the slice's `
+      + `tiles and outside its bounds; ${stood.size} models stand in the world`)
+
   // The two the issue asked for by name, stated as rules rather than as a
   // list of ten corrections — a correction is good once and a rule is good
   // every time the world is rebaked.
