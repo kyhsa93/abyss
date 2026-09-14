@@ -33,6 +33,7 @@ whatever the monitor is; `src/hud.ts` scales that to the viewport.
 import json
 import os
 import re
+import struct
 import sys
 import xml.etree.ElementTree as ET
 
@@ -69,7 +70,33 @@ WANT = {
     # conversation — and the icons page had already printed what that looks
     # like: *"lines 4 and 5 have the same words and the same price."*
     'MerchantFrame': 'shop',
+    # And making a character, which happens before any of the above exists.
+    'CharacterCreateRaceButton1': 'create.race',
+    'CharacterCreateClassButton1': 'create.class',
+    'CharacterCreateGenderButtonMale': 'create.sex',
+    'CharacterCustomizationButtonFrame1': 'create.look',
+    'CharacterCreateNameEdit': 'create.name',
+    'CharCreateOkayButton': 'create.ok',
+    'CharCreateBackButton': 'create.back',
+    'CharCreateRandomizeButton': 'create.dice',
+    'CharacterSelectCharacterFrame': 'pick',
 }
+
+# And the screens that come before the world.  `GlueXML` is its own directory
+# and this pipeline had never opened it — see `tree`.
+GLUE = ['CharacterCreate.xml', 'CharacterSelect.xml']
+
+#: Which field of `ChrRaces.dbc` and `ChrClasses.dbc` holds the name in this
+#: client's own language.  Found rather than looked up in a layout table: the
+#: only field of either whose every value is an offset into the string block
+#: that reads back as Korean.
+RACE_NAME, CLASS_NAME = 15, 5
+
+#: Which race this game is, and what `CharBaseInfo.dbc` says it may be.  The
+#: seven are warrior, paladin, rogue, priest, death knight, mage and warlock —
+#: written here so a misread column cannot come back as a plausible list.
+HUMAN = 1
+HUMAN_CLASSES = [1, 2, 4, 5, 6, 8, 9]
 
 FILES = ['PlayerFrame.xml', 'TargetFrame.xml', 'Minimap.xml', 'MainMenuBar.xml',
          'CastingBarFrame.xml', 'GossipFrame.xml', 'CharacterFrame.xml',
@@ -80,9 +107,16 @@ FILES = ['PlayerFrame.xml', 'TargetFrame.xml', 'Minimap.xml', 'MainMenuBar.xml',
          'UnitFrame.xml', 'TargetFrameTemplate.xml']
 
 
-def tree(client, name):
-    """One `FrameXML` file, with the namespaces stripped so ElementTree copes."""
-    data, _src = client.read('Interface\\FrameXML\\' + name)
+def tree(client, name, where='FrameXML'):
+    """One interface file, with the namespaces stripped so ElementTree copes.
+
+    `where` because the directory was written into this line, and the screen
+    that makes a character is not in it: `FrameXML` is the game's interface and
+    `GlueXML` is everything before you are in the world — the login, the list
+    of characters, the one that makes one.  Adding a name to `FILES` could
+    never have reached it.
+    """
+    data, _src = client.read('Interface\\%s\\%s' % (where, name))
     if not data:
         return None
     s = data.decode('utf-8', 'replace')
@@ -104,8 +138,9 @@ def collect(client):
     the strip along the top of the action bar, which is where it belongs.
     """
     found, owner = {}, {}
-    for name in FILES:
-        t = tree(client, name)
+    for name, where in ([(f, 'FrameXML') for f in FILES]
+                        + [(g, 'GlueXML') for g in GLUE]):
+        t = tree(client, name, where)
         if t is None:
             continue
 
@@ -249,6 +284,82 @@ def panels(client):
             out[name] = {'area': area.group(1),
                          'push': int(push.group(1)) if push else 0}
     return out
+
+
+def who(client):
+    """Which races and classes exist, and which pairs of them are legal.
+
+    Three tables and they answer three questions.  `CharBaseInfo.dbc` is the
+    one that matters and it is **two bytes a row, 62 of them** — a race and a
+    class and nothing else — so it is the whole of "may a human be a hunter"
+    and there is no rule to reimplement.  A human's seven are 1, 2, 4, 5, 6, 8
+    and 9.
+
+    The names come out of the string block, and **that is a line this
+    repository did not use to cross.**  `spells.py` reads 49 MB of `Spell.dbc`
+    and never touches its 2.7 MB of strings; `talk.ts` writes every word a
+    player sees.  The owner reversed that for quest prose on 2026-09-14 (issue
+    190) and asked for these names the same way (issue 186), so they are read —
+    ten class names and twenty-one race names, about 400 bytes of Korean.
+    `CLAUDE.md`'s paragraph about words not leaving now has two exceptions and
+    issue 209 is where that document catches up.
+
+    Numbers and names.  No texture, no description, no sentence.
+    """
+    def rows(name):
+        data, _src = client.read('DBFilesClient\\%s.dbc' % name)
+        if data is None:
+            return None, None
+        magic, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
+        if magic != b'WDBC':
+            return None, None
+        return data, (n, fields, rsize, 20)
+
+    def named(name, field):
+        data, head = rows(name)
+        if not head:
+            return {}
+        n, fields, rsize, at = head
+        strings = data[at + n * rsize:]
+
+        def word(off):
+            end = strings.index(b'\0', off)
+            return strings[off:end].decode('utf-8', 'replace')
+        out = {}
+        for i in range(n):
+            r = struct.unpack_from('<%di' % fields, data, at + i * rsize)
+            try:
+                got = word(r[field])
+            except (ValueError, IndexError):
+                got = ''
+            if got:
+                out[r[0]] = got
+        return out
+
+    data, head = rows('CharBaseInfo')
+    pairs = []
+    if head:
+        n, _fields, rsize, at = head
+        # Two bytes a row, so this one cannot go through the int reader every
+        # other table here uses: `<2i` on a two-byte record reads the next
+        # thirty rows as one.
+        pairs = [list(struct.unpack_from('<BB', data, at + i * rsize))
+                 for i in range(n)]
+    got = {'races': named('ChrRaces', RACE_NAME),
+           'classes': named('ChrClasses', CLASS_NAME),
+           'pairs': pairs}
+    # The one number worth asserting, because it is the whole of the rule: a
+    # human's seven.  Read a field wrong and this comes back as something
+    # plausible — the pairs are small integers and every wrong column of a
+    # two-byte record still parses.
+    mine = sorted(c for r, c in pairs if r == HUMAN)
+    if pairs and mine != HUMAN_CLASSES:
+        sys.exit('CharBaseInfo says a human may be %s, which is not the '
+                 'seven this client should have (%s)' % (mine, HUMAN_CLASSES))
+    print('check: %d races, %d classes, %d legal pairs; a human may be %s'
+          % (len(got['races']), len(got['classes']), len(pairs),
+             ', '.join(got['classes'].get(c, str(c)) for c in mine)))
+    return got
 
 
 def spec(client, found):
@@ -463,7 +574,8 @@ def main(client_root, out):
     path = os.path.join(out, 'layout.json')
     with open(path, 'w') as f:
         doc = {'ref': [REF_W, REF_H], 'frames': frames, 'panels': ours,
-               'spec': spec(client, found)}
+               'spec': spec(client, found),
+               'who': who(client)}
         json.dump(doc, f)
     print(f'{len(frames)} frames -> {path}   (screen {REF_W}x{REF_H}, '
           f'{os.path.getsize(path) // 1024} KiB)')
