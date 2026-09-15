@@ -3081,17 +3081,26 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
 // pick the nearest thing marked `enemy`, never anger it and never ask whether
 // it moved: measured, a bandit 261 yards off, nought yards moved, not angry,
 // and a pass.  So the creature is one close enough to come — within forty
-// yards, one that moves at all (a spawn with no wander does not), whose
-// straight line in reaches the building's shut ground at least five yards
-// before it would reach him — it is angered, the world is stepped three
-// seconds at a time it can read, and it has to have come closer and never
-// once stood inside.
-{
+// yards, whose straight line in reaches the building's shut ground at least
+// five yards before it would reach him — it is angered, the world is stepped
+// three seconds at a time it can read, and it has to have come closer and
+// never once stood inside.
+//
+// **And it is asked twice: once of a wanderer and once of a spawn with no
+// wander at all.**  It used to ask only for "one that moves at all (a spawn
+// with no wander does not)", which was the game's bug written down as the
+// check's premise: `wander` skipped every still creature before it asked
+// whether it was angry, so 388 of the 1,369 fightable spawns never came at
+// anybody, and the one sentence that could have seen it chose not to look.
+// A still one is then left past the leash with the camera where it was, so
+// it stays awake, and has to walk back to the spot it was spawned on —
+// `MoveTargetedHome` — because standing still is also where it must end.
+for (const still of [false, true]) {
   // Chosen, placed, angered and watched in one evaluation, so no frame runs
   // in between: the first version of this chose in one call and angered in
   // the next, the creature had wandered a yard by then, and the nearest
   // thing to where it had been was somebody else.
-  const chase = await p.evaluate(() => {
+  const chase = await p.evaluate((still) => {
     let best = null
     for (const b of window.__buildings()) {
       if (b.k === 'mine' || !(b.doors ?? []).length) continue
@@ -3107,7 +3116,8 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
       }
       if (!inside) continue
       for (const n of window.__all()) {
-        if (n.dead || n.stance === 'friend' || !(n.wander > 0)) continue
+        if (n.dead || n.stance === 'friend') continue
+        if (still ? n.wander !== 0 : !(n.wander > 0)) continue
         if (window.__shutOut(n.x, n.y)) continue
         const d = Math.hypot(n.x - inside.x, n.y - inside.y)
         if (d > 40) continue
@@ -3149,19 +3159,56 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
       closest = Math.min(closest, Math.hypot(n.x - h.x, n.y - h.y))
     }
     const h = window.__hero()
-    return { ...best, angry, inside, closest,
+    const out = { ...best, angry, inside, closest, wander: it.wander,
       from: Math.hypot(angry.x - h.x, angry.y - h.y) }
-  })
-  check('there is a building with a floor and something outside it', !!chase,
-    JSON.stringify(chase))
+    if (!still) return out
+    // Past the leash, by `__put` so the camera — and so the list of what is
+    // awake — stays where the creature is.  `__all()` is every spawn in a
+    // fixed order, so its index follows this one through the steps.
+    const idx = window.__all().findIndex((m) => m.hx === it.hx && m.hy === it.hy)
+    const at = window.__all()[idx]
+    let far = null
+    for (let r = 50; r < 90 && !far; r += 5) {
+      for (let a = 0; a < 16; a++) {
+        const t = (a / 16) * Math.PI * 2
+        const x = at.x + Math.cos(t) * r, y = at.y + Math.sin(t) * r
+        if (window.__canWalk(x, y) && !window.__shutOut(x, y)) { far = { x, y }; break }
+      }
+    }
+    if (!far) return { ...out, far: null }
+    window.__put(far.x, far.y)
+    const left = Math.hypot(at.x - at.hx, at.y - at.hy)
+    let calm = -1, back = -1
+    for (let i = 0; i < 600 && back < 0; i++) {
+      window.__steps(1)
+      const m = window.__all()[idx]
+      if (calm < 0 && !m.angry) calm = i
+      if (!m.angry && Math.hypot(m.x - m.hx, m.y - m.hy) < 0.01) back = i
+    }
+    return { ...out, far, left, calm, back }
+  }, still)
+  check(still ? 'there is a creature that stands still outside a building with a floor'
+    : 'there is a building with a floor and something outside it', !!chase,
+  JSON.stringify(chase))
   if (chase) {
-    check('and it does not walk through the wall to get at you',
-      !!chase.angry && chase.from - chase.closest >= 3 && chase.inside === 0,
+    check(still ? 'and one that stands still comes at you too, and not through the wall'
+      : 'and it does not walk through the wall to get at you',
+      !!chase.angry && chase.from - chase.closest >= 3 && chase.inside === 0
+      && (still ? chase.wander === 0 : chase.wander > 0),
       chase.angry
-        ? `a ${chase.foe.kind} ${chase.from.toFixed(1)} yards off came to within `
-          + `${chase.closest.toFixed(1)} of him (the wall is ${chase.clear} yards `
-          + `along its way), and stood inside on ${chase.inside} of 120 steps`
+        ? `a ${chase.foe.kind} (wander ${chase.wander}) ${chase.from.toFixed(1)} yards `
+          + `off came to within ${chase.closest.toFixed(1)} of him (the wall is `
+          + `${chase.clear} yards along its way), and stood inside on `
+          + `${chase.inside} of 120 steps`
         : `the ${chase.foe.kind} chosen could not be angered`)
+    if (still) {
+      check('and when it gives up it goes back to the spot it stood on',
+        !!chase.far && chase.left >= 3 && chase.calm >= 0 && chase.back >= 0,
+        chase.far
+          ? `${chase.left.toFixed(1)} yards from its spot when he left past the `
+            + `leash, calm after ${chase.calm} steps, home after ${chase.back}`
+          : 'nowhere past the leash to leave it')
+    }
   }
 }
 

@@ -2981,6 +2981,26 @@ async function main() {
    * scene a different scene.
    */
   function wander(dt: number, time: number, busy: Npc | null) {
+    // What stops a creature that is running — at you, or home afterwards.
+    // The same walls the player has.
+    //
+    // This asked `wetAt` and `solidAt` and nothing else — water and trees —
+    // while the player is also stopped by a closed chunk, a hole, and **a
+    // building**.  So a wolf came through the wall: of 4,968 straight lines
+    // from a target twenty-two yards out, 144 cross a wall the chase rule did
+    // not stop.  And it is the half a player sees most, because he is only
+    // occasionally somewhere he should not be and a beast chasing him is there
+    // the whole time.
+    //
+    // Which makes running round a corner work, and that is the value of it: a
+    // creature that walks through the corner is a creature there is no getting
+    // away from.
+    const running = (n: Npc, x: number, y: number) =>
+      // Water only stops it where it would have to swim.  A wolf will follow
+      // you across a ford now and lose you in the lake, which is the
+      // difference between water as terrain and water as a wall.
+      (!n.swims && swimAt(x, y)) || solidAt(x, y)
+      || closedAt(x, y) || openHole(x, y) || shutOut(x, y)
     const tick = Math.floor(time * 0.4)
     for (let i = 0; i < active.length; i++) {
       const n = active[i]!
@@ -2988,9 +3008,19 @@ async function main() {
       // Nobody walks off in the middle of answering you, and the dead lie
       // where they fell.
       if (n.dead) { n.moving = false; continue }
-      if (n.wander === 0 || n === busy) { n.moving = false; continue }
       // Something in a fight is not wandering: it is coming at you, and it
       // ignores the leash the database gave it while it does.
+      //
+      // **Whatever its wander is.**  This used to come after
+      // `if (n.wander === 0 || n === busy) continue`, so the 388 of the slice's
+      // 1,369 fightable spawns that stand still stood still when angered too:
+      // a boar hit from twelve yards off was twelve yards off three seconds
+      // later, angry, and could be shot at for ever.  A creature's
+      // `MovementType` is its *idle* movement — `Creature.cpp:570` turns a
+      // random mover with no `wander_distance` into `IDLE_MOTION_TYPE`, and
+      // that is the slot it stands in — while a fight is
+      // `UnitAI::AttackStart` (UnitAI.cpp:32), which calls `MoveChase` on the
+      // victim for every creature without asking what it did before.
       if (n.angry) {
         const dx0 = hero.x - n.x, dy0 = hero.y - n.y
         const d = Math.hypot(dx0, dy0)
@@ -3003,30 +3033,36 @@ async function main() {
           // a wolf slower than the man it was chasing.
           const step = n.chase * dt
           const nx = n.x + (dx0 / d) * step, ny = n.y + (dy0 / d) * step
-          // The same walls the player has.
-          //
-          // This asked `wetAt` and `solidAt` and nothing else — water and
-          // trees — while the player is also stopped by a closed chunk, a
-          // hole, and **a building**.  So a wolf came through the wall: of
-          // 4,968 straight lines from a target twenty-two yards out, 144
-          // cross a wall the chase rule did not stop.  And it is the half a
-          // player sees most, because he is only occasionally somewhere he
-          // should not be and a beast chasing him is there the whole time.
-          //
-          // Which makes running round a corner work, and that is the value of
-          // it: a creature that walks through the corner is a creature there
-          // is no getting away from.
-          const shut = (x: number, y: number) =>
-            // Water only stops it where it would have to swim.  A wolf will
-            // follow you across a ford now and lose you in the lake, which is
-            // the difference between water as terrain and water as a wall.
-            (!n.swims && swimAt(x, y)) || solidAt(x, y)
-            || closedAt(x, y) || openHole(x, y) || shutOut(x, y)
-          if (!shut(nx, n.y)) n.x = nx
-          if (!shut(n.x, ny)) n.y = ny
+          if (!running(n, nx, n.y)) n.x = nx
+          if (!running(n, n.x, ny)) n.y = ny
         }
         continue
       }
+      // Nobody walks off in the middle of answering you.
+      if (n === busy) { n.moving = false; continue }
+      // And whatever gave up on a fight goes back to where it stood:
+      // `CreatureAI::EnterEvadeMode` (CreatureAI.cpp:259) ends in
+      // `MoveTargetedHome`.  Nothing here did, which cost little while only a
+      // wanderer could chase — it stood outside its own circle, refusing every
+      // step the leash below would not allow, and only its respawn put it
+      // back.  Once a creature that stands still could chase too, a guard post
+      // was wherever the last fight ended.  Home is outside the circle and
+      // not merely off the spot, so a wanderer resumes wandering at its edge.
+      // At the run speed, which is ours: the home movement generator is
+      // outside the core checkout `CLAUDE.md` names.
+      const home = Math.hypot(n.hx - n.x, n.hy - n.y)
+      if (home > n.wander + 1e-6) {
+        n.vx = 0; n.vy = 0
+        const step = Math.min(home, n.chase * dt)
+        const fx = n.x, fy = n.y
+        const nx = fx + ((n.hx - fx) / home) * step, ny = fy + ((n.hy - fy) / home) * step
+        if (!running(n, nx, n.y)) n.x = nx
+        if (!running(n, n.x, ny)) n.y = ny
+        n.moving = n.x !== fx || n.y !== fy
+        if (n.moving) { n.t += dt; n.dir = facing(n.hx - fx, n.hy - fy) }
+        continue
+      }
+      if (n.wander === 0) { n.moving = false; continue }
       if (time > n.until) {
         const h = hash(i, tick)
         n.until = time + 1.5 + h * 4
