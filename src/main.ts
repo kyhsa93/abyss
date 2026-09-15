@@ -11033,10 +11033,34 @@ async function main() {
     // of a cell.  Square caps, so two runs meeting at a corner close it.
     ctx.setTransform(a, bb, c, d, e, f)
     ctx.lineCap = 'square'
-    ctx.strokeStyle = 'rgba(22, 18, 14, 0.85)'
+    // **The edge of where a man can stand is drawn twice, light under dark.**
+    // Reported from a phone: inside a building it is hard to tell a passage
+    // from a wall from a stair.  The boundary between standing room and the
+    // rest was one dark line, and a dark line reads on a light floor — the
+    // inn's boards, a cottage's — and vanishes on a dark one: the abbey, the
+    // towers and the mines are a blue-grey floor beside a blue-grey wall, 3:1
+    // in luminance (issue 246) and the same hue, so the whole storey came out
+    // a maze with no telling which strip was floor and which was wall.  A
+    // casing the colour of nothing this scene draws — a near-white — goes
+    // under the dark line and half a cell wider, so one half of the two always
+    // stands against its background: the light on the abbey's dark wall, the
+    // dark on the inn's light floor.  It is the map-outline convention, and it
+    // is drawn here and not baked into the room canvas because it has to hold
+    // one width on the glass at every zoom, the same reason the dark line is.
+    const casing = Math.max(3.5, 3.5 * zoom) / q
+    ctx.strokeStyle = 'rgba(232, 236, 242, 0.6)'
+    ctx.lineWidth = casing
+    ctx.stroke(room.walls)
+    ctx.strokeStyle = 'rgba(22, 18, 14, 0.9)'
     ctx.lineWidth = Math.max(1.5, 2 * zoom) / q
     ctx.stroke(room.walls)
-    ctx.strokeStyle = 'rgba(22, 18, 14, 0.45)'
+    // A speck is a pillar or a pew end a man walks around, so it gets the same
+    // two-tone edge, lighter: it is a thing in the room and not the room's own
+    // bound.
+    ctx.strokeStyle = 'rgba(232, 236, 242, 0.4)'
+    ctx.lineWidth = Math.max(2.5, 2.5 * zoom) / q
+    ctx.stroke(room.specks)
+    ctx.strokeStyle = 'rgba(22, 18, 14, 0.55)'
     ctx.lineWidth = Math.max(1, zoom) / q
     ctx.stroke(room.specks)
     ctx.lineCap = 'butt'

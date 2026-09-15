@@ -684,6 +684,27 @@ mine came out at 2.99 on the first pass. All thirty-nine are at three or better
 now, the least 3.06, and `viewcheck` holds every storey of every building and
 every mine to it.
 
+**The edge of where a man can stand is drawn twice, light under dark.**
+Reported from a phone: inside a building it is hard to tell a passage from a
+wall from a stair. The boundary between standing room and the rest was one
+dark line, `rgba(22,18,14,0.85)`, and a dark line reads on a light floor — the
+inn's boards, a cottage's — and vanishes on a dark one: the abbey, the towers
+and the mines are a blue-grey floor beside a blue-grey wall, 3:1 in luminance
+by issue 246 and the **same hue**, so the whole storey came out a maze with no
+telling which strip was floor and which was wall. Now a near-white casing
+(`rgba(232,236,242,0.6)`, half a cell wider) goes under the dark line, so one
+half of the two always stands against its background: the light on the abbey's
+dark wall, the dark on the inn's light floor. It is the map-outline
+convention, the direction the owner chose over darkening the walls or hueing
+the floor apart. Drawn here and not baked into the room canvas because it has
+to hold one width on the glass at every zoom, the same reason the dark line
+does. A speck — a pillar or pew end a man walks around — gets the same
+two-tone edge, lighter, because it is a thing in the room and not the room's
+own bound. `viewcheck`'s "floor stands out from its walls three to one" and
+"a turned building's wall is a straight line" still hold: the straight-line
+check reads the outline where wall meets outside, which carries no stroke on
+purpose.
+
 **And a room shows its ways out, from the doors the bake names and not from
 the plan.** Standing room runs through a doorway the same as through the middle
 of a room — that is how the doorways fall out of the bake — so a plan read for
