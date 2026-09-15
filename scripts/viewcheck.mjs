@@ -2035,6 +2035,136 @@ check('and the ground outside almost every door can be walked to',
 console.log(`      (${inside.reachable.reduce((a, r) => a + r[2], 0)} doors on `
   + `${inside.reachable.length} buildings)`)
 
+// 10j2. And a man walks in, which neither check above ever asked.
+//
+// Both of them are about the ground *outside* a door, and the one further down
+// floods the world with the stone mask — which a roof is not.  From outside,
+// the whole roofed footprint shuts you out and only the doorstep lets you
+// through, and the doorstep was a disc of 1.6 yards around a point that sits
+// in the middle of the wall: the eaves put every cottage's door 2.75 yards in
+// from the edge and the abbey's nearly ten.  **One building in twenty-five
+// could be walked into** while every door check here was green.
+//
+// So this walks, with the game's own step: from ground a player could stand on
+// outside, along the passage `porchesOf` opens out of each door, or straight at
+// the door from the nearest open ground, until the scene says it is inside.
+// What it will not count against the game is a building whose every passage
+// ends on ground nobody can stand on — which is a fact about where the client
+// put it, and is named rather than waved away.
+const walkIn = await p.evaluate(() => {
+  const all = window.__buildings()
+  const porches = window.__porches()
+  const home = window.__start()
+  const walk = (tx, ty, n) => {
+    for (let s = 0; s < n; s++) {
+      if (window.__room().inside) return true
+      const h = window.__hero()
+      if (Math.hypot(h.x - tx, h.y - ty) < 0.6) break
+      window.__aim(tx, ty)
+      window.__steps(1)
+    }
+    window.__aim(null)
+    return !!window.__room().inside
+  }
+  const from = (x, y) => {
+    window.__aim(null)
+    window.__put(home.x, home.y)
+    window.__put(x, y)
+    return !window.__room().inside
+  }
+  let total = 0, got = 0
+  const out = [], exempt = []
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i]
+    if (b.k === 'mine' || !b.doors?.length) continue
+    total++
+    // Out of whatever the last building let him into, before asking what can
+    // be stood on: indoors only the room is ground, so every probe outside the
+    // next building said no, and the first run of this called that "nowhere to
+    // stand" for every building after the first one it got into.
+    window.__aim(null)
+    window.__put(home.x, home.y)
+    let entered = false, landing = false
+    for (const [ax, ay, bx, by] of porches[i]) {
+      if (entered) break
+      const len = Math.hypot(bx - ax, by - ay) || 1
+      const ux = (bx - ax) / len, uy = (by - ay) / len
+      for (let r = 1; r <= 8; r += 0.5) {
+        const x = bx + ux * r, y = by + uy * r
+        if (!window.__canWalk(x, y)) continue
+        landing = true
+        if (from(x, y)) entered = walk(bx, by, 120) || walk(ax, ay, 160)
+        break
+      }
+    }
+    for (const [dx, dy] of b.doors) {
+      if (entered) break
+      let tries = 0
+      for (let r = 2; r <= 20 && tries < 3 && !entered; r += 1) {
+        for (let k = 0; k < 32 && tries < 3 && !entered; k++) {
+          const t = (k / 32) * Math.PI * 2
+          const x = dx + Math.cos(t) * r, y = dy + Math.sin(t) * r
+          if (!window.__canWalk(x, y) || window.__inside(x, y)) continue
+          tries++
+          if (from(x, y)) entered = walk(dx, dy, 220)
+        }
+      }
+    }
+    if (entered) got++
+    else if (landing) out.push(`${b.k} at ${Math.round(b.x)},${Math.round(b.y)}`)
+    else exempt.push(`${b.k} at ${Math.round(b.x)},${Math.round(b.y)}`)
+  }
+  window.__aim(null)
+  window.__put(home.x, home.y)
+  return { total, got, out, exempt }
+})
+check('and a man can walk into every building whose door leads anywhere',
+  walkIn.total > 0 && walkIn.out.length === 0,
+  `${walkIn.got} of ${walkIn.total} walked into; `
+  + `${walkIn.out.length ? 'shut: ' + walkIn.out.join(', ') : 'none shut'}`)
+console.log(`      (${walkIn.exempt.length} whose every passage ends on ground nobody `
+  + `can stand on: ${walkIn.exempt.join(', ') || 'none'})`)
+
+// 10j3. And the front door is the client's, and it faces out.
+//
+// Which of a building's doorways lead outside, which way out is and how wide
+// the opening is all come out of the model now — `MOPR` says which groups a
+// portal joins and `MOGI` which of those are rooms and which the outdoors — and
+// the first reading of `MOPR`'s side put every way out *into* its building.
+// So both ends are asked of the outline the scene actually uses: a yard and a
+// half behind the door is the building, and a yard past the end of its way in
+// is not.  And the door has to be on the roof, where a player can see it.
+const fronts = await p.evaluate(async () => {
+  const all = window.__buildings()
+  const porches = window.__porches()
+  let doors = 0, faced = 0
+  const bad = []
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i]
+    if (b.k === 'mine' || !b.doors?.length) continue
+    const at = `${b.k} at ${Math.round(b.x)},${Math.round(b.y)}`
+    const front = b.doors.filter((d) => d.length === 5)
+    if (!front.length) { bad.push(`${at} has no front door`); continue }
+    if (porches[i].length !== front.length) bad.push(`${at}: ${front.length - porches[i].length} front doors with no way out`)
+    for (const [ax, ay, bx, by] of porches[i]) {
+      doors++
+      const len = Math.hypot(bx - ax, by - ay) || 1
+      const ux = (bx - ax) / len, uy = (by - ay) / len
+      if (window.__inside(ax - ux * 1.5, ay - uy * 1.5) && !window.__inside(bx + ux, by + uy)) faced++
+      else bad.push(`${at}: a front door faces in`)
+    }
+  }
+  window.__cam({ x: -9460, y: 60, zoom: 0.8 })
+  await new Promise((r) => setTimeout(r, 1500))
+  return { doors, faced, bad, drawn: window.__edges().fronts }
+})
+check('every building with a door has a front door out of its own portals, facing out',
+  fronts.doors > 0 && fronts.bad.length === 0,
+  `${fronts.faced} of ${fronts.doors} front doors face out of their building`
+  + (fronts.bad.length ? `; ${fronts.bad.join('; ')}` : ''))
+check('and the front doors are drawn on the roofs', fronts.drawn > 0,
+  `${fronts.drawn} drawn at Goldshire`)
+
 // 10k. A mine comes from a model, and the ones that do not say so.
 //
 // **This block used to open with a sentence that is no longer true**, and it

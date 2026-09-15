@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **196 promises across 22 pages, 171 of them kept.**
+Counted: **199 promises across 22 pages, 174 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -94,6 +94,9 @@ keeps it honest.
 | **층이 n개인 건물에서 꼭대기까지 올라간다** | `scripts/viewcheck.mjs: "and it keeps going to the top of the building"` |
 | **위층이 있는 모든 건물을 꼭대기까지 걸어 올라갔다가 지상까지 내려온다** | `scripts/viewcheck.mjs: "and every building with an upstairs can be walked to the top of it"` |
 | 구운 문의 층 분포가 클라이언트의 문턱 분포와 같다 | `pipeline/bake_terrain.py: "doorways on every floor come out open"` |
+| **게임의 걸음으로 걸어서, 문이 어딘가로 이어지는 모든 건물에 들어간다** | `scripts/viewcheck.mjs: "and a man can walk into every building whose door leads anywhere"` |
+| **문이 있는 건물마다 자기 포털에서 나온 바깥 문이 있고, 건물 밖을 향한다** | `scripts/viewcheck.mjs: "every building with a door has a front door out of its own portals, facing out"` |
+| 바깥 문이 지붕에 그려진다 | `scripts/viewcheck.mjs: "and the front doors are drawn on the roofs"` |
 
 ## [바닥이-꼭-타일이어야-하나](https://github.com/kyhsa93/abyss/wiki/바닥이-꼭-타일이어야-하나)
 

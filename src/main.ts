@@ -52,6 +52,8 @@ import {
   aggressive, fightable, type Fight, type Spell,
 } from './sim/fight.ts'
 
+/** A door: where, and for a front door which way is out and how wide. */
+type Door = [number, number] | [number, number, number, number, number]
 type Doodad = {
   k: string; x: number; y: number; z: number; r: number; s: number
   /**
@@ -71,8 +73,13 @@ type Doodad = {
    * can walk through and to the ground storey.  `doorways` had found these
    * since it was written and the bake used them to pick which floor was the
    * ground one and threw the coordinates away.
+   *
+   * A **front** door carries three more: which way is out, as a unit vector
+   * on the map, and how wide the opening is — out of `MOPR`, which says which
+   * groups a portal joins, and `MOGI`, which says which of those are rooms and
+   * which the outdoors.  A door between two rooms stays a point.
    */
-  d?: [number, number][]
+  d?: Door[]
   /**
    * Which building placement this is, or which one put this piece down.
    *
@@ -2095,7 +2102,7 @@ async function main() {
         /** The bake's number for this placement, which its furniture cites. */
         house: d.h ?? 0,
         /** Where you go in — see `d` on the doodad. */
-        doors: (d.d ?? []) as [number, number][],
+        doors: (d.d ?? []) as Door[],
         /** And what is above it, ground floor first excluded. */
         floors,
         plan,
@@ -2673,6 +2680,15 @@ async function main() {
     // streams are waded and its lake is swum, and the island in it is only
     // reachable that way.  What closes a cell now is the ground under the
     // water, not the water — see `depthAt`.
+    // Inside a front door's way in, only somebody standing there stops you.
+    // The opening is the client's own, and what the scene counts as solid is
+    // ours: a cottage near the lumber camp has a piece of its furniture a yard
+    // out from the door and another four yards out, and it was the one building
+    // in the slice that still could not be walked into.
+    const home = inRoom(wx, wy)
+    if (home && porchesOf(home).some((q) => toSegment(wx, wy, q) < q.half)) {
+      return npcAt(wx, wy, null)
+    }
     return (onSpan(wx, wy) ? false : closedAt(wx, wy) || openHole(wx, wy))
       || solidAt(wx, wy) || shutOut(wx, wy) || npcAt(wx, wy, null)
   }
@@ -2773,7 +2789,7 @@ async function main() {
   const stillInside = (b: (typeof buildings)[number], wx: number, wy: number) =>
     (b.plan
       ? bitAt(b.plan.bits, planCell(b.plan, b, wx, wy))
-      : inRoom(wx, wy) === b) || atDoor(b, wx, wy)
+      : inRoom(wx, wy) === b) || onDoorstep(b, wx, wy)
   /**
    * A distance and not a box, which matters once a doorstep is wide.
    *
@@ -2784,8 +2800,72 @@ async function main() {
    * tell the difference; at four it is the difference between a door and a
    * room.
    */
-  const atDoor = (b: (typeof buildings)[number], wx: number, wy: number) =>
+  const onDoorstep = (b: (typeof buildings)[number], wx: number, wy: number) =>
     b.doors.some(([dx, dy]) => Math.hypot(dx - wx, dy - wy) < doorstepOf(b))
+  /**
+   * Where a door lets you stand: its doorstep, and the passage out from it.
+   *
+   * The passage is a way *to* the door and not a part of the building, so
+   * `stillInside` asks the doorstep alone — counted as inside, a teleport on
+   * to the path outside a cottage left the scene drawing the cottage.
+   */
+  const atDoor = (b: (typeof buildings)[number], wx: number, wy: number) =>
+    onDoorstep(b, wx, wy) || porchesOf(b).some((q) => toSegment(wx, wy, q) < q.half)
+  /**
+   * The way in through a front door: the client's own opening, carried out
+   * through the eaves to the open.
+   *
+   * A door is a point the bake takes from the model's portal, and that point is
+   * in the *middle* of the wall's thickness, under the roof.  From outside the
+   * whole roofed footprint shuts you out, so the doorstep was a disc of 1.6
+   * yards sitting inside a silhouette that reaches further than that: the eaves
+   * of every cottage in the slice put the door 2.75 yards in from the edge, and
+   * the abbey's nearly ten.  The disc touched nothing anybody could stand on, and
+   * 24 of the 25 buildings with a door could not be walked into.
+   *
+   * The portal says the rest.  A front door arrives with which way is out and
+   * how wide the opening is, and the way in is that opening carried straight out
+   * along it until it leaves the building's own outline — half its width either
+   * side, never narrower than a body.  A door between two rooms has no way out to
+   * carry, so it opens nothing from outside; a mine's mouth is a hole in a
+   * hillside and keeps its disc.
+   */
+  type Porch = { ax: number; ay: number; bx: number; by: number
+    ux: number; uy: number; len: number; half: number; width: number }
+  const porches = new Map<(typeof buildings)[number], Porch[]>()
+  const porchesOf = (b: (typeof buildings)[number]) => {
+    const got = porches.get(b)
+    if (got) return got
+    const out: Porch[] = []
+    if (b.k !== 'mine' && b.plan) {
+      for (const door of b.doors) {
+        if (door.length !== 5) continue
+        const [dx, dy, ox, oy, width] = door
+        const n = Math.hypot(ox, oy) || 1
+        const ux = ox / n, uy = oy / n
+        // Out to where the outline ends, and half a yard on to stand on.  As
+        // far as the building itself reaches and no further: a courtyard puts
+        // one front door twenty-five yards in, and a number picked below that
+        // is how that house came out with no way in at all.
+        const reach = 2 * Math.hypot(b.l, b.w)
+        let r = 0
+        while (r <= reach && inRoom(dx + ux * r, dy + uy * r) === b) r += 0.25
+        if (r > reach) continue
+        const len = r + 0.5
+        out.push({ ax: dx, ay: dy, bx: dx + ux * len, by: dy + uy * len,
+          ux, uy, len, width, half: Math.max(width / 2, BODY_YARDS / 2) })
+      }
+    }
+    porches.set(b, out)
+    return out
+  }
+  const toSegment = (wx: number, wy: number,
+    q: { ax: number; ay: number; bx: number; by: number }) => {
+    const vx = q.bx - q.ax, vy = q.by - q.ay
+    const len2 = vx * vx + vy * vy || 1
+    const t = Math.max(0, Math.min(1, ((wx - q.ax) * vx + (wy - q.ay) * vy) / len2))
+    return Math.hypot(wx - (q.ax + vx * t), wy - (q.ay + vy * t))
+  }
   /**
    * A building, from outside, with its doorways left open.
    *
@@ -2796,6 +2876,12 @@ async function main() {
   const shutOut = (wx: number, wy: number) => {
     const b = inRoom(wx, wy)
     if (!b) return wallAt(wx, wy)
+    // A front door's way in is the client's own opening, and where the stone
+    // mask disagrees with it the portal wins — the argument the bake already
+    // makes for a doorstep.  A riser on the steps up to a door is a vertical
+    // face, and it put one cell of stone four yards out from a cottage's door
+    // with ground to stand on either side of it.
+    if (atDoor(b, wx, wy)) return false
     // Open to the sky is not inside.
     //
     // A plan's outline is a silhouette, so "inside the outline" and "inside
@@ -8262,6 +8348,8 @@ async function main() {
   let waterTilesDrawn = 0
   /** Crossings laid on the glass in the last frame, each one piece. */
   let decksDrawn = 0
+  /** Front doors drawn on the roofs in the last frame. */
+  let frontsDrawn = 0
   let wateredEver = 0
   /** Thrown away when the zoom changes, because the tinted strip is. */
   /** Roof pictures cut from the tinted atlas — see `roofPattern`. */
@@ -8881,7 +8969,7 @@ async function main() {
     // whole reason the abbey's eight doors come out open in the bake's own
     // check, and it is why walking at one entered nothing.
     let b: (typeof buildings)[number] | null = null
-    let door: [number, number] | undefined
+    let door: Door | undefined
     for (const x of [...buildings, ...caves]) {
       if (!x.plan || !x.doors.length) continue
       const d = near(x)
@@ -8906,7 +8994,7 @@ async function main() {
    * "inward" from a door walked out of the side of the building.  Eight
    * directions at three yards, and the first one standing on floor wins.
    */
-  function step(b: (typeof buildings)[number], door: [number, number], way: number) {
+  function step(b: (typeof buildings)[number], door: Door, way: number) {
     const p = b.plan
     if (!p) return
     // Measured from the threshold, which is not the same width for everything.
@@ -10150,6 +10238,7 @@ async function main() {
     // and to the right in screen space because the light is north-west; the
     // roof; and the edge.  That is three fills a building where it used to be
     // one blit a tile plus four line segments a tile.
+    frontsDrawn = 0
     if (!indoors) {
       shaded = 0
       outlined = 0
@@ -10272,6 +10361,32 @@ async function main() {
         ctx.lineWidth = Math.max(1, Math.round(zoom)) / q
         ctx.stroke(path)
         outlined++
+        // --- and its front doors, where the client put them --------------
+        //
+        // A roof seen from above says nothing about where you get in, and the
+        // player walked round every cottage looking for it.  At each front door
+        // the opening is drawn as what it is from up here: a gap in the eaves
+        // as wide as the portal, running from the door out to the edge of the
+        // roof, floored with the room's own floor and framed by the jambs.
+        for (const q of porchesOf(b)) {
+          const t = YD_PER_TILE
+          ctx.setTransform(-kk * q.uy * t, -kk * q.ux * t, -kk * q.ux * t, kk * q.uy * t,
+            screenX(q.ax, q.ay), screenY(q.ax, q.ay))
+          const along = q.len / t, side = q.width / 2 / t
+          const floor = roofPattern('in_floor', 0, px)
+          ctx.fillStyle = floor ?? 'rgb(96, 82, 64)'
+          ctx.fillRect(0, -side, along, 2 * side)
+          // In shadow, because it is under the eaves: laid bare the room's
+          // floor read as a pale slab, which from above is a pond.
+          ctx.fillStyle = 'rgba(12, 10, 8, 0.45)'
+          ctx.fillRect(0, -side, along, 2 * side)
+          ctx.fillStyle = 'rgba(22, 18, 14, 0.9)'
+          const jamb = 0.16
+          ctx.fillRect(0, -side - jamb, along, jamb)
+          ctx.fillRect(0, side, along, jamb)
+          frontsDrawn++
+        }
+        ctx.setTransform(a, bb, c, d, e, f)
       }
       ctx.restore()
     }
@@ -11700,6 +11815,7 @@ async function main() {
     plateEdges: plateEdgeEver, rings: ringEver, looseBlends: looseBlendEver,
     loose: looseEver,
     waterTiles: waterTilesDrawn, watered: wateredEver, decks: decksDrawn,
+    fronts: frontsDrawn,
   })
   /**
    * What the plain ground is costing, in kept pixels.
@@ -13033,6 +13149,9 @@ async function main() {
   /** How many of the placed pieces stand inside a building. */
   ;(window as unknown as { __indoors: () => number }).__indoors = () =>
     placed.filter((o) => o.in).length
+  /** Each building's door passages, in `__buildings()` order — see `porchesOf`. */
+  ;(window as unknown as { __porches: () => unknown }).__porches = () =>
+    buildings.map((b) => porchesOf(b).map((q) => [q.ax, q.ay, q.bx, q.by, q.half]))
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, z: b.z, l: b.l, w: b.w, k: b.k,

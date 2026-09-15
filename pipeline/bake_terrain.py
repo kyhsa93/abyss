@@ -267,6 +267,80 @@ def doorways(client, path):
     return out
 
 
+#: Front doors found and buildings with a plan that have none — see `front_doors`.
+_FRONT = {'doors': 0, 'placements': 0, 'without': 0}
+
+
+def front_doors(client, path):
+    """The doorways that lead outside, with which way is out and how wide.
+
+    `doorways` returns every opening a man can walk through, and most of them
+    are between two rooms: fourteen in Northshire's abbey, eight on the ground
+    floor, one of them the front door.  The file says which one.  `MOPR` lists,
+    for every portal, the groups on either side of it, and `MOGI`'s flags say
+    which groups are the outdoors (0x8) and which are rooms (0x2000) — so a
+    front door is a portal with a room on one side and the outdoors on the
+    other.  Measured over the slice that is exactly one for every cottage, one
+    for the abbey, and one or two for everything else.
+
+    **Which side is out comes from the room and not from the sign.**  `MOPR`'s
+    side says which side of the portal's plane a group lies on, and read at face
+    value every outward direction in the slice pointed into its own building.
+    The room's own `MOGI` box is a fact that cannot be read backwards: out is
+    the side of the plane away from the room's centre.
+
+    Returns `{(x, y): (out x, out y, width)}` in model space, keyed on the
+    portal's centre exactly as `doorways` computes it.
+    """
+    data, _src = client.read(path)
+    if not data:
+        return {}
+    verts, table, refs, groups = [], [], [], []
+    i = 0
+    while i < len(data) - 8:
+        m = data[i:i + 4][::-1].decode('ascii', 'replace')
+        size, = struct.unpack_from('<I', data, i + 4)
+        o = i + 8
+        if m == 'MOPV':
+            verts = [struct.unpack_from('<3f', data, o + k * 12)
+                     for k in range(size // 12)]
+        elif m == 'MOPT':
+            table = [struct.unpack_from('<HH4f', data, o + k * 20)
+                     for k in range(size // 20)]
+        elif m == 'MOPR':
+            refs = [struct.unpack_from('<HHhH', data, o + k * 8)
+                    for k in range(size // 8)]
+        elif m == 'MOGI':
+            groups = [struct.unpack_from('<I6f', data, o + k * 32)
+                      for k in range(size // 32)]
+        i = o + size
+    out = {}
+    for pi, (start, count, nx, ny, _nz, _d) in enumerate(table):
+        q = verts[start:start + count]
+        if not q:
+            continue
+        if max(v[2] for v in q) - min(v[2] for v in q) <= BODY:
+            continue
+        flat = math.hypot(nx, ny)
+        # A portal lying down is a hatch in a floor, not a way out of a wall.
+        if flat < 0.9:
+            continue
+        joins = [g for p, g, _side, _ in refs if p == pi and g < len(groups)]
+        rooms = [g for g in joins if groups[g][0] & 0x2000]
+        if not rooms or not any(groups[g][0] & 0x8 for g in joins):
+            continue
+        cx = sum(v[0] for v in q) / count
+        cy = sum(v[1] for v in q) / count
+        ux, uy = nx / flat, ny / flat
+        lo, hi = groups[rooms[0]][1:4], groups[rooms[0]][4:7]
+        rx, ry = (lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2
+        if (cx - rx) * ux + (cy - ry) * uy < 0:
+            ux, uy = -ux, -uy
+        along = [v[0] * -uy + v[1] * ux for v in q]
+        out[(round(cx, 3), round(cy, 3))] = (ux, uy, max(along) - min(along))
+    return out
+
+
 def wmo_triangles(client, path):
     """Every triangle of every group of a building, in the model's own space.
 
@@ -1737,8 +1811,23 @@ def read_tile(client, tx, ty):
             # from out here.
             ways = doorways(client, name)
             sill = min((d[0] for d in ways), default=0.0)
-            doors = [[round(v, 2) for v in to_world(pos, ry, lx, ly)]
-                     for s, lx, ly in ways if abs(s - sill) <= BODY]
+            # And the front ones carry which way is out and how wide they are,
+            # out of the same portals — see `front_doors`.  A door that is
+            # only between two rooms stays a point.
+            front = front_doors(client, name)
+            doors = []
+            for s, lx, ly in ways:
+                if abs(s - sill) > BODY:
+                    continue
+                wx_, wy_ = to_world(pos, ry, lx, ly)
+                got = front.get((round(lx, 3), round(ly, 3)))
+                if got:
+                    ex, ey = to_world(pos, ry, lx + got[0], ly + got[1])
+                    doors.append([round(wx_, 2), round(wy_, 2),
+                                  round(ex - wx_, 3), round(ey - wy_, 3),
+                                  round(got[2], 2)])
+                else:
+                    doors.append([round(wx_, 2), round(wy_, 2)])
             # And a number for *this placement*, so its furniture can say
             # whose it is.
             #
@@ -2166,6 +2255,12 @@ def bake(client, bounds, out, acore=None):
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
         json.dump(meta, f)
+    fronts = [d for d in meta['doodads'] if d.get('d') and d.get('p')]
+    print('check: %d front doors out of the portals, on %d of the %d buildings '
+          'with a plan and a door' % (
+              sum(1 for d in fronts for q in d['d'] if len(q) == 5),
+              sum(1 for d in fronts if any(len(q) == 5 for q in d['d'])),
+              len(fronts)))
 
     print(f'grid {w} x {h} = {w*h:,} vertices, {(w-1)*(h-1)*2:,} triangles')
     print(f'height {min(filled):.1f} .. {max(filled):.1f}   holes in grid: {missing}')

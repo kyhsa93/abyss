@@ -515,6 +515,45 @@ away where a building brings a floor and a hole with nothing over it is painted
 black. That is the bug that made the middle of Goldshire a thirty-yard black
 square, and passing `null` for the cover would have brought it back.
 
+**A door was a disc in the middle of a wall, and 24 of 25 buildings could not
+be walked into.** Closing the buildings made the whole roofed footprint shut
+you out from outside and left the doorstep, a disc of 1.6 yards round the
+door, as the way through. But the door is the model's portal, and a portal
+sits in the middle of the wall's thickness under the roof: every cottage's is
+2.75 yards in from the edge of its eaves, and the abbey's nearly ten. The disc
+touched nothing anybody could stand on. Every door check here was green,
+because each asked something narrower than walking in — the ground outside a
+door, or a flood of the world against the *stone* mask, which a roof is not,
+with an "outer door" rule that filed a cottage's only door as an inner one.
+
+**The way in is the client's, not ours.** `doorways` had always kept every
+opening a man fits through, and most of those are between two rooms. `MOPR`
+says which groups a portal joins and `MOGI`'s flags say which groups are rooms
+(0x2000) and which the outdoors (0x8), so a front door is a portal with one of
+each — exactly one on every cottage and one on the abbey. `front_doors` ships
+it with its width and which way is out, and the scene carries that opening
+straight out through the eaves to where the outline ends, half its width
+either side: 26 front doors on 25 buildings, all 25 walked into. Four things
+about it were measured rather than assumed. **Which side is out comes from the
+room's own box**, because `MOPR`'s side read at face value put every way out
+into its own building. **How far out is the building's own size**, because a
+courtyard puts one front door twenty-five yards in and a picked 24 left that
+house with no way in. **Inside the way in, the portal wins** over the stone mask
+and over props — a riser on the steps and a piece of furniture a yard out from
+a door were each the last thing keeping a cottage shut — and only somebody
+standing there stops you. And a front door **is drawn**: a gap in the eaves as
+wide as the portal, floored with the room's floor in shadow and framed by its
+jambs, because a roof seen from above says nothing about where you get in.
+AzerothCore's own doors are not it: four `GAMEOBJECT_TYPE_DOOR` spawns stand in
+the slice, all in one spot, and none is a cottage's.
+
+`viewcheck` walks in now, with the game's own step, and asks both ends of every
+front door against the outline the scene uses — a yard and a half behind the
+door is the building and a yard past its way in is not. One lesson from writing
+it: the hero has to be put back outside **before** asking what can be stood on,
+because indoors only the room is ground — asked the other way round every
+building after the first one entered reported nowhere to stand.
+
 **A building had storeys and the drawing did not know it.** Both of the
 filters that decide what you can see from inside asked *whose building is
 this* — `o.in !== indoors` for the furniture, `roof !== indoors` for the people
@@ -1823,7 +1862,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one, the seam one, the blend one, the water two and the bridge one: 176. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one, the seam one, the blend one, the water two, the bridge one and the doors three: 179. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.
