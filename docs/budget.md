@@ -15,15 +15,15 @@ going red on four of them for rounds.
 
 | what | measured | budget |
 | --- | ---: | ---: |
-| the script a browser is handed | 85 KB | 500 KB |
+| the script a browser is handed | 86 KB | 500 KB |
 | the world a first visit downloads | 3.38 MB | 4.00 MB |
-| everything the deploy carries | 31.16 MB | 200.00 MB |
+| everything the deploy carries | 31.28 MB | 200.00 MB |
 | the sounds | 135 KB | 2048 KB |
-| the sheets the scene opens, decoded | 21.58 MB | 24.00 MB |
-| and against the desktop ceiling | 21.58 MB | 64.00 MB |
+| the sheets the scene opens, decoded | 22.28 MB | 24.00 MB |
+| and against the desktop ceiling | 22.28 MB | 64.00 MB |
 | the buildings, decoded | 0.41 MB | 4.00 MB |
 | a save, a character who has finished this game | 2 KB | 4 KB |
-| and every slot holding one | 16 KB | 40 KB |
+| and every slot holding one | 17 KB | 40 KB |
 
 * **the script a browser is handed** — gzipped; `dist` less the service worker.
 * **the world a first visit downloads** — gzipped; one world — the client's terrain plus everything that is not terrain.
