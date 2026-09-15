@@ -17,11 +17,11 @@ going red on four of them for rounds.
 | --- | ---: | ---: | ---: |
 | the script a browser is handed | 90 KB | 500 KB | the same |
 | the world a first visit downloads | 3.38 MB | 4.00 MB | the same |
-| everything the deploy carries | 31.30 MB | 200.00 MB | not paid |
+| everything the deploy carries | 31.31 MB | 200.00 MB | not paid |
 | the sounds | 135 KB | 2048 KB | the same |
 | the sheets the scene opens, decoded | 22.28 MB | 24.00 MB | 24.00 MB |
 | and against the desktop ceiling | 22.28 MB | 64.00 MB | 24.00 MB |
-| the buildings, decoded | 0.41 MB | 4.00 MB | the same |
+| the buildings, decoded | 0.42 MB | 4.00 MB | the same |
 | a save, a character who has finished this game | 2 KB | 4 KB | the same |
 | and every slot holding one | 17 KB | 40 KB | the same |
 
@@ -40,6 +40,6 @@ on purpose — 390 by 844 whatever the device ratio, a third of a 1280 by
 * **the sounds** — 8 files, on disk, mono at 22,050 Hz and levelled to within a decibel of each other.  The headroom is not spare: one music track from the same collection is 1.5 MB.
 * **the sheets the scene opens, decoded** — `width × height × 4`, not the file size — a transparent pixel is free in a PNG and full price in memory.  A ratchet rather than a device limit, and the phone's row: its twenty-four is the one a phone is held to.
 * **and against the desktop ceiling** — the same pixels against the figure the budget page has always carried.  A desktop's ceiling and not a phone's, which is the row above.
-* **the buildings, decoded** — every footprint the world ships, unpacked to one bit a cell — five masks a storey.  The rejected alternative, one bitmap a model at the ground's own 24 pixels a yard, is 299 MB.
+* **the buildings, decoded** — every footprint the world ships, unpacked to one bit a cell — five masks a storey.  The rejected alternative, one bitmap a model at the ground's own 24 pixels a yard, is 310 MB.
 * **a save, a character who has finished this game** — JSON in UTF-8 — the newest sample in `scripts/fixtures/saves/`, level 10, with all 51 of the world's errands done.
 * **and every slot holding one** — 10 slots, the client's `MAX_CHARACTERS_PER_REALM`.
