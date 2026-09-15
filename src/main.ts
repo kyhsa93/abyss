@@ -30,6 +30,7 @@ import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE
 import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_DURA, I_DURA_COST, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_QUALITY, I_SELL, I_SLOT, I_USE, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { afterDeath, broken, losePoints, repairCost, wearFromBlow, EQUIPMENT_SLOT } from './sim/durability.ts'
 import { matchHighest, reselect, NONE, OFFLINE, ONLINE, TAUNT, UPDATE_INTERVAL, type Ref } from './sim/threat.ts'
+import { coolsLeft } from './sim/cools.ts'
 import { askedFor, mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { afterThis, heatOf, nextRank, riseChance, short as lacking, skinAsks, GIVEN, SOLD, R_COST, R_COUNT, R_GREY, R_HOW, R_MAKES, R_NEEDS, R_RANK, R_SKILL, R_SPELL, R_YELLOW, type Rank, type Recipe, type Trades } from './sim/trades.ts'
 import { discountOf, paidBy, rankFloor, rankOf as standingRank, standAfter, EXALTED, NEUTRAL } from './sim/rep.ts'
@@ -6807,8 +6808,12 @@ async function main() {
     you.purse = save.you.purse; you.kills = save.you.kills
     you.bag = save.you.bag ?? {}
     you.trades = save.you.trades ?? you.trades
-    // Back on to this session's clock — see the note on `cools` in `save.ts`.
-    you.cools = Object.fromEntries(Object.entries(save.you.cools ?? {})
+    // Back on to this session's clock — see the note on `cools` in `save.ts`
+    // — and never longer than the ability's own cooldown, because some v4
+    // saves hold a moment where this reads a remainder (`src/sim/cools.ts`).
+    // After `becomeClass`, so `anySpell` is reading this character's book.
+    you.cools = Object.fromEntries(Object.entries(coolsLeft(save.you.cools,
+      (id) => (anySpell(id)?.cool ?? 0) / 1000))
       .map(([id, leftover]) => [id, clock + leftover]))
     putBackOn(save.you.auras)
     held = save.you.items ?? []
@@ -13903,7 +13908,12 @@ async function main() {
     blessed = { until: clock + 200, stat: 'str', amount: 46 }
     you.absorb = 48
     you.stance = 18
-    you.cools[78] = clock + 7
+    // Seven seconds left on an ability that **has** a cooldown that long.  It
+    // was Heroic Strike, which has none — a remainder no save could hold — and
+    // the day a restore held every cooldown to the ability's own
+    // (`src/sim/cools.ts`) it came back as nothing, correctly.
+    const cooled = bookOf(myClass).find((sp) => sp.cool >= 7000)
+    if (cooled) you.cools[cooled.id] = clock + 7
     return (window as unknown as { __standing: () => unknown }).__standing()
   }
   /** The save, round-tripped, for the check that closing the tab costs nothing. */

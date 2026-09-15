@@ -1042,5 +1042,30 @@ check('and the same seed gives the same fight',
     + `mage at 131% -> ${lost}`)
 }
 
+// --- a cooldown in a save is never longer than the cooldown ------------------
+//
+// 0d7962d changed `cools` in a save from a moment on `clock` to what is left,
+// without bumping SAVE_VERSION, four hours after v4 was introduced.  A v4 save
+// from that window holds moments, which a restore reads as remainders.
+{
+  const { coolsLeft } = await import('../src/sim/cools.ts')
+  const { migrate } = await import('../src/save.ts')
+  const old = JSON.parse(readFileSync(
+    'scripts/fixtures/saves/v4-cools-as-moments.json', 'utf8'))
+  const moved = migrate(old)
+  const warrior = book.books['1']
+  const wholeOf = (id) => (warrior.find((sp) => sp.id === id)?.cool ?? 0) / 1000
+  const back = coolsLeft(moved?.you.cools, wholeOf)
+  const over = Object.entries(back).filter(([id, left]) => left > wholeOf(Number(id)))
+  check('a v4 save holding clock moments comes back with no cooldown longer than its own',
+    !!moved && moved.version >= 5 && Object.keys(back).length === 2 && over.length === 0,
+    `saved ${JSON.stringify(old.you.cools)} -> ${JSON.stringify(back)}`)
+  check('and migrating does not touch the field, so the clamp is the only fix',
+    JSON.stringify(moved?.you.cools) === JSON.stringify(old.you.cools))
+  const fine = coolsLeft({ 100: 4.5, 2687: 30 }, wholeOf)
+  check('and a correct save is left exactly as it was',
+    fine['100'] === 4.5 && fine['2687'] === 30, JSON.stringify(fine))
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)
