@@ -8606,6 +8606,9 @@ async function main() {
    * pinch that overshoots comes straight back.
    */
   const nudgeZoom = (by: number) => {
+    // A door crossed since the last frame is framed before the wheel moves
+    // anything, or the framing would take the wheel's zoom for the outside's.
+    framing()
     const lo = pad.on ? PHONE_ZOOMS[0]! / 1.12 : clampZoom(0)
     const hi = pad.on ? PHONE_ZOOMS[PHONE_ZOOMS.length - 1]! * 1.12 : clampZoom(99)
     zoomWant = Math.max(lo, Math.min(hi, zoomWant * by))
@@ -8634,6 +8637,20 @@ async function main() {
   let markPx = 18
   /** The interface's own light, which a way out is drawn in. */
   let markInk = '#f0e6d2'
+  /**
+   * Which room and storey the zoom was last framed for — see `framing` — and
+   * the zoom the player had outside, kept to be given back at the door.
+   * Declared up here with the zoom because `resize` reads them.
+   */
+  let framedB: Built | null = null
+  let framedStorey = -1
+  let outdoorZoom: { zoom: number; want: number; mine: boolean } | null = null
+  /**
+   * The storey framed: where a man can stand on it in the world, the zoom at
+   * which that fits beside the interface, and whether it did.
+   */
+  let roomView: { x0: number; x1: number; y0: number; y1: number; cells: number
+    limit: number; fits: boolean; zoom: number } | null = null
 
   function resize() {
     canvas.width = Math.floor(innerWidth)
@@ -8648,8 +8665,13 @@ async function main() {
     // Pull out far enough to see forty yards across the short side — see
     // `SEEN_YARDS`.  Never *in*: a wide screen shows what it has room for.
     if (!zoomIsMine) {
-      zoom = pad.on ? PHONE_OPENS : Math.min(1, clampZoom(fitZoom()))
-      zoomWant = zoom
+      // Indoors the screen wants the room, which is framed afresh for the
+      // new glass — a phone turned on its side in a cottage.
+      if (framedB) frameRoom()
+      else {
+        zoom = pad.on ? PHONE_OPENS : Math.min(1, clampZoom(fitZoom()))
+        zoomWant = zoom
+      }
     }
   }
   addEventListener('resize', resize)
@@ -10182,6 +10204,227 @@ async function main() {
   let roomXform: number[] = []
 
   /**
+   * **The camera fits the room.**  Going in used to keep the zoom the forest
+   * had, which is forty yards across a desktop and sixteen across a phone,
+   * so a cottage was a box in the corner of the glass and the abbey's nave
+   * ran off it on every side — and a room you cannot see the walls of is a
+   * room you cannot find the door of.
+   *
+   * So a door and a flight each frame what is on the other side of them, and
+   * the way out gives back what was there before.  Asked of the state rather
+   * than hooked on each place that changes it, because there are nine of
+   * those (a door, a flight, a save loaded, a teleport clearing the room, the
+   * harness's setters) and a hook missed is a room framed for the wrong
+   * floor.  Called once a frame, and first by anything about to move the
+   * zoom, so a wheel turned the moment after a door does not have its own
+   * zoom taken for the outside's.
+   *
+   * **The player's zoom indoors is his until he leaves or climbs.**  A wheel
+   * or a pinch sets `zoomIsMine`, which `resize` already respects; the zoom
+   * outside is kept apart, with its own `zoomIsMine`, and handed back.
+   */
+  function framing() {
+    if (indoors === framedB && storey === framedStorey) return
+    const was = framedB
+    framedB = indoors
+    framedStorey = storey
+    if (!indoors) {
+      roomView = null
+      const back = outdoorZoom
+      outdoorZoom = null
+      if (!back) return
+      zoomIsMine = back.mine
+      // What the screen wants outside is worked out again rather than
+      // remembered, in case the glass turned while he was in there.
+      if (back.mine) { zoom = clampZoom(back.zoom); zoomWant = back.want }
+      else resize()
+      return
+    }
+    if (!was) outdoorZoom = { zoom, want: zoomWant, mine: zoomIsMine }
+    zoomIsMine = false
+    frameRoom()
+  }
+
+  /**
+   * What the room must not go under: the interface that is always on the
+   * glass, as rectangles in the canvas's pixels.
+   *
+   * **The five panels that hide the world, and the thumbs.**  The frame, the
+   * map, the experience bar, the swing bar and the action bars are drawn
+   * over the scene and are there whatever the player does; on a phone the
+   * stick and the buttons are, drawn off `layoutFor` like everything else
+   * that has to know where a thumb is.  **The log and the help line are
+   * not**, and the reason is a measurement: they are words laid over the
+   * world, which is read through, and on a 1280 by 800 desktop the help line
+   * sits eighty-six pixels below the middle of the glass — held clear of it
+   * and of the log, a cottage came out 197 by 173 pixels, against 560 across
+   * without them.  Panels the player opens (the bag,
+   * the sheet, a shop, a conversation) are not in it either: opening one is
+   * choosing to cover the room.
+   */
+  const CHROME = ['units', 'map', 'xp', 'swing', 'deck']
+  const chromeRects = () => {
+    const out: { x: number; y: number; w: number; h: number }[] = []
+    for (const id of CHROME) {
+      const e = document.getElementById(id)
+      if (!e || e.hidden) continue
+      const r = e.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) out.push({ x: r.x, y: r.y, w: r.width, h: r.height })
+    }
+    if (pad.on) {
+      const l = layoutFor(canvas.width, canvas.height)
+      const disc = (x: number, y: number, r: number) =>
+        out.push({ x: x - r, y: y - r, w: 2 * r, h: 2 * r })
+      disc(l.home.x, l.home.y, l.base)
+      for (const s of l.slots) disc(s.x, s.y, l.hit)
+      disc(l.autoAt.x, l.autoAt.y, l.autoR)
+      disc(l.pageAt.x, l.pageAt.y, l.pageR)
+    }
+    return out
+  }
+
+  /**
+   * Where a man can stand on this storey, as a box in the world: the
+   * standing room `roomOpen` allows, joined four ways to where he is.
+   *
+   * **Joined to him and not all of it**, because a storey's plan carries
+   * standing room nobody can reach from the floor he is on — the abbey's
+   * first floor has single cells along its roof's edge — and a box stretched
+   * to take those in is a box framed round nothing.  A spot with no standing
+   * room under it (a setter put him there) takes the whole storey.  The box
+   * is the cells' corners, so a turned building's box is the one the glass
+   * sees.
+   */
+  const standingExtent = (b: Built, p: Plan, under: Plan | null) => {
+    const r = roomPieces(p, under)
+    const { W, H } = r
+    let start = -1
+    const at = planCell(p, b, hero.x, hero.y)
+    if (at >= 0 && r.walk[at]) start = at
+    else if (at >= 0) {
+      const i0 = (at / H) | 0, j0 = at % H
+      let best = Infinity
+      for (let di = -2; di <= 2; di++) {
+        for (let dj = -2; dj <= 2; dj++) {
+          const i = i0 + di, j = j0 + dj
+          if (i < 0 || j < 0 || i >= W || j >= H || !r.walk[i * H + j]) continue
+          if (di * di + dj * dj < best) { best = di * di + dj * dj; start = i * H + j }
+        }
+      }
+    }
+    const take = new Uint8Array(W * H)
+    if (start >= 0) {
+      const stack = [start]
+      take[start] = 1
+      while (stack.length) {
+        const m = stack.pop()!
+        const i = (m / H) | 0, j = m % H
+        for (const o of [i > 0 ? m - H : -1, i < W - 1 ? m + H : -1,
+          j > 0 ? m - 1 : -1, j < H - 1 ? m + 1 : -1]) {
+          if (o >= 0 && !take[o] && r.walk[o]) { take[o] = 1; stack.push(o) }
+        }
+      }
+    }
+    // **And a patch smaller than a speck is not a floor.**  `__floor` put the
+    // harness one floor up the abbey on three stray cells of the gallery, and
+    // a room framed round three cells is zoom 3 on a strip of steps.  The cut
+    // is the one the walls are drawn with (`speckCut`), so what is too small
+    // to be drawn as a wall is too small to be framed as a room.
+    let joined = 0
+    for (let n = 0; n < W * H; n++) joined += take[n]!
+    if (joined < speckCut()) {
+      for (let n = 0; n < W * H; n++) take[n] = r.walk[n]!
+    }
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, cells = 0
+    for (let n = 0; n < W * H; n++) {
+      if (!take[n]) continue
+      cells++
+      const i = (n / H) | 0, j = n % H
+      for (const [u, v] of [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]] as const) {
+        const [wx, wy] = fromPlan(p, b, p.x0 + u * p.s, p.y0 + v * p.s)
+        if (wx < x0) x0 = wx
+        if (wx > x1) x1 = wx
+        if (wy < y0) y0 = wy
+        if (wy > y1) y1 = wy
+      }
+    }
+    return { x0, x1, y0, y1, cells }
+  }
+
+  /**
+   * The zoom the room you are standing in fits at, and the room framed.
+   *
+   * **The margin is the interface, measured.**  The box is laid centred on
+   * the glass, and it may grow until it touches the glass's edge or one of
+   * `chromeRects` — the zoom at which a centred box meets a rectangle is the
+   * larger of its two gaps from the middle over the box's two half sizes,
+   * because a box only overlaps a rectangle when it overlaps it both ways.
+   * So a desktop's cottage stops at the experience bar and a wide hall at the
+   * map's corner, and nothing about it is a number of pixels typed here.
+   *
+   * Then the zoom's own rules, unchanged: at most `clampZoom`'s near end, and
+   * **never past the far one**.  On a phone the zoom is a ladder, so a room
+   * gets the nearest step it still fits at.
+   *
+   * **A storey that does not fit at the far limit is shown at the far limit**,
+   * and the camera holds the glass inside it — see `camAim` — so what is on
+   * the glass is as much of the room as the glass can hold, following the
+   * player, and none of the dark round it.  Fitting the room region he stands
+   * in instead was the other choice, and it answers the same: a region is
+   * standing room joined four ways, doorways and all, so on the abbey's
+   * ground floor it is nearly the whole storey.
+   */
+  function frameRoom() {
+    const b = indoors, p = planNow()
+    if (!b || !p) { roomView = null; return }
+    const ext = standingExtent(b, p, planUnder())
+    const cx = canvas.width / 2, cy = canvas.height / 2
+    // Half the box on the glass at zoom 1: across is world y, down is world x.
+    const halfW = Math.max(1e-3, ((ext.y1 - ext.y0) * PPY) / 2)
+    const halfH = Math.max(1e-3, ((ext.x1 - ext.x0) * PPY) / 2)
+    let limit = Math.min(cx / halfW, cy / halfH)
+    for (const q of chromeRects()) {
+      const dx = Math.max(0, q.x - cx, cx - (q.x + q.w))
+      const dy = Math.max(0, q.y - cy, cy - (q.y + q.h))
+      // A panel over the very middle is covering the scene, not framing it.
+      if (!dx && !dy) continue
+      limit = Math.min(limit, Math.max(dx / halfW, dy / halfH))
+    }
+    let fits: boolean
+    if (pad.on) {
+      const steps = PHONE_ZOOMS.filter((s) => s <= limit)
+      fits = steps.length > 0
+      zoom = fits ? steps[steps.length - 1]! : PHONE_ZOOMS[0]!
+    } else {
+      const far = clampZoom(0)
+      fits = limit >= far
+      zoom = fits ? clampZoom(limit) : far
+    }
+    zoomWant = zoom
+    roomView = { ...ext, limit, fits, zoom }
+  }
+
+  /**
+   * Where the camera looks indoors: at the player, held so the glass stays
+   * on the room.
+   *
+   * A room smaller than the glass one way is centred that way — it is where
+   * the zoom was fitted to sit — and a room bigger than the glass is followed
+   * up to its edge and no further, so the dark past a wall never takes the
+   * glass from a room that has more to show.  While somebody is talking the
+   * camera is the conversation's, which moves it to keep the pair of you
+   * clear of the panel.
+   */
+  function camAim(x: number, y: number): [number, number] {
+    const v = roomView
+    if (!indoors || !v || chat) return [x, y]
+    const hx = canvas.height / 2 / k(), hy = canvas.width / 2 / k()
+    const hold = (at: number, lo: number, hi: number, half: number) =>
+      hi - lo <= 2 * half ? (lo + hi) / 2 : Math.max(lo + half, Math.min(hi - half, at))
+    return [hold(x, v.x0, v.x1, hx), hold(y, v.y0, v.y1, hy)]
+  }
+
+  /**
    * And back again, which the tile loop needs.
    *
    * The visible world is a diamond now, so the rectangle of tiles to draw is
@@ -10715,6 +10958,8 @@ async function main() {
     // The band of screen left over: under the readout, and right of the panel.
     // The first version centred the pair in everything above the panel and put
     // them behind the readout instead, which is the same bug one corner along.
+    // Through a door or up a flight since the last frame: frame the room.
+    framing()
     const top = chat && pad.on ? hudH + 16 : 0
     const wantY = (top + canvas.height) / 2
     // Up the glass is world x and only world x, so the lift is along it alone.
@@ -10722,7 +10967,6 @@ async function main() {
     // you slid sideways as the panel opened.
     const lifted = (canvas.height / 2 - wantY) / k()
     lift += (lifted - lift) * Math.min(1, dt * 6)
-    camX += ((hero.ix - lift) - camX) * Math.min(1, dt * 8)
     // And across, which is the axis the panel now takes.  Screen-right is
     // *down* world y — see `screenX` — so pushing the pair of you right of the
     // panel means walking the camera's y up.
@@ -10731,7 +10975,11 @@ async function main() {
       : canvas.width / 2
     const shove = (wantX - canvas.width / 2) / k()
     slide_ += (shove - slide_) * Math.min(1, dt * 6)
-    camY += ((hero.iy + slide_) - camY) * Math.min(1, dt * 8)
+    // Both axes after both offsets, because indoors the point followed is
+    // held to the room — see `camAim` — and holding one axis needs the other.
+    const [aimX, aimY] = camAim(hero.ix - lift, hero.iy + slide_)
+    camX += (aimX - camX) * Math.min(1, dt * 8)
+    camY += (aimY - camY) * Math.min(1, dt * 8)
 
     // Walking away ends it, which is how it ends anywhere.  The threshold is
     // wider than the one that starts it so that shuffling on the spot does not
@@ -13765,6 +14013,19 @@ async function main() {
    * The door's own world point is passed back unchanged, so the check can put
    * it through `__screen` itself and not only take this hook's word for it.
    */
+  ;(window as unknown as { __roomFrame: () => unknown }).__roomFrame = () => {
+    const [ax, ay] = camAim(hero.ix - lift, hero.iy + slide_)
+    return {
+      inside: indoors ? indoors.k : null, storey, zoom, want: zoomWant, mine: zoomIsMine,
+      outdoor: outdoorZoom ? outdoorZoom.zoom : null, view: roomView,
+      cam: { x: camX, y: camY }, aim: { x: ax, y: ay },
+      settled: Math.hypot(camX - ax, camY - ay) < 0.05,
+      far: pad.on ? PHONE_ZOOMS[0] : clampZoom(0), near: pad.on
+        ? PHONE_ZOOMS[PHONE_ZOOMS.length - 1] : clampZoom(99),
+      ladder: pad.on ? PHONE_ZOOMS : null, chrome: chromeRects(),
+      glass: { w: canvas.width, h: canvas.height },
+    }
+  }
   ;(window as unknown as { __roomExits: () => unknown }).__roomExits = () => {
     const r = roomLaid
     if (!r || roomXform.length < 6) return null
@@ -16054,6 +16315,9 @@ async function main() {
   // Driven from the screenshot script: a scene is not finished until it has
   // been looked at, and looking means putting the camera somewhere on purpose.
   ;(window as unknown as { __cam: (o: Record<string, number>) => void }).__cam = (o) => {
+    // A door the harness has just walked through is framed first, so the
+    // zoom asked for here lands on the room and the zoom outside is kept.
+    framing()
     // One placement and not two, one an axis.  `placeHero` looks before it
     // puts him down now, so placing x against the *old* y lands him at a
     // corner of nowhere, corrects, and then the second call corrects the
@@ -16071,6 +16335,9 @@ async function main() {
     // one check watching the frame rate out there was watching a screen that
     // does not exist.
     else if (o.zoom !== undefined) { zoom = clampZoom(o.zoom); zoomWant = zoom; zoomIsMine = true }
+    // Indoors the camera goes straight to where it will settle, so a check
+    // that reads the glass two frames later is not reading it on the way.
+    if (indoors) [camX, camY] = camAim(hero.x, hero.y)
     if (o.dir !== undefined) hero.dir = o.dir
   }
 }
