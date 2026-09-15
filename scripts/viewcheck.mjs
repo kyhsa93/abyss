@@ -2281,6 +2281,92 @@ check('and a man can walk into every building whose door leads anywhere',
 console.log(`      (${walkIn.exempt.length} whose every passage ends on ground nobody `
   + `can stand on: ${walkIn.exempt.join(', ') || 'none'})`)
 
+// 10j2b. And out again, on foot, with nobody thrown.
+//
+// The check above stops the moment the scene says he is inside, and that
+// moment was a jump: the door put him three to six yards in, and walking back
+// to the door put him three to six yards out, so a player walking in or out
+// crossed the threshold forty times a doorway — and walking past a doorway
+// *between* two rooms threw him out and back as well, because `doors` holds
+// those too.  Walked the way a player walks, 24 of 25 buildings let him in and
+// 10 let him out.  So this walks the whole way: along the passage to the door,
+// into the room, towards every doorway inside, back out and off to where he
+// started — and asks that no step moved him more than a yard, that the scene
+// said *inside* once going in and *outside* once coming out, and that he ends
+// outside.
+const walkThrough = await p.evaluate(() => {
+  const all = window.__buildings()
+  const porches = window.__porches()
+  const home = window.__start()
+  const bad = []
+  let tried = 0
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i]
+    if (b.k === 'mine' || !porches[i]?.length) continue
+    window.__aim(null)
+    window.__put(home.x, home.y)
+    const [ax, ay, bx, by] = porches[i][0]
+    const len = Math.hypot(bx - ax, by - ay) || 1
+    const ux = (bx - ax) / len, uy = (by - ay) / len
+    let start = null
+    for (let r = 1; r <= 8 && !start; r += 0.5) {
+      if (window.__canWalk(bx + ux * r, by + uy * r)) start = [bx + ux * r, by + uy * r]
+    }
+    if (!start) continue
+    tried++
+    window.__put(start[0], start[1])
+    let jumps = 0, ins = 0, outs = 0, climbs = 0
+    let last = window.__hero(), was = !!window.__room().inside
+    let floor = window.__shown().storey
+    const walk = (tx, ty, n) => {
+      for (let s = 0; s < n; s++) {
+        const h = window.__hero()
+        if (Math.hypot(h.x - tx, h.y - ty) < 0.6) break
+        window.__aim(tx, ty)
+        window.__steps(1)
+        const now = window.__hero(), inside = !!window.__room().inside
+        if (Math.hypot(now.x - last.x, now.y - last.y) > 1) jumps++
+        if (inside && !was) ins++
+        if (!inside && was) outs++
+        // And the doorway is not a flight: house 26's front door stands on
+        // its ground storey's stairs, and walked through it took him upstairs.
+        const f = window.__shown().storey
+        if (inside && was && f !== floor) climbs++
+        floor = f
+        was = inside; last = now
+      }
+      window.__aim(null)
+    }
+    walk(bx, by, 120); walk(ax, ay, 160); walk(ax - ux * 3, ay - uy * 3, 60)
+    const inside = !!window.__room().inside
+    const climbsIn = climbs
+    // Towards each doorway between rooms, and back to the front door.
+    for (const d of b.doors) {
+      if (d.length === 5) continue
+      walk(d[0], d[1], 120)
+      walk(ax - ux * 2, ay - uy * 2, 160)
+    }
+    const outsBefore = outs
+    const climbsBefore = climbs
+    walk(ax, ay, 160); walk(bx, by, 160); walk(start[0], start[1], 160)
+    const climbsOut = climbs - climbsBefore
+    const out = !window.__room().inside
+    if (!inside || !out || jumps || ins !== 1 || outs !== 1 || outsBefore
+      || climbsIn || climbsOut) {
+      bad.push(`${b.k} ${i}: in ${inside}, out ${out}, ${jumps} jumps, `
+        + `${ins} in / ${outs} out${outsBefore ? `, ${outsBefore} out while inside` : ''}`
+        + `${climbsIn || climbsOut ? `, floor changed ${climbsIn} going in and ${climbsOut} coming out` : ''}`)
+    }
+  }
+  window.__aim(null)
+  window.__put(home.x, home.y)
+  return { tried, bad }
+})
+check('and every front door is walked in and out of with nobody thrown across it',
+  walkThrough.tried > 0 && walkThrough.bad.length === 0,
+  `${walkThrough.tried - walkThrough.bad.length} of ${walkThrough.tried} clean`
+  + `${walkThrough.bad.length ? ': ' + walkThrough.bad.slice(0, 4).join('; ') : ''}`)
+
 // 10j3. And the front door is the client's, and it faces out.
 //
 // Which of a building's doorways lead outside, which way out is and how wide

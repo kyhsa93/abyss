@@ -752,6 +752,31 @@ it: the hero has to be put back outside **before** asking what can be stood on,
 because indoors only the room is ground — asked the other way round every
 building after the first one entered reported nowhere to stand.
 
+**And then the door threw him across it.** The way in let a man walk from
+the grass to the room, and `throughTheDoor` went on doing what it did for a
+disc in a wall: on the doorstep it put him three to six yards in, and back at
+the door three to six yards out. Walking in or out crossed the threshold every
+four steps, forty times a doorway, and `doors` holds the doorways between a
+building's rooms as well, so walking past one of those indoors threw him out
+and back in — walked the way a player walks, 24 of 25 buildings let him in and
+**10 let him out**. `viewcheck`'s walk-in stopped the moment the scene said
+*inside*, which was the first jump. Where a building has a way in nobody is
+moved now: he is inside from its door and outside once he is off its outline,
+which the passage runs half a yard past, so the two edges are 2.75 yards apart
+and nothing flickers between them; the jump stays for a mine's mouth. The check
+walks the whole way now — along the passage, into the room, towards every
+doorway inside, and back out — and asks for no step over a yard, one change
+each way and no change of floor: 25 of 25.
+
+Two things the jump had been hiding came out with it. **A front door can stand
+on its ground storey's stairs** — house 26 in Goldshire's does — and a man
+three yards past it never stood there, so walked through it the next step took
+him upstairs; on the ground storey the way in is not a flight now, while a
+doorway between rooms still is. And **the hooks the checks enter by put him at
+*a* door**, often one between rooms, and every check written on them expects to
+be standing in the room after, so they call `putInside` — the old jump, for the
+hooks alone — rather than the rule bending for them.
+
 **A door is one of two things, and issue 167's promise is kept in the client's
 shape.** It asked for nine in ten of the baked doors walked to from outside and
 all eight of the abbey's; `MOPR` and `MOGI` say the abbey has one front door and

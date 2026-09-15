@@ -2957,6 +2957,13 @@ async function main() {
     porches.set(b, out)
     return out
   }
+  /**
+   * Whether a point is on one of a building's ways in: the passage from a front
+   * door out through the eaves, and a doorstep's length in from the door.
+   */
+  const onPorch = (b: (typeof buildings)[number], wx: number, wy: number) =>
+    porchesOf(b).some((q) => toSegment(wx, wy, {
+      ax: q.ax - q.ux * DOORSTEP, ay: q.ay - q.uy * DOORSTEP, bx: q.bx, by: q.by }) < q.half)
   const toSegment = (wx: number, wy: number,
     q: { ax: number; ay: number; bx: number; by: number }) => {
     const vx = q.bx - q.ax, vy = q.by - q.ay
@@ -8751,6 +8758,13 @@ async function main() {
     if (!indoors) return
     const here = planNow()
     if (!here) return
+    // **The way in is not a flight.**  The ground storey's `steps` run under
+    // some front doors — house 26 in Goldshire's is on them — and while the
+    // door threw a man three yards in or out, nobody stood there long enough
+    // for this to see it.  Walked through, the next step took him upstairs on
+    // the way in and on the way out.  A doorway between rooms is not one of
+    // these, so a stairwell beside one still climbs.
+    if (storey < 0 && onPorch(indoors, hero.x, hero.y)) { onRung = true; return }
     const up = bitAt(here.steps, planCell(here, indoors, hero.x, hero.y))
     const below = planUnder()
     const down = !!below
@@ -11445,6 +11459,49 @@ async function main() {
   function throughTheDoor() {
     const near = (b: (typeof buildings)[number]) => b.doors.find(([dx, dy]) =>
       Math.hypot(dx - hero.x, dy - hero.y) < doorstepOf(b))
+    // **A front door is walked through, not jumped.**  Since the way in was
+    // carried out through the eaves (issue 235) a man can walk from the grass
+    // to the room on his own feet — `atDoor` lets him stand on it from either
+    // side — and this went on doing what it did when the door was a disc in a
+    // wall: on the doorstep it put him three to six yards in, and walking back
+    // to the door put him three to six yards out.  So a player walking in or
+    // out was thrown across the threshold every four steps, forty times a
+    // doorway; and `doors` also holds the doorways *between* a building's
+    // rooms, so walking past one of those indoors threw him out and back in.
+    // Walked the way a player walks, 24 of 25 buildings were entered and 10
+    // could be left.  Where a building has a way in nobody is moved now: he is
+    // inside from its door, and outside once he is off the building's outline,
+    // which the passage runs half a yard past.  The door is 2.75 yards in from
+    // the eaves, so the two edges are apart and nothing flickers between them.
+    // The jump stays for what has no passage — a mine's mouth is a hole in a
+    // hillside.
+    const walkIn = (b: (typeof buildings)[number]) => porchesOf(b).length > 0
+    if (indoors && walkIn(indoors)) {
+      if (!stillInside(indoors, hero.x, hero.y)) {
+        indoors = null
+        storey = -1
+        onStep = false
+        ui.log('밖으로 나왔다.', 'note')
+      }
+      return
+    }
+    if (!indoors) {
+      for (const b of buildings) {
+        if (!b.plan || !walkIn(b)) continue
+        if (!porchesOf(b).some((q) => Math.hypot(q.ax - hero.x, q.ay - hero.y) < DOORSTEP)) continue
+        indoors = b
+        storey = -1
+        // Latched as though he were already on a rung: he is standing at the
+        // door, and at house 26 in Goldshire the door is on the stairs, so
+        // unlatched the next step took him upstairs on the way in.  The jump
+        // used to put him three yards past it, off them.  A flight is climbed
+        // by stepping on to it, which he still does once he has stepped off.
+        onRung = true
+        onStep = false
+        ui.log(`${zoneOf(b.area || areaOf(hero.x, hero.y))} 안으로 들어갔다.`, 'note')
+        return
+      }
+    }
     if (indoors) {
       const door = near(indoors)
       if (!door) { onStep = false; return }
@@ -11463,7 +11520,7 @@ async function main() {
     let b: (typeof buildings)[number] | null = null
     let door: Door | undefined
     for (const x of [...buildings, ...caves]) {
-      if (!x.plan || !x.doors.length) continue
+      if (!x.plan || !x.doors.length || walkIn(x)) continue
       const d = near(x)
       if (d) { b = x; door = d; break }
     }
@@ -11486,6 +11543,25 @@ async function main() {
    * "inward" from a door walked out of the side of the building.  Eight
    * directions at three yards, and the first one standing on floor wins.
    */
+  /**
+   * **Test only**: in through a door, the way the checks have always gone in —
+   * on to the floor a few yards past it.
+   *
+   * `throughTheDoor` stopped moving anybody through a building that has a way
+   * in, and it only opens one at its front door: a doorway between two rooms
+   * is not a way in from outside, and a player can only stand at one by
+   * already being inside.  The hooks put him at *a* door, often one of those,
+   * and every check written on top of them expects to be standing in the room
+   * after — so they ask for that here rather than the rule bending for them.
+   */
+  function putInside(b: (typeof buildings)[number], door: Door) {
+    if (!porchesOf(b).length) { throughTheDoor(); return }
+    indoors = b
+    storey = -1
+    onRung = false
+    onStep = false
+    step(b, door, -1)
+  }
   function step(b: (typeof buildings)[number], door: Door, way: number) {
     const p = b.plan
     if (!p) return
@@ -14780,7 +14856,7 @@ async function main() {
         if ((b.floors?.length ?? 0) < least) continue
         const door = b.doors[0]!
         placeHero(door[0], door[1])
-        throughTheDoor()
+        putInside(b, door)
         if (indoors) {
           return { k: b.k, storey, l: b.l, w: b.w,
             floors: b.floors?.length ?? 0 }
@@ -14822,7 +14898,7 @@ async function main() {
         if (d !== undefined && j !== d) continue
         const door = b.doors[j]!
         placeHero(door[0], door[1])
-        throughTheDoor()
+        putInside(b, door)
         if (indoors === b) {
           return { i, k: b.k, door: j, storey, x: hero.x, y: hero.y,
             floors: b.floors?.length ?? 0 }
@@ -15725,7 +15801,13 @@ async function main() {
    * one and then ask.
    */
   ;(window as unknown as { __seam: () => unknown }).__seam = () => {
-    throughTheDoor()
+    // Put down on a door from outside, he goes in the way the checks always
+    // have — see `putInside`; walking is `throughTheDoor`'s alone.
+    const at = indoors ? null : buildings.find((b) => b.plan && porchesOf(b).length
+      && b.doors.some(([dx, dy]) => Math.hypot(dx - hero.x, dy - hero.y) < DOORSTEP))
+    const door = at?.doors.find(([dx, dy]) => Math.hypot(dx - hero.x, dy - hero.y) < DOORSTEP)
+    if (at && door) putInside(at, door)
+    else throughTheDoor()
     upOrDown()
     return { inside: indoors ? indoors.k : null, storey,
       floors: indoors?.floors.length ?? 0 }
