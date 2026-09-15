@@ -45,8 +45,10 @@ is off by one cannot produce it.
 """
 import json
 import os
+import re
 import struct
 import sys
+from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bake_terrain import Client  # noqa: E402
@@ -328,6 +330,154 @@ E_TRIGGER_SPELL, E_TRIGGER_MISSILE, E_PERSISTENT_AREA = 64, 32, 27
 A_PERIODIC_TRIGGER = 23
 
 
+#: The core, for the corrections it makes to `Spell.dbc` at load.  Same bargain
+#: `npm run corecheck` makes: `$ABYSS_CORE` or `~/src/acore-src`, and a machine
+#: without a checkout says so rather than pretending there was nothing to apply.
+CORE = os.environ.get('ABYSS_CORE') or os.path.expanduser('~/src/acore-src')
+SPELLS_SRC = os.path.join('src', 'server', 'game', 'Spells')
+
+#: `SpellInfo`'s own member names, and which field of a `Spell.dbc` row this
+#: script reads each one from — per effect for the first table, once a spell
+#: for the second.  A correction to a member that is not in either is a
+#: correction to something this game does not read, and is reported as such.
+FIX_EFFECT = {'BasePoints': F_BASE, 'DieSides': F_DIE, 'Effect': F_EFFECT,
+              'ApplyAuraName': F_AURA, 'Amplitude': F_PERIOD,
+              'TriggerSpell': F_TRIGGER, 'MiscValue': F_MISC,
+              'RadiusEntry': F_RADIUS}
+FIX_SPELL = {'DurationEntry': F_DURATION, 'RangeEntry': F_RANGE,
+             'CastTimeEntry': F_CAST, 'CategoryEntry': F_CATEGORY,
+             'ManaCost': F_COST, 'PowerType': F_POWER,
+             'RecoveryTime': F_RECOVERY,
+             'CategoryRecoveryTime': F_CATEGORY_RECOVERY,
+             'StartRecoveryTime': F_GCD, 'StackAmount': F_STACK}
+
+
+def enum_values(path, prefix):
+    """`{NAME: number}` for every `PREFIX_NAME = N` in a C++ header."""
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding='utf8', errors='replace') as f:
+        return {m.group(1): int(m.group(2)) for m in
+                re.finditer(r'\b(%s\w+)\s*=\s*(\d+)' % prefix, f.read())}
+
+
+def effect_names(core):
+    """`{number: SPELL_EFFECT_NAME}`, off the handler table's own comments.
+
+    The enum lives in `SharedDefines.h`, which the sparse checkout does not
+    have; `SpellEffects.cpp` lists every handler with `// 2 SPELL_EFFECT_...`
+    beside it, which is the same fact in a file that is here.
+    """
+    path = os.path.join(core, SPELLS_SRC, 'SpellEffects.cpp')
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding='utf8', errors='replace') as f:
+        return {int(m.group(1)): m.group(2) for m in
+                re.finditer(r'//\s*(\d+)\s+(SPELL_EFFECT_\w+)', f.read())}
+
+
+def corrections(core=CORE):
+    """Every `ApplySpellFix` in `SpellInfoCorrections.cpp`, statement by statement.
+
+    Issues 75 and 76 handed this to each other and it was dropped in between:
+    *"the data is right and it runs differently from AzerothCore"* is what the
+    file is for, and the count of how much of it touches this slice was the
+    next step both closing comments named and neither took.
+
+    Returns `[(spell, line, member, effect or None, operator, value or None,
+    guarded)]` in file order, or `None` without a checkout.  `value` is a plain
+    number where the right-hand side is one — a literal, an entry passed to a
+    store's `LookupEntry`, or an `SPELL_AURA_*` name — and `None` otherwise;
+    `guarded` is a block with an `if` or a loop in it, whose statements this
+    does not claim to understand.
+    """
+    path = os.path.join(core, SPELLS_SRC, 'SpellInfoCorrections.cpp')
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding='utf8', errors='replace') as f:
+        text = f.read()
+    auras = enum_values(os.path.join(core, SPELLS_SRC, 'Auras', 'SpellAuraDefines.h'),
+                        'SPELL_AURA_')
+    out = []
+    head = re.compile(r'ApplySpellFix\(\s*\{(?P<ids>[^}]*)\}\s*,\s*'
+                      r'\[\]\(SpellInfo\s*\*\s*spellInfo\)\s*\{')
+    stmt = re.compile(r'spellInfo->(?P<member>\w+)'
+                      r'(?:\[(?:EFFECT_)?(?P<eff>\d+)\])?(?:\.(?P<sub>\w+))?'
+                      r'\s*(?P<op>[|&+\-*]?=)\s*(?P<value>[^;]+);')
+    for m in head.finditer(text):
+        ids = [int(x) for x in re.findall(r'\b\d+\b',
+                                          re.sub(r'//[^\n]*', '', m.group('ids')))]
+        depth, i = 1, m.end()
+        while depth and i < len(text):
+            depth += {'{': 1, '}': -1}.get(text[i], 0)
+            i += 1
+        body = text[m.end():i - 1]
+        guarded = bool(re.search(r'\b(if|for|while|switch)\b',
+                                 re.sub(r'//[^\n]*', '', body)))
+        first = text.count('\n', 0, m.end()) + 1
+        code_ = re.sub(r'//[^\n]*', '', body)
+        # Every statement that writes through `spellInfo->`, and the ones the
+        # pattern cannot read are kept as such rather than skipped: a
+        # correction this does not understand is not a correction that is
+        # not there.
+        for seg in re.finditer(r'spellInfo->[^;]*;', code_):
+            if not stmt.fullmatch(seg.group(0)):
+                line = first + body.count('\n', 0, seg.start())
+                for sid in ids:
+                    out.append((sid, line, ' '.join(seg.group(0).split())[:48],
+                                None, None, None, guarded))
+        for st in stmt.finditer(code_):
+            per_effect = st.group('member') == 'Effects' and st.group('sub')
+            member = st.group('sub') if per_effect else st.group('member')
+            eff = int(st.group('eff')) if per_effect else None
+            raw = st.group('value').strip()
+            value = None
+            if re.fullmatch(r'-?\d+', raw):
+                value = int(raw)
+            elif re.fullmatch(r'\w+Store\.LookupEntry\((\d+)\)', raw):
+                value = int(re.search(r'\((\d+)\)', raw).group(1))
+            elif raw in auras:
+                value = auras[raw]
+            line = first + body.count('\n', 0, st.start())
+            for sid in ids:
+                out.append((sid, line, member, eff, st.group('op'), value, guarded))
+    return out
+
+
+def apply_corrections(spells, fixes):
+    """Put the core's corrections into the rows this script reads.
+
+    Only a plain assignment of a plain number to a field this script reads is
+    applied; everything else is reported with the reason it was not.  Applied
+    to every spell the file names rather than to the slice's alone, because it
+    is what the server does at load and the slice is not known until the
+    closure has been walked — the report is made over the slice afterwards.
+
+    Returns `[(spell, line, what, how)]`.
+    """
+    done = []
+    for sid, line, member, eff, op, value, guarded in fixes:
+        r = spells.get(sid)
+        if r is None:
+            continue
+        what = member if eff is None else 'Effects[%d].%s' % (eff, member)
+        if op is None:
+            done.append((sid, line, what, 'a statement this does not parse'))
+            continue
+        col = FIX_EFFECT.get(member) if eff is not None else FIX_SPELL.get(member)
+        if col is None:
+            done.append((sid, line, what, 'a field this game does not read'))
+            continue
+        if op != '=' or value is None or guarded:
+            done.append((sid, line, what, 'a field it reads, but not a plain number'))
+            continue
+        row = list(r)
+        row[col + (eff or 0)] = value
+        spells[sid] = tuple(row)
+        done.append((sid, line, what, 'applied'))
+    return done
+
+
 def closure(start, spells, acore, depth=4):
     """Everything reachable from a set of spells, and what the limit cut off.
 
@@ -411,6 +561,32 @@ def main(client_root, acore, out, upto=None):
         radii[r[0]] = round(f[1], 1)
     casts = {r[0]: r[1] for r in dbc(c, 'SpellCastTimes')}
 
+    # And the two index columns that were resolved without a fact behind them.
+    # Radius has 6343 at eight yards and the global cooldown has 6673 at 1,500;
+    # the cast time and the category were found the same way and never held to
+    # anything, so a layout that slipped by one would have shipped quietly.
+    #
+    #   * `CastingTimeIndex` — Shadow Bolt, rank one, takes 1.7 seconds.  An
+    #     odd number on purpose: 1,500 is half the casts in the game, and a
+    #     neighbouring field that happened to index a 1.5 second row would pass.
+    #   * `Category` — the two warrior stances share one, because changing
+    #     stance puts the other on the same one-second wait; and Thunder Clap,
+    #     which is not a stance, does not have it.  A wrong field gives two
+    #     different numbers, or the same nought.
+    bolt = spells.get(686)
+    if not bolt or casts.get(bolt[F_CAST]) != 1700:
+        sys.exit('Spell.dbc cast time index is wrong: 686 casts in %s'
+                 % (bolt and casts.get(bolt[F_CAST])))
+    stances = [spells.get(s_) and spells[s_][F_CATEGORY] for s_ in (2457, 71, 6343)]
+    if not stances[0] or stances[0] != stances[1] or stances[2] == stances[0]:
+        sys.exit('Spell.dbc category field is wrong: 2457, 71 and 6343 are in %s'
+                 % stances)
+
+    # The core's corrections, before anything is built out of the rows they
+    # correct — see `corrections`.  Reported in `finish`, over the slice.
+    fixes = corrections()
+    fixed = apply_corrections(spells, fixes) if fixes is not None else None
+
     # How far up this game goes, out of `slice.json` rather than a default
     # argument nobody outside this file could see.
     upto = upto or LEVELS[1]
@@ -451,7 +627,7 @@ def main(client_root, acore, out, upto=None):
     # they are what the field offsets were found against.
     out_rows = books.get(str(CLASS_ID['Warrior']), [])
     return finish(books, out_rows, unlearned, grants, spells, ranges, radii,
-                  durations, acore, out, upto, c)
+                  durations, acore, out, upto, c, fixed)
 
 
 def build(want, free, spells, ranges, radii, casts, durations, power):
@@ -533,7 +709,7 @@ def build(want, free, spells, ranges, radii, casts, durations, power):
 
 
 def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
-           durations, acore, out, upto, c):
+           durations, acore, out, upto, c, fixed=None):
     """The parts that are the world's rather than one class's, and the checks.
 
     Split out because `main` had grown into one function that read six tables,
@@ -814,6 +990,46 @@ def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
     print(f'  {len(foes)} kinds of creature carry '
           f'{sum(len(v) for v in foes.values())} abilities between them, '
           f'{runnable} of which this engine can run')
+    # What this slice ships, for the two reports below: the closure (which
+    # starts from every book and every creature's list) and the passives a
+    # stance is really made of.
+    shipped = set(reached) | set(FORM_PASSIVE.values())
+    if fixed is None:
+        print(f'  SpellInfoCorrections.cpp: no core checkout at {CORE}, so the '
+              'corrections the server makes at load are neither applied nor counted')
+    else:
+        mine = [x for x in fixed if x[0] in shipped]
+        print(f'  SpellInfoCorrections.cpp corrects {len({x[0] for x in fixed}):,} '
+              f'spells in this client, {len({x[0] for x in mine})} of the '
+              f'{len(shipped)} this slice ships')
+        for how in ('applied', 'a field it reads, but not a plain number',
+                    'a statement this does not parse',
+                    'a field this game does not read'):
+            rows_ = [x for x in mine if x[3] == how]
+            if rows_:
+                print(f'    {how}: ' + ', '.join(
+                    f'{sid} {what} (:{line})' for sid, line, what, _ in rows_))
+    # And which effects and auras those spells are made of, which issue 76
+    # asked for by name — the whole enums are 165 and 317, and the part of
+    # them an engine for this slice has to know is this list.
+    eff_n, aura_n = Counter(), Counter()
+    for sid in shipped:
+        r = spells.get(sid)
+        for i in range(3):
+            if r and r[F_EFFECT + i]:
+                eff_n[r[F_EFFECT + i]] += 1
+            if r and r[F_AURA + i]:
+                aura_n[r[F_AURA + i]] += 1
+    e_names = effect_names(CORE)
+    a_names = {v: k for k, v in enum_values(
+        os.path.join(CORE, SPELLS_SRC, 'Auras', 'SpellAuraDefines.h'),
+        'SPELL_AURA_').items()}
+    print(f'  the {len(shipped)} spells use {len(eff_n)} kinds of effect and '
+          f'{len(aura_n)} kinds of aura:')
+    print('    ' + ', '.join(f'{e_names.get(k, k)} x{v}'
+                             for k, v in sorted(eff_n.items())))
+    print('    ' + ', '.join(f'{a_names.get(k, k)} x{v}'
+                             for k, v in sorted(aura_n.items())))
     print(f'  the closure over them reaches {len(reached)} spells'
           + (f', and stopped at {len(stopped)} more — {sorted(stopped)[:8]}'
              if stopped else ' and closed'))
