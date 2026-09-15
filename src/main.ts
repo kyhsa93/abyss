@@ -8670,6 +8670,18 @@ async function main() {
   let blendedEver = 0
   /** And every tile ever composed into a plate, so the two can be a share. */
   let platedEver = 0
+  /**
+   * The same three kinds of edge counted apart, for the check on the ring
+   * pieces (issue 129).  `blendedEver` adds them up, so it went on reading
+   * "an edge or a blend" after the plates took over and would have gone on
+   * reading it with no ring piece drawn anywhere: a plate's edges are its own
+   * share layers, and the ring and shore pieces are only laid on a **loose**
+   * tile — one drawn in the frames before its plate is composed.
+   */
+  let plateEdgeEver = 0
+  let ringEver = 0
+  let looseBlendEver = 0
+  let looseEver = 0
   let last = performance.now()
   const kindCount = new Set(npcs.map((n) => n.art)).size
   const talkers = npcs.filter((n) => n.topic).length
@@ -9464,6 +9476,7 @@ async function main() {
       // corners disagree anyway, which is the coarse grid disagreeing with
       // itself.
       let blended = false
+      if (grain === 1 && !built && !water) looseEver++
       if (grain === 1 && !built && !water) {
         const mix = blendAt(wx, wy)
         // A nibble's worth is the floor: below one level in fifteen there
@@ -9481,6 +9494,7 @@ async function main() {
             // standing still a second later would see a frame in which no
             // ground was drawn at all.
             blendedEver++
+            looseBlendEver++
           }
         }
       }
@@ -9508,6 +9522,7 @@ async function main() {
               Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
             edged++
             blendedEver++
+            ringEver++
           }
         }
         // And the shore, which is the boundary this forest has most of and
@@ -9530,6 +9545,7 @@ async function main() {
               Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
             edged++
             blendedEver++
+            ringEver++
           }
         }
       }
@@ -9822,6 +9838,7 @@ async function main() {
                 edgy[a * PLATE + d] = 1
                 edged++
                 blendedEver++
+                plateEdgeEver++
               }
               // Does the share actually change *inside* the tile?  The four
               // quarter points of a tile whose neighbours disagree by a
@@ -11680,6 +11697,8 @@ async function main() {
     tiles: tilesDrawn, inView: tilesInView, edged, shaded, outlined,
     plates: platesDrawn,
     blended: blendedEver, plated: platedEver,
+    plateEdges: plateEdgeEver, rings: ringEver, looseBlends: looseBlendEver,
+    loose: looseEver,
     waterTiles: waterTilesDrawn, watered: wateredEver, decks: decksDrawn,
   })
   /**

@@ -1964,15 +1964,47 @@ console.log(`      (${who.wet} in water, all of them ${who.lives.join(', ')}; `
 // ground is composed into plates once each and then kept, so a frame in which
 // the camera is standing still draws no ground at all and both numbers are
 // nought — which is what this check read the day plates went in.
+//
+// **And counted apart, because the ring pieces stopped being where the edges
+// are** (issue 129).  This read "an edge or a blend" as one number, which was
+// honest while every tile was laid one at a time and stopped meaning anything
+// when the plates took the ground over: a plate's edges are its share layers
+// laid across the tile, and a plate lays no ring piece at all.  So the ratio
+// would have gone on passing with every ring piece gone.  What they are still
+// for is the **loose** tile — the one drawn in the frames before its plate is
+// composed, which is every tile of a view the camera has just jumped to, and
+// a stand-in with no edges is a view that flashes squares for a second after
+// every jump.  So there are two numbers: the plate's own edges against what the
+// plates composed, and the ring and shore pieces laid on loose tiles while the
+// plates were coming.
+//
+// Waited on the plates rather than on the clock: read once no tile has been
+// composed into a plate for twenty frames running.
 const was = await p.evaluate(() => window.__edges())
 await p.evaluate(() => window.__cam({ x: -9100, y: -350, zoom: 0.8 }))
-await p.waitForTimeout(900)
+const seamSettled = await p.evaluate(() => new Promise((done) => {
+  let last = -1, same = 0
+  const quit = setTimeout(() => done(false), 30000)
+  const look = () => {
+    const e = window.__edges()
+    if (e.plated === last) same++
+    else { same = 0; last = e.plated }
+    if (same >= 20) { clearTimeout(quit); done(true) } else requestAnimationFrame(look)
+  }
+  requestAnimationFrame(look)
+}))
 const now = await p.evaluate(() => window.__edges())
-const seam = { edged: now.blended - was.blended, tiles: now.plated - was.plated }
+const seam = Object.fromEntries(['plated', 'plateEdges', 'rings', 'looseBlends',
+  'loose'].map((k) => [k, now[k] - was[k]]))
 check('a boundary between two grounds is drawn as one',
-  seam.tiles > 0 && seam.edged > seam.tiles * 0.05,
-  `${seam.edged} of ${seam.tiles} newly composed tiles are an edge or a blend`)
-console.log(`      (${(100 * seam.edged / Math.max(1, seam.tiles)).toFixed(0)}% of this view `
+  seamSettled && seam.plated > 0 && seam.plateEdges > seam.plated * 0.05,
+  `${seam.plateEdges} of ${seam.plated} newly composed tiles are on an edge `
+  + `between two grounds${seamSettled ? '' : ' (the plates never settled)'}`)
+check('and a tile drawn before its plate still meets its neighbour with a ring piece',
+  seam.loose > 0 && seam.rings > 0,
+  `${seam.rings} ring and shore pieces and ${seam.looseBlends} blends over `
+  + `${seam.loose} loose tiles drawn while the plates were composed`)
+console.log(`      (${(100 * seam.plateEdges / Math.max(1, seam.plated)).toFixed(0)}% of this view `
   + 'is a boundary between two grounds)')
 
 // 10j. A building is closed, and a door is how you get in.
