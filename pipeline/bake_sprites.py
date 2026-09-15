@@ -31,10 +31,47 @@ LAYERS = [
     'head/heads/human/male',
     'legs/pantaloons/male',
     'feet/boots/basic/male',
-    'torso/armour/plate/male',
-    'arms/armour/plate/male',
     # **No hair here any more.**  It is a layer of its own, because a character
     # you make is a character whose hair you chose — see `LOOKS`.
+    #
+    # **And no breastplate.**  `torso/armour/plate` and `arms/armour/plate`
+    # were composited in here, so all six classes were drawn in plate while
+    # every one of them starts in a shirt or a robe and no chest piece this
+    # slice reaches is plate at all.  What he wears over his chest is an
+    # overlay now, chosen from the item — see `OUTFITS`.  The trousers and
+    # boots stay: every class starts in both, and neither slot has a picture
+    # that differs by what the item is yet.
+]
+
+# What he is wearing over his chest, one sheet a shape, loaded when worn.
+#
+# `(kind, word, layers)`, bottom to top.  The word is what `src/sim/outfit.ts`
+# answers from `InventoryType` and `subclass`; the kind is which of the two
+# torso slots it fills, because a shirt is worn **under** the rest and the
+# budget has to pay for both at once.
+#
+# Chosen by standing each candidate on this body and looking, because at 64
+# pixels half of LPC's shirts are one shirt: `longsleeve`, `longsleeve2` and
+# `sleeveless2` came out a few pixels apart.
+#
+#   * a shirt is **short-sleeved**, so the forearms are what tell it from
+#     anything worn over it;
+#   * a cloth chest piece is long sleeves over that;
+#   * LPC draws **no robe for a male body** — `torso/clothes/robe` is female
+#     only — so a robe is long sleeves and the plain skirt, which is the hem
+#     that makes it a robe.  The frock and the tabard were tried and read as a
+#     coat, and neither has an idle sheet;
+#   * leather and mail are sleeveless and short-sleeved, so the shirt shows
+#     under them the way it should;
+#   * plate is the pair of sheets that used to be in the body.
+OUTFITS = [
+    ('shirt', 'shirt', ['torso/clothes/shortsleeve/tshirt/male']),
+    ('chest', 'tunic', ['torso/clothes/longsleeve/longsleeve2/male']),
+    ('chest', 'robe', ['torso/clothes/longsleeve/longsleeve/male',
+                       'legs/skirts/plain/male']),
+    ('chest', 'leather', ['torso/armour/leather/male']),
+    ('chest', 'mail', ['torso/chainmail/male']),
+    ('chest', 'plate', ['torso/armour/plate/male', 'arms/armour/plate/male']),
 ]
 
 # What a player may choose to look like, cut the way a weapon is: one sheet
@@ -320,18 +357,36 @@ def main(root, out):
 
     # What a player may choose to look like, one sheet each — the same shape
     # as a weapon, and for the same reason: he wears one hair at a time.
+    #
+    # And what he is wearing over his chest, which is the same shape with one
+    # difference: an outfit can be **more than one LPC sheet** — plate is a
+    # cuirass and a pair of sleeves, a robe is a shirt and a hem — so the
+    # layers are composited into one strip a clip and cost one sheet, not two.
     looks = {}
-    for kind, name, rel in LOOKS:
+    wearing = ([(kind, '%s-%s' % (kind, name), [rel])
+                for kind, name, rel in LOOKS]
+               + [(kind, 'outfit-%s' % word, rels)
+                  for kind, word, rels in OUTFITS])
+    for kind, key, rels in wearing:
         strips, meta = [], {'kind': kind, 'clips': {}}
         for clip, count in CLIPS:
-            im = sheet(root, rel, clip)
-            if im is None:
-                sys.exit('%s has no %s — an appearance with a hole in it is a '
-                         'bug' % (rel, clip))
-            cols_, dirs = im.width // CELL, im.height // CELL
-            if cols_ < count or dirs != DIRECTIONS:
-                sys.exit('%s/%s is %dx%d cells, not the body\'s %dx%d'
-                         % (rel, clip, cols_, dirs, count, DIRECTIONS))
+            im = None
+            for rel in rels:
+                part = sheet(root, rel, clip)
+                if part is None:
+                    sys.exit('%s has no %s — an appearance with a hole in it '
+                             'is a bug' % (rel, clip))
+                cols_, dirs = part.width // CELL, part.height // CELL
+                if cols_ < count or dirs != DIRECTIONS:
+                    sys.exit('%s/%s is %dx%d cells, not the body\'s %dx%d'
+                             % (rel, clip, cols_, dirs, count, DIRECTIONS))
+                # Cut to the body's frames before laying one on another: the
+                # same nine-frame thrust `feet/boots/basic` ships would make
+                # two sheets of one outfit different widths.
+                part = part.crop((0, 0, count * CELL, DIRECTIONS * CELL))
+                im = part if im is None else Image.alpha_composite(im, part)
+                used.append('%s/%s.png' % (rel, clip))
+            dirs = DIRECTIONS
             box = trim(im, count, dirs)
             if not box:
                 continue
@@ -345,7 +400,6 @@ def main(root, out):
             meta['clips'][clip] = {'w': bw, 'h': bh, 'dx': bx, 'dy': by,
                                    'cols': count, 'dirs': dirs}
             strips.append((clip, strip))
-            used.append('%s/%s.png' % (rel, clip))
         if not strips:
             continue
         # Shelved, not stacked — the same packing the weapons get and for the
@@ -372,10 +426,9 @@ def main(root, out):
                 x += strip.width
             y += sh['h']
         os.makedirs(os.path.join(out, 'look'), exist_ok=True)
-        one.save(os.path.join(out, 'look', '%s-%s.png' % (kind, name)),
-                 optimize=True)
+        one.save(os.path.join(out, 'look', '%s.png' % key), optimize=True)
         meta['px'] = one.width * one.height * 4
-        looks['%s-%s' % (kind, name)] = meta
+        looks[key] = meta
 
     # The atlas, **trimmed to the man**.
     #
