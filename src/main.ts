@@ -1836,7 +1836,7 @@ async function main() {
       if (poolTurn.get(pool) === turn) continue
       poolTurn.set(pool, turn)
       moved += 1
-      const up = new Set(standing(members.map((_m, i) => i),
+      const up = new Set(standing(pool, members.map((_m, i) => i),
         members[0]?.most || members.length, period, at))
       members.forEach((m, i) => { m.up = up.has(i) })
     }
@@ -3090,7 +3090,8 @@ async function main() {
       nodeTurn.set(pool, turn)
       moved += 1
       const limit = things.pools?.[String(pool)] ?? members.length
-      const up = new Set(standing(members.map((_m, i) => i), limit, period, at))
+      const up = new Set(standing(pool, members.map((_m, i) => i), limit,
+        period, at))
       // A member that is on its own cooldown because somebody picked it stays
       // down: the slot turning does not undo the picking.
       members.forEach((m, i) => { m.up = up.has(i) && m.due <= 0 })
@@ -12228,21 +12229,21 @@ async function main() {
   ;(window as unknown as { __pools: (at?: number) => unknown }).__pools =
     (at) => {
       const when = at ?? Date.now() / 1000
-      const which = (members: { back: number; most?: number }[],
-        limit: number) => standing(members.map((_m, i) => i), limit,
+      const which = (pool: number, members: { back: number; most?: number }[],
+        limit: number) => standing(pool, members.map((_m, i) => i), limit,
         members[0]?.back ?? 0, when).join(',')
       return {
         creatures: [...byPoolNpc].map(([pool, members]) => ({
           pool, members: members.length,
           most: members[0]?.most || members.length,
           period: members[0]?.back ?? 0,
-          up: which(members, members[0]?.most || members.length),
+          up: which(pool, members, members[0]?.most || members.length),
         })),
         nodes: [...byPool].map(([pool, members]) => ({
           pool, members: members.length,
           most: things.pools?.[String(pool)] ?? members.length,
           period: members[0]?.back ?? 0,
-          up: which(members, things.pools?.[String(pool)] ?? members.length),
+          up: which(pool, members, things.pools?.[String(pool)] ?? members.length),
         })),
       }
     }

@@ -26,8 +26,23 @@
  *     is the thing being fixed.
  *
  * Same clock, same world: two people opening this page in the same minute see
- * the same rare spawn standing in the same place.  No seed is mixed in for
- * that reason — the pool's own id and the cycle number are the whole of it.
+ * the same rare spawn standing in the same place.  **The pool's own id and the
+ * cycle number are the whole of it**, and for a round that sentence was false:
+ * the ordering mixed the member's *index within its pool* with the turn, and
+ * never the pool, so every two pools of the same size on the same period stood
+ * up the same indices every cycle — the third member of one herb pool rose
+ * exactly when the third member of the next did, all over the forest, in
+ * lockstep.  Issue 88 had specified `(world seed, pool id, respawn cycle)`,
+ * and the pool id is in the key now; `simcheck` walks a day of same-shaped
+ * pools and fails if any two of them agree on every turn.
+ *
+ * **The world seed is not**, because this game has none that holds still.
+ * `roll.ts`'s state is a *position* in a stream — it moves with every roll and
+ * the save writes it down — so mixing it in would make the standing set
+ * change every time anything was rolled, which is re-rolling on load one
+ * level removed.  A seed that is fixed per world would be a new thing to
+ * invent and a new thing to save, for a difference nobody can see: two worlds
+ * baked from one slice are the same world.
  */
 
 /**
@@ -39,7 +54,11 @@
  * a position, and a position is a thing that has to be saved.
  */
 export function mix(a: number, b: number): number {
-  let h = (a | 0) * 0x9e3779b1 ^ (b | 0) * 0x85ebca6b
+  // `Math.imul`, not `*`.  This was `(a | 0) * 0x9e3779b1`, a float product,
+  // and a herb pool's turn number is six million: six million times the
+  // constant is past 2^53, so the low bits the xor keeps were rounding.  It was
+  // deterministic and it was not a mix.
+  let h = Math.imul(a | 0, 0x9e3779b1) ^ Math.imul(b | 0, 0x85ebca6b)
   h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d)
   h = Math.imul(h ^ (h >>> 12), 0x297a2d39)
   return (h ^ (h >>> 15)) >>> 0
@@ -58,17 +77,24 @@ export const cycleOf = (period: number, at: number): number =>
 /**
  * The members standing at a moment, as a sorted list of their own indices.
  *
- * Ordered by the mix of the member and the cycle, which means the answer is
- * stable for the whole of a cycle and unrelated to the answer for the next
- * one.  Ties broken by the member's own number so two pools of the same size
- * cannot come out correlated.
+ * Ordered by the mix of the pool, the member and the cycle, which means the
+ * answer is stable for the whole of a cycle, unrelated to the answer for the
+ * next one, and unrelated to the answer of the pool beside it.  Ties broken by
+ * the member's own number, which is only ever a tie in the hash.
+ *
+ * `pool` comes first and is checked, because it was the argument that was
+ * missing: every caller passed `members.map((_m, i) => i)`, and a caller that
+ * still passes the old four arguments would hand an array in as the pool,
+ * which `| 0` turns into nought without a word.
  */
-export function standing(members: number[], most: number, period: number,
-  at: number): number[] {
+export function standing(pool: number, members: number[], most: number,
+  period: number, at: number): number[] {
+  if (!Number.isInteger(pool)) throw new TypeError(`standing: pool ${pool} is not an id`)
   const many = Math.max(0, Math.min(most || members.length, members.length))
   const turn = cycleOf(period, at)
+  const key = (m: number) => mix(mix(pool, m), turn)
   return members.slice()
-    .sort((a, b) => (mix(a, turn) - mix(b, turn)) || (a - b))
+    .sort((a, b) => (key(a) - key(b)) || (a - b))
     .slice(0, many)
     .sort((a, b) => a - b)
 }
@@ -82,12 +108,12 @@ export function standing(members: number[], most: number, period: number,
  * is asked.  A pool whose members all stand at once has one set for ever and
  * that is correct, not a failure: `max_limit` is the data's.
  */
-export function setsOver(members: number[], most: number, period: number,
-  from: number, to: number): number {
+export function setsOver(pool: number, members: number[], most: number,
+  period: number, from: number, to: number): number {
   const seen = new Set<string>()
   const step = Math.max(1, period || (to - from))
   for (let at = from; at <= to; at += step) {
-    seen.add(standing(members, most, period, at).join(','))
+    seen.add(standing(pool, members, most, period, at).join(','))
   }
   return seen.size
 }

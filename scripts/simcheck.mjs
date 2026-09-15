@@ -156,7 +156,7 @@ check('and the same seed gives the same fight',
     const pool = r[12] ?? 0
     if (!pool) continue
     const way = moves[r[10] ?? -1] ?? []
-    const got = pools.get(pool) ?? { members: [], most: r[13] ?? 0, period: way[4] ?? 0 }
+    const got = pools.get(pool) ?? { id: pool, members: [], most: r[13] ?? 0, period: way[4] ?? 0 }
     got.members.push(got.members.length)
     pools.set(pool, got)
   }
@@ -172,13 +172,13 @@ check('and the same seed gives the same fight',
   for (const [, p] of pools) {
     const seen = new Set()
     for (let at = FROM; at < FROM + DAY; at += STEP) {
-      seen.add(standing(p.members, p.most, p.period, at).join(','))
+      seen.add(standing(p.id, p.members, p.most, p.period, at).join(','))
     }
     mostSets = Math.max(mostSets, seen.size)
   }
   for (let at = FROM; at < FROM + DAY; at += STEP) {
     worlds.add([...pools.values()]
-      .map((p) => standing(p.members, p.most, p.period, at).join(',')).join('|'))
+      .map((p) => standing(p.id, p.members, p.most, p.period, at).join(',')).join('|'))
   }
   check('and a day does not find the same world twice', worlds.size >= 2,
     `${worlds.size} different worlds over a day, `
@@ -189,18 +189,74 @@ check('and the same seed gives the same fight',
   // pass the check above and be exactly the bug this repository's one stream
   // of chance exists to prevent.
   const twiceSame = [...pools.values()].every((p) =>
-    standing(p.members, p.most, p.period, FROM).join(',')
-    === standing(p.members, p.most, p.period, FROM).join(','))
+    standing(p.id, p.members, p.most, p.period, FROM).join(',')
+    === standing(p.id, p.members, p.most, p.period, FROM).join(','))
   const nextTurn = [...pools.values()].some((p) =>
-    standing(p.members, p.most, p.period, FROM).join(',')
-    !== standing(p.members, p.most, p.period, FROM + p.period).join(','))
+    standing(p.id, p.members, p.most, p.period, FROM).join(',')
+    !== standing(p.id, p.members, p.most, p.period, FROM + p.period).join(','))
   check('and the same moment is always the same world',
     twiceSame && nextTurn,
     twiceSame ? 'and one period on is a different one' : 'it rolled itself')
 
+  // **And two pools of the same shape are not the same pool.**  Issue 88 asked
+  // for `(world seed, pool id, respawn cycle)` and what shipped mixed the
+  // member's index within its pool with the cycle — no pool anywhere in it —
+  // while the comment above the function said the pool's id was the whole of
+  // it.  So every herb pool of three on a five-minute period rose the same
+  // member at the same moment as every other one, all over the forest.
+  //
+  // The herbs and the ore are where it shows, so they are read too: fifty
+  // node pools against four creature ones, and the shapes repeat.  A pair
+  // agreeing on a turn is chance; agreeing on **every** turn of a day is the
+  // bug.  Only pools that choose — fewer standing than there are members —
+  // because a pool that stands everybody has one answer and so does its twin.
+  {
+    const things = world('objects')
+    const all = [...pools.values()]
+    const nodes = new Map()
+    for (const r of things.objects ?? []) {
+      const pool = r[9] ?? 0
+      if (!pool) continue
+      const got = nodes.get(pool) ?? { id: pool, members: [],
+        most: things.pools?.[String(pool)] ?? 0, period: r[6] ?? 0 }
+      got.members.push(got.members.length)
+      nodes.set(pool, got)
+    }
+    all.push(...nodes.values())
+    const shapes = new Map()
+    for (const p of all) {
+      if (!p.period || !(p.most > 0 && p.most < p.members.length)) continue
+      const k = `${p.members.length}/${p.most}/${p.period}`
+      shapes.set(k, [...(shapes.get(k) ?? []), p])
+    }
+    let pairs = 0, lockstep = [], closest = 0
+    for (const [k, same] of shapes) {
+      for (let i = 0; i < same.length; i++) {
+        for (let j = i + 1; j < same.length; j++) {
+          const a = same[i], c = same[j]
+          let agree = 0, turns = 0
+          for (let at = FROM; at < FROM + DAY; at += a.period) {
+            turns++
+            if (standing(a.id, a.members, a.most, a.period, at).join(',')
+              === standing(c.id, c.members, c.most, c.period, at).join(',')) agree++
+          }
+          pairs++
+          closest = Math.max(closest, agree / turns)
+          if (agree === turns) lockstep.push(`${a.id}~${c.id} (${k})`)
+        }
+      }
+    }
+    check('and two pools of the same shape do not stand in lockstep over a day',
+      pairs > 0 && lockstep.length === 0,
+      lockstep.length ? `${lockstep.length} of ${pairs} pairs agree on every turn: `
+        + lockstep.slice(0, 4).join(', ')
+        : `${pairs} same-shaped pairs over ${all.length} pools, the closest `
+        + `agreeing on ${(closest * 100).toFixed(0)}% of a day's turns`)
+  }
+
   // And nothing stands that the data did not allow to stand.
   const overfull = [...pools.entries()].filter(([, p]) =>
-    standing(p.members, p.most, p.period, FROM).length
+    standing(p.id, p.members, p.most, p.period, FROM).length
       > Math.min(p.most || p.members.length, p.members.length))
   check('and never more of a slot than max_limit allows',
     overfull.length === 0,
