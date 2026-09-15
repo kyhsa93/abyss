@@ -1061,11 +1061,22 @@ check('and resting there is worth four times resting outside',
 // slice, and the two that matter say an item falls only while you hold a
 // particular quest — which is the table's own first example of what goes wrong
 // without it, and it looks like generosity rather than like a bug.
+//
+// **And it is rolled, not counted.**  This check was `gated.n > 0` — rows that
+// carry a condition — which is true of a world where `loot` never asks.  So a
+// gated body is gone through two hundred times without the quest and two
+// hundred times with it, on the real `loot`: nothing may fall the first time
+// and something must fall the second, or the gate is not the thing deciding.
 const gated = await p.evaluate(() => window.__gated())
-check('a quest item does not fall without the quest', gated.n > 0,
-  `${gated.n} drops in the world wait on a quest — `
-  + gated.gated.map((g) => `${g.entry} drops ${g.item} only for quest ${g.quest}`)
-    .join(', '))
+const without = await p.evaluate(() => window.__lootRoll(false, 200))
+const holding = await p.evaluate(() => window.__lootRoll(true, 200))
+check('a quest item does not fall without the quest',
+  gated.n > 0 && !!without && !without.holding && without.fell === 0
+    && !!holding && holding.holding && holding.fell > 0,
+  `${gated.n} drops in the world wait on a quest; creature ${without?.entry}'s `
+  + `item ${without?.item} at ${without?.chance}% fell ${without?.fell} times in `
+  + `${without?.times} without quest ${JSON.stringify(without?.need)} and `
+  + `${holding?.fell} times in ${holding?.times} holding it`)
 
 // 9q. The fifth kind of objective.  `Errand` held `kill` and `fetch` and the
 // quest page counts five; of the three that were missing, this slice uses

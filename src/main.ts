@@ -5671,6 +5671,23 @@ async function main() {
    * to a player and one fewer list to keep: nothing is carrying loot until
    * somebody looks.
    */
+  /**
+   * Whether a drop's `conditions` hold for the log as it stands.
+   *
+   * `pipeline/spawn_npcs.py` answers the side and ships what is left: `0` for
+   * always, a quest id for the one shape this slice has — one group, one quest
+   * held — and otherwise the groups, **any one of which is enough and every
+   * quest in which must hold**, a negative id being one that must *not* be.
+   * The first reading was `need && !held(need)`, which only ever knew the
+   * first shape; a list arriving there would have been truthy and never held.
+   */
+  const mayFall = (need: unknown): boolean => {
+    const held = (q: number) => log.held.some((h) => h.id === q)
+    if (!need) return true
+    if (typeof need === 'number') return held(need)
+    return (need as number[][]).some((group) =>
+      group.every((q) => (q > 0 ? held(q) : !held(-q))))
+  }
   const loot = (n: Npc): Said => {
     if (n.looted && n.hide && !n.skinned) {
       // **And what it asks for was found in the end.**  A herb and a vein
@@ -5706,11 +5723,11 @@ async function main() {
     const copper = between(lo, hi)
     if (copper > 0) { you.purse += copper; got.push([coin(copper)]) }
     for (const row of items) {
-      const [idx, chance, clo, chi, , item, need] = row as number[]
+      const [idx, chance, clo, chi, , item] = row as number[]
       // What `conditions` says has to be true first.  A quest item that falls
       // without the quest is the table's own first example of what goes wrong
       // when nobody reads it — and it looks like generosity, not like a bug.
-      if (need && !log.held.some((h) => h.id === need)) continue
+      if (!mayFall((row as unknown[])[6])) continue
       if (roll() * 100 >= chance!) continue
       // The id travels and the price no longer has to: `I_SELL` on the item
       // row is the same column this used to copy, and one fact in one place
@@ -13463,16 +13480,53 @@ async function main() {
   }
   /** What a drop needs before it drops, for the check that `conditions` bites. */
   ;(window as unknown as { __gated: () => unknown }).__gated = () => {
-    const gated: { entry: number; item: number; quest: number }[] = []
+    const gated: { entry: number; item: number; quest: unknown }[] = []
     for (const n of npcs) {
       for (const row of n.haul?.[2] ?? []) {
-        const need = (row as number[])[6] ?? 0
+        const need = (row as unknown[])[6] ?? 0
         if (need) gated.push({ entry: n.entry, item: (row as number[])[5]!, quest: need })
       }
     }
     return { gated: gated.slice(0, 4), n: gated.length,
       holding: log.held.map((h) => h.id) }
   }
+  /**
+   * Go through a gated body's pockets `times` times, with the quest or
+   * without it, and count what fell.
+   *
+   * `__gated` counted rows that *carry* a condition, so the check that read it
+   * passed whether or not `loot` ever asked — a gate nobody consults looks
+   * exactly like a gate.  This rolls the real `loot` on a real body.  Nothing
+   * it touches is kept: the stream of chance, the bag, the purse, the log and
+   * the body go back to what they were, because the checks after it roll too.
+   */
+  ;(window as unknown as { __lootRoll: (holding: boolean, times: number) => unknown })
+    .__lootRoll = (holding, times) => {
+      const n = npcs.find((m) => (m.haul?.[2] ?? []).some((r) => (r as unknown[])[6]))
+      if (!n) return null
+      const row = n.haul![2].find((r) => (r as unknown[])[6])! as unknown[]
+      const item = row[5] as number, need = row[6]
+      const quests = (typeof need === 'number' ? [need]
+        : (need as number[][]).flat().filter((q) => q > 0))
+      const was = { seed: seed(), bag: { ...you.bag }, purse: you.purse,
+        held: log.held.slice(), looted: n.looted }
+      log.held = log.held.filter((h) => !quests.includes(h.id))
+      if (holding) {
+        for (const q of quests) { const e = log.all.get(q); if (e) take(log, e) }
+      }
+      const has = quests.every((q) => log.held.some((h) => h.id === q))
+      let fell = 0
+      for (let i = 0; i < times; i++) {
+        const before = you.bag[String(item)] ?? 0
+        n.looted = false
+        loot(n)
+        if ((you.bag[String(item)] ?? 0) > before) fell++
+      }
+      reseed(was.seed)
+      you.bag = was.bag; you.purse = was.purse
+      log.held = was.held; n.looted = was.looted
+      return { entry: n.entry, item, need, chance: row[1], holding: has, times, fell }
+    }
   /** What the game can say out loud, and whether anything is lost with it off. */
   ;(window as unknown as { __sound: () => unknown }).__sound = () => ({
     loaded: soundReady(), muted: muteIsOn(), words: SOUNDS.length,

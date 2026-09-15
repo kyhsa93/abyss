@@ -58,7 +58,7 @@ from collections import Counter
 # constant but three constants that happen to agree.  A creature is in the
 # slice if it is in the forest.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from slice import BOUNDS, MAP, within  # noqa: E402,F401
+from slice import BOUNDS, MAP, RACES, RACE_ID, within  # noqa: E402,F401
 
 # `creature` column order, from the dump's own CREATE TABLE.
 C_GUID, C_ID, C_MAP, C_X, C_O = 0, 1, 4, 10, 13
@@ -501,10 +501,126 @@ def goods_of(cls, sub, food=None):
 # `SourceGroup` and the item in `SourceEntry`.
 SRC_CREATURE_LOOT = 1
 # And the condition types.  9 is "has this quest in the log"; 6 is "is on this
-# side", which for a game with one race is always true and is read anyway so
-# that a row nobody can satisfy is visible rather than invisible.
+# side", `ConditionValue1` being the side's faction — 469 the Alliance, 67 the
+# Horde.  Those two, and their negations, are the whole of what this game can
+# answer about a drop.  Every other kind is counted where it touches the slice
+# and **read as false**, because a quest item gated on something nobody here
+# can check is the generosity bug again if it is read as true.
 COND_QUEST_TAKEN, COND_TEAM = 9, 6
-TEAM_ALLIANCE = 469
+TEAM_ALLIANCE, TEAM_HORDE = 469, 67
+#: The races on each side, as `RACEMASK_ALLIANCE` in the core's
+#: `SharedDefines.h` spells it: human, dwarf, night elf, gnome, draenei.
+ALLIANCE_RACES = {1, 3, 4, 7, 11}
+
+
+def slice_team():
+    """Which side this game's character is on, out of `slice.json`'s races.
+
+    The closing comment on issue 86 said the side was read; it was read into a
+    list and then nothing asked it, so the seven rows that say "only for the
+    Alliance" were true by accident — the accident being that the slice's one
+    race is human.  A slice of orcs would have looted the Alliance's drops.
+    """
+    sides = {TEAM_ALLIANCE if RACE_ID[r] in ALLIANCE_RACES else TEAM_HORDE
+             for r in RACES}
+    if len(sides) != 1:
+        sys.exit(f'slice.json\'s races are on {len(sides)} sides; a drop gated '
+                 'on a side cannot be answered once for all of them')
+    return sides.pop()
+
+
+def drop_condition(groups, team):
+    """What a drop's `conditions` come to for this game, as far as it can say.
+
+    `groups` is `loot_conditions`' shape — a list of `ElseGroup`s, each a list
+    of `[type, value1, value2, negated]`.  **Within a group every row must
+    hold; any one group holding is enough.**  The side is answered here,
+    because the character's side is `slice.json`'s; a quest is answered in the
+    scene, because it is the log's.
+
+    Returns `(verdict, need, unanswered)`:
+
+      * `verdict` — `True` it always falls, `False` it never can for this
+        side, `None` it depends on the log;
+      * `need` — when it depends, the groups still standing, each a list of
+        quest ids that must be held, negative for one that must *not* be;
+      * `unanswered` — the condition types in it this game cannot ask.
+
+    The first version of this flattened every group into one list and kept a
+    positive quest wherever it found one, which is neither AND nor OR: a
+    negated quest was dropped, the side was dropped, and two groups became one.
+    """
+    unanswered = Counter()
+    live, always = [], not groups
+    for group in groups:
+        need, dead = [], False
+        for kind, v1, _v2, negated in group:
+            if kind == COND_TEAM:
+                if (v1 == team) == bool(negated):
+                    dead = True
+            elif kind == COND_QUEST_TAKEN:
+                need.append(-v1 if negated else v1)
+            else:
+                unanswered[kind] += 1
+                dead = True
+        if dead:
+            continue
+        if not need:
+            always = True
+        else:
+            live.append(sorted(need))
+    if always:
+        return True, [], unanswered
+    if not live:
+        return False, [], unanswered
+    return None, live, unanswered
+
+
+def check_drop_conditions(gated):
+    """The AND/OR table, on rows the dump actually has.
+
+    The issue asked for this as a table in a check, because read the wrong way
+    round the condition runs backwards and nothing looks like an error.  Two
+    real rows carry both halves of it:
+
+      * `(4130, 5877)` is one group of two — the Horde **and** quest 1147.  An
+        Alliance character never gets it whatever is in his log; a Horde one
+        only with the quest.  Read as OR, the Alliance would loot it holding
+        the quest.
+      * `(10738, 12842)` is three groups of one each — quest 5121 complete,
+        taken, **or** rewarded.  Two of those three kinds this game cannot
+        ask, and read as AND the one it can ask would be dragged down with
+        them and the item would never fall.
+
+    And a negation, which no row on the loot path carries: the first row with
+    its side flipped to *not* the Horde.
+    """
+    and_row, or_row = gated.get((4130, 5877)), gated.get((10738, 12842))
+    if not and_row or not or_row:
+        sys.exit('the two conditions rows the AND/OR check is written against '
+                 'have moved: %s %s' % (and_row, or_row))
+    flipped = [[[k, v1, v2, 1 if k == COND_TEAM else n] for k, v1, v2, n in g]
+               for g in and_row]
+    got = {
+        'AND, Alliance': drop_condition(and_row, TEAM_ALLIANCE)[:2],
+        'AND, Horde': drop_condition(and_row, TEAM_HORDE)[:2],
+        'OR, three kinds': drop_condition(or_row, TEAM_ALLIANCE)[:2],
+        'NOT Horde, Alliance': drop_condition(flipped, TEAM_ALLIANCE)[:2],
+        'NOT Horde, Horde': drop_condition(flipped, TEAM_HORDE)[:2],
+        'nothing': drop_condition([], TEAM_ALLIANCE)[:2],
+    }
+    want = {
+        'AND, Alliance': (False, []), 'AND, Horde': (None, [[1147]]),
+        'OR, three kinds': (None, [[5121]]),
+        'NOT Horde, Alliance': (None, [[1147]]), 'NOT Horde, Horde': (False, []),
+        'nothing': (True, []),
+    }
+    wrong = {k: (got[k], want[k]) for k in want if got[k] != want[k]}
+    if wrong:
+        sys.exit('conditions are not read as AND within a group and OR across '
+                 'them: %s' % wrong)
+    print('check: conditions read as AND within an ElseGroup and OR across them, '
+          'on %d real rows and a negation' % 2)
 
 
 def loot_conditions(base):
@@ -781,7 +897,7 @@ def skinning_tables(base, cut):
     return out
 
 
-def loot_tables(base, kinds_by_entry, cut=None):
+def loot_tables(base, kinds_by_entry, cut=None, gates=None):
     """What each creature carries: coins, and things by what sort they are.
 
     `creature_loot_template` keyed through `creature_template.lootid`, which is
@@ -789,6 +905,11 @@ def loot_tables(base, kinds_by_entry, cut=None):
     `reference_loot_template` resolved into it by `flatten`.
     """
     gated = loot_conditions(base)
+    check_drop_conditions(gated)
+    team = slice_team()
+    # What the conditions did, per loot table, so the report can be made over
+    # the tables this slice actually reaches rather than over all of them.
+    gates = {} if gates is None else gates
     iclass, sells = {}, {}
     for line in rows(os.path.join(base, 'item_template.sql')):
         f = split_head(line, 12)
@@ -830,11 +951,23 @@ def loot_tables(base, kinds_by_entry, cut=None):
             # was *written* in, so a referenced row carries the reference's
             # conditions and not the creature's — which is right: the
             # reference is where somebody wrote the rule down.
-            need = 0
-            for either in gated.get((lid, item), ()):
-                for kind, v1, _v2, negate in either:
-                    if kind == COND_QUEST_TAKEN and not negate:
-                        need = v1
+            #
+            # What ships is `0` for "always", the quest id for the one shape
+            # this slice has (one group, one quest held), and the groups
+            # themselves for anything else — see `drop_condition`.  A drop
+            # that can never fall for this side does not ship at all.
+            verdict, groups, unanswered = drop_condition(
+                gated.get((lid, item), []), team)
+            seen = gates.setdefault(lid, Counter())
+            seen['rows'] += 1 if (lid, item) in gated else 0
+            seen.update({f'type {k}': v for k, v in unanswered.items()})
+            if verdict is False:
+                seen['never'] += 1
+                continue
+            need = (0 if verdict else groups[0][0]
+                    if len(groups) == 1 and len(groups[0]) == 1 and groups[0][0] > 0
+                    else groups)
+            seen['waits'] += 1 if need else 0
             by_loot.setdefault(lid, []).append(
                 (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
                  max(0, sells.get(item, 0)), item, need))
@@ -1489,7 +1622,8 @@ def main(acore, out):
         topic_list.append(t)
 
     lost = Counter()
-    carried = loot_tables(base, None, lost)
+    gates = {}
+    carried = loot_tables(base, None, lost, gates)
     skins = skinning_tables(base, lost)
     goods, hauls, haul_at = [], [], {}
     kinds, roles, out_rows, arms = [], [], [], []
@@ -1694,6 +1828,17 @@ def main(acore, out):
         sys.exit(1)
     carry = sum(1 for r in out_rows if hauls[r[8]][2])
     print(f'  loot: {len(hauls)} distinct, {carry:,} spawns carry something')
+    # And what `conditions` did to it, over the loot tables this slice reaches.
+    # The kinds it cannot answer are named by number, because "read as false"
+    # is a decision and a decision nobody can see is a default.
+    reach = Counter()
+    for lid in {info[r[9]][9] for r in out_rows if info[r[9]][9]}:
+        reach.update(gates.get(lid, {}))
+    cannot = {k: v for k, v in reach.items() if k.startswith('type ')}
+    print(f"  conditions: {reach['rows']} rows touch this slice's loot, "
+          f"{reach['waits']} drops wait on a quest, {reach['never']} can never "
+          f"fall for this side; kinds it cannot answer, read as false: "
+          + (', '.join(f'{k} x{v}' for k, v in sorted(cannot.items())) or 'none'))
     sold = [i[4] for h in hauls for i in h[2] if i[4]]
     print(f'  worth: {len(goods)} words, {len(sold)} priced drops, '
           f'median {sorted(sold)[len(sold) // 2] if sold else 0}동')
