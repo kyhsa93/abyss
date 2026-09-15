@@ -1146,6 +1146,22 @@ places the picture moved 0.03% at most, which is people walking. `padcheck`
 holds every canvas the page makes and asserts four rounds of zooming hold no
 more than one, and that frames are still coming.
 
+**And on an iPhone the first pinch in closed it, because one canvas was wider
+than the phone's GPU.** Reported from a home-screen app: zoom in, the first
+pinch, the game stops and closes — one allocation and not an accumulation. It
+did not happen in Chromium at all, a hundred and eighty pinches with the
+renderer flat at 450 to 557 MB. What gave it away was measuring the longest side
+of every canvas the game makes, at every step, in Goldshire, at the abbey and in
+all twenty-five buildings: only the ground atlas and the strip it is copied
+from passed 2,048, and the atlas was one strip — every picture side by side —
+so it was 7,029 wide at the phone's opening zoom of 1 and **8,733 at 1.25**.
+An iPhone uploads a canvas as a texture and 8,192 is the side it has. The game
+opened at 1 and died at the first step in. The atlas is folded into bands now,
+as many pictures across as 4,096 pixels holds — also the side of the
+16.7-megapixel area iOS allows a canvas — and every read of it goes through
+`top` for the band. `padcheck` records the longest side any canvas had when it
+was drawn into and holds it to 4,096 over every phone step.
+
 Two things guard it, and neither restates the arithmetic. `viewcheck` walks
 **seven zooms** rather than the one it used to read — the old check typed
 `__cam({ zoom: 0.12 })`, which after this is a screen no player can reach, so

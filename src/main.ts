@@ -9014,7 +9014,25 @@ async function main() {
     sheets.clear()
     sheetBytes = 0
   }
-  type Baked = { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> }
+  type Baked = {
+    key: number; px: number; c: HTMLCanvasElement
+    /** Where a picture's column starts, and where its band of shades does. */
+    at: Record<string, number>; top: Record<string, number>
+  }
+  /**
+   * **No side of the atlas is longer than 4,096 pixels.**
+   *
+   * It was one strip, every picture side by side and a row per shade under
+   * them, so its width was the picture count times the tile: 7,029 at zoom 1
+   * and 8,733 at 1.25.  An iPhone puts a canvas on the GPU as a texture, and a
+   * texture side past 8,192 is more than it has — so on a phone the game opened
+   * at 1 and the first pinch in to 1.25 closed it.  Every other canvas here is
+   * under 2,048 on a side at every step.  The atlas is folded into bands now,
+   * as many pictures across as 4,096 holds, which is also the side of the
+   * 16.7-megapixel area iOS allows one canvas.  At a desktop's zoom 3 the bands
+   * run taller than that; a phone never gets past 1.25.
+   */
+  const ATLAS_SIDE = 4096
   let baked: Baked | null = null
   /**
    * The atlas before this one, kept.  A pinch in and back out on a phone
@@ -9069,12 +9087,15 @@ async function main() {
       ...ids.filter((id) => id.startsWith('t_'))]
     const pieces = order.findIndex((id) => id.startsWith('t_'))
     const split = pieces < 0 ? order.length : pieces
+    const across = Math.max(1, Math.floor(ATLAS_SIDE / px))
+    const bands = Math.ceil(order.length / across)
     const c = document.createElement('canvas')
-    c.width = px * order.length
-    c.height = px * SHADES
+    c.width = px * Math.min(order.length, across)
+    c.height = px * SHADES * bands
     const g = c.getContext('2d')!
     g.imageSmoothingEnabled = false
     const at: Record<string, number> = {}
+    const top: Record<string, number> = {}
     // Into a strip of its own and copied from there.  Copied from the atlas's
     // own first row into its other rows, a canvas drawn on to itself took the
     // slow path — the whole canvas snapshotted for every row — and the first
@@ -9084,29 +9105,41 @@ async function main() {
     row.height = px
     const rg = row.getContext('2d')!
     rg.imageSmoothingEnabled = false
-    order.forEach((id, i) => {
-      at[id] = i * px
-      const p = tilesMeta[id]!
-      rg.drawImage(tilesImg, p.x, p.y, p.w, p.h, i * px, 0, px, px)
-    })
-    for (let j = 0; j < SHADES; j++) g.drawImage(row, 0, j * px)
-    releaseCanvas(row)
-    for (let j = 0; j < SHADES; j++) {
-      const wash = washOf(j)
-      if (!wash) continue
-      g.fillStyle = wash
-      // A fill is a full square and on a whole tile that never mattered; an
-      // edge piece is mostly hole, and tinting the hole paints a grey square
-      // around every boundary in the world — so over the pieces, only where
-      // the piece is.
-      if (split > 0) g.fillRect(0, j * px, split * px, px)
-      if (split < order.length) {
-        g.globalCompositeOperation = 'source-atop'
-        g.fillRect(split * px, j * px, (order.length - split) * px, px)
-        g.globalCompositeOperation = 'source-over'
+    for (let band = 0; band < bands; band++) {
+      const from = band * across
+      const to = Math.min(order.length, from + across)
+      const y0 = band * SHADES * px
+      rg.clearRect(0, 0, row.width, row.height)
+      for (let i = from; i < to; i++) {
+        const id = order[i]!
+        at[id] = (i - from) * px
+        top[id] = y0
+        const p = tilesMeta[id]!
+        rg.drawImage(tilesImg, p.x, p.y, p.w, p.h, (i - from) * px, 0, px, px)
+      }
+      for (let j = 0; j < SHADES; j++) g.drawImage(row, 0, y0 + j * px)
+      // What of this band is whole tiles and what is edge pieces: the pieces
+      // are at the end of the order, so a band is whole tiles, pieces, or
+      // whole tiles and then pieces.
+      const wholeTo = Math.max(from, Math.min(split, to))
+      for (let j = 0; j < SHADES; j++) {
+        const wash = washOf(j)
+        if (!wash) continue
+        g.fillStyle = wash
+        // A fill is a full square and on a whole tile that never mattered; an
+        // edge piece is mostly hole, and tinting the hole paints a grey square
+        // around every boundary in the world — so over the pieces, only where
+        // the piece is.
+        if (wholeTo > from) g.fillRect(0, y0 + j * px, (wholeTo - from) * px, px)
+        if (to > wholeTo) {
+          g.globalCompositeOperation = 'source-atop'
+          g.fillRect((wholeTo - from) * px, y0 + j * px, (to - wholeTo) * px, px)
+          g.globalCompositeOperation = 'source-over'
+        }
       }
     }
-    baked = { key, px, c, at }
+    releaseCanvas(row)
+    baked = { key, px, c, at, top }
     return baked
   }
 
@@ -9181,9 +9214,10 @@ async function main() {
       for (let j = 0; j < m; j++) {
         const ci = swap ? col(j) : col(i)
         const cj = swap ? row(i, j) : row(j, i)
-        const at = ground.at[`${id}${KIT_CELLS[ci + cj * KIT_COLS]}`]
+        const cell = `${id}${KIT_CELLS[ci + cj * KIT_COLS]}`
+        const at = ground.at[cell]
         if (at === undefined) continue
-        g.drawImage(ground.c, at, step * px, px, px, i * px, j * px, px, px)
+        g.drawImage(ground.c, at, ground.top[cell]! + step * px, px, px, i * px, j * px, px, px)
       }
     }
     sheets.set(key, c)
@@ -9207,7 +9241,7 @@ async function main() {
       c.width = px; c.height = px
       const g = c.getContext('2d')!
       g.imageSmoothingEnabled = false
-      g.drawImage(ground.c, at, step * px, px, px, 0, 0, px, px)
+      g.drawImage(ground.c, at, ground.top[id]! + step * px, px, px, 0, 0, px, px)
       pat = ctx.createPattern(c, 'repeat')
       pat?.setTransform(new DOMMatrix().scaleSelf(1 / px))
       // And the same square as one colour, for the parts of a footprint the
@@ -11346,7 +11380,7 @@ async function main() {
       // the axes it lies in.
       if (mode === 'over' && !built && !water) return 0
       if (water) waterTilesDrawn++
-      g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
+      g.drawImage(ground.c, ground.at[id]!, ground.top[id]! + step * px, px, px,
         Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
       // A tuft moved up to a tenth of the tile — three pixels of thirty-two,
       // inside the grass sheet's plain border — over the same picture laid
@@ -11355,7 +11389,7 @@ async function main() {
       if (mode === 'plain' && NUDGED.has(id)) {
         const nx = Math.round((hash(ti + 5, tj + 13) - 0.5) * wide * 0.2)
         const ny = Math.round((hash(ti + 17, tj + 3) - 0.5) * wide * 0.2)
-        g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
+        g.drawImage(ground.c, ground.at[id]!, ground.top[id]! + step * px, px, px,
           Math.round(cx - wide / 2) + nx, Math.round(cy - wide / 2) + ny, wide, wide)
       }
       // A plate blends its grounds itself, across the tile rather than a tile
@@ -11402,7 +11436,7 @@ async function main() {
           const other = tileFor(mix[0])
           if (other !== id) {
             g.globalAlpha = Math.min(1, mix[1])
-            g.drawImage(ground.c, ground.at[other]!, step * px, px, px,
+            g.drawImage(ground.c, ground.at[other]!, ground.top[other]! + step * px, px, px,
               Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
             g.globalAlpha = 1
             blended = true
@@ -11433,9 +11467,10 @@ async function main() {
           const bits = (q[0] === top ? 8 : 0) | (q[1] === top ? 4 : 0)
             | (q[2] === top ? 2 : 0) | (q[3] === top ? 1 : 0)
           const which = PIECE[bits]
-          const cut = top && which ? ground.at[`${RING[top]}_${which}`] : undefined
+          const ringKey = top && which ? `${RING[top]}_${which}` : ''
+          const cut = ringKey ? ground.at[ringKey] : undefined
           if (cut !== undefined) {
-            g.drawImage(ground.c, cut, step * px, px, px,
+            g.drawImage(ground.c, cut, ground.top[ringKey]! + step * px, px, px,
               Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
             edged++
             blendedEver++
@@ -11456,9 +11491,10 @@ async function main() {
           ]
           const bits = lit[0]! | lit[1]! | lit[2]! | lit[3]!
           const which = bits === 15 ? null : PIECE[bits]
-          const cut = which ? ground.at[`t_shore_${which}`] : undefined
+          const shoreKey = which ? `t_shore_${which}` : ''
+          const cut = shoreKey ? ground.at[shoreKey] : undefined
           if (cut !== undefined) {
-            g.drawImage(ground.c, cut, step * px, px, px,
+            g.drawImage(ground.c, cut, ground.top[shoreKey]! + step * px, px, px,
               Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
             edged++
             blendedEver++
@@ -12266,9 +12302,10 @@ async function main() {
           // once you have walked in: a doorway that shows a different floor
           // from the room behind it is a doorway into somewhere else.
           const inside = (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall'])?.(0.5)
-          const floor = ground.at[inside ?? ''] ?? ground.at[FLOOR_TILE]
+          const floorKey = ground.at[inside ?? ''] !== undefined ? inside ?? '' : FLOOR_TILE
+          const floor = ground.at[floorKey]
           if (floor !== undefined) {
-            ctx.drawImage(ground.c, floor, 0, px, px, x0, y0, dw, dh)
+            ctx.drawImage(ground.c, floor, ground.top[floorKey] ?? 0, px, px, x0, y0, dw, dh)
           } else {
             ctx.fillStyle = '#2a2119'
             ctx.fillRect(x0, y0, dw, dh)
@@ -13663,6 +13700,7 @@ async function main() {
     const g = tintedGround()
     return {
       rows: SHADES, flat: FLAT_ROW, high: g.c.height, tile: g.px, wide: g.c.width,
+      bands: g.c.height / (g.px * SHADES),
       indoor: [...indoorRows],
     }
   }

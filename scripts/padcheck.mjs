@@ -37,11 +37,21 @@ await ctx.addInitScript(() => {
     return el
   }
   let frames = 0
+  // And the longest side any canvas has had when it was drawn into, because a
+  // strip copied and released a moment later is gone by the time anybody asks.
+  let longest = { side: 0, w: 0, h: 0 }
+  const getContext = HTMLCanvasElement.prototype.getContext
+  HTMLCanvasElement.prototype.getContext = function (...args) {
+    const side = Math.max(this.width, this.height)
+    if (side > longest.side) longest = { side, w: this.width, h: this.height }
+    return getContext.apply(this, args)
+  }
   const raf = window.requestAnimationFrame.bind(window)
   window.requestAnimationFrame = (f) => raf((t) => { frames++; f(t) })
   window.__canvasHeld = () => ({
     MB: made.reduce((a, c) => a + (c.width && c.height ? c.width * c.height * 4 : 0), 0) / 1048576,
     frames,
+    longest,
   })
 })
 const p = await ctx.newPage()
@@ -211,6 +221,13 @@ await p.waitForTimeout(200)
   const last = await round()
   await p.waitForTimeout(500)
   const later = await p.evaluate(() => window.__canvasHeld())
+  // **And no canvas is a texture an iPhone cannot hold.**  The ground atlas
+  // was one strip 8,733 pixels wide at 1.25, past the 8,192 an iPhone's GPU
+  // takes on a side, and on a phone the first pinch in closed the game.  Every
+  // step has now been visited, so every size the atlas takes has been drawn.
+  check('no canvas on a phone is longer than 4,096 pixels on a side',
+    later.longest.side <= 4096,
+    `the longest was ${later.longest.w} x ${later.longest.h}`)
   check('zooming round a phone\'s steps does not pile up canvas memory',
     last.MB <= first.MB + 1 && later.frames > last.frames + 10,
     `${first.MB.toFixed(1)} MB after one round, ${last.MB.toFixed(1)} after four, `

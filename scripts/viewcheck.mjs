@@ -560,8 +560,12 @@ check('and a good share of the forest actually carries one',
   // the ground's own texture is louder than the light.
   const lit = await p.evaluate(() => window.__shading())
   check('the light is multiplied over the ground, so the atlas does not grow',
-    lit.high === lit.tile * lit.rows && lit.flat > 0 && lit.flat < lit.rows,
-    `${lit.rows} rows of ${lit.tile} px, and a plate is composed from row `
+    // In bands since issue 239 — as many pictures across as 4,096 pixels
+    // holds — so the height is the rows times the bands; what must not grow
+    // is the rows.
+    Number.isInteger(lit.bands) && lit.high === lit.tile * lit.rows * lit.bands
+    && lit.flat > 0 && lit.flat < lit.rows,
+    `${lit.rows} rows of ${lit.tile} px in ${lit.bands} bands, and a plate is composed from row `
     + `${lit.flat}, the one that is not tinted`)
 
   // And a room is lit flat, which 실내 바닥 asks for in so many words: three
