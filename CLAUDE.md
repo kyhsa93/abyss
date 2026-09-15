@@ -1311,6 +1311,13 @@ copper at these levels — 1,457 from errands and the rest off what dies — aga
 2,310 for every lesson the dearest of the six classes is sold and 35,089 for
 the best of every slot. So it covers the training and it does not cover everything, which is the
 difference between an economy and a procedure, and `items.py` asserts both ends.
+**Or it did, and the second end was false.** The 35,089 was the dearest item in
+the *catalogue* for each slot, including things no shop sells; counted off the
+shelves the zone buys out its shops, and the `earn < lessons + kit` line went in
+70b45b4 (issue 199). What `items.py` asserts now is that the lessons are paid
+for and that the shelves cost more than the trainer — and
+`docs/promised-checks.md` says the promise was withdrawn rather than pointing at
+a line that no longer holds it, which it went on doing for a day.
 **Levelling opens nothing on its own**: it opens what a trainer will sell you,
 which is the shape this stretch of the game actually has.
 

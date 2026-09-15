@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **196 promises across 22 pages, 173 of them kept.**
+Counted: **196 promises across 22 pages, 171 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -277,7 +277,7 @@ keeps it honest.
 | --- | --- |
 | 구운 퀘스트가 전부 `slice.json` 의 레벨 안에 있다 | `pipeline/quests.py: taken_at` |
 | 구운 퀘스트를 전부 그 클래스가 받을 수 있다 | `scripts/classcheck.mjs: "no errand is shipped for a class this game has not got"` |
-| **레벨 1~10에 벌 수 있는 퀘스트 돈 < 훈련비 + 최고 장비** | `pipeline/items.py: purse` |
+| **레벨 1~10에 벌 수 있는 퀘스트 돈 < 훈련비 + 최고 장비** | — 지키는 검사가 없다. `purse` 가 이 모양으로 단언한 것은 퀘스트 돈과 떨어지는 것을 합친 `earn < lessons + kit` 한 줄뿐이었고, 그 줄은 거짓이라 70b45b4 (#199) 에서 지워졌다. 퀘스트 돈만 따로 재면 지금도 참이지만 아무도 단언하지 않는다 |
 | 보상 아이템이 전부 `items.json` 안에 있다 | `pipeline/items.py: check_rewards` |
 | `ExclusiveGroup` 이 같은 것 중 하나만 할 수 있다 | `scripts/questcheck.mjs: "no two of one exclusive group are both on offer"` |
 | **이 지역의 일거리를 다 하면 평판이 한 등급을 넘는다** | `pipeline/quests.py: check_standing` |
@@ -302,7 +302,7 @@ keeps it honest.
 | 약속 | 지키는 검사 |
 | --- | --- |
 | 슬라이스에서 벌 수 있는 돈 ≥ 훈련 비용 | `pipeline/items.py: "the slice pays about"` |
-| 슬라이스에서 벌 수 있는 돈 < 훈련 + 최고 장비 | `pipeline/items.py: "the slice pays about"` |
+| 슬라이스에서 벌 수 있는 돈 < 훈련 + 최고 장비 | — 거둬들인 약속이다. 참이 아니기 때문이다: `kit` 이 가게가 파는 것이 아니라 카탈로그 전체의 슬롯별 최고가였고, 가게가 실제로 파는 것으로 재니 이 지역의 돈이 훈련비와 가게를 다 산다. 그래서 `"the slice pays about"` 옆의 `<` 단언은 70b45b4 (#199) 에서 지워졌고, `purse` 에 남은 것은 장비값 > 훈련비 한 줄이다 |
 | 모든 상인의 `item` 이 구운 아이템 안에 있다 | `pipeline/items.py: "things for sale"` |
 | 모든 훈련사의 주문이 구운 주문 안에 있다 | `pipeline/items.py: "trainers over"` |
 | `SellPrice = 0` 인 전리품의 비율 | — 떨어지는 것에 행이 있는지는 보지만(`"can fall off something here"`), 그중 못 파는 것의 **비율**은 아무도 안 센다 |
