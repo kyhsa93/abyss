@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **199 promises across 22 pages, 179 of them kept.**
+Counted: **199 promises across 22 pages, 181 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -254,8 +254,8 @@ keeps it honest.
 | **줌의 천장이 유도된 수다** | `scripts/viewcheck.mjs: "the zoom floor is the opening framing over the camera slider"` |
 | **어느 줌에서도 프레임률이 바닥 아래로 안 떨어진다** | `scripts/viewcheck.mjs: "no zoom drops the ground below the floor"` |
 | **가장 멀리 당긴 화면에서 사람이 곁의 글자보다 작지 않다** | `scripts/padcheck.mjs: "and a person is no smaller there than the type beside him"` |
-| 세계 캔버스가 `pixelated` 다 | — 캔버스의 CSS 를 읽는 것이 없다 |
-| 예산표에 전화기 열이 있고 넘긴 것이 없다 | — `docs/budget.md` 는 실측이지만 전화기 열이 따로 없다 |
+| 세계 캔버스가 `pixelated` 다 | `scripts/padcheck.mjs: "the world canvas is pixelated where the glass scales it, and only there"` |
+| 예산표에 전화기 열이 있고 넘긴 것이 없다 | `scripts/budgetcheck.mjs: "and nothing on the table is over what a phone may spend"` |
 | **두 마리가 붙었을 때의 사망률을 전화기에서도 잰다** | — 싸움은 `src/sim/duel.ts` 하나라 기기를 모르고 두 마리는 `simcheck` 이 이미 잰다; 기기에 따라 달라지는 것은 누가 무엇을 겨누느냐인데, 그 손가락을 400판 돌릴 모형이 없다 |
 
 ## [처음-만드는-화면](https://github.com/kyhsa93/abyss/wiki/처음-만드는-화면)

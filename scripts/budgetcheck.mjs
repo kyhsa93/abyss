@@ -37,11 +37,24 @@ const check = (what, ok, detail) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}   -> ${detail}`)
   if (!ok) bad++
 }
-/** A measured line: what it is, what it came to, what it may not pass. */
-const budget = (what, got, limit, unit, note) => {
-  rows.push({ what, got, limit, unit, note })
+/**
+ * A measured line: what it is, what it came to, what it may not pass — and
+ * what a phone may spend on it.
+ *
+ * Issue 141 and the wiki page 전화기 both said the same thing about this
+ * document: *every figure in it is a desktop's*, and a phone pays a different
+ * bill.  Most of the bill is the same bytes — the script and the world come
+ * down the same wire, cellular or not — and saying so row by row is the
+ * column; the rows where a phone's allowance is tighter carry their own number.
+ * `'same'` is the desktop's limit, `'none'` is a line a phone never pays.
+ */
+const budget = (what, got, limit, unit, note, phone = 'same') => {
+  rows.push({ what, got, limit, unit, note, phone })
   return got <= limit
 }
+/** The limit a row holds a phone to, or nothing when a phone never pays it. */
+const onPhone = (r) => r.phone === 'none' ? null
+  : r.phone === 'same' ? r.limit : r.phone
 const shown = (v, unit) => unit === 'MB' ? `${(v / MB).toFixed(2)} MB`
   : unit === 'KB' ? `${(v / KB).toFixed(0)} KB` : `${v}`
 
@@ -114,7 +127,9 @@ check('and the whole deploy fits in what a Pages site may be',
   budget('everything the deploy carries', carried, 200 * MB, 'MB',
     'on disk, not gzipped, and every file — both worlds, all 157 sheets, '
     + 'every icon.  A Pages site may be a gigabyte; two hundred megabytes is '
-    + 'where this repository would start thinking about `git lfs` again'),
+    + 'where this repository would start thinking about `git lfs` again.  A '
+    + 'phone downloads none of it that the rows above do not already count',
+    'none'),
   `${(carried / MB).toFixed(1)} MB on disk of 200`)
 
 // The sounds, which were eight files nobody had weighed and are now eight
@@ -221,7 +236,9 @@ const all = files.filter((f) => f.endsWith('.png'))
 check('and the sheets do not creep',
   budget('the sheets the scene opens, decoded', pixels * 4, 24 * MB, 'MB',
     '`width × height × 4`, not the file size — a transparent pixel is free in '
-    + 'a PNG and full price in memory.  A ratchet rather than a device limit'),
+    + 'a PNG and full price in memory.  A ratchet rather than a device limit, '
+    + 'and the phone\'s row: its twenty-four is the one a phone is held to',
+    24 * MB),
   `${(pixels * 4 / MB).toFixed(1)} MB of 24 — a phone's headroom is not `
   + `a desktop's, and the ratchet is what stops the atlas doubling`)
 console.log(`      (of which ${(inHand / MB).toFixed(2)} MB is whatever is in `
@@ -232,7 +249,9 @@ console.log(`      (of which ${(inHand / MB).toFixed(2)} MB is whatever is in `
   + ')')
 check('the sheets fit in memory once decoded',
   budget('and against the desktop ceiling', pixels * 4, 64 * MB, 'MB',
-    'the same pixels against the figure the budget page has always carried'),
+    'the same pixels against the figure the budget page has always carried.  '
+    + 'A desktop\'s ceiling and not a phone\'s, which is the row above',
+    24 * MB),
   `${((pixels * 4) / MB).toFixed(1)} MB of 64 over the ${loaded.length} the `
   + `scene opens (of ${all.length} shipped, `
   + `${((all.reduce((n, f) => n + size(f), 0) * 4) / MB).toFixed(0)} MB if all `
@@ -321,6 +340,27 @@ check('the sheets fit in memory once decoded',
  * sixty-four, why one world and not two — and points here for the numbers,
  * because a number in two places is a number that goes stale in one of them.
  */
+// --- and the phone's column, which the table did not have ------------------
+//
+// Asserted rather than only printed, because the promise is *a phone column
+// and nothing over it* and a column nobody holds anything to is a column of
+// words.  What it cannot hold is written under the table: frames a second,
+// which this machine has no GPU to measure, and the canvas, which is CSS
+// pixels by decision and so is the phone's viewport — `padcheck`'s business.
+{
+  const held = rows.filter((r) => onPhone(r) !== null)
+  const over = held.filter((r) => r.got > onPhone(r))
+  check('and nothing on the table is over what a phone may spend',
+    held.length > 0 && rows.some((r) => typeof r.phone === 'number')
+    && over.length === 0,
+    over.length
+      ? over.map((r) => `${r.what}: ${shown(r.got, r.unit)} of `
+        + `${shown(onPhone(r), r.unit)} on a phone`).join('; ')
+      : `${held.length} rows a phone pays, `
+        + `${rows.filter((r) => typeof r.phone === 'number').length} of them `
+        + 'held tighter than a desktop')
+}
+
 const DOC = 'docs/budget.md'
 const table = [
   '# The performance budget, measured',
@@ -338,10 +378,21 @@ const table = [
   'page opened with *"every number above is a draft"* while this check had been',
   'going red on four of them for rounds.',
   '',
-  '| what | measured | budget |',
-  '| --- | ---: | ---: |',
+  '| what | measured | budget | on a phone |',
+  '| --- | ---: | ---: | ---: |',
   ...rows.map((r) => `| ${r.what} | ${shown(r.got, r.unit)} | `
-    + `${shown(r.limit, r.unit)} |`),
+    + `${shown(r.limit, r.unit)} | `
+    + `${r.phone === 'none' ? 'not paid' : r.phone === 'same' ? 'the same'
+      : shown(r.phone, r.unit)} |`),
+  '',
+  '**On a phone** is what a phone may spend on the same line.  Most of it is',
+  'the same bytes down a slower wire, so it is the same limit; the decoded',
+  'sheets are held to twenty-four, which was always the phone\'s number, and',
+  'the deploy is not downloaded by anybody.  Two things a phone pays are not',
+  'on the table because nothing here can measure them: frames a second, for',
+  'want of a GPU on this machine, and the canvas, which is sized in CSS pixels',
+  'on purpose — 390 by 844 whatever the device ratio, a third of a 1280 by',
+  '800 desktop — so it is the viewport and not a budget.',
   '',
   ...rows.flatMap((r) => [`* **${r.what}** — ${r.note}.`]),
   '',

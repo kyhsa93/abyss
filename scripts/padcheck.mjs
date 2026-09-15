@@ -1461,6 +1461,41 @@ check('the readout and the help line are Korean',
     + `${after.rows.map((r) => r.name).join(', ')} after a reload`)
 }
 
+// 15. The world is composited as pixels where the glass scales it, and only
+// there.
+//
+// The canvas is CSS pixels on purpose, so a phone at a device ratio of two or
+// three scales the picture up to composite it, and left to the default it
+// blurs every tile in the game — issue 141, invisible on a desktop because a
+// ratio of one has nothing to scale.  The stylesheet asks for `pixelated` from
+// 1.5 up and not below, because at one it changes nothing about the picture
+// and measured it cost a third of the frame rate.  Nothing had read the rule
+// back: this opens the page at each side of that line, a real
+// `deviceScaleFactor` apiece, and reads what the world canvas computed.
+{
+  const read = async (dpr) => {
+    const c = await b.newContext({ viewport: { width: 800, height: 600 },
+      deviceScaleFactor: dpr })
+    const q = await c.newPage()
+    await q.goto(HOST)
+    await q.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+    const got = await q.evaluate(() => {
+      // The world is the canvas the scene draws on: the widest one there is.
+      const all = [...document.querySelectorAll('canvas')]
+      const world = all.sort((x, y) => y.width * y.height - x.width * x.height)[0]
+      return world ? getComputedStyle(world).imageRendering : null
+    })
+    await c.close()
+    return got
+  }
+  const at = {}
+  for (const dpr of [1, 1.4, 1.5, 2, 3]) at[dpr] = await read(dpr)
+  check('the world canvas is pixelated where the glass scales it, and only there',
+    at[1] === 'auto' && at[1.4] === 'auto'
+    && at[1.5] === 'pixelated' && at[2] === 'pixelated' && at[3] === 'pixelated',
+    Object.entries(at).map(([k, v]) => `dpr ${k}: ${v}`).join(', '))
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()
