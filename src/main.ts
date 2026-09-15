@@ -8624,11 +8624,27 @@ async function main() {
   let zoomIsMine = false
   /** Whether the zoom was last laid out for a phone — see the frame. */
   let zoomedAsPhone = false
+  /**
+   * How big a mark on the glass is — a way out, a flight's up or down: one
+   * line of the smallest type the page sets, which is the help line's.  A mark
+   * you cannot read at the size of the words beside it is not a mark.  Read
+   * off the stylesheet in `resize`, and declared up here because `resize` runs
+   * before the room code below it exists.
+   */
+  let markPx = 18
+  /** The interface's own light, which a way out is drawn in. */
+  let markInk = '#f0e6d2'
 
   function resize() {
     canvas.width = Math.floor(innerWidth)
     canvas.height = Math.floor(innerHeight)
     ctx.imageSmoothingEnabled = false
+    const help = document.getElementById('help')
+    if (help) {
+      const line = parseFloat(getComputedStyle(help).lineHeight)
+      if (line > 0) markPx = line
+      markInk = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || markInk
+    }
     // Pull out far enough to see forty yards across the short side — see
     // `SEEN_YARDS`.  Never *in*: a wide screen shows what it has room for.
     if (!zoomIsMine) {
@@ -9257,7 +9273,26 @@ async function main() {
      * looks like; a position can.
      */
     ground: Float32Array
+    /**
+     * The ways out of this storey that the bake names, in plan cells: every
+     * front door and every doorway between two rooms, with which way is out
+     * for a front door and which way the wall runs for a doorway.
+     */
+    exits: RoomExit[]
+    /**
+     * What the room is where nothing is marked: the wall's tone and each
+     * floor picture's, read back out of the canvas after the wash and before
+     * a door was laid, so a check can ask whether a door differs from them.
+     */
+    tones: number[][]
   }
+  /**
+   * One way out.  `at` is the door in plan cells, `along` a unit vector in
+   * cells — out through a front door, across the opening of a doorway —
+   * and `half` half the opening, in yards.
+   */
+  type RoomExit = { kind: 'front' | 'between'; x: number; y: number
+    at: [number, number]; along: [number, number]; half: number }
   const roomCache = new Map<Plan, Room>()
   let roomBytes = 0
   /**
@@ -9333,6 +9368,11 @@ async function main() {
     const inside = new Uint8Array(N)
     const walk = new Uint8Array(N)
     const stair = new Uint8Array(N)
+    // Which of the two masks a steps cell came from, kept apart: this storey's
+    // leads up and the one below's leads down, which is `upOrDown`'s rule and
+    // what a flight has to say on the glass.
+    const up = new Uint8Array(N)
+    const down = new Uint8Array(N)
     for (let i = 0; i < W; i++) {
       for (let j = 0; j < H; j++) {
         const n = i * H + j
@@ -9344,14 +9384,18 @@ async function main() {
             && bitAt(p.bits, n - H) && bitAt(p.bits, n + H)
             && bitAt(p.bits, n - 1) && bitAt(p.bits, n + 1)))) continue
         inside[n] = 1
-        let steps = bitAt(p.steps, n)
-        if (!steps && under) {
+        const goesUp = bitAt(p.steps, n)
+        let goesDown = false
+        if (under) {
           // The storey below has its own grid; the model's space is shared.
           const ui = Math.floor((p.x0 + (i + 0.5) * p.s - under.x0) / under.s)
           const uj = Math.floor((p.y0 + (j + 0.5) * p.s - under.y0) / under.s)
-          steps = ui >= 0 && uj >= 0 && ui < under.w && uj < under.h
+          goesDown = ui >= 0 && uj >= 0 && ui < under.w && uj < under.h
             && bitAt(under.steps, ui * under.h + uj)
         }
+        const steps = goesUp || goesDown
+        if (goesUp) up[n] = 1
+        if (goesDown) down[n] = 1
         const floor = bitAt(p.floor, n)
         if (floor || steps) walk[n] = 1
         if (floor && steps) stair[n] = 1
@@ -9385,7 +9429,7 @@ async function main() {
       sizes.push(size)
       edge.push(touches)
     }
-    return { W, H, inside, walk, stair, piece, sizes, edge }
+    return { W, H, inside, walk, stair, up, down, piece, sizes, edge }
   }
 
   /**
@@ -9680,6 +9724,22 @@ async function main() {
       g.fillRect(0, 0, c.width, c.height)
       g.globalCompositeOperation = 'source-over'
     }
+    // What the room is where nothing is marked, before anything is: the wall
+    // and one cell of each floor region, off the canvas itself.
+    const plain: number[][] = []
+    const toneAt = (i: number, j: number) => {
+      const d = g.getImageData(i * S + (S >> 1), j * S + (S >> 1), 1, 1).data
+      plain.push([d[0]!, d[1]!, d[2]!])
+    }
+    if (wallCell) toneAt(wallCell[0], wallCell[1])
+    const toned = new Set<number>()
+    for (let n = 0; n < W * H && toned.size < regionsOut.length; n++) {
+      const at = region[n]!
+      if (at < 0 || toned.has(at) || kind[n] !== 0) continue
+      toned.add(at)
+      toneAt((n / H) | 0, n % H)
+    }
+    const exits = composeExits(b, p, g, S, r)
     // The edges, as runs: a cell side is on an edge when standing room is on
     // exactly one side of it, and consecutive sides of the same kind are one
     // segment — the abbey's ground floor is a few hundred segments, not the
@@ -9733,7 +9793,182 @@ async function main() {
     return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0,
       walls, specks, edges,
       regions: regionsOut.map((x) => ({ cells: x.cells, pictures: [...x.pictures] })), flights,
-      outline, wallCell, ground: Float32Array.from(grounds) }
+      outline, wallCell, ground: Float32Array.from(grounds), exits, tones: plain }
+  }
+
+  /**
+   * A world point in a plan's own cells, fractional — `planCell` without the
+   * floor, for things that are drawn where they are rather than in a cell.
+   */
+  const cellsOf = (p: Plan, b: Built, wx: number, wy: number): [number, number] => {
+    const u = wx - b.x, v = -(wy - b.y)
+    return [(u * p.sn + v * p.c - p.x0) / p.s, (u * p.c - v * p.sn - p.y0) / p.s]
+  }
+  /** And a direction on the map, which turns the same way and does not move. */
+  const turnOf = (p: Plan, ux: number, uy: number): [number, number] => {
+    const lx = ux * p.sn - uy * p.c, ly = ux * p.c + uy * p.sn
+    const n = Math.hypot(lx, ly) || 1
+    return [lx / n, ly / n]
+  }
+
+  /**
+   * The ways out of a storey, laid into its room: a threshold across every
+   * doorway, and at a front door the opening carried out to the open.
+   *
+   * **From the bake's doors and not from the plan.**  Standing room runs
+   * through a doorway the same as through the middle of a room — that is why
+   * the doorways fall out of the bake on their own — so a plan read for its
+   * gaps finds every gap, and a gap between two pillars is not a door.  The
+   * client's portals say which openings are doors (`d`), and `MOPR`/`MOGI`
+   * say which of those lead outside and which way (`front_doors`).  The
+   * doors are the ground storey's: the bake keeps a portal's sill to find
+   * which storey is the ground and ships only those, so a door is laid on the
+   * ground floor's room and on no other.
+   *
+   * **A doorway between rooms is a threshold.**  It carries no width and no
+   * facing, so both come from the plan at the door: the standing room through
+   * the door runs short one way — the gap in the wall, bounded by stone at
+   * both ends — and long the other, which is the way through.  The
+   * threshold is the found tread picture, two treads of it, across the gap:
+   * a threshold *is* a step, and it is the one picture this set has of the
+   * edge of a stone.  26 of the slice's 34 doorways are bounded both ends
+   * inside eight cells; the rest are arches between two halls and get the
+   * shorter run, whatever its length, because that is still the line
+   * between the two.
+   *
+   * **A front door is the way out, and it is drawn going out.**  The same
+   * threshold across the portal's own width, and from it the opening carried
+   * out through the wall to where the outline ends — the porch `porchesOf`
+   * already walks — floored with the ground the client painted outside the
+   * door and framed by its jambs, the way a front door is drawn from outside.
+   * Laid after the room's wash, so the ground out there is in daylight and
+   * the room is not: the light is on the side that is out.
+   */
+  function composeExits(b: Built, p: Plan, g: CanvasRenderingContext2D, S: number,
+    r: ReturnType<typeof roomPieces>): RoomExit[] {
+    const out: RoomExit[] = []
+    if (p !== b.plan || b.k === 'mine' || !b.doors.length) return out
+    const { W, H } = r
+    const px = S / p.s
+    const tread = tilesMeta[b.k === 'house' && tilesMeta['in_stair_wood']
+      ? 'in_stair_wood' : 'in_stair']
+    // A threshold, in a frame whose x is the way through and y the gap.
+    const sill = (half: number) => {
+      const depth = p.s / 2
+      const across = 2 * half
+      if (tread) {
+        const n = Math.max(1, Math.round(across / YD_PER_TILE))
+        g.save()
+        g.rotate(Math.PI / 2)
+        for (let k = 0; k < n; k++) {
+          g.drawImage(tilesImg, tread.x, tread.y, tread.w, tread.h >> 1,
+            -half + (k * across) / n, -depth / 2, across / n, depth)
+        }
+        g.restore()
+      }
+      g.fillStyle = 'rgba(22, 18, 14, 0.9)'
+      const line = 0.08 * YD_PER_TILE
+      g.fillRect(-depth / 2 - line, -half, line, across)
+      g.fillRect(depth / 2, -half, line, across)
+    }
+    const walkAt = (i: number, j: number) =>
+      i >= 0 && j >= 0 && i < W && j < H && r.walk[i * H + j] === 1
+    let unmarked = 0
+    for (const door of b.doors) {
+      const [dx, dy] = door
+      const [ci, cj] = cellsOf(p, b, dx, dy)
+      if (door.length === 5) {
+        const [ox, oy] = turnOf(p, door[2], door[3])
+        const half = Math.max(door[4] / 2, BODY_YARDS / 2)
+        const porch = porchesOf(b).find((q) => q.ax === dx && q.ay === dy)
+        g.setTransform(ox * px, oy * px, -oy * px, ox * px, ci * S, cj * S)
+        if (porch) {
+          const [wx, wy] = [dx + porch.ux * porch.len, dy + porch.uy * porch.len]
+          const id = paintAt(wx, wy) === 'paved' && PAVED_TILES.length ? PAVED_TILES[0]!
+            : GROUND_TILES[0]!
+          const pic = tilesMeta[id]
+          if (pic) {
+            // One tile of the world is `YD_PER_TILE` yards, here as everywhere.
+            const each = Math.max(1, Math.round(porch.width / YD_PER_TILE))
+            const side = (2 * half) / each
+            for (let a = 0; a < porch.len; a += side) {
+              for (let k = 0; k < each; k++) {
+                g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h,
+                  a, -half + k * side, Math.min(side, porch.len - a), side)
+              }
+            }
+          }
+          g.fillStyle = 'rgba(22, 18, 14, 0.9)'
+          const jamb = 0.16 * YD_PER_TILE
+          g.fillRect(0, -half - jamb, porch.len, jamb)
+          g.fillRect(0, half, porch.len, jamb)
+        }
+        sill(half)
+        g.setTransform(1, 0, 0, 1, 0, 0)
+        out.push({ kind: 'front', x: dx, y: dy, at: [ci, cj], along: [ox, oy], half })
+        continue
+      }
+      // The standing room nearest the door, which is the doorway's own floor:
+      // a portal sits in the middle of the wall's thickness and can round on
+      // to the stone either side of it.
+      let i0 = -1, j0 = -1, best = Infinity
+      for (let a = Math.floor(ci) - 1; a <= Math.floor(ci) + 1; a++) {
+        for (let c = Math.floor(cj) - 1; c <= Math.floor(cj) + 1; c++) {
+          const dd = (a + 0.5 - ci) ** 2 + (c + 0.5 - cj) ** 2
+          if (walkAt(a, c) && dd < best) { best = dd; i0 = a; j0 = c }
+        }
+      }
+      if (i0 < 0) { unmarked++; continue }
+      // No wider than the widest door the client names anywhere in the slice,
+      // because a run of standing room longer than that is not a gap in a wall
+      // — it is the room going on.  Measured without that cap, two doorways
+      // under the abbey's crossing came out as twenty-yard thresholds laid
+      // across each other in an X, one of them the wrong way round: with no
+      // wall either side, which way the gap runs is not in the plan.
+      const cap = Math.ceil(widestDoor() / p.s)
+      // Measured on the door's cell and on the cell either side of it through
+      // the wall, the narrowest kept: the portal is in the middle of the
+      // wall's thickness, a wall is one to three cells thick, and a door point
+      // that rounds on to the corridor beyond a thin wall runs the length of
+      // the corridor.  Asked on the door's cell alone, eight of the slice's
+      // doorways came out with no wall either side.
+      const run = (a0: number, c0: number, di: number, dj: number) => {
+        if (!walkAt(a0, c0)) return { lo: 0, hi: 0, cells: Infinity, a0, c0 }
+        let lo = 0, hi = 0
+        while (lo <= cap && walkAt(a0 - di * (lo + 1), c0 - dj * (lo + 1))) lo++
+        while (hi <= cap && walkAt(a0 + di * (hi + 1), c0 + dj * (hi + 1))) hi++
+        return { lo, hi, cells: lo + hi + 1, a0, c0 }
+      }
+      const narrowest = (di: number, dj: number) => [-1, 0, 1]
+        .map((k) => run(i0 + dj * k, j0 + di * k, di, dj))
+        .reduce((u, v) => (v.cells < u.cells ? v : u))
+      const alongI = narrowest(1, 0), alongJ = narrowest(0, 1)
+      // The gap is the shorter run; the way through is across it.
+      const gapJ = alongJ.cells <= alongI.cells
+      const gap = gapJ ? alongJ : alongI
+      if (gap.cells > cap) { unmarked++; continue }
+      const [ti, tj] = gapJ ? [gap.a0 + 0.5, gap.c0 + (gap.hi - gap.lo) / 2 + 0.5]
+        : [gap.a0 + (gap.hi - gap.lo) / 2 + 0.5, gap.c0 + 0.5]
+      const along: [number, number] = gapJ ? [1, 0] : [0, 1]
+      const half = (gap.cells * p.s) / 2
+      g.setTransform(along[0] * px, along[1] * px, -along[1] * px, along[0] * px, ti * S, tj * S)
+      sill(half)
+      g.setTransform(1, 0, 0, 1, 0, 0)
+      out.push({ kind: 'between', x: dx, y: dy, at: [ti, tj], along, half })
+    }
+    exitsUnmarked.set(p, unmarked)
+    return out
+  }
+  /** Doorways a room could not lay a threshold for, by plan — see the cap. */
+  const exitsUnmarked = new Map<Plan, number>()
+  let widest = 0
+  /** The widest front door any building in the slice states, in yards. */
+  const widestDoor = () => {
+    if (widest) return widest
+    for (const one of buildings) {
+      for (const d of one.doors) if (d.length === 5) widest = Math.max(widest, d[4])
+    }
+    return widest || BODY_YARDS
   }
 
   /**
@@ -9768,6 +10003,25 @@ async function main() {
     ctx.stroke(room.specks)
     ctx.lineCap = 'butt'
     ctx.setTransform(1, 0, 0, 1, 0, 0)
+    // **And the way out is marked on the glass, pointing out.**  The porch
+    // says where a front door is once you look for it; an arrow says it
+    // before you do, at every zoom, and it has to be upright and one size on
+    // the glass to do that — so it is drawn here, a frame at a time, at the
+    // place the room's own transform puts the door and turned the way that
+    // transform turns the door's way out.  Nothing in the found sets is a
+    // mark on a floor that says *this way*; the colour is the interface's own
+    // ink, because it is a mark for the player and not a thing in the room.
+    exitsDrawn = 0
+    for (const x of room.exits) {
+      if (x.kind !== 'front') continue
+      const [i, j] = x.at
+      const X = a * i + c * j + e, Y = bb * i + d * j + f
+      if (X < -markPx || Y < -markPx || X > canvas.width + markPx || Y > canvas.height + markPx) continue
+      const gx = a * x.along[0] + c * x.along[1], gy = bb * x.along[0] + d * x.along[1]
+      const n = Math.hypot(gx, gy) || 1
+      drawMark(X, Y, gx / n, gy / n, 'out')
+      exitsDrawn++
+    }
     roomLaid = room
     roomPlan = p
     roomXform = [a, bb, c, d, e, f]
@@ -9776,6 +10030,45 @@ async function main() {
     // count of what happens to be in view was a count of the camera.
     for (const [key, n] of room.tally) roomPaint.set(key, (roomPaint.get(key) ?? 0) + n)
     indoorRows.add(ROOM_ROW)
+  }
+  /** How many ways out the last frame marked on the glass. */
+  let exitsDrawn = 0
+  /**
+   * One mark, upright, centred on the glass at `(X, Y)`: an arrow along the
+   * unit vector `(ux, uy)` for a way out, and a triangle pointing up or down
+   * the glass for a flight.  A dark rim round it, the wall's own stroke, so it
+   * reads on a pale floor and a dark one alike.
+   */
+  function drawMark(X: number, Y: number, ux: number, uy: number, what: 'out' | 'up' | 'down') {
+    const s = markPx / 2
+    ctx.save()
+    ctx.translate(X, Y)
+    ctx.beginPath()
+    if (what === 'out') {
+      // Along the way out: x forward, y across.
+      const pt = (fx: number, fy: number) =>
+        [(fx * ux - fy * uy) * s, (fx * uy + fy * ux) * s] as const
+      const shape = [[1, 0], [0.05, -0.85], [0.05, -0.35], [-0.9, -0.35],
+        [-0.9, 0.35], [0.05, 0.35], [0.05, 0.85]]
+      shape.forEach(([fx, fy], k) => {
+        const [qx, qy] = pt(fx!, fy!)
+        if (k) ctx.lineTo(qx, qy); else ctx.moveTo(qx, qy)
+      })
+      ctx.fillStyle = markInk
+    } else {
+      const tip = what === 'up' ? -1 : 1
+      ctx.moveTo(0, tip * s)
+      ctx.lineTo(s * 0.95, -tip * s * 0.75)
+      ctx.lineTo(-s * 0.95, -tip * s * 0.75)
+      ctx.fillStyle = PLAN_INK.steps
+    }
+    ctx.closePath()
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(22, 18, 14, 0.9)'
+    ctx.stroke()
+    ctx.fill()
+    ctx.restore()
   }
   /** The room the last frame drew, and the transform it drew it under. */
   let roomLaid: Room | null = null
@@ -13355,6 +13648,35 @@ async function main() {
       wallTone: roomLaid?.wallCell ? [...roomLaid.c.getContext('2d')!.getImageData(
         roomLaid.wallCell[0] * roomLaid.S + (roomLaid.S >> 1),
         roomLaid.wallCell[1] * roomLaid.S + (roomLaid.S >> 1), 1, 1).data].slice(0, 3) : null }
+  }
+  /**
+   * The ways out of the room the last frame drew, and where each one is on
+   * the glass — see `composeExits`.
+   *
+   * `glass` is the door put through the transform the frame drew the room
+   * under, and `out` a front door's way out turned the same way, so a check
+   * can read the pixels there; `tones` is the room where nothing is marked.
+   * The door's own world point is passed back unchanged, so the check can put
+   * it through `__screen` itself and not only take this hook's word for it.
+   */
+  ;(window as unknown as { __roomExits: () => unknown }).__roomExits = () => {
+    const r = roomLaid
+    if (!r || roomXform.length < 6) return null
+    const [a, bb, c, d, e, f] = roomXform as [number, number, number, number, number, number]
+    return {
+      inside: indoors ? indoors.k : null, storey, drawn: exitsDrawn, mark: markPx,
+      unmarked: roomPlan ? exitsUnmarked.get(roomPlan) ?? 0 : 0,
+      doors: indoors && roomPlan === indoors.plan ? indoors.doors.length : 0,
+      ink: markInk, tones: r.tones, wallTone: r.tones[0] ?? null,
+      exits: r.exits.map((x) => {
+        const [i, j] = x.at
+        const gx = a * x.along[0] + c * x.along[1], gy = bb * x.along[0] + d * x.along[1]
+        const n = Math.hypot(gx, gy) || 1
+        return { kind: x.kind, x: x.x, y: x.y, half: x.half,
+          glass: { x: a * i + c * j + e, y: bb * i + d * j + f },
+          out: { x: gx / n, y: gy / n } }
+      }),
+    }
   }
   /**
    * Where the room the last frame drew laid outdoor ground, as world points —
