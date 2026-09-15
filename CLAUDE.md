@@ -632,33 +632,66 @@ straight over a staircase of a picture.
 the plan.** Standing room runs through a doorway the same as through the middle
 of a room — that is how the doorways fall out of the bake — so a plan read for
 its gaps finds every gap, and the gap between two pillars is not a door. The
-doors are the ground storey's, because that is the only storey the bake ships
-doors for. A doorway between rooms carries no width and no facing, so both
+ground storey's doors are `d`; **a storey above has its own, `du`**, each portal
+snapped to the storey its sill opens on the way `check_doors` snaps it and then
+to the storeys that ship. They are a table apart and not more of `d`, because
+`d` is the way in from outside to the doorstep, the porches, the walk in and
+every count of them, and an opening on the gallery is none of those: 82
+portals stand above the ground in the buildings with an upper storey, 3 of them
+on storeys too small to ship, and 27 doorways on 9 storeys come out on the
+placements in the slice (8 storeys of models: two cottages share one). Upstairs they are only ever thresholds, and
+`viewcheck` tries each one from outside with the game's own doorstep: 20 take
+nobody in, and 7 stand straight over a ground door, inside its doorstep, which
+is the ground door's doing — the check excludes a doorway's own point from
+that, or merging the two tables would have excused every one. A doorway between rooms carries no width and no facing, so both
 come from the plan at the door: the standing room through it runs short one
 way, bounded by stone, and long the other. It is measured on the door's cell
 and the cells either side of it through the wall, and **capped at the widest
 front door the slice states**, 7 yards — uncapped, two doorways under the
 abbey's crossing came out as twenty-yard thresholds crossed in an X, because
 with no wall either side which way the gap runs is not in the plan. 27 of 34
-get a threshold, two treads of the found tread picture; the 7 with no wall
-within the cap get none and are counted. A front door gets the threshold, the
+get a threshold on the ground storeys, two treads of the found tread picture;
+the 7 with no wall within the cap get none and are counted. Upstairs it is 20
+of 27, by the same rule. A front door gets the threshold, the
 porch carried out through the wall floored with the ground outside in daylight,
 and **an arrow on the glass pointing out** — drawn a frame at a time under the
 room's transform so it stays upright, one line of the help's type tall, in the
 interface's ink because it is a mark for the player and not a thing in the
 room.
 
-**A flight says up or down; only eight say which end is the top.** A cell of
-this storey's `steps` takes you up and a cell of the storey below's takes you
-down — `upOrDown`'s own rule — so each flight a body fits on carries a triangle
-up the glass on its up cells and down the glass on its down cells. Up and down
-the glass, not along the stairs, because a triangle along them claims which end
-is the top, and **that was measured before it was declined**: 8 of the slice's
-255 flights have cells leading both ways and say it outright, and for the rest
-the two readings available — where the ramp carries on past what can be stood
-on, and which side the plain floor you step on from lies — agreed 24 times in
-37. A coin is not a derivation. A height per steps cell from the bake would
-settle it.
+**A flight says up or down, and which end is the top where its treads say
+so.** A cell of this storey's `steps` takes you up and a cell of the storey
+below's takes you down — `upOrDown`'s own rule — so each flight a body fits on
+carries a mark on its up cells and one on its down cells. Which end is the top
+was not in the plan: 8 of the slice's 255 flights have cells leading both ways,
+and the two other readings tried agreed 24 times in 37, a coin. **The bake now
+ships a height for every steps cell** — the face's own height at the cell's
+centre, a quarter of a yard a step from the storey's sill, one byte a steps
+cell in cell order (`rises`), 19,808 of them and 27 KB on `terrain.json`, 17
+gzipped — and `aimFlights` fits a plane through each part of a flight, the up
+cells out of this storey's mask and the down cells out of the one below's, so
+two sills are never mixed. The up mark points up its slope and the down mark
+down its, turned with the room, on the glass and on the circle. **The byte
+goes under the sill**, which was measured and not expected: the steps mask
+keeps a face whose highest corner is over a man's head, a ramp's triangle
+reaches that from below the floor, and from the sill up 3,463 cells fell out
+of an eighth-of-a-yard byte, every one of them underneath. `check_rises` fails
+on a tread outside the byte or above where its flight ends.
+
+A plane says which end is the top only if it rises by twice the heights'
+spread off it and by two steps of the byte (`topOf`), and nothing else is
+guessed at: **76 of the 255 flights say it, 67 of the 137 with a mark**; of the
+other 70 marked, 48 are flat — one height across every cell, a landing over a
+man's head — and 22 rise less than their own spread, which is spirals and two
+flights crossing on one cell. Those keep the triangle up or down the glass,
+which is the map's word for a level and claims no end. **The reading stage two
+took as outright is not**: of the 7 flights whose cells lead both ways and
+whose heights say which way, only 3 point from the down cells to the up cells,
+because on a switchback the two parts sit side by side and the line between
+their middles runs across the stairs, not along them. It still turns their
+treads, and says nothing about direction any more. `viewcheck` reads each
+aimed mark's own flight's treads straight off `__stairs` and asks that they
+rise the way an up mark points and fall the way a down mark does.
 
 **Going in frames the room, and coming out gives the zoom back.** The box is
 every piece of standing room on the storey at least the speck cut in size, and

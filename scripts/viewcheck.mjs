@@ -3768,9 +3768,10 @@ for (const still of [false, true]) {
     // Every floor shipped has to belong to a building that has a ground plan,
     // and carry the same nine fields as one.
     const orphan = Object.keys(floors).filter((k) => !plans[k])
-    // Eleven: a sill and the plan's own ten.  It was ten until the stairs
-    // became a fifth mask.
-    const shapes = Object.values(floors).flat().filter((f) => f.length !== 11)
+    // Twelve: a sill and the plan's own eleven.  It was ten until the stairs
+    // became a fifth mask, and eleven until their treads carried a height.
+    const shapes = Object.values(floors).flat().filter((f) => f.length !== 12)
+      .concat(Object.values(plans).filter((f) => f.length !== 11))
     return {
       buildings: Object.keys(plans).length,
       withUpstairs: Object.keys(floors).length,
@@ -4661,12 +4662,15 @@ if (refused) {
 //
 // `__stairs` names every cell of both masks a storey reads, `1` up, `-1` down
 // and `0` both — `upOrDown`'s own rule.  On each of the abbey's four storeys,
-// every mark the frame drew is asked two things: whether the cell it stands
+// every mark the frame drew is asked three things: whether the cell it stands
 // on says the same way (an up mark on a `1` or `0`, a down mark on a `-1` or
-// `0`), and whether the triangle on the glass has its point that way — its
-// ink heavier in the bottom half for up, the top half for down.  A flight
-// whose cells lead both ways has its up mark on its up end by the first
-// question alone.
+// `0`); whether the triangle on the glass has its point the way the hook says
+// it drew it — its ink heavier behind its middle than in front, along the
+// flight where the flight says which end is the top and up or down the glass
+// where it does not; and, where it points along the flight, whether the
+// treads it points over rise that way.  The heights are `__stairs`' own
+// columns, the bake's bytes for every cell within three yards of the mark, and
+// the direction is put through `__screen` here to be held against the glass.
 {
   const two = () => p.evaluate(() => new Promise((r) =>
     requestAnimationFrame(() => requestAnimationFrame(() => r()))))
@@ -4686,6 +4690,34 @@ if (refused) {
       const g = c.getContext('2d')
       const ink = [0xc9, 0xa8, 0x6a]
       return fl.marks.map((m) => {
+        // The treads of the mark's own flight, along the way it points: a
+        // least-squares slope of height on distance, up marks over this
+        // floor's column and down marks over the floor below's.  Its own and
+        // not everything near it: the first version read three yards round
+        // the mark and a switchback's other flight, beside it and running the
+        // other way, outvoted a four-cell flight's own treads.
+        let slope = null, near = 0, glassAim = null
+        if (m.toward) {
+          const col = m.what === 'up' ? 3 : 4
+          let sx = 0, sz = 0, sxx = 0, sxz = 0
+          for (const [cx, cy] of fl.flights[m.flight]?.where ?? []) {
+            let z = null, bd = Infinity
+            for (const q of st) {
+              if (q[col] === null || q[col] === undefined) continue
+              const dd = Math.hypot(q[0] - cx, q[1] - cy)
+              if (dd < bd) { bd = dd; z = q[col] }
+            }
+            if (z === null || bd > fl.cell * 0.75) continue
+            const t = (cx - m.world.x) * m.toward.x + (cy - m.world.y) * m.toward.y
+            sx += t; sz += z; sxx += t * t; sxz += t * z; near++
+          }
+          const v = sxx - (sx * sx) / Math.max(1, near)
+          if (near >= 3 && v > 1e-6) slope = (sxz - (sx * sz) / near) / v
+          const a0 = window.__screen(m.world.x, m.world.y)
+          const a1 = window.__screen(m.world.x + m.toward.x, m.world.y + m.toward.y)
+          const l = Math.hypot(a1.x - a0.x, a1.y - a0.y) || 1
+          glassAim = { x: (a1.x - a0.x) / l, y: (a1.y - a0.y) / l }
+        }
         let says = null, bd = Infinity
         for (const q of st) {
           const dd = Math.hypot(q[0] - m.world.x, q[1] - m.world.y)
@@ -4694,20 +4726,28 @@ if (refused) {
         if (bd > fl.cell * 0.75) says = null
         const R = Math.floor(fl.mark * 0.45)
         const X = Math.round(m.glass.x), Y = Math.round(m.glass.y)
-        let top = null, bottom = null
+        // Where the point is: along `aim` when the mark has one, up the glass
+        // for up and down it for down when it does not.
+        const point = m.aim ?? { x: 0, y: m.what === 'up' ? -1 : 1 }
+        let front = null, back = null
         if (X - R >= 0 && Y - R >= 0 && X + R < c.width && Y + R < c.height
           && Math.hypot(hero.x - X, hero.y - Y) > fl.mark * 2) {
-          top = 0; bottom = 0
+          front = 0; back = 0
           const d = g.getImageData(X - R, Y - R, 2 * R, 2 * R).data
           for (let y = 0; y < 2 * R; y++) {
             for (let x = 0; x < 2 * R; x++) {
               const o = (y * 2 * R + x) * 4
               if (Math.abs(d[o] - ink[0]) <= 14 && Math.abs(d[o + 1] - ink[1]) <= 14
-                && Math.abs(d[o + 2] - ink[2]) <= 14) { if (y < R) top++; else bottom++ }
+                && Math.abs(d[o + 2] - ink[2]) <= 14) {
+                const along = (x + 0.5 - R) * point.x + (y + 0.5 - R) * point.y
+                if (along > 0) front++
+                else if (along < 0) back++
+              }
             }
           }
         }
-        return { storey: fl.storey, what: m.what, says, top, bottom }
+        return { storey: fl.storey, what: m.what, says, front, back, aimed: !!m.aim,
+          slope, near, turn: m.aim && glassAim ? m.aim.x * glassAim.x + m.aim.y * glassAim.y : null }
       })
     })
     rows.push(...got)
@@ -4720,12 +4760,12 @@ if (refused) {
   // 34 below with a head over its base.  Every clean mark is the same triangle
   // at the same size, so a mark is judged only when its ink comes to most of
   // what the median mark's does; the reference is the marks', not a number.
-  const totals = rows.filter((r) => r.top !== null).map((r) => r.top + r.bottom)
+  const totals = rows.filter((r) => r.front !== null).map((r) => r.front + r.back)
     .sort((a, q) => a - q)
   const whole = totals.length ? totals[totals.length >> 1] : Infinity
-  const shaped = rows.filter((r) => r.top !== null && r.top + r.bottom >= whole * 0.9)
-  const wrongPoint = shaped.filter((r) => (r.what === 'up'
-    ? !(r.bottom > r.top * 1.3) : !(r.top > r.bottom * 1.3)))
+  const shaped = rows.filter((r) => r.front !== null && r.front + r.back >= whole * 0.9)
+  // A triangle's ink is behind its middle: the base is wide and the point is not.
+  const wrongPoint = shaped.filter((r) => !(r.back > r.front * 1.3))
   const count = (w) => rows.filter((r) => r.what === w).length
   check('a flight\'s mark says the way the cells under it go',
     !!went && rows.length >= 4 && count('up') > 0 && count('down') > 0 && wrongWay.length === 0,
@@ -4734,9 +4774,44 @@ if (refused) {
       : `${rows.length} marks over the abbey's four storeys, ${count('up')} up and ${count('down')} down`)
   check('and the mark points that way on the glass',
     shaped.length >= 4 && wrongPoint.length === 0,
-    wrongPoint.length ? wrongPoint.map((r) => `${r.what} on storey ${r.storey}: `
-      + `${r.top} ink above the middle, ${r.bottom} below`).join('; ')
-      : `${shaped.length} marks read off the glass`)
+    wrongPoint.length ? wrongPoint.map((r) => `${r.what} on storey ${r.storey}${r.aimed ? ' along its flight' : ''}: `
+      + `${r.front} ink in front of the middle, ${r.back} behind`).join('; ')
+      : `${shaped.length} marks read off the glass, ${shaped.filter((r) => r.aimed).length} of them along their flights`)
+  // Along the flight, towards the top for up and the foot for down, and on the
+  // glass the way the world's direction lands there.
+  const aimed = rows.filter((r) => r.aimed)
+  const wrongEnd = aimed.filter((r) => r.slope === null || r.turn === null || r.turn < 0.95
+    || (r.what === 'up' ? !(r.slope > 0) : !(r.slope < 0)))
+  check('and a flight whose treads say which end is the top has its marks along it, up towards the top and down towards the foot',
+    aimed.length >= 4 && wrongEnd.length === 0,
+    wrongEnd.length ? wrongEnd.map((r) => `${r.what} on storey ${r.storey}: `
+      + (r.slope === null ? `${r.near} treads of its own` : `the treads it points over rise ${r.slope.toFixed(2)} yd a yard`)
+      + (r.turn !== null && r.turn < 0.95 ? `, and it is ${(Math.acos(Math.max(-1, Math.min(1, r.turn))) * 180 / Math.PI).toFixed(0)} degrees off the flight on the glass` : '')).join('; ')
+      : `${aimed.length} of ${rows.length} marks on the abbey's four storeys point along their flights, `
+        + `the treads under them rising ${Math.min(...aimed.map((r) => Math.abs(r.slope))).toFixed(2)} yd a yard or more`)
+
+  // And over the whole slice: how many flights say which end is the top, and
+  // how many are left saying only up or down.  A flight whose treads do not
+  // rise clear of their own spread says nothing, which is counted and not
+  // guessed at.
+  const tops = await p.evaluate(() => {
+    const rows = window.__flightTops()
+    const marked = rows.filter((r) => r.marked)
+    const flat = (r) => [r.up, r.down].filter(Boolean).every((q) => q[0] === 0)
+    return { flights: rows.length, marked: marked.length,
+      heights: rows.filter((r) => r.rule === 'heights').length,
+      markedHeights: marked.filter((r) => r.rule === 'heights').length,
+      flat: marked.filter((r) => r.rule !== 'heights' && flat(r)).length,
+      noisy: marked.filter((r) => r.rule !== 'heights' && !flat(r)).length,
+      ways: rows.filter((r) => r.agree !== null).length, agree: rows.filter((r) => r.agree === true).length }
+  })
+  check('the slice\'s flights say which end is the top wherever their treads rise',
+    tops.flights > 0 && tops.markedHeights > 0 && tops.markedHeights + tops.flat + tops.noisy === tops.marked,
+    `${tops.heights} of ${tops.flights} flights, ${tops.markedHeights} of the ${tops.marked} with a mark; `
+    + `of the rest with a mark ${tops.flat} are flat and ${tops.noisy} rise less than their spread`)
+  console.log(`      (${tops.heights} of ${tops.flights} flights say which end is the top; of the ${tops.marked} marked, `
+    + `${tops.markedHeights} do, ${tops.flat} flat, ${tops.noisy} too uneven; of the ${tops.ways} whose cells also lead both ways `
+    + `${tops.agree} point from the down cells to the up cells)`)
 }
 
 // 26e. Going in frames the room, coming out gives the zoom back, and a zoom
@@ -5049,6 +5124,160 @@ if (refused) {
       + `${after.composed - before.composed} composed it, ${after.shades - before.shades} shaded it`
       : 'no room drawn')
   await p.evaluate(() => { window.__floor(-1); window.__cam({ zoom: 0 }); const s = window.__start(); window.__put(s.x, s.y) })
+}
+
+// 26h. The storeys above lay their own doorways, and none of them is a way in.
+//
+// The bake's doors were the ground storey's, so nothing upstairs had a
+// threshold: the inn's first floor and the abbey's gallery were floors with no
+// way between their rooms.  Each storey above now carries its doorways
+// (`upDoors`), and for every storey of every building that has them the room
+// the frame drew is asked for them: as many doorways as the storey has, every
+// one a threshold or counted as having no wall within the cap, none a front
+// door, and each at a doorway of its own.  The minimap, standing a few yards
+// from the first threshold of each storey, has the mark's ink where the
+// threshold is.  And every one of them is tried from outside, on the ground, with the
+// game's own doorstep: none may take him in unless a ground door's doorstep is
+// under it, and a ground door of the same building must.
+{
+  const two = () => p.evaluate(() => new Promise((r) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  const every = await p.evaluate(() => window.__buildings().map((b, i) => ({ i, k: b.k,
+    up: b.upDoors ?? [], doors: b.doors, doorstep: b.doorstep, floors: (b.floors ?? []).length })))
+  const all = every.filter((b) => b.up.length && b.doors.length)
+  const grounds = every.flatMap((b) => b.doors.map((d) => [d[0], d[1], b.doorstep]))
+  const rows = [], maps = []
+  for (const b of all) {
+    for (let s = 0; s < b.floors; s++) {
+      const want = b.up.filter((u) => u[0] === s)
+      if (!want.length) continue
+      const at = `${b.k} ${b.i} storey ${s}`
+      await p.evaluate(() => { window.__floor(-1); const q = window.__start(); window.__put(q.x, q.y) })
+      await p.waitForFunction(() => window.__roomFrame().inside === null, null, { timeout: 8000 }).catch(() => null)
+      const went = await p.evaluate(([i, s]) => {
+        const r = window.__enterOne(i)
+        if (!r) return false
+        window.__floor(s)
+        return true
+      }, [b.i, s])
+      if (!went) { rows.push({ at, why: 'could not be walked into' }); continue }
+      await p.waitForFunction((s) => window.__roomExits()?.storey === s, s, { timeout: 8000 }).catch(() => null)
+      await two()
+      const ex = await p.evaluate(() => window.__roomExits())
+      if (!ex || ex.storey !== s) { rows.push({ at, why: 'no room drawn for the storey' }); continue }
+      const laid = ex.exits.filter((x) => x.kind === 'between')
+      const matched = want.filter((u) => laid.some((x) => Math.hypot(x.x - u[1], x.y - u[2]) < 0.01)).length
+      rows.push({ at, want: want.length, doors: ex.doors, laid: laid.length,
+        fronts: ex.exits.length - laid.length, unmarked: ex.unmarked, matched })
+      if (!laid.length) continue
+      const read = await p.evaluate(([laid, s]) => {
+        const readOne = (cx, cy, half) => {
+          // Far enough that the dot in the middle of the circle, white with a
+          // blended edge, is nowhere near the window read.
+          let spot = null
+          for (const r of [10, 12, 9, 14, 16, 8]) {
+            for (let k = 0; k < 8 && !spot; k++) {
+              const x = cx + r * Math.cos((k * Math.PI) / 4), y = cy + r * Math.sin((k * Math.PI) / 4)
+              if (window.__canWalk(x, y)) spot = [x, y]
+            }
+            if (spot) break
+          }
+          if (!spot) return { why: 'nowhere to stand beside it' }
+          window.__cam({ x: spot[0], y: spot[1] })
+          window.__floor(s)
+          const m = window.__minimap()
+          const ex = window.__roomExits()
+          const c = document.querySelector('#map canvas')
+          const n = c.width, yd = m.span / n, mid = n / 2
+          const J = mid - 0.5 - (cx - m.hero.x) / yd, I = mid - 0.5 - (cy - m.hero.y) / yd
+          // A flight's triangle drawn over the threshold hides it, and says
+          // nothing about whether it was drawn: that threshold is passed over.
+          if (m.flightMarks.some(([X, Y]) => Math.hypot(X - I - 0.5, Y - J - 0.5) < m.mark)) return { covered: true }
+          const ink = ex.ink.match(/[0-9a-f]{2}/gi).map((h) => parseInt(h, 16))
+          const d = c.getContext('2d').getImageData(0, 0, n, n).data
+          // A bar a pixel and a half wide and as long as the gap, over a darker
+          // rim, so most of it is blended: within 60 of the ink — the nearest
+          // colour of the plan, the flights' gold, is 127 off it — and never
+          // within the dot's reach.
+          const R = Math.max(3, Math.ceil(half / yd) + 2)
+          let inked = 0
+          for (let j = Math.floor(J - R); j <= J + R; j++) {
+            for (let i = Math.floor(I - R); i <= I + R; i++) {
+              if (i < 0 || j < 0 || i >= n || j >= n) continue
+              if (Math.hypot(i + 0.5 - mid, j + 0.5 - mid) < m.mark * 2.5) continue
+              const o = (j * n + i) * 4
+              if (Math.hypot(d[o] - ink[0], d[o + 1] - ink[1], d[o + 2] - ink[2]) <= 60) inked++
+            }
+          }
+          return { inked, storey: m.storey }
+        }
+        for (const x of laid) {
+          const got = readOne(x.centre.x, x.centre.y, x.half)
+          if (!got.covered) return got
+        }
+        return { covered: true }
+      }, [laid, s])
+      maps.push({ at, ...read })
+    }
+  }
+  // From outside, on the ground: an upper doorway's point and the doorstep.
+  const ways = await p.evaluate(([all, grounds]) => {
+    const out = { tried: 0, took: [], control: 0, controls: 0, over: 0 }
+    const tryAt = (x, y) => {
+      window.__floor(-1)
+      const s = window.__start()
+      window.__put(s.x, s.y)
+      window.__seam()
+      if (window.__seam().inside) return 'still inside'
+      window.__putUnchecked(x, y)
+      return window.__seam().inside
+    }
+    for (const b of all) {
+      out.controls++
+      if (tryAt(b.doors[0][0], b.doors[0][1])) out.control++
+      for (const [s, x, y] of b.up) {
+        out.tried++
+        // A doorway on the gallery straight over the front door stands in
+        // that door's doorstep, and it is the front door that takes him in.
+        // Not the doorway itself: were the upper doorways ever in `doors`,
+        // every one of them would be standing in its own doorstep and this
+        // check would try none.
+        if (grounds.some(([gx, gy, r]) => Math.hypot(gx - x, gy - y) < r
+          && Math.hypot(gx - x, gy - y) > 0.01)) { out.over++; continue }
+        const got = tryAt(x, y)
+        if (got) out.took.push(`${b.k} ${b.i} storey ${s} at ${x.toFixed(1)}, ${y.toFixed(1)}: ${got}`)
+      }
+    }
+    const q = window.__start()
+    window.__put(q.x, q.y)
+    window.__seam()
+    return out
+  }, [all, grounds])
+  await p.evaluate(() => { window.__floor(-1); window.__cam({ zoom: 0 }); const q = window.__start(); window.__put(q.x, q.y) })
+  const bad = rows.filter((r) => r.why || r.doors !== r.want || r.fronts || r.laid !== r.matched
+    || r.matched + r.unmarked !== r.want)
+  const want = rows.reduce((n, r) => n + (r.want ?? 0), 0), laid = rows.reduce((n, r) => n + (r.laid ?? 0), 0)
+  check('the storeys above lay a threshold at their own doorways',
+    rows.length >= 4 && want >= 20 && laid * 2 >= want && bad.length === 0,
+    bad.length ? bad.map((r) => `${r.at}: ${r.why ?? `${r.doors} doorways drawn for ${r.want}, ${r.laid} thresholds `
+      + `(${r.matched} at a doorway), ${r.unmarked} unmarked, ${r.fronts} front doors`}`).join('; ')
+      : `${laid} thresholds for ${want} doorways on ${rows.length} storeys above the ground, `
+        + `${want - laid} with no wall within the cap`)
+  const covered = maps.filter((m) => m.covered)
+  const readable = maps.filter((m) => !m.covered)
+  const blank = readable.filter((m) => m.why || !(m.inked >= 1))
+  check('and the minimap draws them on the storey\'s plan',
+    readable.length >= 4 && blank.length === 0,
+    blank.length ? blank.map((m) => `${m.at}: ${m.why ?? `${m.inked} pixels of the mark's ink`}`).join('; ')
+      : `${readable.length} storeys, the least ink over a threshold ${Math.min(...readable.map((m) => m.inked))} pixels; `
+        + `${covered.length} with every threshold under a flight's mark`)
+  check('and no doorway on a storey above takes you in from outside',
+    ways.tried === want && ways.tried > ways.over * 2 && ways.controls > 0 && ways.control === ways.controls
+      && ways.took.length === 0,
+    ways.took.length ? ways.took.slice(0, 6).join('; ')
+      : `${ways.tried - ways.over} upper doorways tried from outside and none took him in, `
+        + `${ways.over} standing in a ground door's doorstep; ${ways.control} of ${ways.controls} ground doors did`)
+  console.log(`      (${rows.map((r) => `${r.at}: ${r.laid ?? 0}/${r.want ?? 0}`).join(', ')})`)
 }
 
 // 27. A character saved indoors wakes up indoors, on the floor he was on.

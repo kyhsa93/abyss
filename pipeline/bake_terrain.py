@@ -185,6 +185,24 @@ _PLAN_Z = {}
 #: How many door cells had stone in them that the portal overruled — see
 #: `wmo_plan`.  A number that climbs is a wall mask drifting from its file.
 _DOORS_CLEARED = []
+#: How finely a tread's height is kept, and which byte is the sill: a quarter
+#: of a yard, from sixteen yards under the sill to forty-seven over it.
+#:
+#: **Under the sill too**, which was measured and not expected.  The steps
+#: mask keeps a face whose *highest corner* is over a man's head, and a long
+#: ramp's triangle reaches that from well below the floor: at an eighth of a
+#: yard from the sill up, 3,463 cells fell out of the byte, every one of them
+#: under it — nine and a half yards at the keep's foot, seven and three
+#: quarters on one of its landings, a yard and three quarters in the abbey's
+#: tower.  Above, the highest tread over its own sill is 30.9 yards, on the
+#: keep's storey with a 33-yard gap over it.  The span is forty yards and a
+#: byte of quarters is sixty-four; a quarter is finer than the plane
+#: `slopeOf` fits through a flight needs.  `check_rises` fails if a tread ever
+#: falls outside the byte.
+RISE = 1 / 4
+RISE_ZERO = 64
+#: Per plan, how many steps cells had a height the byte could not hold.
+_RISE_CLAMPED = {}
 # How many yards a cell of a plan covers: one ground tile, 32 pixels at 24 to
 # the yard, which is what `src/main.ts` draws the ground at.  Not one yard —
 # a plan on a different pitch from the floor it is painted on samples badly,
@@ -601,7 +619,24 @@ def wmo_plan(client, path, only=None, nxt=None):
                 if roof:
                     over_head[n] = 1
                 if rung:
-                    steps[n] = 1
+                    # **And how high the tread is here**, which is what says
+                    # which end of a flight is the top.  One bit a cell said
+                    # *a flight is here* and nothing about which way it
+                    # climbs, and only 8 of the slice's 255 flights could
+                    # say it any other way — see `plan_out`.  The face's own
+                    # height at the cell's centre, in `RISE` steps from this
+                    # storey's sill, plus one so nought still means *no
+                    # step*.  Where two flights cross over one cell the lower
+                    # tread is kept: it is the one reached first from here.
+                    z = zhi if flat else min(zhi, max(zlo, l1 * t[0][2] + l2 * t[1][2]
+                                                    + (1 - l1 - l2) * t[2][2]))
+                    code = 1 + RISE_ZERO + int(round((z - base) / RISE))
+                    if not 1 <= code <= 255:
+                        key_ = (path, only, nxt)
+                        _RISE_CLAMPED[key_] = _RISE_CLAMPED.get(key_, 0) + 1
+                        code = min(255, max(1, code))
+                    if not steps[n] or code < steps[n]:
+                        steps[n] = code
                 if not near:
                     continue
                 # And the outline *of this storey*, which is not the outline of
@@ -2104,8 +2139,9 @@ def read_tile(client, tx, ty):
             # its wall until the mask lets you through is a building with no
             # door, however many the client drew.
             #
-            # Ground storey only: an opening on the first floor is a window
-            # from out here.
+            # Ground storey only, here: an opening on the first floor is a
+            # window from out here.  The storeys above get theirs in a table
+            # of their own, `UPPER_OF`, below.
             ways = doorways(client, name)
             sill = min((d[0] for d in ways), default=0.0)
             # And the front ones carry which way is out and how wide they are,
@@ -2163,6 +2199,18 @@ def read_tile(client, tx, ty):
                            rooms_of(client, name, pos, ry, world_box),
                            plan_key(client, name, key), round(ry + 270, 1),
                            f_in, house, doors))
+            # And the doorways of the storeys above, each with the storey it
+            # opens on — after `plan_key`, which is what decides which storeys
+            # ship.  Kept apart from `doors` and not a sixth shape of it,
+            # because `doors` means *a way in from where you stand outside*
+            # to everything that reads it: the doorstep, the porches, the
+            # walk in and every count of them.
+            if key and PLAN_FLOORS.get(key):
+                ups, _dropped = upper_doors(client, name, key)
+                if ups:
+                    UPPER_OF[(kind, round(wx, 2), round(wy, 2))] = [
+                        [at] + [round(v, 2) for v in to_world(pos, ry, lx, ly)]
+                        for at, lx, ly in ups]
     return cells, placed, water, painted, skipped, src, shut, gap, whole
 
 
@@ -2509,6 +2557,10 @@ def bake(client, bounds, out, acore=None):
         # The footprints, one per model rather than one per placement:
         # `[width, height, cell yards, model x0, y0, base64 of one bit a cell]`.
         'plans': {str(k): plan_out(v) for k, v in PLANS_BY_KEY.items() if v},
+        # How many yards a step of a tread's height is and which byte is the
+        # sill — see `rises` — so the scene multiplies by the number the bake
+        # divided by.
+        'planRise': [RISE, RISE_ZERO],
         # The floors above the ground one, as `[sill, …masks]` a storey.  A
         # separate table and not a fifth field on the plan, because a building
         # with one floor is most of them and a key nobody reads is cheaper
@@ -2561,6 +2613,12 @@ def bake(client, bounds, out, acore=None):
                          **({'h': house} if house else {}),
                          # Where you go in, in world yards — see `doorways`.
                          **({'d': doors} if doors else {}),
+                         # And the doorways of the storeys above, as
+                         # `[storey, x, y]` — the storey an index into this
+                         # model's `floors` — see `upper_doors`.
+                         **({'du': UPPER_OF[(k, round(x, 2), round(y, 2))]}
+                            if plan and (k, round(x, 2), round(y, 2)) in UPPER_OF
+                            else {}),
                          # A building with no door: how much of its standing
                          # room is at the ground it stands on, in per cent, and
                          # how high that storey is — see `ground_doorless`.
@@ -2611,6 +2669,8 @@ def bake(client, bounds, out, acore=None):
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
     check_storeys()
+    check_upper_doors(meta)
+    check_rises()
     check_plans()
     check_grounded()
     check_ceilings()
@@ -2763,8 +2823,8 @@ def crop(plan):
 
 
 def plan_out(plan):
-    """One storey's five masks: outline, walls, floor, what is roofed, and the
-    way up.
+    """One storey's five masks — outline, walls, floor, what is roofed, and the
+    way up — and how high each tread of the way up is (`rises`).
 
     The fourth is the one that tells a room from a courtyard.  Seen from above
     an outline is a silhouette, and 65% of the slice's outline cells are
@@ -2784,7 +2844,26 @@ def plan_out(plan):
     cells, w, h, x0, y0, solid, floor, over, steps = plan
     return [w, h, PLAN_CELL, x0, y0,
             packed(cells), packed(solid), packed(floor), packed(over),
-            packed(steps)]
+            packed(steps), rises(steps)]
+
+
+def rises(steps):
+    """The sixth field: how high each steps cell's tread is, a byte a cell.
+
+    Only the cells the fifth mask sets, in cell order, so a building with no
+    stairs costs an empty string and the abbey's gallery 1,299 bytes — not a
+    byte for every cell of the grid.  Each is `RISE` yards a step from the
+    storey's sill, which is byte `RISE_ZERO`.  The sill itself does not ship and is not needed:
+    what the scene asks is which way the treads of one mask rise, and every
+    height in a mask is measured from the same sill.
+
+    **Which end of a flight is the top was not in the plan.**  The steps mask
+    says a walkable face between this floor and the next is over a cell, and
+    `upOrDown` needs nothing more; the glass needs the direction, and only the
+    8 flights whose cells lead both ways said it.  The two readings tried for
+    the rest agreed 24 times in 37.
+    """
+    return base64.b64encode(bytes(v - 1 for v in steps if v)).decode('ascii')
 
 
 def storeys(client, path):
@@ -2814,6 +2893,143 @@ def storeys(client, path):
         if z - out[-1] > BODY:
             out.append(z)
     return out
+
+
+#: Each placement's upper doorways, `(kind, x, y) -> [[storey, x, y], …]` in
+#: world yards — see `upper_doors`.
+UPPER_OF = {}
+
+
+def upper_doors(client, path, key):
+    """The doorways of a building's storeys above the ground, on the storey each opens on.
+
+    `doors` has always stopped at the ground storey — *an opening on the first
+    floor is a window from out here* — and the scene laid its thresholds from
+    `doors` alone, so the inn's upstairs and the abbey's gallery showed no way
+    between their rooms at all.  A portal's sill is the floor it opens on, so
+    it is snapped to the storey list the way `check_doors` snaps it, and then
+    to the storeys that actually ship: a storey `plan_key` dropped as too
+    small to stand on has no plan to lay a threshold on.
+
+    Returns `([(index into PLAN_FLOORS[key], x, y), …], dropped)` in model
+    space, `dropped` being the portals above the ground that snapped to no
+    shipped storey.
+    """
+    ways = doorways(client, path)
+    up = storeys(client, path)
+    ships = PLAN_FLOORS.get(key) or []
+    if not ways or not up or not ships:
+        return [], 0
+    base = min(d[0] for d in ways)
+    out, dropped = [], 0
+    for sill, lx, ly in ways:
+        if abs(sill - base) <= BODY:
+            continue
+        floor = min(up, key=lambda z: abs(z - sill))
+        at = next((k for k, (z, _pl) in enumerate(ships)
+                   if abs(z - round(floor, 2)) < 0.01), -1)
+        if at < 0:
+            dropped += 1
+            continue
+        out.append((at, lx, ly))
+    return out, dropped
+
+
+def check_upper_doors(meta):
+    """Every storey above the ground carries its own doorways, and none of them is a way in.
+
+    Asked of what was written, not of the list that wrote it: each doorway is
+    taken back into its model's space and has to land inside the outline of
+    the storey it names and out of its stone — the question `check_doors`
+    asks, of the plan that ships.  A storey index off by one puts a door on a
+    floor it is not on, and that floor's outline is somewhere else.  And no
+    upper doorway may also be a ground one: `d` is a way in from outside, and
+    an opening on the gallery is not.
+    """
+    if not PLAN_PATH:
+        return
+    shipped, dropped, above, bad, twice = 0, 0, 0, [], 0
+    for key, path in PLAN_PATH.items():
+        if not PLAN_FLOORS.get(key) or is_mouth(path):
+            continue
+        ways = doorways(_CLIENT[0], path)
+        base = min(d[0] for d in ways) if ways else 0
+        above += sum(1 for d in ways if abs(d[0] - base) > BODY)
+        dropped += upper_doors(_CLIENT[0], path, key)[1]
+    storeys_with = set()
+    for d in meta['doodads']:
+        if not d.get('du'):
+            continue
+        floors = PLAN_FLOORS.get(d['p']) or []
+        t = math.radians(d['mr'])
+        ca, sa = math.cos(t), math.sin(t)
+        ground = set((q[0], q[1]) for q in d.get('d', []))
+        for at, wx, wy in d['du']:
+            shipped += 1
+            if (wx, wy) in ground:
+                twice += 1
+            if not 0 <= at < len(floors):
+                bad.append('%s storey %d of %d' % (d['k'], at, len(floors)))
+                continue
+            storeys_with.add((d['p'], at))
+            # `to_world` read backwards: the map's y is the origin less the
+            # placement's own x, its x the origin less its z, turned by `mr`.
+            along, across = d['y'] - wy, wx - d['x']
+            lx = along * ca + across * sa
+            ly = -along * sa + across * ca
+            cells, w, h, x0, y0, solid = floors[at][1][:6]
+            i, j = int((lx - x0) / PLAN_CELL), int((ly - y0) / PLAN_CELL)
+            inside = 0 <= i < w and 0 <= j < h and cells[i * h + j]
+            if not inside or solid[i * h + j]:
+                bad.append('%s at %.1f, %.1f on storey %d: %s' % (
+                    d['k'], wx, wy, at, 'stone' if inside else 'outside its outline'))
+    print(f'check: {above} portals above the ground storey of the buildings with '
+          f'an upper storey; {shipped} doorways shipped on {len(storeys_with)} '
+          f'storeys over every placement, {dropped} on storeys too small to ship')
+    assert not bad, 'upper doorways off their own storey: ' + '; '.join(bad[:8])
+    assert twice == 0, f'{twice} upper doorways are also ground doors'
+
+
+def check_rises():
+    """Every tread has a height the byte holds, and none is above where its flight ends.
+
+    A steps cell is a walkable face whose highest corner is under the next
+    storey's head height — the rung test in `wmo_plan` — so the tread's height
+    at the cell's centre, measured from this storey's own sill, is at most the
+    gap to the next storey less a body.  Measured from anywhere else it is not:
+    from the model's origin, every storey above one whose sill is over the
+    origin is its whole sill too high.  There is no bound on the other side,
+    and that is not a gap in the check — a ramp's face reaches head height
+    from below the floor, which is why the byte goes under the sill.
+    """
+    if not PLAN_PATH:
+        return
+    cells_, under, over, top = 0, 0, 0, 0.0
+    clamped = sum(_RISE_CLAMPED.values())
+    for key, path in PLAN_PATH.items():
+        ground = PLANS_BY_KEY.get(key)
+        if not ground or is_mouth(path):
+            continue
+        up = storeys(_CLIENT[0], path)
+        ships = {round(z, 2): pl for z, pl in PLAN_FLOORS.get(key, [])}
+        for k, sill in enumerate(up[:-1]):
+            plan = ground if k == 0 else ships.get(round(sill, 2))
+            if not plan:
+                continue
+            ceiling = up[k + 1] - sill - BODY + 0.01 + RISE / 2
+            for v in plan[8]:
+                if not v:
+                    continue
+                cells_ += 1
+                z = (v - 1 - RISE_ZERO) * RISE
+                top = max(top, z)
+                under += z < 0
+                over += z > ceiling
+    print(f'check: {cells_:,} steps cells carry a tread height, {under:,} of '
+          f'them under their own sill and the highest {top:.2f} yd over it; '
+          f'{clamped} outside the byte, {over} above the storey they lead to')
+    assert clamped == 0, f'{clamped} tread heights did not fit a byte of {RISE} yd'
+    assert over == 0, f'{over} tread heights are above the flight they are on'
 
 
 def check_storeys():

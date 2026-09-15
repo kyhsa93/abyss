@@ -89,6 +89,12 @@ type Doodad = {
    */
   d?: Door[]
   /**
+   * And the doorways of the storeys above the ground, `[storey, x, y]` in
+   * world yards, the storey an index into this model's `floors`.  Kept out of
+   * `d`, which is the way in from outside: an opening on a gallery is not.
+   */
+  du?: [number, number, number][]
+  /**
    * Which building placement this is, or which one put this piece down.
    *
    * A building's furniture is only hidden from outside once the scene knows
@@ -133,8 +139,9 @@ type Meta = {
   /**
    * A building from above, four masks over one grid: its outline, the part of
    * that outline a man cannot be in, the part he can stand on, and the part
-   * with something over his head.
-   * `[w, h, cell yards, model x0, y0, outline, solid, floor, over]`.
+   * with something over his head — and the way up, and how high each of its
+   * treads is.
+   * `[w, h, cell yards, model x0, y0, outline, solid, floor, over, steps, rises]`.
    *
    * The fourth is what tells a room from a courtyard.  Seen from above an
    * outline is a silhouette and 65% of the slice's is neither stone nor
@@ -142,7 +149,7 @@ type Meta = {
    * **167,238 roofed and 25,433 open to the sky**.
    */
   plans?: Record<string, [number, number, number, number, number,
-    string, string, string, string, string]>
+    string, string, string, string, string, string?]>
   /**
    * And the floors above the ground one, `[sill, …the same nine]` a storey.
    *
@@ -157,7 +164,13 @@ type Meta = {
    * than empty.
    */
   floors?: Record<string, [number, number, number, number, number, number,
-    string, string, string, string, string][]>
+    string, string, string, string, string, string?][]>
+  /**
+   * Yards a step of a tread's height is, and which byte is the sill, for the
+   * sixth field of a plan: a byte a steps cell, how far from its storey's
+   * sill the tread is.
+   */
+  planRise?: [number, number]
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
   /** Which of them this slice actually is — see `areaSlice` in the bake. */
@@ -2094,6 +2107,10 @@ async function main() {
         // between two floors is near neither, so both floors came out with
         // nothing between them.
         steps: bytesOf(raw[9] ?? ''),
+        // And how high each of those treads is: a byte for each set cell of
+        // `steps`, in cell order, eighths of a yard above this storey's sill
+        // — see `rises` in the bake.  Which end of a flight is the top.
+        rise: bytesOf(raw[10] ?? ''),
         // The turn that takes the model's space to the map, in radians.
         c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
         sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
@@ -2107,7 +2124,7 @@ async function main() {
           z: f[0],
           w: f[1], h: f[2], s: f[3], x0: f[4], y0: f[5],
           bits: bytesOf(f[6]), solid: bytesOf(f[7]), floor: bytesOf(f[8]),
-          over: bytesOf(f[9]), steps: bytesOf(f[10] ?? ''),
+          over: bytesOf(f[9]), steps: bytesOf(f[10] ?? ''), rise: bytesOf(f[11] ?? ''),
           c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
           sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
         }))
@@ -2130,6 +2147,12 @@ async function main() {
         house: d.h ?? 0,
         /** Where you go in — see `d` on the doodad. */
         doors: (d.d ?? []) as Door[],
+        /**
+         * The doorways of the storeys above, `[storey, x, y]` — see `du`.
+         * Never in `doors`: that is the way in from outside to everything
+         * that reads it, and a doorway on the gallery is not one.
+         */
+        upDoors: d.du ?? [],
         /** With no door, how much of it is at the ground — see `g`. */
         ground: d.g ?? null,
         /** And what is above it, ground floor first excluded. */
@@ -3627,7 +3650,7 @@ async function main() {
       // The mouth's own height: a cave this scene dug has no model, so there
       // is nothing else for a storey to be measured from — and it has one.
       z: groundAt(mouth[0], mouth[1]),
-      c: 1, s: 0, k: 'mine', area, house: 0, doors: [mouth],
+      c: 1, s: 0, k: 'mine', area, house: 0, doors: [mouth], upDoors: [],
       // A cave has one floor by construction: it is cut out of the height
       // grid, and the height grid has one z for an (x, y).
       floors: [],
@@ -3636,7 +3659,7 @@ async function main() {
         bits: dug.bits, solid: new Uint8Array(dug.bits.length), floor: dug.bits,
         // A cave is roofed everywhere it exists — that is what makes it a
         // cave rather than a quarry — and it has one floor, so no stairs.
-        over: dug.bits, steps: new Uint8Array(0),
+        over: dug.bits, steps: new Uint8Array(0), rise: new Uint8Array(0),
         c: 1, sn: 0,
       },
       rooms: [{ x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2,
@@ -7351,6 +7374,7 @@ async function main() {
    */
   function mapMarks(b: Built, p: Plan, room: Room, toMap: (x: number, y: number) => [number, number],
     size: number) {
+    mapFlightMarks.length = 0
     const at = (i: number, j: number) => {
       const [x, y] = fromPlan(p, b, p.x0 + i * p.s, p.y0 + j * p.s)
       return toMap(x, y)
@@ -7380,7 +7404,14 @@ async function main() {
         && fl.marks[0]!.at[1] === fl.marks[1]!.at[1]
       fl.marks.forEach((m, which) => {
         const [X, Y] = at(m.at[0], m.at[1])
-        drawMark(X + (pair ? (which ? 0.55 : -0.55) * size : 0), Y, 0, 0, m.what, mapCtx, size, rim)
+        mapFlightMarks.push(X, Y)
+        let ux = 0, uy = 0
+        if (m.dir) {
+          const [X2, Y2] = at(m.at[0] + m.dir[0], m.at[1] + m.dir[1])
+          const l = Math.hypot(X2 - X, Y2 - Y) || 1
+          ux = (X2 - X) / l; uy = (Y2 - Y) / l
+        }
+        drawMark(X + (pair ? (which ? 0.55 : -0.55) * size : 0), Y, ux, uy, m.what, mapCtx, size, rim)
       })
     }
   }
@@ -7388,6 +7419,12 @@ async function main() {
   let toMapScale = 1
   /** How big a mark on the circle is, in its own pixels, as the last paint had it. */
   let mapMark = 7
+  /**
+   * Where the last paint put the flights' marks on the circle, x then y — so a
+   * check reading a threshold's pixels can tell a threshold with a triangle
+   * drawn over it from one that is not there.  One array, emptied a paint.
+   */
+  const mapFlightMarks: number[] = []
 
   function paintMap() {
     const n = ui.map.width
@@ -9626,7 +9663,21 @@ async function main() {
      * in plan cells.
      */
     flights: { cells: number; turned: boolean; up: number; down: number; both: number
-      marks: { what: 'up' | 'down'; at: [number, number] }[] }[]
+      /**
+       * Where each mark goes and which way it points, in plan cells: an up
+       * mark towards the top of the treads it stands on, a down mark towards
+       * their foot, or `null` where nothing says which end is the top.
+       */
+      marks: { what: 'up' | 'down'; at: [number, number]; dir: [number, number] | null }[]
+      /** What said which way it climbs — see `aimFlights`. */
+      rule: 'heights' | 'both ways' | 'shape'
+      /**
+       * From the middle of the cells that lead only down to the middle of
+       * those that lead only up, in cells, on a flight that has both.
+       */
+      ways: [number, number] | null
+      /** The plane through each part's tread heights, as `slopeOf` fits it. */
+      tops: { up: Slope | null; down: Slope | null } }[]
     /**
      * The longest straight run of the outline where the room's wall or
      * nothing meets the outside, in cells — a side with no stroke on it, so a
@@ -10115,6 +10166,194 @@ async function main() {
     return { ms: performance.now() - t0, band }
   }
 
+  /**
+   * A storey's tread heights spread over its grid, in `planRise` steps (the
+   * sill is byte `planRise[1]`), or -1 where `steps` is not set — see `rise` on the plan.  Made
+   * when a room is composed and dropped with it: bytes, not a canvas.
+   */
+  const risesOf = (p: Plan) => {
+    const out = new Int16Array(p.w * p.h).fill(-1)
+    if (!p.rise.length) return out
+    let k = 0
+    for (let n = 0; n < p.w * p.h && k < p.rise.length; n++) {
+      if (bitAt(p.steps, n)) out[n] = p.rise[k++]!
+    }
+    return out
+  }
+  /**
+   * Which way a set of treads climbs, as a plane through their heights: the
+   * unit direction uphill in plan cells, how far they rise along it over the
+   * cells they cover, and how far the heights stand off the plane, in yards.
+   *
+   * A least-squares plane and not the two ends, because a flight's cells are
+   * a patch and not a line, and one tread at a corner would swing a line
+   * through its ends.  Cells in a single row have no plane; they get the line
+   * along their row.
+   */
+  const slopeOf = (ii: number[], jj: number[], zz: number[]) => {
+    const n = zz.length
+    if (n < 2) return null
+    const unit = meta.planRise?.[0] ?? 0
+    let mi = 0, mj = 0, mz = 0
+    for (let k = 0; k < n; k++) { mi += ii[k]!; mj += jj[k]!; mz += zz[k]! }
+    mi /= n; mj /= n; mz /= n
+    let sii = 0, sij = 0, sjj = 0, siz = 0, sjz = 0
+    for (let k = 0; k < n; k++) {
+      const di = ii[k]! - mi, dj = jj[k]! - mj, dz = zz[k]! - mz
+      sii += di * di; sij += di * dj; sjj += dj * dj; siz += di * dz; sjz += dj * dz
+    }
+    let a = 0, c = 0
+    const det = sii * sjj - sij * sij
+    if (det > 1e-6 * (sii + sjj) ** 2) {
+      a = (siz * sjj - sjz * sij) / det
+      c = (sjz * sii - siz * sij) / det
+    } else {
+      const [u0, u1] = sii >= sjj ? [sii, sij] : [sij, sjj]
+      const l = Math.hypot(u0, u1)
+      if (!l) return null
+      const e0 = u0 / l, e1 = u1 / l
+      const stt = e0 * e0 * sii + 2 * e0 * e1 * sij + e1 * e1 * sjj
+      if (!stt) return null
+      const k = (e0 * siz + e1 * sjz) / stt
+      a = k * e0; c = k * e1
+    }
+    const g = Math.hypot(a, c)
+    let lo = Infinity, hi = -Infinity, ss = 0
+    for (let k = 0; k < n; k++) {
+      const di = ii[k]! - mi, dj = jj[k]! - mj
+      if (g) {
+        const t = (di * a + dj * c) / g
+        if (t < lo) lo = t
+        if (t > hi) hi = t
+      }
+      const off = zz[k]! - mz - (a * di + c * dj)
+      ss += off * off
+    }
+    return { dir: g ? [a / g, c / g] as [number, number] : null,
+      rise: g ? g * (hi - lo) * unit : 0, off: Math.sqrt(ss / n) * unit, cells: n }
+  }
+  type Slope = NonNullable<ReturnType<typeof slopeOf>>
+  /**
+   * Whether a plane through a part of a flight says which end is the top.
+   *
+   * It has to rise by more than the heights stand off it — twice their spread
+   * — and by more than one step of the byte they were kept in, or it is a
+   * landing, a spiral, or two flights crossing on one cell, and a direction
+   * read out of any of those is a coin.  See `aimFlights` for what the slice
+   * does with the rest.
+   */
+  const FLIGHT_RISE = { off: 2, steps: 2 }
+  const topOf = (fit: Slope | null) =>
+    fit && fit.dir && fit.rise >= FLIGHT_RISE.off * fit.off
+      && fit.rise >= FLIGHT_RISE.steps * (meta.planRise?.[0] ?? Infinity) ? fit.dir : null
+
+  /**
+   * **Which way each flight goes, and which end of it is the top.**
+   *
+   * Up or down is `upOrDown`'s own rule: a cell of this storey's `steps` takes
+   * you up, a cell of the storey below's takes you down, and a cell of both is
+   * a landing where up wins.  Each flight carries an up mark on its up cells'
+   * own middle and a down mark on its down cells', so a flight that does both
+   * has each mark at its own end.  A landing's cells count for both.
+   *
+   * **Which end is the top is the treads' heights**, a byte a steps cell out
+   * of the bake: a plane is fitted through the heights of each part — the up
+   * cells out of this storey's mask, the down cells out of the one below's,
+   * each measured from its own sill so they are never mixed — and the up mark
+   * points up its slope and the down mark down its. It had been declined
+   * without them: 8 of the slice's 255 flights have cells leading both ways
+   * and say it outright, and the two readings tried for the rest agreed 24
+   * times in 37, which is a coin.  **Where the plane does not rise clear of
+   * its own spread (`topOf`) nothing is guessed**: a flight whose cells lead
+   * both ways points from its down cells to its up cells, the one thing it
+   * says outright, and any other keeps the triangle up or down the glass —
+   * the map's word for a level, which claims no end.
+   *
+   * The treads are turned across the way the flight climbs when that is
+   * known, and otherwise the flight is longer than it is wide.
+   *
+   * A mark only on a flight a body fits on — `BODY_YARDS` square — because
+   * the abbey's first floor has twenty-five single cells of steps along its
+   * roof's edge, and twenty-five triangles there say *stairs* where nobody
+   * could climb.
+   */
+  function aimFlights(p: Plan, under: Plan | null, r: ReturnType<typeof roomPieces>,
+    flight: Int32Array, flights: Room['flights']) {
+    const { W, H } = r
+    const upZ = risesOf(p), downZ = under ? risesOf(under) : null
+    const acc = flights.map(() => ({ ui: 0, uj: 0, un: 0, di: 0, dj: 0, dn: 0,
+      bi: 0, bj: 0, bn: 0,
+      hu: [[], [], []] as number[][], hd: [[], [], []] as number[][] }))
+    for (let n = 0; n < W * H; n++) {
+      const at = flight[n]!
+      if (at < 0) continue
+      const x = acc[at]!, i = (n / H) | 0, j = n % H
+      const u = r.up[n] === 1, dd = r.down[n] === 1
+      if (u && dd) { x.bi += i; x.bj += j; x.bn++ }
+      else if (u) { x.ui += i; x.uj += j; x.un++ }
+      else if (dd) { x.di += i; x.dj += j; x.dn++ }
+      if (u && upZ[n]! >= 0) { x.hu[0]!.push(i + 0.5); x.hu[1]!.push(j + 0.5); x.hu[2]!.push(upZ[n]!) }
+      if (dd && under && downZ) {
+        // The storey below has its own grid; the model's space is shared.
+        const ui = Math.floor((p.x0 + (i + 0.5) * p.s - under.x0) / under.s)
+        const uj = Math.floor((p.y0 + (j + 0.5) * p.s - under.y0) / under.s)
+        const z = ui >= 0 && uj >= 0 && ui < under.w && uj < under.h ? downZ[ui * under.h + uj]! : -1
+        if (z >= 0) { x.hd[0]!.push(i + 0.5); x.hd[1]!.push(j + 0.5); x.hd[2]!.push(z) }
+      }
+    }
+    const bodyCells = (BODY_YARDS / p.s) ** 2
+    const targets = flights.map((fl, at) => {
+      const x = acc[at]!
+      fl.up = x.un; fl.down = x.dn; fl.both = x.bn
+      fl.tops = { up: slopeOf(x.hu[0]!, x.hu[1]!, x.hu[2]!), down: slopeOf(x.hd[0]!, x.hd[1]!, x.hd[2]!) }
+      if (x.un && x.dn) fl.ways = [x.ui / x.un - x.di / x.dn, x.uj / x.un - x.dj / x.dn]
+      let upDir = topOf(fl.tops.up)
+      let downDir = topOf(fl.tops.down)
+      if (downDir) downDir = [-downDir[0], -downDir[1]]
+      if (upDir || downDir) {
+        fl.rule = 'heights'
+        const d = upDir ?? downDir!
+        fl.turned = Math.abs(d[0]) > Math.abs(d[1])
+      } else if (x.un && x.dn) {
+        fl.rule = 'both ways'
+        fl.turned = Math.abs(fl.ways![0]) > Math.abs(fl.ways![1])
+      }
+      if (fl.cells < bodyCells) return null
+      // Up on the up cells' own middle and down on the down cells', so a
+      // flight that does both has each mark at its own end.  A landing's
+      // cells count for both.
+      const mid = (si: number, sj: number, sn: number) => (sn ? [si / sn, sj / sn] : null)
+      return {
+        up: mid(x.ui + x.bi, x.uj + x.bj, x.un + x.bn),
+        down: mid(x.di + x.bi, x.dj + x.bj, x.dn + x.bn),
+        upDir, downDir, bestUp: Infinity, bestDown: Infinity,
+      }
+    })
+    for (let n = 0; n < W * H; n++) {
+      const at = flight[n]!
+      const t = at >= 0 ? targets[at] : null
+      if (!t) continue
+      const i = (n / H) | 0, j = n % H, fl = flights[at]!
+      // On a cell that says it, nearest the middle of the cells that say it.
+      if (t.up && r.up[n] === 1) {
+        const dd = (i - t.up[0]!) ** 2 + (j - t.up[1]!) ** 2
+        if (dd < t.bestUp) {
+          t.bestUp = dd
+          fl.marks = fl.marks.filter((m) => m.what !== 'up')
+          fl.marks.push({ what: 'up', at: [i + 0.5, j + 0.5], dir: t.upDir })
+        }
+      }
+      if (t.down && r.down[n] === 1) {
+        const dd = (i - t.down[0]!) ** 2 + (j - t.down[1]!) ** 2
+        if (dd < t.bestDown) {
+          t.bestDown = dd
+          fl.marks = fl.marks.filter((m) => m.what !== 'down')
+          fl.marks.push({ what: 'down', at: [i + 0.5, j + 0.5], dir: t.downDir })
+        }
+      }
+    }
+  }
+
   function composeRoom(b: Built, p: Plan, under: Plan | null): Room {
     const t0 = performance.now()
     roomComposed++
@@ -10198,91 +10437,10 @@ async function main() {
       if (flight[n]! < 0 && onFlight(n)) {
         const got = flood(n, flight, flights.length, onFlight)
         flights.push({ cells: got.cells, turned: got.across > got.along,
-          up: 0, down: 0, both: 0, marks: [] })
+          up: 0, down: 0, both: 0, marks: [], rule: 'shape', ways: null, tops: { up: null, down: null } })
       }
     }
-    /**
-     * **Which way each flight goes**, out of the two masks it is made of —
-     * `upOrDown`'s own rule: a cell of this storey's `steps` takes you up, a
-     * cell of the storey below's takes you down, and a cell of both is a
-     * landing where up wins.
-     *
-     * That is what a flight can say for certain, and it is what the marks
-     * say: a triangle up the glass on a flight that leads up, down the glass
-     * on one that leads down, both on one that does both.  The triangle points
-     * up and down the *glass* and not along the flight on purpose — it is the
-     * map's word for a level, the way a lift's button is, and a triangle
-     * along the stairs would be a claim about which end is the top.
-     *
-     * **Which end is the top is not in the plan for most flights, and it was
-     * measured before it was declined.**  A flight whose cells lead both ways
-     * says it outright — the up cells are the top — and 8 of the slice's 255
-     * flights are that; their treads run across the line from the down cells
-     * to the up cells and each mark sits on its own end.  For the rest there
-     * were two readings: the side the ramp carries on past what can be stood
-     * on, and the side the plain floor you step on from lies.  Where both had
-     * an answer they agreed 24 times in 37, which is a coin, so neither is
-     * used: those flights keep the rule a flight is longer than it is wide,
-     * and their mark goes on the flight's own middle.  A height per steps cell
-     * from the bake is what would settle it.
-     *
-     * A mark only on a flight a body fits on — `BODY_YARDS` square — because
-     * the abbey's first floor has twenty-five single cells of steps along its
-     * roof's edge, and twenty-five triangles there say *stairs* where nobody
-     * could climb.
-     */
-    const acc = flights.map(() => ({ ui: 0, uj: 0, un: 0, di: 0, dj: 0, dn: 0,
-      bi: 0, bj: 0, bn: 0 }))
-    for (let n = 0; n < W * H; n++) {
-      const at = flight[n]!
-      if (at < 0) continue
-      const x = acc[at]!, i = (n / H) | 0, j = n % H
-      const u = r.up[n] === 1, dd = r.down[n] === 1
-      if (u && dd) { x.bi += i; x.bj += j; x.bn++ }
-      else if (u) { x.ui += i; x.uj += j; x.un++ }
-      else if (dd) { x.di += i; x.dj += j; x.dn++ }
-    }
-    const bodyCells = (BODY_YARDS / p.s) ** 2
-    const targets = flights.map((fl, at) => {
-      const x = acc[at]!
-      fl.up = x.un; fl.down = x.dn; fl.both = x.bn
-      if (x.un && x.dn) {
-        fl.turned = Math.abs(x.ui / x.un - x.di / x.dn) > Math.abs(x.uj / x.un - x.dj / x.dn)
-      }
-      if (fl.cells < bodyCells) return null
-      // Up on the up cells' own middle and down on the down cells', so a
-      // flight that does both has each mark at its own end.  A landing's
-      // cells count for both.
-      const mid = (si: number, sj: number, sn: number) => (sn ? [si / sn, sj / sn] : null)
-      return {
-        up: mid(x.ui + x.bi, x.uj + x.bj, x.un + x.bn),
-        down: mid(x.di + x.bi, x.dj + x.bj, x.dn + x.bn),
-        bestUp: Infinity, bestDown: Infinity,
-      }
-    })
-    for (let n = 0; n < W * H; n++) {
-      const at = flight[n]!
-      const t = at >= 0 ? targets[at] : null
-      if (!t) continue
-      const i = (n / H) | 0, j = n % H, fl = flights[at]!
-      // On a cell that says it, nearest the middle of the cells that say it.
-      if (t.up && r.up[n] === 1) {
-        const dd = (i - t.up[0]!) ** 2 + (j - t.up[1]!) ** 2
-        if (dd < t.bestUp) {
-          t.bestUp = dd
-          fl.marks = fl.marks.filter((m) => m.what !== 'up')
-          fl.marks.push({ what: 'up', at: [i + 0.5, j + 0.5] })
-        }
-      }
-      if (t.down && r.down[n] === 1) {
-        const dd = (i - t.down[0]!) ** 2 + (j - t.down[1]!) ** 2
-        if (dd < t.bestDown) {
-          t.bestDown = dd
-          fl.marks = fl.marks.filter((m) => m.what !== 'down')
-          fl.marks.push({ what: 'down', at: [i + 0.5, j + 0.5] })
-        }
-      }
-    }
+    aimFlights(p, under, r, flight, flights)
     // The tread picture a quarter turned, once, for the flights that want it.
     let turned: HTMLCanvasElement | null = null
     const stairPic = stairId ? tilesMeta[stairId] : undefined
@@ -10451,9 +10609,11 @@ async function main() {
    * gaps finds every gap, and a gap between two pillars is not a door.  The
    * client's portals say which openings are doors (`d`), and `MOPR`/`MOGI`
    * say which of those lead outside and which way (`front_doors`).  The
-   * doors are the ground storey's: the bake keeps a portal's sill to find
-   * which storey is the ground and ships only those, so a door is laid on the
-   * ground floor's room and on no other.
+   * ground storey's are `doors`, fronts and all; a storey above lays its own,
+   * `upDoors`, each snapped by the bake to the storey its sill opens on — and
+   * those are only ever thresholds, because an opening on a gallery is not a
+   * way out of the building.  Over the slice 27 doorways on the storeys above,
+   * 20 of them laid.
    *
    * **A doorway between rooms is a threshold.**  It carries no width and no
    * facing, so both come from the plan at the door: the standing room through
@@ -10477,7 +10637,13 @@ async function main() {
   function composeExits(b: Built, p: Plan, g: CanvasRenderingContext2D, S: number,
     r: ReturnType<typeof roomPieces>): RoomExit[] {
     const out: RoomExit[] = []
-    if (p !== b.plan || b.k === 'mine' || !b.doors.length) return out
+    if (b.k === 'mine') return out
+    // The ground storey's doors are `doors`, fronts and all; a storey above
+    // has its own doorways, `upDoors`, which are never a way out.
+    const upper = b.floors.findIndex((f) => f === p)
+    const doors: Door[] = p === b.plan ? b.doors
+      : upper >= 0 ? b.upDoors.filter((u) => u[0] === upper).map((u) => [u[1], u[2]] as Door) : []
+    if (!doors.length) { exitsUnmarked.set(p, 0); return out }
     const { W, H } = r
     const px = S / p.s
     const tread = tilesMeta[b.k === 'house' && tilesMeta['in_stair_wood']
@@ -10504,7 +10670,7 @@ async function main() {
     const walkAt = (i: number, j: number) =>
       i >= 0 && j >= 0 && i < W && j < H && r.walk[i * H + j] === 1
     let unmarked = 0
-    for (const door of b.doors) {
+    for (const door of doors) {
       const [dx, dy] = door
       const [ci, cj] = cellsOf(p, b, dx, dy)
       if (door.length === 5) {
@@ -10663,8 +10829,16 @@ async function main() {
         const X = a * i + c * j + e + (pair ? (which ? 0.55 : -0.55) * markPx : 0)
         const Y = bb * i + d * j + f
         if (X < -markPx || Y < -markPx || X > canvas.width + markPx || Y > canvas.height + markPx) return
-        drawMark(X, Y, 0, 0, m.what)
-        marksLaid.push({ flight: at, what: m.what, i, j, X, Y })
+        // Along the flight where its heights say which way it climbs, turned
+        // the way the room's transform turns that direction.
+        let gx = 0, gy = 0
+        if (m.dir) {
+          const vx = a * m.dir[0] + c * m.dir[1], vy = bb * m.dir[0] + d * m.dir[1]
+          const l = Math.hypot(vx, vy) || 1
+          gx = vx / l; gy = vy / l
+        }
+        drawMark(X, Y, gx, gy, m.what)
+        marksLaid.push({ flight: at, what: m.what, i, j, X, Y, gx, gy, dir: m.dir })
       })
     })
     roomLaid = room
@@ -10680,11 +10854,12 @@ async function main() {
   let exitsDrawn = 0
   /** The flights' marks the last frame drew: which flight, which way, where. */
   const marksLaid: { flight: number; what: 'up' | 'down'; i: number; j: number
-    X: number; Y: number }[] = []
+    X: number; Y: number; gx: number; gy: number; dir: [number, number] | null }[] = []
   /**
    * One mark, upright, centred on the glass at `(X, Y)`: an arrow along the
-   * unit vector `(ux, uy)` for a way out, and a triangle pointing up or down
-   * the glass for a flight.  A dark rim round it, the wall's own stroke, so it
+   * unit vector `(ux, uy)` for a way out, and a triangle for a flight — along
+   * `(ux, uy)` when the flight's heights say which way it climbs, and up or
+   * down the glass when nothing does.  A dark rim round it, the wall's own stroke, so it
    * reads on a pale floor and a dark one alike.  On the glass by default, and
    * on the minimap at the minimap's own size.
    */
@@ -10706,10 +10881,10 @@ async function main() {
       })
       g.fillStyle = markInk
     } else {
-      const tip = what === 'up' ? -1 : 1
-      g.moveTo(0, tip * s)
-      g.lineTo(s * 0.95, -tip * s * 0.75)
-      g.lineTo(-s * 0.95, -tip * s * 0.75)
+      const [fx, fy] = ux || uy ? [ux, uy] : [0, what === 'up' ? -1 : 1]
+      g.moveTo(fx * s, fy * s)
+      g.lineTo((-fx * 0.75 - fy * 0.95) * s, (-fy * 0.75 + fx * 0.95) * s)
+      g.lineTo((-fx * 0.75 + fy * 0.95) * s, (-fy * 0.75 - fx * 0.95) * s)
       g.fillStyle = PLAN_INK.steps
     }
     g.closePath()
@@ -14723,13 +14898,20 @@ async function main() {
     return {
       inside: indoors ? indoors.k : null, storey, drawn: exitsDrawn, mark: markPx,
       unmarked: roomPlan ? exitsUnmarked.get(roomPlan) ?? 0 : 0,
-      doors: indoors && roomPlan === indoors.plan ? indoors.doors.length : 0,
+      // The doorways of the storey drawn: the ground's `doors`, or the
+      // `upDoors` of the storey above it that the room was composed for.
+      doors: !indoors ? 0 : roomPlan === indoors.plan ? indoors.doors.length
+        : indoors.upDoors.filter((u) => u[0] === indoors!.floors.findIndex((f) => f === roomPlan)).length,
       ink: markInk, tones: r.tones, wallTone: r.tones[0] ?? null,
       exits: r.exits.map((x) => {
         const [i, j] = x.at
         const gx = a * x.along[0] + c * x.along[1], gy = bb * x.along[0] + d * x.along[1]
         const n = Math.hypot(gx, gy) || 1
-        return { kind: x.kind, x: x.x, y: x.y, half: x.half,
+        // And the threshold's own middle in the world, which for a doorway
+        // is the gap it was laid across and not the portal's point.
+        const [cx, cy] = roomPlan && indoors ? fromPlan(roomPlan, indoors,
+          roomPlan.x0 + i * roomPlan.s, roomPlan.y0 + j * roomPlan.s) : [x.x, x.y]
+        return { kind: x.kind, x: x.x, y: x.y, half: x.half, centre: { x: cx, y: cy },
           glass: { x: a * i + c * j + e, y: bb * i + d * j + f },
           out: { x: gx / n, y: gy / n } }
       }),
@@ -14744,16 +14926,111 @@ async function main() {
    */
   ;(window as unknown as { __roomFlights: () => unknown }).__roomFlights = () => {
     const r = roomLaid, p = roomPlan, b = indoors
-    if (!r || !p || !b) return null
+    if (!r || !p || !b || !b.plan) return null
+    // Where each flight's cells are in the world, so a check can read the
+    // treads of that flight and no other.  Labelled again rather than kept on
+    // the room: a label a cell is four bytes of every storey's grid.
+    const all = [b.plan, ...b.floors]
+    const k = all.findIndex((q) => q === p)
+    const sorted = roomCells(b, p, k > 0 ? all[k - 1]! : null)
+    const { flight } = labelFlights(sorted.r, sorted.stairId)
+    const where: [number, number][][] = r.flights.map(() => [])
+    for (let n = 0; n < flight.length; n++) {
+      const f = flight[n]!
+      if (f < 0 || !where[f]) continue
+      const i = (n / p.h) | 0, j = n % p.h
+      const [x, y] = fromPlan(p, b, p.x0 + (i + 0.5) * p.s, p.y0 + (j + 0.5) * p.s)
+      where[f]!.push([x, y])
+    }
     return {
       inside: b.k, storey, cell: p.s, mark: markPx,
-      flights: r.flights.map((fl) => ({ cells: fl.cells, up: fl.up, down: fl.down,
-        both: fl.both, turned: fl.turned, marks: fl.marks.length })),
+      flights: r.flights.map((fl, at) => ({ cells: fl.cells, where: where[at], up: fl.up, down: fl.down,
+        both: fl.both, turned: fl.turned, marks: fl.marks.length, rule: fl.rule,
+        tops: { up: fl.tops.up && { rise: fl.tops.up.rise, off: fl.tops.up.off },
+          down: fl.tops.down && { rise: fl.tops.down.rise, off: fl.tops.down.off } } })),
+      // `aim` is the way the triangle points on the glass, and `toward` the
+      // same direction in the world, a unit vector — both null where the
+      // flight says no end is the top and the triangle is up or down the glass.
       marks: marksLaid.map((m) => {
         const [x, y] = fromPlan(p, b, p.x0 + m.i * p.s, p.y0 + m.j * p.s)
-        return { flight: m.flight, what: m.what, glass: { x: m.X, y: m.Y }, world: { x, y } }
+        let toward = null
+        if (m.dir) {
+          const [x2, y2] = fromPlan(p, b, p.x0 + (m.i + m.dir[0]) * p.s, p.y0 + (m.j + m.dir[1]) * p.s)
+          const l = Math.hypot(x2 - x, y2 - y) || 1
+          toward = { x: (x2 - x) / l, y: (y2 - y) / l }
+        }
+        return { flight: m.flight, what: m.what, glass: { x: m.X, y: m.Y }, world: { x, y },
+          aim: m.dir ? { x: m.gx, y: m.gy } : null, toward }
       }),
     }
+  }
+  /**
+   * Every flight of every storey of every building that can be walked into,
+   * and what said which end of it is the top — see `aimFlights`.  Sorted and
+   * aimed without composing a room, the way the minimap sorts a storey, and
+   * the sort is dropped afterwards so it holds nothing.
+   *
+   * `agree` holds the heights against the one thing a flight says outright:
+   * of the flights whose cells lead both ways and whose heights say which
+   * way, how many point from the down cells' mark to the up cells'.
+   */
+  /**
+   * A storey's flights labelled the way `composeRoom` labels them — the same
+   * scan and the same four-way flood over the same cells — without composing
+   * anything, for the hooks that ask about flights the frame did not draw.
+   */
+  const labelFlights = (r: ReturnType<typeof roomPieces>, stairId: string | null) => {
+    const W = r.W, H = r.H
+    const flight = new Int32Array(W * H).fill(-1)
+    const flights: Room['flights'] = []
+    const stack: number[] = []
+    const on = (o: number) => !!stairId && r.stair[o] === 1
+    for (let n0 = 0; n0 < W * H; n0++) {
+      if (flight[n0]! >= 0 || !on(n0)) continue
+      let cells = 0
+      flight[n0] = flights.length
+      stack.push(n0)
+      while (stack.length) {
+        const m = stack.pop()!
+        cells++
+        const i = (m / H) | 0, j = m % H
+        for (const o of [i > 0 ? m - H : -1, i < W - 1 ? m + H : -1, j > 0 ? m - 1 : -1, j < H - 1 ? m + 1 : -1]) {
+          if (o >= 0 && flight[o]! < 0 && on(o)) { flight[o] = flights.length; stack.push(o) }
+        }
+      }
+      flights.push({ cells, turned: false, up: 0, down: 0, both: 0, marks: [], rule: 'shape',
+        ways: null, tops: { up: null, down: null } })
+    }
+    return { flight, flights }
+  }
+  ;(window as unknown as { __flightTops: () => unknown }).__flightTops = () => {
+    const rows: { i: number; k: string; storey: number; cells: number; marked: boolean
+      marks: { what: string; at: [number, number]; dir: [number, number] | null }[]
+      rule: string; up: number[] | null; down: number[] | null; ways: number | null
+      agree: boolean | null }[] = []
+    buildings.forEach((b, bi) => {
+      if (!b.plan || !b.doors.length) return
+      const all = [b.plan, ...b.floors]
+      all.forEach((q, s) => {
+        const under = s ? all[s - 1]! : null
+        const { r, stairId } = roomCells(b, q, under)
+        const { flight, flights } = labelFlights(r, stairId)
+        aimFlights(q, under, r, flight, flights)
+        for (const fl of flights) {
+          const u = fl.marks.find((m) => m.what === 'up'), d = fl.marks.find((m) => m.what === 'down')
+          const dir = fl.rule === 'heights' ? (u?.dir ?? (d?.dir ? [-d.dir[0], -d.dir[1]] : null)) : null
+          rows.push({ i: bi, k: b.k, storey: s - 1, cells: fl.cells, marked: fl.marks.length > 0,
+            marks: fl.marks.map((m) => ({ what: m.what, at: m.at, dir: m.dir })),
+            rule: fl.rule, up: fl.tops.up && [fl.tops.up.rise, fl.tops.up.off, fl.tops.up.cells],
+            down: fl.tops.down && [fl.tops.down.rise, fl.tops.down.off, fl.tops.down.cells],
+            ways: fl.ways && Math.hypot(fl.ways[0], fl.ways[1]),
+            agree: fl.ways && dir ? fl.ways[0] * dir[0] + fl.ways[1] * dir[1] > 0 : null })
+        }
+      })
+    })
+    planCodes.clear()
+    planCodesFor = null
+    return rows
   }
   /**
    * Where the room the last frame drew laid outdoor ground, as world points —
@@ -14851,6 +15128,8 @@ async function main() {
       plan: Object.values(PLAN_INK)
         .reduce((n2, hex) => n2 + (seen[hex] ?? 0), 0),
       inks: Object.entries(seen).sort((a, c) => c[1] - a[1]).slice(0, 6),
+      flightMarks: b ? Array.from({ length: mapFlightMarks.length >> 1 },
+        (_, k) => [mapFlightMarks[2 * k]!, mapFlightMarks[2 * k + 1]!]) : [],
     }
   }
 
@@ -15498,7 +15777,7 @@ async function main() {
     }
     return { storey, floors: b.floors.length, up, down, both, k: b.k }
   }
-  ;(window as unknown as { __stairs: () => number[][] }).__stairs = () => {
+  ;(window as unknown as { __stairs: () => (number | null)[][] }).__stairs = () => {
     const b = indoors
     if (!b) return []
     /**
@@ -15530,11 +15809,19 @@ async function main() {
      *
      * `1` leads up, `-1` leads down, `0` is both — a landing between two
      * flights, where `upOrDown` takes the up.
+     *
+     * And **how high the tread is**, straight off the bake's bytes and not
+     * through the flights' fit: the fourth column is the tread of this floor's
+     * mask and the fifth the floor below's, each in yards from its own sill,
+     * `null` where that mask has no step.  A check holds a mark's direction
+     * against these.
      */
-    const out: number[][] = []
-    const mark = new Map<string, number[]>()
+    const out: (number | null)[][] = []
+    const mark = new Map<string, (number | null)[]>()
+    const [unit, zero] = meta.planRise ?? [0, 0]
     for (const [way, p] of [[1, here], [-1, below]] as [number, Plan][]) {
       if (!p) continue
+      const zs = risesOf(p)
       for (let i = 0; i < p.w; i++) {
         for (let j = 0; j < p.h; j++) {
           if (!bitAt(p.steps, i * p.h + j)) continue
@@ -15542,9 +15829,10 @@ async function main() {
           const u = lx * p.sn + ly * p.c, v = lx * p.c - ly * p.sn
           const x = b.x + u, y = b.y - v
           const key = `${x.toFixed(2)},${y.toFixed(2)}`
+          const z = zs[i * p.h + j]! >= 0 ? (zs[i * p.h + j]! - zero) * unit : null
           const had = mark.get(key)
-          if (had) { had[2] = 0; continue }
-          const row = [x, y, way]
+          if (had) { had[2] = 0; had[way > 0 ? 3 : 4] = z; continue }
+          const row = [x, y, way, way > 0 ? z : null, way > 0 ? null : z]
           mark.set(key, row)
           out.push(row)
         }
@@ -16052,7 +16340,8 @@ async function main() {
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, z: b.z, l: b.l, w: b.w, k: b.k,
-      c: b.c, s: b.s, area: b.area, doors: b.doors, house: b.house, ground: b.ground,
+      c: b.c, s: b.s, area: b.area, doors: b.doors, upDoors: b.upDoors, doorstep: doorstepOf(b),
+      house: b.house, ground: b.ground,
       floors: b.floors?.map((f) => f.z) ?? [] }))
   /**
    * Who the player is right now and what a thousand swings come out as.
