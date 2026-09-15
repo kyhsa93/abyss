@@ -8430,11 +8430,64 @@ async function main() {
    */
   const MAX_FOLLOW = (layout?.camera?.follow as number | undefined) ?? 2
   const fitZoom = () => Math.min(canvas.width, canvas.height) / (PPY * SEEN_YARDS)
-  const clampZoom = (z: number) =>
-    Math.max(Math.min(1, fitZoom()) / MAX_FOLLOW, Math.min(3, z))
-  addEventListener('wheel', (e) => {
-    zoom = clampZoom(zoom * (1 - Math.sign(e.deltaY) * 0.12))
+  /**
+   * **On a phone the zoom is three steps, and a pinch moves between them.**
+   *
+   * A pinch froze the game, and the reason was the cache rather than the view:
+   * the tinted ground atlas and everything cut from it are keyed on the zoom to
+   * a hundredth, so a pinch rebuilt them on nearly every frame.  One rebuild is
+   * the whole atlas at the new tile size — measured on a phone viewport with
+   * the CPU slowed four times, **200 ms at 0.8, 250 at 1, 420 at 1.6 and 780 at
+   * 3** — and a pinch from 0.41 to 0.2 ran at eight frames a second for eleven
+   * seconds.  The atlas also grows as the square of the zoom: 12 MB decoded at
+   * 0.8, 19 at 1, 29 at 1.25, 48 at 1.6 and 161 at 3, which a phone has to find
+   * room for while the old one is still alive.
+   *
+   * The rebuild is cheap now — see `tintedGround`: the first visit to a step
+   * went 1,250 ms to 150, and a real two-finger pinch across all three steps
+   * went from a worst frame of 1,083 ms to 133 — and it still grows with the
+   * zoom.  So a phone's zoom is a ladder a quarter apart, and the two most
+   * recent atlases are kept, so a pinch that goes in and back out rebuilds
+   * nothing:
+   *
+   *   * **0.8 at the far end**, the widest that held sixty with the CPU slowed
+   *     four times — 0.7 was 56, 0.6 was 44, the old opening 0.41 was 35 and
+   *     the old floor 0.2 was 20
+   *   * **1.25 at the near end**, where two kept atlases are 48 MB; the next
+   *     step, 1.6, is 48 MB on its own
+   *   * **1 to open on**, by the owner's decision on 2026-09-15 that a phone
+   *     starts closer.  It is the art's own scale — a 32-pixel tile on 32
+   *     pixels — and it is sixteen yards across a 390-wide phone, which is
+   *     inside the forty yards `SEEN_YARDS` asks for: on a phone that rule is
+   *     given up for the frame rate and the size of a person, and the desktop
+   *     still keeps it.
+   */
+  const PHONE_ZOOMS = [0.8, 1, 1.25]
+  const PHONE_OPENS = 1
+  /** Where a pinch has got to, which the phone's zoom snaps to a step of. */
+  let zoomWant = 1
+  const snapZoom = (z: number) => PHONE_ZOOMS.reduce((best, step) =>
+    Math.abs(Math.log(step / z)) < Math.abs(Math.log(best / z)) ? step : best)
+  const clampZoom = (z: number) => pad.on
+    ? snapZoom(z)
+    : Math.max(Math.min(1, fitZoom()) / MAX_FOLLOW, Math.min(3, z))
+  /**
+   * Move the zoom by a factor, the way a wheel and a pinch both do.
+   *
+   * Through `zoomWant` rather than from `zoom`, because on a phone `zoom` is a
+   * step: multiplied by a pinch's few per cent and snapped, it would round back
+   * to the step it was on and never move.  Held a little past either end so a
+   * pinch that overshoots comes straight back.
+   */
+  const nudgeZoom = (by: number) => {
+    const lo = pad.on ? PHONE_ZOOMS[0]! / 1.12 : clampZoom(0)
+    const hi = pad.on ? PHONE_ZOOMS[PHONE_ZOOMS.length - 1]! * 1.12 : clampZoom(99)
+    zoomWant = Math.max(lo, Math.min(hi, zoomWant * by))
+    zoom = clampZoom(zoomWant)
     zoomIsMine = true
+  }
+  addEventListener('wheel', (e) => {
+    nudgeZoom(1 - Math.sign(e.deltaY) * 0.12)
   }, { passive: true })
 
 
@@ -8443,6 +8496,8 @@ async function main() {
    * back.  A pinch or a wheel is a decision and a rotated phone is not.
    */
   let zoomIsMine = false
+  /** Whether the zoom was last laid out for a phone — see the frame. */
+  let zoomedAsPhone = false
 
   function resize() {
     canvas.width = Math.floor(innerWidth)
@@ -8451,7 +8506,8 @@ async function main() {
     // Pull out far enough to see forty yards across the short side — see
     // `SEEN_YARDS`.  Never *in*: a wide screen shows what it has room for.
     if (!zoomIsMine) {
-      zoom = Math.min(1, clampZoom(fitZoom()))
+      zoom = pad.on ? PHONE_OPENS : Math.min(1, clampZoom(fitZoom()))
+      zoomWant = zoom
     }
   }
   addEventListener('resize', resize)
@@ -8754,10 +8810,21 @@ async function main() {
     sheets.clear()
     sheetBytes = 0
   }
-  let baked: { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
+  type Baked = { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> }
+  let baked: Baked | null = null
+  /**
+   * The atlas before this one, kept.  A pinch in and back out on a phone
+   * returns to the step it came from, and rebuilding that is the freeze.
+   */
+  let bakedBefore: Baked | null = null
   function tintedGround() {
     const key = Math.round(zoom * 100)
     if (baked && baked.key === key) return baked
+    if (bakedBefore && bakedBefore.key === key) {
+      ;[baked, bakedBefore] = [bakedBefore, baked]
+      return baked
+    }
+    bakedBefore = baked
     const px = Math.ceil(TILE * zoom) + 1
     const edges = [...Object.values(RING), 't_shore'].flatMap((pre) =>
       ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se', 'inw', 'ine', 'isw', 'ise']
@@ -8782,34 +8849,61 @@ async function main() {
       'in_house', 'in_house2', 'in_tower', 'in_tower2',
       ...edges]
       .filter((k) => k && tilesMeta[k]) as string[])]
+    // **Drawn once and copied, not drawn twenty-one times.**  Every row of the
+    // strip is the same pictures under a different wash, and it was built a
+    // picture at a time for every row — a scaled `drawImage` and a `fillRect`
+    // per tile per shade, twenty thousand calls, which is what made a phone
+    // stall for a fifth of a second every time the zoom moved.  Now the
+    // pictures are laid once into the first row, each row is that row copied,
+    // and the wash is two fills a row: one across the whole tiles and one,
+    // `source-atop`, across the edge pieces — which are kept together at the
+    // end of the strip so that one fill over all of them is the same as one
+    // fill per piece, landing on the piece and not on its hole.
+    const order = [...ids.filter((id) => !id.startsWith('t_')),
+      ...ids.filter((id) => id.startsWith('t_'))]
+    const pieces = order.findIndex((id) => id.startsWith('t_'))
+    const split = pieces < 0 ? order.length : pieces
     const c = document.createElement('canvas')
-    c.width = px * ids.length
+    c.width = px * order.length
     c.height = px * SHADES
     const g = c.getContext('2d')!
     g.imageSmoothingEnabled = false
     const at: Record<string, number> = {}
-    ids.forEach((id, i) => {
+    // Into a strip of its own and copied from there.  Copied from the atlas's
+    // own first row into its other rows, a canvas drawn on to itself took the
+    // slow path — the whole canvas snapshotted for every row — and the first
+    // visit to 1.25 still cost a second with the CPU slowed four times.
+    const row = document.createElement('canvas')
+    row.width = c.width
+    row.height = px
+    const rg = row.getContext('2d')!
+    rg.imageSmoothingEnabled = false
+    order.forEach((id, i) => {
       at[id] = i * px
       const p = tilesMeta[id]!
-      for (let j = 0; j < SHADES; j++) {
-        g.drawImage(tilesImg, p.x, p.y, p.w, p.h, i * px, j * px, px, px)
-        const sl = SHADE_LO + (j / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
-        // Straight across the range, not clamped again on the way out.  The
-        // old mapping reached its cap two thirds of the way down and flattened
-        // everything below it, which put a second black on top of the first.
-        if (Math.abs(sl) > 0.02) {
-          g.fillStyle = sl > 0
-            ? `rgba(255,247,224,${(sl / SHADE_HI) * 0.34})`
-            : `rgba(8,14,26,${(sl / SHADE_LO) * 0.46})`
-          // Only where the piece is.  A fill is a full square and it never
-          // mattered; an edge piece is mostly hole, and tinting the hole
-          // paints a grey square around every boundary in the world.
-          if (id.startsWith('t_')) g.globalCompositeOperation = 'source-atop'
-          g.fillRect(i * px, j * px, px, px)
-          g.globalCompositeOperation = 'source-over'
-        }
-      }
+      rg.drawImage(tilesImg, p.x, p.y, p.w, p.h, i * px, 0, px, px)
     })
+    for (let j = 0; j < SHADES; j++) g.drawImage(row, 0, j * px)
+    for (let j = 0; j < SHADES; j++) {
+      const sl = SHADE_LO + (j / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
+      // Straight across the range, not clamped again on the way out.  The
+      // old mapping reached its cap two thirds of the way down and flattened
+      // everything below it, which put a second black on top of the first.
+      if (Math.abs(sl) <= 0.02) continue
+      g.fillStyle = sl > 0
+        ? `rgba(255,247,224,${(sl / SHADE_HI) * 0.34})`
+        : `rgba(8,14,26,${(sl / SHADE_LO) * 0.46})`
+      // A fill is a full square and on a whole tile that never mattered; an
+      // edge piece is mostly hole, and tinting the hole paints a grey square
+      // around every boundary in the world — so over the pieces, only where
+      // the piece is.
+      if (split > 0) g.fillRect(0, j * px, split * px, px)
+      if (split < order.length) {
+        g.globalCompositeOperation = 'source-atop'
+        g.fillRect(split * px, j * px, (order.length - split) * px, px)
+        g.globalCompositeOperation = 'source-over'
+      }
+    }
     baked = { key, px, c, at }
     return baked
   }
@@ -9442,7 +9536,15 @@ async function main() {
     // pinching, so a frame where nothing happened does not count as a
     // decision and a rotated phone still gets its fit back.
     const pinched = pad.pinch()
-    if (pinched !== 1) { zoom = clampZoom(zoom * pinched); zoomIsMine = true }
+    if (pinched !== 1) nudgeZoom(pinched)
+    // The page learns it is on a phone from the pad, which can be after the
+    // first `resize` chose a desktop's opening — so the phone's own opening is
+    // taken the first frame it knows, unless the player has already zoomed.
+    if (pad.on !== zoomedAsPhone) {
+      zoomedAsPhone = pad.on
+      if (!zoomIsMine) resize()
+      else { zoom = clampZoom(zoom); zoomWant = zoom }
+    }
     // A tap on the world ends a conversation, which is how it ends anywhere.
     // Taps on the panel itself never reach the canvas, so answering an option
     // does not close the thing you are answering.
@@ -12222,7 +12324,7 @@ async function main() {
   ;(window as unknown as { __shading: () => unknown }).__shading = () => {
     const g = tintedGround()
     return {
-      rows: SHADES, flat: FLAT_ROW, high: g.c.height, tile: g.px,
+      rows: SHADES, flat: FLAT_ROW, high: g.c.height, tile: g.px, wide: g.c.width,
       indoor: [...indoorRows],
     }
   }
@@ -12354,6 +12456,7 @@ async function main() {
    */
   ;(window as unknown as { __zooms: () => unknown }).__zooms = () => ({
     zoom, fit: fitZoom(), follow: MAX_FOLLOW, floor: clampZoom(0),
+    phone: pad.on, steps: pad.on ? PHONE_ZOOMS : null, opens: pad.on ? PHONE_OPENS : null,
     ceiling: clampZoom(99), seen: SEEN_YARDS,
     cell: heroMeta.cell * clampZoom(0),
     across: canvas.width / (PPY * clampZoom(0)),
@@ -14607,7 +14710,7 @@ async function main() {
     // that asked for the widest view got a zoom no player can reach — and the
     // one check watching the frame rate out there was watching a screen that
     // does not exist.
-    else if (o.zoom !== undefined) { zoom = clampZoom(o.zoom); zoomIsMine = true }
+    else if (o.zoom !== undefined) { zoom = clampZoom(o.zoom); zoomWant = zoom; zoomIsMine = true }
     if (o.dir !== undefined) hero.dir = o.dir
   }
 }

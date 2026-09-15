@@ -134,6 +134,42 @@ await p.waitForTimeout(300)
 // driving a stick nobody can reach.
 await p.evaluate(() => window.__makeOne?.('가온'))
 await p.waitForTimeout(200)
+// **A phone opens closer, on its own step, and a pinch walks the steps
+// without stalling.**  The freeze this is for was a cache rebuilt on nearly
+// every frame of a pinch; what is asserted is the shape that removes it — a
+// real two-finger pinch out and back in, through Chromium's own touch input,
+// lands only on the phone's steps, reaches both ends, and no frame in it takes
+// a quarter of a second.
+{
+  const opened = await p.evaluate(() => window.__zooms())
+  check('a phone opens on its own zoom', opened.zoom === opened.opens,
+    `${opened.zoom}, opens on ${opened.opens}`)
+  const watch = p.evaluate(() => new Promise((res) => {
+    const gaps = []; const zs = new Set(); let last = performance.now()
+    const end = last + 4000
+    const tick = (t) => {
+      gaps.push(t - last); last = t; zs.add(window.__zooms().zoom)
+      if (t < end) requestAnimationFrame(tick); else res({ worst: Math.max(...gaps), zs: [...zs] })
+    }
+    requestAnimationFrame(tick)
+  }))
+  for (const [from, to] of [[60, 170], [170, 30], [30, 100]]) {
+    await touch('touchStart', [[195 - from, 300], [195 + from, 300]])
+    for (let k = 1; k <= 16; k++) {
+      const g = from + ((to - from) * k) / 16
+      await touch('touchMove', [[195 - g, 300], [195 + g, 300]])
+    }
+    await touch('touchEnd', [])
+  }
+  const pinched = await watch
+  check('and a pinch walks its steps without a frame of a quarter second',
+    pinched.zs.every((z) => opened.steps.includes(z))
+    && pinched.zs.includes(opened.floor) && pinched.zs.includes(opened.ceiling)
+    && pinched.worst < 250,
+    `zooms ${JSON.stringify(pinched.zs)}, worst frame ${Math.round(pinched.worst)} ms`)
+  await p.evaluate(() => window.__cam({ zoom: 0 }))
+  await p.waitForTimeout(300)
+}
 const L = await pad()
 console.log(`viewport ${p.viewportSize().width}x${p.viewportSize().height}  ` +
   `stick r=${L.base.toFixed(0)} button r=${L.btnR.toFixed(0)} hit=${L.hit.toFixed(0)}`)
@@ -203,7 +239,11 @@ const held = await hero()
 await touch('touchMove', [[100, 330], [300, 330]])
 await p.waitForTimeout(200)
 const z1 = await zoomOf()
-check('pinch out zooms in', z1 > z0 * 1.3, `${z0} -> ${z1}`)
+// A phone's zoom is steps now, a quarter apart, so a pinch that doubles the
+// gap between the fingers moves to the next step up and no further — it was
+// "at least a third bigger", which is more than one step and more than the
+// ladder has above the opening.
+check('pinch out zooms in', z1 > z0, `${z0} -> ${z1}`)
 check('the pinch does not steer', JSON.stringify(await hero()) === JSON.stringify(held),
   JSON.stringify([held, await hero()]))
 await touch('touchMove', [[180, 330], [220, 330]])
@@ -936,39 +976,31 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
   check(`${name}: all of it is on the glass`, off.length === 0,
     off.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
       `${Math.round(b.w)}x${Math.round(b.h)}`).join(' | '))
-  // **How far this screen may pull back, and what it leaves of a person.**
+  // **How far this screen may zoom, and what it leaves of a person.**
   //
-  // The far limit used to be the constant 0.12 with a comment defending a
-  // frame-rate cliff that plates had already removed.  It is the opening
-  // framing halved now — halved by `cameraDistanceMaxFactor`'s own `maxValue`
-  // in the client's options, which is a slider from 1 to 2 — and because the
-  // opening framing is a function of the glass, **a phone and a desktop get
-  // different floors without either being typed**.  That is the good property
-  // and it is also the risk: nobody ever sees the phone's number, so it is
-  // asserted at every size this file lays out rather than written in a
-  // paragraph.  On a 390-wide phone it is 0.406 down to 0.203, which leaves 13
-  // pixels of sprite; `viewcheck` holds the desktop's 0.8 down to 0.4.
-  //
-  // How small a person may get is the **smallest type on the same screen**,
-  // read off the page rather than typed: that number is already the client's
-  // own ladder one rung up, and a person you cannot make out is the same
-  // failure as a word you cannot read.  It is not slack — at `MIN_SCREEN` the
-  // sprite comes to 12 pixels against a type floor of 11.
+  // A phone does not get the desktop's range.  A pinch froze the game, because
+  // the tinted ground atlas is rebuilt for every zoom it meets and a rebuild
+  // was 200 to 780 ms with the CPU slowed four times; and the widest zooms held
+  // 20 to 35 frames a second.  So a phone's zoom is three steps — 0.8 at the
+  // far end, 1.25 at the near, opening on 1, by the owner's decision on
+  // 2026-09-15 — and a pinch moves between them.  Asserted at every size here
+  // because nobody sees a phone's number: the zoom only ever stands on a step,
+  // the ends are the steps' ends, and a person at the widest is still no
+  // smaller than the smallest type on the same screen.
   const zs = await p.evaluate(() => {
     const cs = getComputedStyle(document.documentElement)
     return { ...window.__zooms(),
       type: parseFloat(cs.getPropertyValue('--font-tiny')) }
   })
-  check(`${name}: the zoom floor is the opening framing over the camera slider`,
-    Math.abs(zs.floor - Math.min(1, zs.fit) / zs.follow) < 1e-9,
-    `${zs.fit.toFixed(3)} open, ${zs.floor.toFixed(3)} at the widest, `
-    + `${zs.across.toFixed(0)} yards across`)
+  check(`${name}: the zoom is one of a phone's steps, and the steps are its range`,
+    zs.phone === true && Array.isArray(zs.steps) && zs.steps.includes(zs.zoom)
+    && zs.floor === zs.steps[0] && zs.ceiling === zs.steps[zs.steps.length - 1],
+    `${zs.zoom} in ${JSON.stringify(zs.steps)}, ${zs.floor} to ${zs.ceiling}`)
   check(`${name}: and a person is no smaller there than the type beside him`,
     zs.cell >= zs.type,
     `${zs.cell.toFixed(1)} pixels of sprite against ${zs.type}px of type`)
-  console.log(`      (${name}: ${zs.fit.toFixed(3)} open, `
-    + `${zs.floor.toFixed(3)} widest, ${zs.across.toFixed(0)} yards, `
-    + `${zs.cell.toFixed(1)}px sprite)`)
+  console.log(`      (${name}: ${zs.zoom} now, ${zs.floor} widest, `
+    + `${zs.across.toFixed(0)} yards, ${zs.cell.toFixed(1)}px sprite)`)
   await p.screenshot({ path: `${SP}/pad-layout-${name}.png` })
 }
 // And lying down the chat window is a different box and not the same one

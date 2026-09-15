@@ -939,6 +939,36 @@ without either being typed — 0.406 → 0.203 on a 390-wide phone, 0.375 → 0.
 at `MIN_SCREEN`, 0.8 → 0.4 on a 1024 x 768 desktop. `layout.py` reads the
 slider the same way it reads a frame's anchor; only the number leaves.
 
+**On a phone the zoom is three steps, and a pinch had been freezing the
+game.** The tinted ground atlas and everything cut from it are keyed on the zoom
+to a hundredth, so a pinch rebuilt them on nearly every frame, and one rebuild
+was the whole atlas at the new tile size — 200 ms at 0.8 up to 780 at 3 with the
+CPU slowed four times, and a pinch from 0.41 to 0.2 ran at eight frames a second
+for eleven seconds. The atlas also grows as the square of the zoom, 19 MB at 1
+and 161 at 3. Three things answer it. **The atlas is drawn once and copied**:
+every row is the same pictures under a different wash, so the pictures go into
+the first row, each row is that row copied, and the wash is two fills a row —
+one over the whole tiles and one `source-atop` over the edge pieces, kept
+together at the end of the strip so a fill over all of them lands on each piece
+and not on its hole. The rows are copied from **a strip of their own**, not
+from the atlas's first row: a canvas drawn on to itself took the slow path and
+the first visit to 1.25 still cost 1,250 ms, which the separate strip took to
+150. Compared against the old build at three places, the picture is identical
+to the pixel. **The two most recent atlases are kept**, so a pinch in
+and back out rebuilds nothing. And **a phone's zoom is a ladder**, 0.8, 1 and
+1.25, snapped from where the pinch has got to: 0.8 is the widest that held sixty
+with the CPU slowed four times (the old opening 0.41 held 35 and the old floor
+0.2 held 20), and 1.25 is where two kept atlases are 48 MB. **A phone opens on
+1**, by the owner's decision on 2026-09-15 that it should start closer — the
+art's own scale, sixteen yards across a 390-wide phone, which gives up the
+forty yards `SEEN_YARDS` asks for on a phone and keeps it on a desktop. The page
+learns it is a phone from the pad, which can be after the first `resize`, so the
+phone's opening is taken the first frame it knows. `padcheck` pinches with real
+touch input and asserts the zoom only stands on a step, reaches both ends, and
+no frame of the pinch takes a quarter of a second — measured, the worst went
+from 1,083 ms to 133. The desktop's range, and the
+paragraph below about it, are unchanged.
+
 Two things guard it, and neither restates the arithmetic. `viewcheck` walks
 **seven zooms** rather than the one it used to read — the old check typed
 `__cam({ zoom: 0.12 })`, which after this is a screen no player can reach, so
