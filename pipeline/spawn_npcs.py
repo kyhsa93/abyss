@@ -1631,10 +1631,12 @@ def main(acore, out):
     unknown = Counter()
     left_out, undeclared = Counter(), Counter()
     moves, move_at = [], {}
+    orphans = []
     for entry, x, y, o, guid, pool, most, leader, respawn, wander, mtype, z \
             in spawns:
         if entry not in info:
             dropped['no template'] += 1
+            orphans.append((guid, entry))
             continue
         kind, ctype, lo, hi, flags, rank, cls, faction, mods, lootid, purse, \
             skinid = info[entry]
@@ -1814,6 +1816,23 @@ def main(acore, out):
     if lost:
         print('  loot references not followed: '
               + ', '.join(f'{k} {v}' for k, v in lost.most_common()))
+    # **Which of those fail the bake, decided rather than left as a print**
+    # (issue 99 asked).  Two kinds of cut are this script's own doing and two
+    # are the dump's:
+    #
+    #   * `too deep` and `points at itself` are `flatten`'s limits.  A drop
+    #     cut there is a drop the server would have followed and this world
+    #     silently does not have, so they stop the bake.  Nought today, which
+    #     is exactly when a gate is cheap to put in.
+    #   * `no such reference table` and `no such item` are rows in
+    #     AzerothCore pointing at nothing — one of each kind at this commit.
+    #     The server skips them too (`LootStore` logs and moves on), so there
+    #     is nothing to reproduce and nothing this bake could fix; failing on
+    #     them would make every upstream typo a broken build.  They keep being
+    #     printed, by kind and count, which is what makes them visible.
+    ours = {k: v for k, v in lost.items() if k in ('too deep', 'points at itself')}
+    if ours:
+        sys.exit('loot references cut by this bake\'s own limits: %s' % ours)
     # And the check the wiki asked for: a creature the database gives a loot
     # table to has to drop something.  A table whose every row was a reference
     # used to come out empty, and an empty pocket reads as a stingy creature
@@ -1843,6 +1862,16 @@ def main(acore, out):
     print(f'  worth: {len(goods)} words, {len(sold)} priced drops, '
           f'median {sorted(sold)[len(sold) // 2] if sold else 0}동')
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
+    # **Every spawn has a `creature_template` row**, asserted rather than
+    # tallied (issue 99's first line).  `no template` was a counter beside
+    # `seasonal` and `no picture`, and those two are decisions; this one is a
+    # hole in the join, and a spawn with no template is a creature whose
+    # level, faction and loot the world cannot say — the kind of absence that
+    # reads as "nothing stands there" rather than as an error.
+    if orphans:
+        sys.exit('%d spawns name a creature_template row that does not exist: %s'
+                 % (len(orphans), orphans[:8]))
+    print(f'check: all {len(spawns):,} spawns in the slice have a creature_template row')
     if by_event:
         # **Named rather than merely counted.**  "Seasonal 1,975" says a
         # number is missing; the event ids say *which* holidays, which is the
