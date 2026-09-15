@@ -155,21 +155,28 @@ check('which is the next link of the chain',
       instead: qs.filter((q) => q.instead).length,
     }
   })
+  // Each shape has to *occur*.  `every((k) => k in shapes)` asked whether
+  // the object literal above has its own four keys, which it always does, so
+  // the check passed with nought quests of any shape shipped.
+  const none = Object.entries(shapes).filter(([, n]) => n === 0).map(([k]) => k)
   check('the bake carries every shape of chain, not just one',
-    ['after', 'leads', 'group', 'instead'].every((k) => k in shapes),
-    JSON.stringify(shapes))
-  // Nought exclusive groups survive the class and level filters, so this is a
-  // statement about the slice rather than about the rule — which ships
-  // anyway, because a rule that arrives with the quest is a rule nobody has
-  // to remember to add later.  Two of them at once must never be finishable.
-  const clash = await p.evaluate(async () => {
+    none.length === 0,
+    `${JSON.stringify(shapes)}${none.length ? ` — none shipped: ${none}` : ''}`)
+  // Whether two of one exclusive group can both be finished is not a question
+  // this slice can answer: its groups have one member each — what survives the
+  // class and level filters of the twelve the table holds — so "no two are
+  // on offer" was true of the slice whatever the rule did, and the check that
+  // said so read `clash === 0 || shapes.group > 0`.  The rule is exercised in
+  // `simcheck` on a ledger with a two-member group; this only reports the
+  // slice's side, so the day a sibling ships it is visible here.
+  const siblings = await p.evaluate(async () => {
     const qs = (await (await fetch('./world/quests.json')).json()).quests
     const by = {}
     for (const q of qs) if (q.group > 0) (by[q.group] ??= []).push(q.id)
     return Object.values(by).filter((v) => v.length > 1).length
   })
-  check(`no two of one exclusive group are both on offer`,
-    clash === 0 || shapes.group > 0, `${clash} groups with siblings`)
+  console.log(`      (${shapes.group} errands in exclusive groups, `
+    + `${siblings} groups with more than one member; the rule is simcheck's)`)
 }
 
 // And no chain dead-ends.

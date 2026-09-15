@@ -888,5 +888,39 @@ check('and the same seed gives the same fight',
   }
 }
 
+// `ExclusiveGroup`: one of these, and then no more of them (issue 153).
+//
+// `questcheck` asked the slice, and the slice cannot answer: its three
+// exclusive groups have one member each, so "no two of one group are both on
+// offer" was true of it whatever `shut` did, and the check read
+// `clash === 0 || shapes.group > 0` — true twice over.  The rule is asked here
+// instead, of a ledger small enough to hold the whole question: two errands
+// sharing a group, and two with no group as the control, all from one person.
+// The control is what stops "offers nothing after a hand-in" passing as the
+// rule.
+{
+  const { book: ledger, hand, offers, take } = await import('../src/sim/quest.ts')
+  const errand = (id, group) => ({ id, level: 1, min: 1, from: 7, to: 7,
+    kill: [], fetch: [], xp: 0, coin: 0, gives: [], pick: [], after: 0,
+    group, leads: 0, instead: 0 })
+  const b = ledger([errand(1, 5), errand(2, 5), errand(3, 0), errand(4, 0)])
+  const on = () => offers(b, 7, 1).map((q) => q.id)
+  const first = on()
+  const one = take(b, b.all.get(1))
+  const whileHeld = on()
+  hand(b, one)
+  const afterDone = on()
+  // And the control, the same steps with no group.
+  hand(b, take(b, b.all.get(3)))
+  const control = on()
+  check('two errands of one exclusive group cannot both be finished',
+    first.includes(1) && first.includes(2)
+      && !whileHeld.includes(2) && !afterDone.includes(2),
+    `offered ${first}, then ${whileHeld} while its sibling was held, `
+    + `then ${afterDone} once it was handed in`)
+  check('and two errands with no group can',
+    control.includes(4), `offered ${control} after the first was handed in`)
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

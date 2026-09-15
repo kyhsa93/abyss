@@ -279,7 +279,7 @@ keeps it honest.
 | 구운 퀘스트를 전부 그 클래스가 받을 수 있다 | `scripts/classcheck.mjs: "no errand is shipped for a class this game has not got"` |
 | **레벨 1~10에 벌 수 있는 퀘스트 돈 < 훈련비 + 최고 장비** | — 지키는 검사가 없다. `purse` 가 이 모양으로 단언한 것은 퀘스트 돈과 떨어지는 것을 합친 `earn < lessons + kit` 한 줄뿐이었고, 그 줄은 거짓이라 70b45b4 (#199) 에서 지워졌다. 퀘스트 돈만 따로 재면 지금도 참이지만 아무도 단언하지 않는다 |
 | 보상 아이템이 전부 `items.json` 안에 있다 | `pipeline/items.py: check_rewards` |
-| `ExclusiveGroup` 이 같은 것 중 하나만 할 수 있다 | `scripts/questcheck.mjs: "no two of one exclusive group are both on offer"` |
+| `ExclusiveGroup` 이 같은 것 중 하나만 할 수 있다 | `scripts/simcheck.mjs: "two errands of one exclusive group cannot both be finished"` |
 | **이 지역의 일거리를 다 하면 평판이 한 등급을 넘는다** | `pipeline/quests.py: check_standing` |
 | 사슬을 끝까지 걸었을 때 밖으로 나가지 않는다 | `scripts/questcheck.mjs: "every link of every chain points inside this game"` |
 
