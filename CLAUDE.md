@@ -815,6 +815,21 @@ it: the hero has to be put back outside **before** asking what can be stood on,
 because indoors only the room is ground — asked the other way round every
 building after the first one entered reported nowhere to stand.
 
+**And the line for walking in names the building, not the ground it stands
+on.** It said `zoneOf(b.area || areaOf(...))` — the zone — and 23 of the 25
+buildings with a door have no indoor area of their own, so a cottage in
+Goldshire logged 골드샤이어 안으로 들어갔다 to somebody already standing in
+Goldshire, a farmhouse logged 엘윈 숲, and the abbey, whose indoor word is
+already 수도원 안, logged 수도원 안 안으로. `wentInto` in `talk.ts` says the
+building's own indoor word where the client's table gives one and otherwise
+what the building *is* — 집, 탑, 광산 — which is the rule for anything this
+repository has not named; a mine's `area` is its crew's ground and not a word
+for its inside, so a mine is a mine. `viewcheck` reads the newest log line
+the moment the walk-in check is inside — the newest, because the log keeps
+seven and an index taken before the walk reads nothing once it is full — and
+holds that it does not begin with the word for where he started, unless the
+building's own area is that place, as the garrison's is.
+
 **And then the door threw him across it.** The way in let a man walk from
 the grass to the room, and `throughTheDoor` went on doing what it did for a
 disc in a wall: on the doorstep it put him three to six yards in, and back at

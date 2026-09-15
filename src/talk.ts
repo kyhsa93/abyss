@@ -844,6 +844,29 @@ export function zoneOf(area: number, inside = 0): string {
   return over ? `${over[0]} · 지역 ${area}` : `지역 ${area}`
 }
 
+/** What a building is, for the line that says you went into one. */
+export const BUILDING_WORD: Record<string, string> = {
+  house: '집', hall: '회관', tower: '탑', mine: '광산', tent: '천막',
+}
+
+/**
+ * The line for walking into a building.
+ *
+ * It named the *zone* — `zoneOf(b.area || areaOf(x, y))` — and 23 of the 25
+ * buildings with a door have no indoor area of their own, so walking into a
+ * cottage in Goldshire said you had gone into Goldshire, a farmhouse said
+ * 엘윈 숲, and the abbey, whose indoor word is already '수도원 안', said
+ * 수도원 안 안으로.  A building with a word of its own for its inside says
+ * it; one without says what it is, which is the rule for everything this
+ * repository has not named.  A mine's `area` is its crew's ground and not a
+ * word for its inside, so a mine is a mine.
+ */
+export function wentInto(kind: string, area: number): string {
+  const own = area && kind !== 'mine' ? ZONE[area]?.[0] : undefined
+  const word = own ?? BUILDING_WORD[kind] ?? kind
+  return word.endsWith('안') ? `${word}으로 들어갔다.` : `${word} 안으로 들어갔다.`
+}
+
 /**
  * The words of a quest, where there are any — `pipeline/prose.py`.
  *

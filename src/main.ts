@@ -37,7 +37,7 @@ import { afterThis, heatOf, nextRank, riseChance, short as lacking, skinAsks, GI
 import { discountOf, paidBy, rankFloor, rankOf as standingRank, standAfter, EXALTED, NEUTRAL } from './sim/rep.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
-import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, RANK_WORD, SIDE_WORD, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
+import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, wentInto, RANK_WORD, SIDE_WORD, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
 import { drawBolt } from './render/boltimage.ts'
 import { drawFx } from './render/fximage.ts'
@@ -11727,7 +11727,7 @@ async function main() {
         // by stepping on to it, which he still does once he has stepped off.
         onRung = true
         onStep = false
-        ui.log(`${zoneOf(b.area || areaOf(hero.x, hero.y))} 안으로 들어갔다.`, 'note')
+        ui.log(wentInto(b.k, b.area), 'note')
         return
       }
     }
@@ -11760,7 +11760,7 @@ async function main() {
     onRung = false
     onStep = true
     step(b, door, -1)
-    ui.log(`${zoneOf(b.area || areaOf(hero.x, hero.y))} 안으로 들어갔다.`, 'note')
+    ui.log(wentInto(b.k, b.area), 'note')
   }
   /**
    * Over the threshold, one way or the other.

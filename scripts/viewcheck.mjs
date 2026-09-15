@@ -2295,7 +2295,7 @@ const walkThrough = await p.evaluate(() => {
   const all = window.__buildings()
   const porches = window.__porches()
   const home = window.__start()
-  const bad = []
+  const bad = [], wrong = []
   let tried = 0
   for (let i = 0; i < all.length; i++) {
     const b = all[i]
@@ -2312,7 +2312,7 @@ const walkThrough = await p.evaluate(() => {
     if (!start) continue
     tried++
     window.__put(start[0], start[1])
-    let jumps = 0, ins = 0, outs = 0, climbs = 0
+    let jumps = 0, ins = 0, outs = 0, climbs = 0, said = ''
     let last = window.__hero(), was = !!window.__room().inside
     let floor = window.__shown().storey
     const walk = (tx, ty, n) => {
@@ -2323,6 +2323,10 @@ const walkThrough = await p.evaluate(() => {
         window.__steps(1)
         const now = window.__hero(), inside = !!window.__room().inside
         if (Math.hypot(now.x - last.x, now.y - last.y) > 1) jumps++
+        // The newest line the moment he is in, because the log keeps seven
+        // and counting lines from before the walk reads nothing once it is
+        // full.
+        if (inside && !was) said = document.querySelector('#log')?.lastElementChild?.textContent ?? ''
         if (inside && !was) ins++
         if (!inside && was) outs++
         // And the doorway is not a flight: house 26's front door stands on
@@ -2345,6 +2349,18 @@ const walkThrough = await p.evaluate(() => {
     }
     const outsBefore = outs
     const climbsBefore = climbs
+    // And what the log said the moment he was in.  It named the zone, so a
+    // cottage in Goldshire said 골드샤이어 안으로 and a farmhouse 엘윈 숲
+    // 안으로, and the abbey — whose own indoor word is already 수도원 안 —
+    // said 수도원 안 안으로.  Read against the word for where he started,
+    // which is the one word the line must not begin with — unless the
+    // client's own table names the inside with that same word, as it does
+    // the garrison's, where the building *is* the place.
+    const outside = window.__whereAt(start[0], start[1])
+    if (!said.endsWith('들어갔다.') || (said.startsWith(outside) && !b.area)
+      || said.includes('안 안')) {
+      wrong.push(`${b.k} ${i} at ${outside}: "${said}"`)
+    }
     walk(ax, ay, 160); walk(bx, by, 160); walk(start[0], start[1], 160)
     const climbsOut = climbs - climbsBefore
     const out = !window.__room().inside
@@ -2357,12 +2373,16 @@ const walkThrough = await p.evaluate(() => {
   }
   window.__aim(null)
   window.__put(home.x, home.y)
-  return { tried, bad }
+  return { tried, bad, wrong }
 })
 check('and every front door is walked in and out of with nobody thrown across it',
   walkThrough.tried > 0 && walkThrough.bad.length === 0,
   `${walkThrough.tried - walkThrough.bad.length} of ${walkThrough.tried} clean`
   + `${walkThrough.bad.length ? ': ' + walkThrough.bad.slice(0, 4).join('; ') : ''}`)
+check('and the line for walking in names the building and not the ground it stands on',
+  walkThrough.tried > 0 && walkThrough.wrong.length === 0,
+  `${walkThrough.tried - walkThrough.wrong.length} of ${walkThrough.tried} say what they went into`
+  + `${walkThrough.wrong.length ? ': ' + walkThrough.wrong.slice(0, 4).join('; ') : ''}`)
 
 // 10j3. And the front door is the client's, and it faces out.
 //
