@@ -13239,62 +13239,17 @@ async function main() {
       ctx.restore()
     }
 
-    // --- the doors, on the roofs they are cut into ----------------------
+    // --- and no other door is cut into a roof ---------------------------
     //
-    // A closed building needs somewhere visible to go in, or it is a wall
-    // with a secret.  The client drew the doors and the bake now carries
-    // them; this is the only thing that says so from out here.  Drawn on the
-    // ground pass rather than among the scenery because a doorway is a hole
-    // in a roof and not a thing standing on it.
-    if (!indoors) {
-      for (const b of buildings) {
-        if (!b.doors.length) continue
-        for (const [dx, dy] of b.doors) {
-          const X = screenX(dx, dy), Y = screenY(dx, dy)
-          if (X < -40 || X > canvas.width + 40 || Y < -40 || Y > canvas.height + 40) continue
-          const w = Math.max(6, 2.2 * PPY * zoom), h = Math.max(5, 1.6 * PPY * zoom)
-          const x0 = Math.round(X - w / 2), y0 = Math.round(Y - h / 2)
-          const dw = Math.round(w), dh = Math.round(h)
-          /**
-           * A doorway is a **hole in a roof with the floor showing through
-           * it**, and that is what it is drawn as now.
-           *
-           * It was a dark rectangle with a gold line round it, which is within
-           * a shade of the one other thing this game paints as a dark
-           * rectangle: `openHole`, the mouth of a mine, at `#0a0a0f`.  Eight
-           * doorways on the abbey, all of them correctly placed by the client's
-           * own portals, and every one of them read as somewhere to fall into.
-           *
-           * The floor is the building's own — `in_floor`, the same tile
-           * `drawRoom` lays once you are inside — taken at the darkest shade,
-           * because what you are looking at through the gap is a room with a
-           * roof over it.  Nothing is drawn here that is not already cut: the
-           * doorway is the floor tile, the roof around it, and a line of the
-           * roof's own shadow for a lintel.
-           */
-          // The building's **own** floor, which is the one `drawRoom` lays
-          // once you have walked in: a doorway that shows a different floor
-          // from the room behind it is a doorway into somewhere else.
-          const inside = (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall'])?.(0.5)
-          const floorKey = ground.at[inside ?? ''] !== undefined ? inside ?? '' : FLOOR_TILE
-          const floor = ground.at[floorKey]
-          if (floor !== undefined) {
-            ctx.drawImage(ground.c, floor, ground.top[floorKey] ?? 0, ground.cell, ground.cell,
-              x0, y0, dw, dh)
-          } else {
-            ctx.fillStyle = '#2a2119'
-            ctx.fillRect(x0, y0, dw, dh)
-          }
-          // The jamb: the roof's own dark edge, thicker at the head than at
-          // the sides, which is what a doorway seen from above has.
-          ctx.strokeStyle = 'rgba(18, 14, 10, 0.9)'
-          ctx.lineWidth = Math.max(1, Math.round(zoom))
-          ctx.strokeRect(x0 + 0.5, y0 + 0.5, dw - 1, dh - 1)
-          ctx.fillStyle = 'rgba(18, 14, 10, 0.55)'
-          ctx.fillRect(x0, y0, dw, Math.max(1, Math.round(dh * 0.22)))
-        }
-      }
-    }
+    // Every opening in `doors` used to be cut into the roof here as a hole
+    // with the floor showing through, on the argument that a closed building
+    // needs somewhere visible to go in.  `doors` holds every opening the bake
+    // found a man fits through, and 34 of the slice's 60 are doorways
+    // *between two rooms* — under the roof, where from up here there is
+    // nothing to see — so the abbey wore eight pits and the inn four, and
+    // each front door was cut twice, once as its porch and once here.  The
+    // porch above is the whole of what a roof says about its doors now, and
+    // `viewcheck` holds the abbey to one door drawn of its eight openings.
 
     // --- things that stand up, back to front ---
     const margin = 120

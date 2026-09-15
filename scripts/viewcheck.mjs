@@ -2393,9 +2393,19 @@ const fronts = await p.evaluate(async () => {
       else bad.push(`${at}: a front door faces in`)
     }
   }
+  // And how many of the openings are *between two rooms* — the ones that
+  // are under the roof and have nothing to show from up here.
+  const between = all.reduce((n, b) => n + (porches[all.indexOf(b)]?.length
+    ? b.doors.length - b.doors.filter((d) => d.length === 5).length : 0), 0)
   window.__cam({ x: -9460, y: 60, zoom: 0.8 })
   await new Promise((r) => setTimeout(r, 1500))
-  return { doors, faced, bad, drawn: window.__edges().fronts }
+  const town = window.__edges()
+  window.__cam({ x: -8897, y: -178, zoom: 0.8 })
+  await new Promise((r) => setTimeout(r, 1500))
+  const abbey = window.__edges()
+  const abbeyDoors = all.find((b) => b.k === 'hall' && Math.round(b.x) === -8897)?.doors.length
+  return { doors, faced, bad, drawn: town.fronts, between,
+    abbeyFronts: abbey.fronts, abbeyDoors }
 })
 check('every building with a door has a front door out of its own portals, facing out',
   fronts.doors > 0 && fronts.bad.length === 0,
@@ -2403,6 +2413,17 @@ check('every building with a door has a front door out of its own portals, facin
   + (fronts.bad.length ? `; ${fronts.bad.join('; ')}` : ''))
 check('and the front doors are drawn on the roofs', fronts.drawn > 0,
   `${fronts.drawn} drawn at Goldshire`)
+// **And a doorway between two rooms is not a hole in the roof.**  `doors`
+// holds every opening a man fits through, 34 of the slice's 60 between two
+// rooms, and every one of them was cut into the roof with the floor showing
+// through: the abbey wore eight pits and the inn four, and each front door
+// was cut twice, once as its porch and once as a hole.  The porch is the
+// whole of what a roof says about its doors now, so the abbey — one front
+// door among eight openings — draws exactly one.
+check('and a doorway between two rooms is not a hole in the roof',
+  fronts.between > 0 && fronts.abbeyDoors === 8 && fronts.abbeyFronts === 1,
+  `${fronts.between} doorways between rooms in the world; the abbey draws `
+  + `${fronts.abbeyFronts} door of its ${fronts.abbeyDoors} openings`)
 
 // 10j4. Every front door is a way in, and every doorway behind it is a way on.
 //

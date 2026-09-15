@@ -798,6 +798,13 @@ a door were each the last thing keeping a cottage shut — and only somebody
 standing there stops you. And a front door **is drawn**: a gap in the eaves as
 wide as the portal, floored with the room's floor in shadow and framed by its
 jambs, because a roof seen from above says nothing about where you get in.
+**And it is the only door drawn.** Every opening in `doors` had been cut into
+the roof as a hole with the floor showing through, and `doors` holds every
+opening the bake found a man fits through — 34 of the slice's 60 are doorways
+*between two rooms*, under the roof, where from above there is nothing to
+see — so the abbey wore eight pits and the inn four, and each front door was
+cut twice, once as its porch and once as a hole. The porch is the whole of it
+now, and `viewcheck` holds the abbey to one door drawn of its eight openings.
 AzerothCore's own doors are not it: four `GAMEOBJECT_TYPE_DOOR` spawns stand in
 the slice, all in one spot, and none is a cottage's.
 
