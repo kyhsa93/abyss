@@ -112,6 +112,12 @@ type Doodad = {
   a?: number
   /** Set when the bearing is a coin toss — see the crossings below. */
   bq?: number
+  /**
+   * A building with no door: the per cent of its standing room at the ground it
+   * stands on, and how high that storey is.  Under half, the bake cut its plan
+   * again at the ground — see `ground_doorless` in the bake.
+   */
+  g?: [number, number]
 }
 type Meta = {
   width: number; height: number; unit: number
@@ -2111,6 +2117,8 @@ async function main() {
         house: d.h ?? 0,
         /** Where you go in — see `d` on the doodad. */
         doors: (d.d ?? []) as Door[],
+        /** With no door, how much of it is at the ground — see `g`. */
+        ground: d.g ?? null,
         /** And what is above it, ground floor first excluded. */
         floors,
         plan,
@@ -3602,6 +3610,7 @@ async function main() {
     mouths.push(mouth)
     caves.push({
       x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2, w: (dug.w * dug.cell) / 2,
+      ground: null,
       // The mouth's own height: a cave this scene dug has no model, so there
       // is nothing else for a storey to be measured from — and it has one.
       z: groundAt(mouth[0], mouth[1]),
@@ -14539,7 +14548,7 @@ async function main() {
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, z: b.z, l: b.l, w: b.w, k: b.k,
-      c: b.c, s: b.s, area: b.area, doors: b.doors, house: b.house,
+      c: b.c, s: b.s, area: b.area, doors: b.doors, house: b.house, ground: b.ground,
       floors: b.floors?.map((f) => f.z) ?? [] }))
   /**
    * Who the player is right now and what a thousand swings come out as.

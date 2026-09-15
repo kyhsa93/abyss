@@ -15,6 +15,7 @@ this is the one wall where the tool decides the language.
 Run:  python3 pipeline/bake_terrain.py <client dir> <out dir>
 """
 import base64
+from array import array
 import json
 import math
 import os
@@ -177,6 +178,10 @@ def to_world(pos, ry, lx, ly):
 
 # A model's footprint, rasterised once and shared by every placement of it.
 _PLANS = {}
+#: Per plan, what `wmo_plan` knew about heights and does not ship: how high each
+#: cell's standing room is, the highest thing in each cell, and for a model with
+#: no portal every face over every cell — see `ground_doorless`.
+_PLAN_Z = {}
 #: How many door cells had stone in them that the portal overruled — see
 #: `wmo_plan`.  A number that climbs is a wall mask drifting from its file.
 _DOORS_CLEARED = []
@@ -504,6 +509,14 @@ def wmo_plan(client, path, only=None, nxt=None):
     mine = bytearray(w * h)
     #: And the way up: a walkable face between this floor and the next.
     steps = bytearray(w * h)
+    #: The highest thing in each cell, whatever storey it belongs to — see
+    #: `ground_doorless`, which needs to know whether any of the building
+    #: stands out of the ground at a spot.
+    peak = array('d', [-1e9]) * (w * h)
+    #: And for a model with no portal, every face over every cell, whatever
+    #: storey it is near: `ground_doorless` may have to cut it again at the
+    #: ground a particular placement stands on.
+    every = {} if not doors and only is None and not is_mouth(path) else None
     for t in tris:
         wall, zlo, zhi = steepness(t)
         (ax, ay, _), (bx, by, _), (cx, cy, _) = t
@@ -534,6 +547,25 @@ def wmo_plan(client, path, only=None, nxt=None):
         # floor, and below head height on the next.
         rung = (nxt is not None and not wall
                 and high < zhi < nxt - BODY + 0.01)
+        # **A wall face covers no cell centre.**  It stands on its edge, so
+        # dropped on the floor it is a line with no area, and the test below
+        # finds a cell centre inside it only by accident — which is why the
+        # city wall's piece came out of this with 18 cells of stone and a
+        # hollow shell between two faces nobody could see.  For a model that
+        # may be cut again at the ground (`ground_doorless`), the face is laid
+        # along its own edges as well, a quarter cell at a time, so a wall
+        # there is a line of stone.  Only for those: every other plan is the
+        # plan it was.
+        if every is not None and wall:
+            for (pa, qa, _), (pb, qb, _) in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+                reach = max(1, int(math.ceil(math.hypot(pb - pa, qb - qa) / (S / 4))))
+                laid = set()
+                for k in range(reach + 1):
+                    ei = int((pa + (pb - pa) * k / reach - x0) / S)
+                    ej = int((qa + (qb - qa) * k / reach - y0) / S)
+                    if 0 <= ei < w and 0 <= ej < h and (ei, ej) not in laid:
+                        laid.add((ei, ej))
+                        every.setdefault(ei * h + ej, []).append((wall, zlo, zhi))
         for i in range(i0, i1 + 1):
             px = x0 + (i + 0.5) * S
             for j in range(j0, j1 + 1):
@@ -545,6 +577,10 @@ def wmo_plan(client, path, only=None, nxt=None):
                         continue
                 n = i * h + j
                 cells[n] = 1
+                if zhi > peak[n]:
+                    peak[n] = zhi
+                if every is not None:
+                    every.setdefault(n, []).append((wall, zlo, zhi))
                 if roof:
                     over_head[n] = 1
                 if rung:
@@ -597,12 +633,15 @@ def wmo_plan(client, path, only=None, nxt=None):
         over_head = bytearray(cells)
     # Standing room: a surface of this storey with a body's clearance over it.
     floor = bytearray(w * h)
+    #: And how high that standing room is, in model space — not shipped.
+    floor_z = {}
     for n, zs in tops.items():
         over = walls.get(n, ())
         for z in zs:
             if any(b > z + 0.15 and a < z + BODY for a, b in over):
                 continue
             floor[n] = 1
+            floor_z[n] = z
             break
     # A door is a hole in a wall, and the file says where every one of them is.
     #
@@ -675,6 +714,7 @@ def wmo_plan(client, path, only=None, nxt=None):
                 solid[n] = floor[n] = over_head[n] = steps[n] = 0
     _PLANS[(path, only, nxt)] = (cells, w, h, x0, y0, solid, floor,
                                  over_head, steps)
+    _PLAN_Z[(path, only, nxt)] = (floor_z, peak, every)
     return _PLANS[(path, only, nxt)]
 
 
@@ -846,6 +886,143 @@ def plan_key(client, path, key):
                 if small:
                     PLAN_FLOORS[key].append((round(sill, 2), small))
     return key if PLANS_BY_KEY[key] else 0
+
+
+#: Every doorless placement, as `(kind, x, y, share at the ground, storey z,
+#: cut again)` — see `ground_doorless` and `check_grounded`.
+_GROUNDED = []
+#: The same numbers by placement, for the writer: `(kind, x, y) -> [%, z]`.
+GROUND_OF = {}
+
+
+def recut(plan, faces, wz, ground):
+    """A doorless building's plan, cut at the ground under each cell.
+
+    The same three questions `wmo_plan` asks of a storey — a surface within a
+    body's height of the floor, with a body's clearance over it, is standing
+    room; a wall face near it with no standing room is stone; a flat face above
+    head height is a ceiling — asked with the floor at **the terrain under this
+    cell** instead of at one height for the whole model.  And a cell where all
+    of the building is more than a body under that ground is not the building:
+    it is the hill over it.
+    """
+    cells, w, h, x0, y0, solid, floor, over, steps = plan
+    cells, solid, floor, over = (bytearray(m) for m in (cells, solid, floor, over))
+    for n, g in ground.items():
+        here = faces.get(n)
+        if not here:
+            continue
+        zg = g - wz
+        low, high = zg - BODY, zg + BODY
+        walls = [(a, b) for wall, a, b in here if wall and a < high + BODY and b > low]
+        tops = [b for wall, a, b in here if not wall and low <= b <= high]
+        floor[n] = solid[n] = over[n] = 0
+        if any(not any(b > t + 0.15 and a < t + BODY for a, b in walls) for t in tops):
+            floor[n] = 1
+        elif walls:
+            solid[n] = 1
+        if any(not wall and b > high for wall, _a, b in here):
+            over[n] = 1
+        if not (floor[n] or solid[n] or over[n]) \
+                and max(b for _w, _a, b in here) < low:
+            cells[n] = 0
+    return (cells, w, h, x0, y0, solid, floor, over, bytearray(len(steps)))
+
+
+def ground_doorless(doodads, height):
+    """Cut a building with no portal at the ground it stands on, where its storey is not.
+
+    A portal's sill is what says which storey of a building is the ground one,
+    and a model with none has no sill: `wmo_plan` takes the height most of its
+    standing room is at.  That is right for a stable, whose floor is the
+    ground, and wrong for a city wall, whose standing room is its walkway
+    twenty-six yards up — shipped as the floor, it let a man walk straight
+    through the one wall piece in reach (issue 168).
+
+    Which of the two a placement is, is a measurement of the placement and not
+    of the model, because the same wall piece is buried in one hillside and
+    stands clear of another: **the share of that storey's standing room that
+    lies within a body's height of the terrain under it.**  Measured over the
+    slice it does not come near a close call — every wall piece and post, the
+    hangar, the kennel and the gate over the stream are at 11% or under, and the
+    lumber mill, the burnt farmhouse, the other gate, both stables and the orc
+    smithy at 71% or over — so the line is a majority and `check_grounded`
+    fails the day the gap stops being wide.
+
+    Two rules that were measured first and do not separate them: *is the storey
+    reachable from the ground by the climb rule* — a wall's walkway meets the
+    hillside at one end and is flat from there, so all of it is; and *does the
+    model have a room group* — none of these does, stable or wall.
+
+    A placement on the wrong side of the line gets its own plan, cut again at
+    the ground under each cell (`recut`), under a key of its own.  The key is a
+    crc of the model and the spot, as opaque as the model's own.
+    """
+    for d in doodads:
+        kind, wx, wy, wz, key, mr, doors = d[0], d[1], d[2], d[3], d[13], d[14], d[17]
+        if kind not in ('house', 'hall', 'tower') or not key or doors:
+            continue
+        path = PLAN_PATH.get(key)
+        plan = PLANS_BY_KEY.get(key)
+        if not plan or plan is not _PLANS.get((path, None, None)):
+            continue
+        floor_z, peak, faces = _PLAN_Z[(path, None, None)]
+        if faces is None:
+            continue
+        cells, w, h, x0, y0, _solid, floor, _over, _steps = plan
+        pos, ry = (ORIGIN - wy, wz, ORIGIN - wx), mr - 270
+        ground, stand, at, zs = {}, 0, 0, []
+        for n in range(w * h):
+            if not cells[n]:
+                continue
+            i, j = divmod(n, h)
+            g = height(*to_world(pos, ry, x0 + (i + 0.5) * PLAN_CELL,
+                                 y0 + (j + 0.5) * PLAN_CELL))
+            if g is None:
+                continue
+            ground[n] = g
+            if floor[n] and n in floor_z:
+                stand += 1
+                zs.append(floor_z[n])
+                if abs(wz + floor_z[n] - g) <= BODY:
+                    at += 1
+        if not stand:
+            continue
+        share = at / stand
+        # The storey's *lowest* standing room, so a check that asks whether it
+        # stands a body clear of the ground asks the most forgiving height it
+        # has — a wall's walkway is two levels a yard apart.
+        storey = wz + min(zs)
+        cut = share * 2 < 1
+        if cut:
+            mine = zlib.crc32(('%s@%.2f,%.2f' % (path.upper(), wx, wy)).encode())
+            PLANS_BY_KEY[mine] = recut(plan, faces, wz, ground)
+            d[13] = mine
+        _GROUNDED.append((kind, wx, wy, share, storey, cut))
+        GROUND_OF[(kind, round(wx, 2), round(wy, 2))] = [round(share * 100),
+                                                        round(storey, 1)]
+
+
+def check_grounded():
+    """Doorless buildings, and whether the line between wall and building is wide.
+
+    The line is a majority of standing room at the ground, and a majority is
+    only a rule while nothing sits near it.  Printed per placement because the
+    numbers are the argument.
+    """
+    if not _GROUNDED:
+        return
+    cut = sorted(s for *_, s, _z, c in _GROUNDED if c)
+    kept = sorted(s for *_, s, _z, c in _GROUNDED if not c)
+    print('check: %d doorless placements; %d cut again at the ground (at most %.0f%% '
+          'of their standing room at it), %d kept as the model has it (at least '
+          '%.0f%%)' % (len(_GROUNDED), len(cut), 100 * (cut[-1] if cut else 0),
+                       len(kept), 100 * (kept[0] if kept else 0)))
+    if cut and kept:
+        apart = kept[0] / max(cut[-1], 0.01)
+        assert apart >= 3, (
+            'the share of standing room at the ground is %.2f against %.2f — '
+            'a close call, and the majority rule wants replacing' % (cut[-1], kept[0]))
 
 
 def rooms_of(client, path, pos, ry, box=None):
@@ -2100,6 +2277,23 @@ def bake(client, bounds, out, acore=None):
                            cw, ch, w, h, ORIGIN - i_lo * UNIT,
                            ORIGIN - j_lo * UNIT, UNIT, ground_at)
 
+    def height_at(wx, wy):
+        """The ground as the scene reads it: bilinear, the same four cells."""
+        fi = (ORIGIN - i_lo * UNIT - wx) / UNIT
+        fj = (ORIGIN - j_lo * UNIT - wy) / UNIT
+        i = max(0, min(w - 2, int(math.floor(fi))))
+        j = max(0, min(h - 2, int(math.floor(fj))))
+        q = (grid[i * h + j], grid[i * h + j + 1],
+             grid[(i + 1) * h + j], grid[(i + 1) * h + j + 1])
+        if None in q:
+            return None
+        ti, tj = fi - i, fj - j
+        return ((q[0] * (1 - tj) + q[1] * tj) * (1 - ti)
+                + (q[2] * (1 - tj) + q[3] * tj) * ti)
+    # After every placement is in and the ground is whole: which storey of a
+    # building with no portal is the ground one depends on the ground.
+    ground_doorless(doodads, height_at)
+
     # How deep the water is, a byte a cell in quarter yards.
     #
     # `levels` — the water's own surface, cell by cell — has been computed
@@ -2247,6 +2441,12 @@ def bake(client, bounds, out, acore=None):
                          **({'h': house} if house else {}),
                          # Where you go in, in world yards — see `doorways`.
                          **({'d': doors} if doors else {}),
+                         # A building with no door: how much of its standing
+                         # room is at the ground it stands on, in per cent, and
+                         # how high that storey is — see `ground_doorless`.
+                         **({'g': GROUND_OF[(k, round(x, 2), round(y, 2))]}
+                            if plan and (k, round(x, 2), round(y, 2)) in GROUND_OF
+                            else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
@@ -2292,6 +2492,7 @@ def bake(client, bounds, out, acore=None):
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
     check_storeys()
     check_plans()
+    check_grounded()
     check_rooms(doodads)
     check_water(grid, wetmask, levels)
     check_walls()

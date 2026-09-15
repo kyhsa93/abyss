@@ -2473,11 +2473,13 @@ const underRoof = await p.evaluate(() => {
     for (let y = lo[1] - M; y <= hi[1] + M; y += S) { seed(lo[0] - M, y); seed(hi[0] + M, y) }
     // And on foot.  Water is not a wall here and wading has checks of its own
     // (10d5); what this asks is whether a man walks in.  The one building whose
-    // only route went through water is the gate over the stream west of the
-    // abbey, and what its plan calls roofed floor is the top of its gatehouse:
-    // a model with no portal has no sill to say which storey is the ground, so
-    // the bake takes the height most of its standing room is at, which for a
-    // gate is its roof.  The walk stalled two yards short of it, in the water.
+    // only route went through water was the gate over the stream west of the
+    // abbey, and what its plan called roofed floor was the top of its
+    // gatehouse: a model with no portal has no sill to say which storey is the
+    // ground, so the bake took the height most of its standing room is at,
+    // which for a gate is its roof.  The walk stalled two yards short of it, in
+    // the water.  The bake cuts such a building again at the ground now (10j7)
+    // and the gate has no roofed floor left to walk to.
     const ground = new Map()
     const groundOf = (x, y) => {
       const k = key(x, y)
@@ -2535,6 +2537,88 @@ check('and one with no way to it has nobody standing inside it',
   underRoof.shut.map((s) => `${s.at}: ${s.inside} inside`).join('; '))
 console.log(`      (walked under: ${underRoof.walked.join('; ')}; no way to: `
   + `${underRoof.shut.map((s) => s.at).join('; ') || 'none'})`)
+
+// 10j7. And a wall that stands clear of the ground stops a man walking at it.
+//
+// Issue 168's first half, which 10j5 made possible and did not finish: the one
+// wall piece in reach was still crossed on 27 of 28 lines, because a model with
+// no portal has no sill and `wmo_plan` took the height most of its standing
+// room is at — for a wall, its walkway.  The bake now measures, per placement,
+// how much of that storey is within a body of the ground under it (`g` on the
+// doodad) and cuts a building that is mostly not at its ground again, at the
+// ground (`ground_doorless`).
+//
+// What is asked is the part that is a fact about heights and not about the
+// masks it produced: on every line straight through such a building where both
+// ends are ground a man stands on, and its lowest standing room is more than a
+// body above the terrain at **every** point across it, the walk does not get
+// through.  Where the hill rises to the walkway, or buries the wall, the line
+// is not asked — a man walks on to a wall top that is at his feet, and over one
+// under them.  At least one line has to be asked, or this passes on a bake that
+// cut nothing.
+const clearWalls = await p.evaluate(() => {
+  const home = window.__start()
+  const body = window.__caves().body
+  const all = window.__buildings()
+  const walk = (tx, ty, n) => {
+    for (let s = 0; s < n; s++) {
+      const h = window.__hero()
+      if (Math.hypot(h.x - tx, h.y - ty) < 0.6) break
+      window.__aim(tx, ty)
+      window.__steps(1)
+    }
+    window.__aim(null)
+    return window.__hero()
+  }
+  let asked = 0, walls = 0
+  const through = []
+  for (const b of all) {
+    if (b.k === 'mine' || b.doors?.length || !b.ground || b.ground[0] * 2 >= 100) continue
+    walls++
+    const storey = b.ground[1]
+    // Across the building's short side, a yard apart along its long one.
+    const [ax, ay] = b.l >= b.w ? [-b.s, b.c] : [b.c, b.s]
+    const [lx, ly] = b.l >= b.w ? [b.c, b.s] : [-b.s, b.c]
+    const half = Math.min(b.l, b.w), long = Math.max(b.l, b.w)
+    // The box is centred on the model's origin, which for a wall piece is one
+    // end — so the lines run the whole of it either side (see `reachOf`).
+    for (let off = -2 * long; off <= 2 * long; off += 1) {
+      const cx = b.x + lx * off, cy = b.y + ly * off
+      let inPlan = false, clear = true
+      for (let a = -half - 1; a <= half + 1; a += 0.5) {
+        const x = cx + ax * a, y = cy + ay * a
+        if (window.__plotAt(x, y)) inPlan = true
+        if (storey - window.__probe(x, y).z <= body) { clear = false; break }
+      }
+      if (!inPlan || !clear) continue
+      window.__aim(null)
+      window.__put(home.x, home.y)
+      let from = null, to = null
+      for (let r = half + 2; r <= half + 12 && !from; r += 1) {
+        if (window.__canWalk(cx - ax * r, cy - ay * r)) from = [cx - ax * r, cy - ay * r]
+      }
+      for (let r = half + 2; r <= half + 12 && !to; r += 1) {
+        if (window.__canWalk(cx + ax * r, cy + ay * r)) to = [cx + ax * r, cy + ay * r]
+      }
+      if (!from || !to) continue
+      for (const [p0, p1] of [[from, to], [to, from]]) {
+        asked++
+        window.__put(p0[0], p0[1])
+        const h = walk(p1[0], p1[1], 300)
+        const past = (h.x - cx) * (p1[0] - cx) + (h.y - cy) * (p1[1] - cy)
+        if (past > 0) through.push(`${b.k} at ${Math.round(b.x)},${Math.round(b.y)}, ${off} yd along`)
+      }
+    }
+  }
+  window.__aim(null)
+  window.__put(home.x, home.y)
+  return { walls, asked, through }
+})
+check('and a wall that stands clear of the ground stops a walk straight at it',
+  clearWalls.asked > 0 && clearWalls.through.length === 0,
+  `${clearWalls.through.length} of ${clearWalls.asked} walks got through: `
+  + clearWalls.through.join('; '))
+console.log(`      (${clearWalls.asked} walks at ${clearWalls.walls} buildings cut at the ground)`)
 
 // 10k. A mine comes from a model, and the ones that do not say so.
 //

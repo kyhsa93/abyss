@@ -634,19 +634,31 @@ been hiding 42% of the barracks, a third of the mage tower and 8% of the abbey.
 The index and the first test ask the plan's own rectangle now, and `viewcheck`
 takes every set bit of every plan back out to the world and asks whose it is.
 
-**What that did not fix is written down rather than tuned.** The one wall piece
-a player can reach is still crossed where its walkway stands a few yards over a
-hillside. A model with no portal has no sill to say which storey is the ground,
-so `wmo_plan` takes the height most of its standing room is at — the floor of a
-stable, and the top of a wall or of the gatehouse over the stream — and a plan
-has one storey. Two derivations were measured and each breaks a building that is
-right today: the storey against the terrain under it shuts the lumber mill's
-raised floor, and the storey nearest the model's origin misses the burnt
-farmhouse's, which is four yards up like its intact twin's front-door sill. The
-stables and smithies are what issue 168 asked about, and they are right: both
-stables are one outdoor group with no portal and are walked in under their roofs
-on foot; Goldshire's smithy has two front doors; the orc smithy stands where
-nothing within reach can be stood on, and nobody was put inside it.
+**And a wall with no door is cut at the ground it stands on.** That fix left the
+one wall piece a player can reach crossed on 27 of 28 lines. A model with no
+portal has no sill to say which storey is the ground, so `wmo_plan` takes the
+height most of its standing room is at — the floor of a stable, and the walkway
+of a wall or the top of the gatehouse over the stream. Which of those a
+building is turned out to be a fact about the **placement** and not the model:
+`ground_doorless` measures how much of that storey is within a body of the
+terrain under it, and the slice does not come near a close call — every wall
+piece and post, the hangar, the kennel and that gate at 11% or under, the lumber
+mill, the burnt farmhouse, the other gate, both stables and the orc smithy at
+72% or over. A placement under half gets a plan of its own, cut again cell by
+cell with the floor at the terrain there: a walkway the hill rises to is
+standing room, a wall more than a body clear of the ground is stone, and where
+the whole model is under the hill the cell is the hill. Three rules were
+measured first and each failed a building: the storey against the terrain under
+it shut the mill's raised floor, the storey nearest the model's origin missed
+the burnt farmhouse's four yards up, and *reachable from the ground by the climb
+rule* kept the whole walkway, because it is flat from where the hill meets it.
+And the cut needed one more thing the bake had never done: **a wall face covers
+no cell centre**, so it was laid along its own edges, or the wall came out a
+hollow shell with nothing to stop anybody. The stables and smithies are what
+issue 168 asked about and they were already right: both stables are one outdoor
+group with no portal and are walked in under their roofs on foot; Goldshire's
+smithy has two front doors; the orc smithy stands where nothing within reach
+can be stood on, and nobody was put inside it.
 
 **A deck is floor to placement as well as to walking.** Placement asked the
 water mask alone, and the mask runs on under a bridge because the river does,
