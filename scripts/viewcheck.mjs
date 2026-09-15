@@ -1399,12 +1399,13 @@ check('the game has a voice', sound.loaded === sound.words,
 // only when the table rolls one; `cast`, whose pair is the square going dark,
 // is not driven, because the one ability a level one warrior has that is not
 // a stance has no global cooldown and costs less than the rage it is pressed
-// with, so nothing on the bar changes; and `loot` is held whenever it is
-// asked for but **taking a body's pockets does not ask for it** — the credits
-// list "a corpse" and `loot()` only sounds for a skinning, so a kill and the
-// key on the body are silent with the sound on.  That is a gap in the game,
-// not in this check, and it is left named here rather than papered over by
-// driving a herb instead.
+// with, so nothing on the bar changes.  `loot` is held too, and by the key
+// on a body: **taking a body's pockets did not ask for it** — the credits
+// list "a corpse" and `loot()` only sounded for a skinning, so a kill and the
+// key on the body were silent with the sound on.  This comment named that as
+// the game's gap and left `loot` out of what must be asked for, which is a
+// check agreeing with a bug.  The pockets sound now, `loot` has to be asked
+// for, and the fights go on until a body has given something.
 {
   const q = await b.newPage({ viewport: { width: 1200, height: 760 } })
   q.on('pageerror', (e) => errs.push(String(e)))
@@ -1472,7 +1473,7 @@ check('the game has a voice', sound.loaded === sound.words,
       // What is on the body, the way a player takes it: the key.
       during(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e' })))
       during(() => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'e' })))
-      if (['hit', 'miss', 'crit', 'hurt', 'level'].every((w) => got[w][0] > 0)) break
+      if (['hit', 'miss', 'crit', 'hurt', 'level', 'loot'].every((w) => got[w][0] > 0)) break
     }
     // And a death, his own.
     window.__hurt(1)
@@ -1483,7 +1484,7 @@ check('the game has a voice', sound.loaded === sound.words,
     return { got, muted: window.__sound().muted }
   })
   await q.close()
-  const must = ['hit', 'hurt', 'die', 'level']
+  const must = ['hit', 'hurt', 'die', 'level', 'loot']
   const g = heard.got
   check('and turning it off loses nothing',
     heard.muted === true && must.every((w) => g[w][0] > 0)
@@ -1492,8 +1493,8 @@ check('the game has a voice', sound.loaded === sound.words,
       ? `${w} ${paired} of ${n}` : `${w} not asked for`).join(', ')
     + ' — each sound asked for, against the times the screen said the same on '
     + 'that step; crit and miss only when rolled; cast is not driven '
-    + '(nothing on a level one bar goes dark); loot is not asked for by '
-    + 'looting a body, which is the game\'s gap and not this check\'s')
+    + '(nothing on a level one bar goes dark); loot is a body\'s pockets, '
+    + 'taken with the key')
 }
 
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no

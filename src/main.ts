@@ -6105,6 +6105,13 @@ async function main() {
       // also be cooked.
       got.push(intoBag(item!, between(clo!, chi!), GOODS[idx!] ?? 'oddment'))
     }
+    // And out loud, which this was not.  The skin above said `loot`, and so
+    // did a herb, a vein and a bandage; the pockets — the one taken after
+    // nearly every kill, and the first thing `art/SOUND-CREDITS.md` names —
+    // said nothing, and `viewcheck` wrote that down as the game's gap rather
+    // than failing on it.  Only when something came off, the same as `gather`:
+    // an empty body has nothing to say.
+    if (got.length) play('loot')
     return got.length ? joined(got) : ['아무것도 없다']
   }
 
