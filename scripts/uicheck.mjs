@@ -299,14 +299,23 @@ for (const [W, H] of SIZES) {
       name: document.querySelector('#units .name')?.textContent ?? '',
     }))
     check('and the screen goes away', gone.up === false, JSON.stringify(gone))
-    // Drawn, not just remembered: `heroLayers` counts where the pictures
-    // actually land, so this says the hair and the beard reached the glass.
-    await p.waitForTimeout(500)
+    // Drawn, not just remembered, and drawn *by name*.  This counted layers
+    // and wanted four, and a hero with a weapon is body, two halves of it and
+    // a hair — the hair drawn as `hair-plain` when nothing is chosen — so it
+    // passed with no beard and with the wrong hair.  `sheets` is the key of
+    // every strip the last frame actually laid over him.  Waited on rather
+    // than slept on: the sheet is fetched when it is chosen and is not drawn
+    // until it has arrived.
+    const looks = [`hair-${born.made?.hair}`, `beard-${born.made?.beard}`]
+    await p.waitForFunction((keys) => {
+      const got = window.__arms().sheets ?? []
+      return keys.every((k) => got.includes(k))
+    }, looks, { timeout: 8000 }).catch(() => null)
     const drawn = await p.evaluate(() => window.__arms())
     check('and the world draws what was chosen',
-      born.made?.hair && born.made?.beard && drawn.layers >= 4,
-      `${born.made?.hair} and ${born.made?.beard}, `
-      + `drawn out of ${drawn.layers} pictures`)
+      !!born.made?.hair && !!born.made?.beard
+      && looks.every((k) => (drawn.sheets ?? []).includes(k)),
+      `wanted ${looks.join(' and ')}, drawn out of ${(drawn.sheets ?? []).join(', ')}`)
   } else {
     check('the screen that makes a character is up on a fresh start',
       false, 'it was not')
@@ -716,6 +725,36 @@ for (const [W, H] of SIZES) {
     check('and the arrangement comes back out of the save',
       JSON.stringify(kept.want) === JSON.stringify(kept.back),
       `${kept.want.slice(0, 5)} -> ${kept.back.slice(0, 5)}`)
+    // And a square holding something the character does not know comes back
+    // empty — `fitBar`'s whole reason (issue 225): the bar and the spellbook
+    // are two lists, and a save from before a re-bake, or with another class's
+    // ability on it, is the drift they are pruned against.  Nothing checked
+    // it.  Written into the save the game reads, beside an ability he does
+    // know and placed himself, which has to survive the same load: a prune that
+    // empties the whole bar passes the first half.  Another class's real
+    // spell rather than an invented id, so it is a spell the world has and
+    // this character does not.
+    const pruned = await p.evaluate(async () => {
+      const d = window.__bar()
+      const books = (await (await fetch('./world/spells.json')).json()).books
+      const foreign = Object.values(books).flat().map((sp) => sp.id)
+        .find((id) => !d.spells.includes(id))
+      const mine = d.spells.find((id) => !d.stances.includes(id)) ?? d.spells[0]
+      const was = JSON.parse(JSON.stringify(window.__save()))
+      const raw = JSON.parse(JSON.stringify(was))
+      raw.you.bar = Array(16).fill(null)
+      raw.you.bar[0] = mine
+      raw.you.bar[2] = foreign
+      window.__load(raw)
+      const back = window.__bar().bar.slice()
+      window.__load(was)
+      return { foreign, mine, back }
+    })
+    check('and an ability the character does not know does not stay on the bar',
+      pruned.foreign !== undefined && pruned.back[2] === null
+      && !pruned.back.includes(pruned.foreign) && pruned.back[0] === pruned.mine,
+      `saved ${pruned.mine} on square 1 and ${pruned.foreign} on square 3, `
+      + `loaded ${pruned.back.slice(0, 4)}`)
   }
 
   // 224.  The toggle called autocast, which cast nothing.
@@ -854,8 +893,13 @@ for (const [W, H] of SIZES) {
       // arrangement is set twice, with the same two abilities the other way
       // round, and what fires has to follow it.
       const both = await p.evaluate(async () => {
-        const cast = async (first, second) => {
+        const cast = async (first, second, cooling = null) => {
           window.__setAuto(false)
+          // Off any cooldown an earlier run left, and then, for the runs that
+          // ask for it, the one square put on a long one.
+          window.__cool(first, 0)
+          window.__cool(second, 0)
+          if (cooling !== null) window.__cool(cooling, 600)
           // Both runs start with the bar full.  Without this the first run
           // spends the rage the second one needs, and the second fires its
           // right-hand square for a reason that is true — it cannot use the
@@ -882,6 +926,7 @@ for (const [W, H] of SIZES) {
             if (window.__bar().asked !== was) break
           }
           window.__setAuto(false)
+          if (cooling !== null) window.__cool(cooling, 0)
           return window.__bar().asked
         }
         // Two the character has that are not stances: one costs rage and one
@@ -891,12 +936,23 @@ for (const [W, H] of SIZES) {
         if (pair.length < 2) return null
         const one = await cast(pair[0], pair[1])
         const two = await cast(pair[1], pair[0])
-        return { pair, one, two }
+        // And the half the name is about, *it can use*.  Both runs above
+        // start with the bar full, so every square is usable and the leftmost
+        // fires whether or not anything is ever skipped — the check passed on
+        // an automatic hand that took the leftmost square and nothing else.
+        // So the leftmost is put on a cooldown, which no swing in the meantime
+        // can undo the way rage would, and what fires has to be the next one
+        // along, both ways round.
+        const three = await cast(pair[0], pair[1], pair[0])
+        const four = await cast(pair[1], pair[0], pair[1])
+        return { pair, one, two, three, four }
       })
       check('and it is the leftmost square it can use',
-        !!both && both.one === both.pair[0] && both.two === both.pair[1],
+        !!both && both.one === both.pair[0] && both.two === both.pair[1]
+        && both.three === both.pair[1] && both.four === both.pair[0],
         both ? `${both.pair} in that order fired ${both.one}, `
-          + `the other way round fired ${both.two}`
+          + `the other way round fired ${both.two}; with the leftmost cooling `
+          + `${both.three} and ${both.four}`
           : 'this character has fewer than two abilities that are not stances')
       await p.evaluate(() => window.__setAuto(false))
     }

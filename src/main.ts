@@ -8627,6 +8627,13 @@ async function main() {
    */
   let heroLayers = 0
   /**
+   * Which sheets the hero was drawn out of last frame, by key: `hair-<style>`,
+   * `beard-<style>`, `<weapon>:behind`.  A count of layers could not say the
+   * beard was missing, because the hair is drawn as `hair-plain` when nothing
+   * is chosen and that made up the number.
+   */
+  const heroSheets: string[] = []
+  /**
    * Every clip this page has actually put on screen, as `sheet:clip`.
    *
    * Kept because a clip that is cut and never played is this repository's most
@@ -10425,6 +10432,7 @@ async function main() {
         played.add(`arms:${arm}:${armClip}`)
       }
       heroLayers = 1
+      heroSheets.length = 0
       drawArm(arm, armClip, 'behind', armAt, X, Y, w / c)
       ctx.drawImage(heroImg, sxp, syp, c, rowH,
         X, Math.round(Y + lid * zoom), Math.ceil(w), Math.ceil(rowH * zoom))
@@ -10449,24 +10457,29 @@ async function main() {
       a: { w: number; h: number; dx: number; dy: number; cols: number
            x?: number; y: number } | undefined,
       f: number, X: number, Y: number, k: number) => {
-      if (!a || !img || !img.complete || !img.naturalWidth) return
+      if (!a || !img || !img.complete || !img.naturalWidth) return false
       ctx.drawImage(img, (a.x ?? 0) + (f % a.cols) * a.w, a.y + hero.dir * a.h,
         a.w, a.h,
         Math.round(X + a.dx * k), Math.round(Y + a.dy * k),
         Math.ceil(a.w * k), Math.ceil(a.h * k))
       heroLayers++
+      return true
     }
     /** One half of what he is holding. */
     const drawArm = (word: string | null, clip: string, half: string,
-      f: number, X: number, Y: number, k: number) =>
-      drawStrip(word ? armSheet(word) : null,
+      f: number, X: number, Y: number, k: number) => {
+      if (drawStrip(word ? armSheet(word) : null,
         word ? heroMeta.arms?.[word]?.clips[clip]?.[half] : undefined,
-        f, X, Y, k)
+        f, X, Y, k)) heroSheets.push(`${word}:${half}`)
+    }
     /** And one of the things he chose to look like — see `LOOKS`. */
     const drawLook = (key: string | null, clip: string,
-      f: number, X: number, Y: number, k: number) =>
-      drawStrip(key ? lookSheet(key) : null,
-        key ? heroMeta.looks?.[key]?.clips[clip] : undefined, f, X, Y, k)
+      f: number, X: number, Y: number, k: number) => {
+      if (drawStrip(key ? lookSheet(key) : null,
+        key ? heroMeta.looks?.[key]?.clips[clip] : undefined, f, X, Y, k)) {
+        heroSheets.push(key!)
+      }
+    }
     /**
      * How far a body is shoved out of its own square by a blow, in yards.
      *
@@ -12188,6 +12201,19 @@ async function main() {
     you.spent = 0
     return { power: Math.round(you.power), of: Math.round(powerMax()) }
   }
+  /**
+   * Put one ability on its own cooldown for this many seconds, or take it off.
+   *
+   * For the other half of *the leftmost square it can use*: with the bar full
+   * of rage every square is usable and the leftmost is the answer whether or
+   * not anything was skipped.  A cooldown is the one way to make a square
+   * unusable that no swing in the meantime can undo.
+   */
+  ;(window as unknown as { __cool: (id: number, secs: number) => unknown })
+    .__cool = (id, secs) => {
+      you.cools[id] = secs > 0 ? clock + secs : 0
+      return { id, until: you.cools[id] }
+    }
   ;(window as unknown as { __you: () => unknown }).__you = () => ({
     level: you.level, hp: you.hp, max: you.max, calm: +you.calm.toFixed(2),
     rage: Math.round(you.power),
@@ -13246,6 +13272,7 @@ async function main() {
       undressed: want.filter((k) => !doll[`male_weapon_${k}`]),
       held: armFor(gear['weapon']),
       layers: heroLayers,
+      sheets: [...heroSheets],
       wearing: dollKey.split('|').filter(Boolean),
     }
   }
