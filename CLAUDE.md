@@ -158,6 +158,31 @@ finger. And the open list is the browser's own window, which a page cannot
 click into, so `uicheck` runs a **trial click** — the same hit test a real one
 does — before it chooses the row.
 
+**Then both screens were read as text, not as boxes, and two words were
+broken.** The checks on this screen asked whether a control is on the glass and
+whether a finger fits it, and both passed while the line that says what you have
+chosen came out one letter a line and the list's buttons read 지우 / 기. The
+client's widths were the cause twice over: `CharacterCreate.xml` and
+`CharacterSelect.xml` size the bottom row for a 1024-wide screen, so at 390 the
+buttons took the row and left the words beside them a sliver. On a phone the row
+shares the glass now — standing up the line goes above the buttons and the
+buttons split the width — and `word-break: keep-all` stops a Korean word
+breaking between syllables. The widths are cleared in the stylesheet with
+`!important` rather than in the drawing, because the screens are drawn before
+`place()` has decided the page is a phone. The preview gives up height to the
+controls on a short phone (205 pixels on 844, 120 on 640), lying down the
+choices are two columns, and a shut choice's reason wraps inside its button
+instead of being cut to an ellipsis. `padcheck` reads the text's own line boxes
+at three sizes: a piece of text on more lines than it has words has broken one.
+
+**The random button rolls a look.** It only ever rolled a name, on the argument
+that every row has one thing that can be picked — true of race, sex and class and
+not of the twelve hairstyles and five beards, which are every one of them
+pickable. `CharacterCreateRandomizeButton` is for the appearance, so that is
+what it rolls, and a name only when there is none yet: a press should leave a
+character who can walk out, and a name somebody typed is theirs. It is called
+무작위 now; 아무렇게나 said *carelessly*, which is not what the button does.
+
 **The player's frame on a phone is the old game's, and what came over is the
 arithmetic and not the pixels.** the tag `icc-final` derives every
 number from the glass — `ui = min(w, h) / 760` held between 0.62 and 1.15, a

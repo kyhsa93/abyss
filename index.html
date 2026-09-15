@@ -638,6 +638,72 @@
       /* The line that says what you have chosen is a hint, and on a phone it
          was three characters wide and four lines tall beside the buttons. */
       body.touch #create .say { flex: 1 1 0; min-width: 0; font-size: 11px; }
+      /* **A Korean word does not break in the middle.**  Left to the browser
+         it breaks between any two syllables, so a button a few pixels too
+         narrow read 지우 / 기 and a squeezed line read one letter a line. */
+      #create, #pick { word-break: keep-all; overflow-wrap: anywhere; }
+      /* **Standing up, the bottom row is two rows**: what you have chosen on a
+         line of its own, and the buttons sharing the width below it.  In one
+         row the buttons took their desktop widths and the line beside them
+         was a sliver — 인간 전사 · 남자 came out a letter at a time. */
+      body.touch:not(.lying) #create .foot,
+      body.touch:not(.lying) #pick .foot { flex-wrap: wrap; row-gap: 6px; }
+      body.touch:not(.lying) #create .say,
+      body.touch:not(.lying) #pick .say { flex: 1 1 100%; order: -1; }
+      body.touch #create .foot button,
+      body.touch #pick .foot button {
+        flex: 1 1 0; min-width: 0; min-height: 44px; white-space: nowrap;
+      }
+      body.touch #create .foot button[hidden] { display: none; }
+      /* `!important` because the widths are inline and written when the
+         screen is drawn, and the screen is drawn before `place()` has decided
+         the page is a phone — the snapshot trap this file already names. */
+      body.touch #pick .list { max-width: none; width: auto !important; }
+      body.touch #pick .card { width: 100%; box-sizing: border-box; }
+      body.touch #create .foot button,
+      body.touch #pick .foot button { width: auto !important; height: 44px !important; }
+      /* **Everything on the glass at once, on the smallest phone too.**  The
+         preview was its full 205 pixels whatever the screen, so at 360 x 640 it
+         and the sticky foot left the name field behind the buttons.  It gives
+         up height to the controls instead, down to a size a face still reads
+         at, and the gaps between the rows close up. */
+      body.touch:not(.lying) #create .seen canvas {
+        height: clamp(96px, calc(100vh - 520px), 205px) !important;
+        width: auto !important;
+      }
+      body.touch:not(.lying) #create .seen { align-self: center; }
+      body.touch #create .right { gap: 6px; }
+      body.touch #create .stage { padding: 10px 12px 8px; }
+      body.touch #create .title { margin-bottom: 6px; padding-bottom: 3px; }
+      /* **Lying down the choices are two columns**, not one scrolling list.
+         390 pixels tall holds three rows of 44 and not six, and the name —
+         the one field the button into the world waits on — was the row that
+         scrolled out of sight. */
+      /* `minmax(0, 1fr)` and not `1fr`: a grid column will not go under its
+         content's width otherwise, and on a 640-wide phone the sex buttons'
+         desktop widths pushed the second column off the right of the glass. */
+      body.touch.lying #create .right {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 14px; row-gap: 8px;
+      }
+      body.touch.lying #create .pane { overflow-y: visible; }
+      body.touch.lying #create .seen canvas {
+        height: clamp(96px, calc(100vh - 170px), 205px) !important;
+        width: auto !important;
+      }
+      body.touch #create .group { min-width: 0; }
+      body.touch #create .buttons { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; gap: 6px; }
+      body.touch #create .buttons .pick {
+        flex: 1 1 0; min-width: 0; width: auto !important; overflow: hidden;
+      }
+      /* The reason a choice is shut is read in full rather than cut to an
+         ellipsis: it is the one line that says why the button does nothing.
+         So the button grows to hold it instead. */
+      body.touch #create .buttons .pick { height: auto !important; padding: 4px 8px; }
+      body.touch #create .pick .why { white-space: normal; }
+      body.touch #create .named .name {
+        flex: 1 1 0; min-width: 0; width: auto !important;
+      }
       /* **Lying down, it is two columns**, which is the whole of this.
          844 x 390 is twice the width and half the height, and a single column
          used the new width for nothing and lost the height twice over: three

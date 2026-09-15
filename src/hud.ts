@@ -830,6 +830,14 @@ export function hud(layout?: Layout) {
       pickErase.style.height = `${screen.size.back[1]}px`
       pickErase.disabled = !one
       pickErase.onclick = () => screen.erase(screen.chosen)
+      // The same on this screen: the client's 250-wide list and its wide
+      // button left 지우기 and 새로 만들기 to break mid-word and 1 / 10 to
+      // stand on end.  On a phone the list is the width of the panel and the
+      // three buttons share one row.
+      if (document.body.classList.contains('touch')) {
+        pickList.style.removeProperty('width')
+        pickEnter.style.removeProperty('width')
+      }
     },
 
     /**
@@ -2042,7 +2050,7 @@ export function hud(layout?: Layout) {
   createOk.style.height = `${sz.ok[1]}px`
   createOk.disabled = !made.ready
   createOk.onclick = made.done
-  createDice.textContent = '아무렇게나'
+  createDice.textContent = '무작위'
   createDice.style.width = `${sz.dice[0]}px`
   createDice.style.height = `${sz.dice[1]}px`
   createDice.onclick = made.dice
@@ -2051,6 +2059,13 @@ export function hud(layout?: Layout) {
   createBack.style.width = `${sz.back[0]}px`
   createBack.style.height = `${sz.back[1]}px`
   createBack.onclick = () => made.back?.()
+  // **On a phone the bottom row shares the glass instead of the client's
+  // widths.**  `CharacterCreate.xml`'s buttons are sized for a 1024-wide
+  // screen, and at 390 the two of them took everything: the line that says
+  // what you have chosen was left a sliver and came out one letter a line.
+  if (document.body.classList.contains('touch')) {
+    for (const b of [createOk, createDice, createBack]) b.style.removeProperty('width')
+  }
   }
 
 

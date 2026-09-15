@@ -92,6 +92,40 @@ for (const [name, w, h] of [['standing', 390, 844], ['lying down', 844, 390]]) {
   // you were choosing a beard you could not see what a beard did.
   check(`making a character ${name}: the preview is on the glass`, made.seen)
 }
+// **And what is written on it can be read.**  Both of the checks above passed
+// while the line that says what you have chosen came out one letter a line and
+// the list's buttons read 지우 / 기: a word broken across lines is not a
+// control off the glass or a control too small, so nothing asked.  Read off the
+// text's own line boxes: a piece of text that takes more lines than it has
+// words has broken one, and a label on a button takes one line.
+const brokenWords = (root) => {
+  const out = []
+  for (const e of document.querySelectorAll(`${root} *`)) {
+    const r = e.getBoundingClientRect()
+    if (!r.width || !r.height || getComputedStyle(e).visibility === 'hidden') continue
+    for (const t of e.childNodes) {
+      if (t.nodeType !== 3 || !t.textContent.trim()) continue
+      const range = document.createRange()
+      range.selectNodeContents(t)
+      const lines = new Set([...range.getClientRects()]
+        .filter((q) => q.width > 0).map((q) => Math.round(q.top / 4))).size
+      const words = t.textContent.trim().split(/\s+/).length
+      const button = e.closest('.foot') && e.tagName === 'BUTTON'
+      if (lines > words || (button && lines > 1)) {
+        out.push(`${t.textContent.trim()} (${lines} lines)`)
+      }
+    }
+  }
+  return out
+}
+for (const [name, w, h] of [['standing', 390, 844], ['on the smallest phone', 360, 640],
+  ['lying down', 844, 390]]) {
+  await p.setViewportSize({ width: w, height: h })
+  await p.waitForTimeout(400)
+  const broken = await p.evaluate(brokenWords, '#create')
+  check(`making a character ${name}: no word is broken across lines`,
+    broken.length === 0, broken.join(', '))
+}
 await p.setViewportSize({ width: 390, height: 844 })
 await p.waitForTimeout(300)
 
@@ -1174,6 +1208,15 @@ check('the readout and the help line are Korean',
   // On the glass, which is the promise every other panel here makes.
   const box = await p.locator('#pick .stage').boundingBox()
   const { width: W4, height: H4 } = p.viewportSize()
+  for (const [name, w, h] of [['standing', 390, 844], ['on the smallest phone', 360, 640]]) {
+    await p.setViewportSize({ width: w, height: h })
+    await p.waitForTimeout(300)
+    const broken = await p.evaluate(brokenWords, '#pick')
+    check(`choosing a character ${name}: no word is broken across lines`,
+      broken.length === 0, broken.join(', '))
+  }
+  await p.setViewportSize({ width: 390, height: 844 })
+  await p.waitForTimeout(300)
   check('and the whole of it is on the glass',
     !!box && box.x >= 0 && box.y >= 0
     && box.x + box.width <= W4 + 1 && box.y + box.height <= H4 + 1,

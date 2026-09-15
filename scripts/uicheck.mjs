@@ -589,8 +589,26 @@ for (const [W, H] of SIZES) {
     // that lands on that panel is a click the world never hears.  And the
     // shop the block above opened has to go with it.
     await p.evaluate(() => window.__openShopAt(0))
-    const any = p.locator('#create button', { hasText: '아무렇게나' })
-    if (await any.count()) { await any.click(); await p.waitForTimeout(500) }
+    const any = p.locator('#create button', { hasText: '무작위' })
+    if (await any.count()) {
+      // **A press is a look at random**, which is what the button is for: it
+      // only rolled a name before.  Pressed several times, the hair and the
+      // beard have to come out as more than one look — read off the drop-downs
+      // the player sees rather than off a variable — and a name has to be
+      // there so the character can walk out.
+      const looks = new Set()
+      for (let i = 0; i < 6; i++) {
+        await any.click()
+        await p.waitForTimeout(150)
+        looks.add(await p.evaluate(() => [...document.querySelectorAll('#create select')]
+          .slice(-2).map((s) => s.value).join('/')))
+      }
+      const named = await p.evaluate(() => document.querySelector('#create .name')?.value ?? '')
+      check('the random button rolls what he looks like, and leaves him a name',
+        looks.size > 1 && named.trim().length > 0,
+        `${looks.size} looks in six presses (${[...looks].join(', ')}), named ${named}`)
+      await p.waitForTimeout(350)
+    }
     const go = p.locator('#create button', { hasText: '세상으로' })
     if (await go.count()) { await go.click(); await p.waitForTimeout(900) }
     await p.waitForTimeout(200)

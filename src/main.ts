@@ -6575,10 +6575,20 @@ async function main() {
           .concat([{ slot: mySlot, save: snapshot() }])
           .sort((a, c) => a.slot - c.slot)
       },
-      // The one in the original that is not a choice at all.  Ours can only
-      // roll the name, because every other row has exactly one thing in it
-      // that can be picked — which is the honest shape of this slice.
-      dice: () => { makeName = NAMES[Math.floor(roll() * NAMES.length)]!; drawCreate() },
+      // **A look at random**, which is what the original's button is for —
+      // `CharacterCreateRandomizeButton` rolls the appearance and leaves the
+      // race and the class alone.  Every hairstyle and every beard, the none
+      // included, because all of them can be picked; race, sex and class each
+      // have exactly one thing in them that can, so there is nothing to roll.
+      // It only rolled the name before, and a name is still rolled when there
+      // is none yet: a press should leave a character that can walk out, and a
+      // name somebody typed is theirs.
+      dice: () => {
+        makeHair = hairList[Math.floor(roll() * hairList.length)] ?? 'plain'
+        makeBeard = beardList[Math.floor(roll() * beardList.length)] ?? ''
+        if (!makeName.trim()) makeName = NAMES[Math.floor(roll() * NAMES.length)]!
+        drawCreate()
+      },
       face: paintMe(),
       size: size as Record<string, [number, number]>,
       list: (size['list'] ?? [220, 220]) as [number, number],
