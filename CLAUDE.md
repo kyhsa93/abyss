@@ -1136,8 +1136,23 @@ starting zone with nothing to gather, which is what the first run produced.
 
 **The core's C++ is at `~/src/acore-src`**, sparse and blobless — eight
 megabytes of `src/server/game/Entities`, `Spells`, `Combat` and
-`Miscellaneous`. Everything in `src/sim/stats.ts` cites the file and line it came
-from. Until it was there, the layer of this game that is *rules* had no source
+`Miscellaneous`, and `Reputation` since. Everything in `src/sim/stats.ts` cites the file and line it came
+from. The commands that make it were only ever in issue 101's closing comment:
+
+```
+git clone --depth 1 --filter=blob:none --sparse \
+  https://github.com/azerothcore/azerothcore-wotlk ~/src/acore-src
+cd ~/src/acore-src
+git sparse-checkout set src/server/game/Combat src/server/game/Entities \
+  src/server/game/Miscellaneous src/server/game/Reputation src/server/game/Spells
+```
+
+That is what is checked out, and it is narrower than the issue asked for:
+`DataStores` (where `DBCStores.cpp` lives), `AI` (`SmartScript.cpp`) and the
+top-level `tools` tree (`map_extractor/System.cpp`) are **not** in it. Add them
+with `git sparse-checkout add` before citing a line from one. `corecheck` reads
+this tree, or `$ABYSS_CORE`. The world database's dump is a different checkout,
+`~/src/azerothcore-wotlk`, sparse on `data/sql/base` alone. Until it was there, the layer of this game that is *rules* had no source
 at all and the gap showed: every blow landed, there were no stats, and the
 player's starting weapon was a hand-transcribed `(1, 3, 1900)` that turned out
 to be the wrong sword — a rogue's shortsword, where a warrior starts with a
