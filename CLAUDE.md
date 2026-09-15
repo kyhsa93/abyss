@@ -1097,9 +1097,12 @@ carry their tufts in the middle and plain ground round the edge, so on an exact
 32-pixel grid the tufts are a lattice, and a plate a pixel too wide a tile had
 been smearing it. Those pictures are nudged inside their tile now, by up to a
 tenth of it — inside their plain border, over the same picture laid straight so
-the strip it uncovers is never empty — and the gauge reads 1.0. The bar stays
-where it was: it had been calibrated on the bug, and the answer was to make the
-ground pass it rather than to move it.
+the strip it uncovers is never empty — and the gauge reads 1.0. The bar did not
+move while the ground was being made to pass it, because it had been calibrated
+on the bug; once the ground read 1.1 it went to #142's own 2, beside that
+issue's other two targets — a hundred tiles of meadow nearly a hundred
+pictures, and no five of them a seventh of it — which had only ever been
+printed.
 
 **The client's blend was being delivered as a mosaic, and the check said it was
 being delivered.** #211 shipped two words a cell and the second one's share, and

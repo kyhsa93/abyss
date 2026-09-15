@@ -214,7 +214,16 @@ await page.evaluate(() => {
   window.__cam({ x: -8949, y: -132, zoom: 1 })
   document.getElementById('ui')?.setAttribute('hidden', '')
 })
-await page.waitForTimeout(600)
+// Waited on rather than slept on: every tile of the view composed into a plate
+// and none left loose, then two frames drawn after that.  Measured, that is
+// about three hundred and fifty milliseconds here and the sleep was six
+// hundred — right by a margin that is a statement about this machine.
+await page.waitForFunction(() => {
+  const e = window.__edges()
+  return e.plates > 0 && e.tiles === 0
+}, null, { timeout: 10000 }).catch(() => null)
+await page.evaluate(() => new Promise((r) =>
+  requestAnimationFrame(() => requestAnimationFrame(() => r()))))
 const flat = await page.evaluate(() => {
   const c = document.querySelector('canvas')
   const g = c.getContext('2d')
@@ -252,19 +261,43 @@ const flat = await page.evaluate(() => {
       if (cells[j * wide + i] === cells[j * wide + i + 1]) same++
     }
   }
+  const often = new Map()
+  for (const k of cells) often.set(k, (often.get(k) ?? 0) + 1)
+  const top = [...often.values()].sort((a, b) => b - a).slice(0, 5)
+    .reduce((a, v) => a + v, 0)
   return {
     peak: corr(32), beside: (corr(24) + corr(40)) / 2,
-    twins: same / Math.max(1, pairs), kinds: new Set(cells).size, of: cells.length,
+    twins: same / Math.max(1, pairs), kinds: often.size, of: cells.length,
+    top: top / Math.max(1, cells.length),
   }
 })
 await page.evaluate(() => document.getElementById('ui')?.removeAttribute('hidden'))
 check('no picture repeats beside itself', flat.twins < 0.03,
   `${(flat.twins * 100).toFixed(1)}% of neighbouring tiles are identical`)
+// **Two, which is #142's own target, and not the 2.4 it read the day it went
+// in.**  The bar was set beside a gauge reading 2.1 — on a plate a pixel too
+// wide a tile, which was smearing the lattice — and it read 4.0 when the drift
+// was fixed and 1.0 once the tufts were nudged inside their tile.  A bar with a
+// margin the ground passes by half is a bar that would let the chessboard back
+// most of the way; nothing now needs the room.
 check('and the grid does not stand out at one tile',
-  flat.peak / Math.max(0.02, flat.beside) < 2.4,
+  flat.peak / Math.max(0.02, flat.beside) < 2,
   `${(flat.peak / Math.max(0.02, flat.beside)).toFixed(1)}x the correlation of `
   + 'its neighbouring lags')
-console.log(`      (${flat.kinds} distinct pictures in ${flat.of} tiles of meadow)`)
+// And the two targets #142 set that were only ever printed.  *A hundred tiles
+// of meadow, close to a hundred pictures* — it was 28 — and *the five commonest
+// under fifteen per cent* — it was 38.  Both were out of reach while a tile was
+// one of three pictures at one of twenty-one shades; with the ground blended
+// across the tiles and lit as a gradient, a tile is almost never pixel for
+// pixel another.  Ninety rather than a hundred because a flat patch with no
+// flowers in it can honestly repeat, and ninety is still three times what the
+// chessboard managed.
+check('and a hundred tiles of meadow are nearly a hundred pictures',
+  flat.kinds >= flat.of * 0.9,
+  `${flat.kinds} distinct pictures in ${flat.of} tiles of meadow`)
+check('and no five of them are a seventh of it',
+  flat.top < 0.15,
+  `the five commonest are ${(flat.top * 100).toFixed(0)}% of the tiles`)
 
 await browser.close()
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
