@@ -54,10 +54,16 @@ export type Unit = {
  * `PaperDollFrame.xml`.
  */
 export type Worn = {
-  /** `[our word for the slot, picture, quality colour, what it is]`. */
-  left: [string, string, string, string][]
-  right: [string, string, string, string][]
-  bottom: [string, string, string, string][]
+  /**
+   * `[our word for the slot, picture, quality colour, what it is, broken]`.
+   *
+   * `broken` is `'1'` for a thing worn down to nought — it is still on him
+   * and it counts for nothing (issue 83), and a square that looks the same
+   * either way is a sheet that lies about why his armour just fell.
+   */
+  left: [string, string, string, string, string?][]
+  right: [string, string, string, string, string?][]
+  bottom: [string, string, string, string, string?][]
 }
 
 /** `[id, word, picture, what it says, whether it can be used now]`. */
@@ -302,11 +308,12 @@ function pin(node: HTMLElement, b: Box | undefined, s: number) {
 }
 
 /** One square of the paperdoll: a picture in its quality's colour, or empty. */
-function square(into: HTMLElement, row: [string, string, string, string]) {
-  const [slot, icon, tint, what] = row
+function square(into: HTMLElement, row: [string, string, string, string, string?]) {
+  const [slot, icon, tint, what, broke] = row
   const box = el('div', 'square', into)
   box.title = what ? `${slot} — ${what}` : `${slot} — 비어 있다`
   if (!what) box.classList.add('bare')
+  if (broke) box.classList.add('broken')
   const p = el('span', 'pic', box)
   p.style.setProperty('--pic', `url(./art/ui/${icon})`)
   if (tint) p.style.color = tint
@@ -509,6 +516,10 @@ export function hud(layout?: Layout) {
   const shopWhich = el('span', 'which', shopFoot)
   const shopNext = el('button', 'page', shopFoot) as HTMLButtonElement
   shopNext.textContent = '▶'
+  // Mending, which is `MerchantRepairAllButton` — the original puts it in the
+  // same window as the goods, bottom left, and only for somebody who mends.
+  const shopMend = el('button', 'mend', shopFoot) as HTMLButtonElement
+  shopMend.hidden = true
   const shopPurse = el('span', 'purse', shopFoot)
 
   // The spellbook, which the original puts at the same corner and the same
@@ -697,13 +708,22 @@ export function hud(layout?: Layout) {
      */
     setShop(open: boolean, who: string, purse: string, page: number,
       pages: number, rows: ShopRow[], buy: (id: number) => void,
-      turn: (to: number) => void, empty = '팔 것이 없소') {
+      turn: (to: number) => void, empty = '팔 것이 없소',
+      mend: { says: string; can: boolean; go: () => void } | null = null) {
       const was = shopBox.hidden
       shopBox.hidden = !open
       if (was !== shopBox.hidden) seat()
       if (!open) return
       shopTitle.textContent = who
       shopPurse.textContent = purse
+      // Before the early return below, because the rows can be the same while
+      // what mending costs is not — a death between two openings of one shop.
+      shopMend.hidden = !mend
+      if (mend) {
+        shopMend.textContent = mend.says
+        shopMend.disabled = !mend.can
+        shopMend.onclick = () => { if (mend.can) mend.go() }
+      }
       shopWhich.textContent = pages > 1 ? `${page + 1} / ${pages}` : ''
       shopPrev.hidden = pages < 2
       shopNext.hidden = pages < 2

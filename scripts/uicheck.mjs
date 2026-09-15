@@ -1309,6 +1309,121 @@ for (const [W, H] of SIZES) {
       `${size.slots} slots x ${size.most} = ${size.most * size.slots} of 40,960`)
 
   }
+  // --- what wears out, and what mending it costs (issue 83) -----------------
+  //
+  // Closed with durability left out on the strength of a comment about
+  // resurrection sickness; `Unit::Kill` wears everything worn on every death.
+  // Every expected number is worked here from `items.json` and the core's
+  // formula rather than asked of the scene, because a check that reads the
+  // same side as the bug is blind to it.
+  {
+    // Into the world first.  This page opened on the screen that makes a
+    // character, which replaces the game and covers the shop's foot — the
+    // first run of this block pressed the mend button and hit that screen.
+    await p.evaluate(() => window.__makeOne('수리공'))
+    await p.waitForFunction(() => document.getElementById('create').hidden,
+      null, { timeout: 10000 })
+    await p.keyboard.press('Escape')
+    const doc = await p.evaluate(async () =>
+      (await fetch('./world/items.json')).json())
+    const rowOf = (gear, slot) => doc.items[String(gear[slot])]
+    const start = await p.evaluate(() => window.__dura())
+    const wearing = Object.keys(start.worn)
+    check('he starts wearing something that wears out', wearing.length > 0,
+      JSON.stringify(start.worn))
+
+    // Dying.  `uint32(max * 0.1f)`, never under one, off every worn thing.
+    const died = await p.evaluate(() => { window.__die(); return window.__dura() })
+    const expectDeath = (now, max) =>
+      Math.max(0, now - Math.max(1, Math.trunc(max * Math.fround(0.1))))
+    const wrong = wearing.filter((s) =>
+      died.worn[s]?.[0] !== expectDeath(start.worn[s][0], start.worn[s][1]))
+    check('dying wears a tenth off everything he is wearing', wrong.length === 0,
+      wearing.map((s) => `${s} ${start.worn[s][0]} -> ${died.worn[s]?.[0]}`
+        + ` of ${start.worn[s][1]}`).join(', '))
+
+    // Broken.  Everything worn to nought, through the path a blow takes.
+    const zero = Object.fromEntries(wearing.map((s) => [s, 0]))
+    const bust = await p.evaluate((z) => window.__dura(z), zero)
+    const armourLost = wearing.reduce((n, s) => n + rowOf(bust.gear, s)[8], 0)
+    const weapon = bust.gear.weapon !== undefined && wearing.includes('weapon')
+      ? rowOf(bust.gear, 'weapon') : null
+    check('a broken thing stops counting: its armour goes',
+      died.line[4] - bust.line[4] === armourLost,
+      `armour ${died.line[4]} -> ${bust.line[4]}, the broken items carried `
+      + `${armourLost}`)
+    if (weapon) {
+      // `GetWeaponForAttack` will not hand a broken weapon to a swing, so the
+      // swing is the bare hand's two seconds, not the sword's.
+      check('and a broken weapon swings like a bare hand',
+        died.line[3] === weapon[7] && bust.line[3] === 2000,
+        `swing ${died.line[3]} -> ${bust.line[3]}`)
+    }
+    await p.keyboard.press('c')
+    await p.waitForFunction((n) =>
+      document.querySelectorAll('#sheet .worn .square.broken').length === n,
+      wearing.length, { timeout: 5000 }).catch(() => {})
+    const marked = await p.evaluate(() =>
+      document.querySelectorAll('#sheet .worn .square.broken').length)
+    check('and the sheet marks each broken square', marked === wearing.length,
+      `${marked} of ${wearing.length} marked`)
+    await p.keyboard.press('c')
+
+    // Saved and restored, with money enough to mend put in the same way.
+    const saved = await p.evaluate(() => {
+      const raw = JSON.parse(JSON.stringify(window.__save()))
+      raw.you.purse = 100000
+      window.__load(JSON.parse(JSON.stringify({ ...raw,
+        you: { ...raw.you, dura: { worn: {}, held: {} } } })))
+      const whole = window.__dura()
+      window.__load(raw)
+      return { raw: raw.you.dura, whole: whole.worn, back: window.__dura() }
+    })
+    check('wear is saved and comes back on a reload',
+      Object.values(saved.whole).every(([n, m]) => n === m)
+      && wearing.every((s) => saved.back.worn[s]?.[0] === 0)
+      && wearing.every((s) => saved.raw.worn[s] === 0),
+      `saved ${JSON.stringify(saved.raw)}`)
+
+    // Mending, at somebody who mends, pressed through the pointer.
+    const at = await p.evaluate(() => window.__mendAt())
+    await p.waitForFunction(() => {
+      const b = document.querySelector('#shop .mend')
+      return b && !b.hidden && !b.disabled && b.getBoundingClientRect().width > 0
+    }, null, { timeout: 5000 }).catch(() => {})
+    const owed = wearing.reduce((sum, s) => {
+      const it = rowOf(saved.back.gear, s)
+      const lost = saved.back.worn[s][1] - saved.back.worn[s][0]
+      const first = Math.trunc(lost * doc.repair.costs[String(it[3])][it[17]]
+        * doc.repair.quality[String((it[2] + 1) * 2)])
+      const cost = Math.trunc(first * Math.fround(at?.discount ?? 1))
+      return sum + (lost > 0 ? (cost === 0 ? 1 : cost) : 0)
+    }, 0)
+    const button = await p.evaluate(() => {
+      const b = document.querySelector('#shop .mend')
+      if (!b || b.hidden) return null
+      const r = b.getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, text: b.textContent }
+    })
+    check('a shopkeeper who mends offers it in his window', !!at && !!button,
+      `${JSON.stringify(at)} ${button?.text}`)
+    if (button) {
+      const purse = saved.back.purse
+      await p.mouse.click(Math.round(button.x), Math.round(button.y))
+      await p.waitForFunction((was) => window.__dura().purse !== was, purse,
+        { timeout: 5000 }).catch(() => {})
+      const mended = await p.evaluate(() => window.__dura())
+      check('and mending costs what the rule says',
+        purse - mended.purse === owed,
+        `paid ${purse - mended.purse}, the rule says ${owed} `
+        + `(discount ${at?.discount})`)
+      check('and puts everything back to whole and counting',
+        Object.values(mended.worn).every(([n, m]) => n === m)
+        && mended.line[4] === died.line[4] && mended.line[3] === died.line[3],
+        `armour ${mended.line[4]} (was ${died.line[4]}), swing ${mended.line[3]}`)
+    }
+    await p.evaluate(() => window.__openShopAt(0))
+  }
   await p.close()
 }
 

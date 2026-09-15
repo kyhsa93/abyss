@@ -922,5 +922,79 @@ check('and the same seed gives the same fight',
     control.includes(4), `offered ${control} after the first was handed in`)
 }
 
+// --- what wears out, and what mending it costs (issue 83) --------------------
+//
+// Closed with durability left out, on `Player::ResurrectPlayer`'s comment that
+// levels one to ten get no resurrection *sickness* — which says nothing about
+// durability.  `Unit::Kill` (Unit.cpp:14187) wears everything worn on every
+// death to a creature.  Every expected number below is worked by hand from the
+// core's lines, not read back out of the function under test.
+{
+  const { afterDeath, broken, lossFor, repairCost, wearFromBlow, DEATH_SHARE,
+    EQUIPMENT_SLOTS } = await import('../src/sim/durability.ts')
+  const { roll: draw, reseed: reseedDraw } = await import('../src/sim/roll.ts')
+  const items = world('items')
+
+  // `uint32(25 * 0.1f)` = 2 (Player.cpp:4833).
+  check('a death takes a tenth of the maximum off a 25-point sword',
+    afterDeath(25, 25) === 23, `25 -> ${afterDeath(25, 25)}`)
+  // A tenth of five is nought and the floor is one (Player.cpp:4835).
+  check('and never less than a point, however small the item',
+    afterDeath(5, 5) === 4, `5 -> ${afterDeath(5, 5)}`)
+  // A tenth of the *maximum*, not of what is left, clamped at nought
+  // (Player.cpp:4876).
+  check('and a tenth of the whole even when little is left, down to nought',
+    afterDeath(40, 3) === 0 && lossFor(40, DEATH_SHARE) === 4,
+    `40 with 3 left -> ${afterDeath(40, 3)}`)
+  // `if (!pMaxDurability) return` (Player.cpp:4830).
+  check('and a thing with no durability is left alone',
+    afterDeath(0, 0) === 0 && lossFor(0, DEATH_SHARE) === 0)
+  check('a thing is broken at nought only if it could wear at all',
+    broken(25, 0) && !broken(25, 1) && !broken(0, 0))
+
+  // Half a per cent a blow, one slot of nineteen.
+  reseedDraw(20260915)
+  const N = 200_000
+  let wore = 0
+  const slots = new Set()
+  for (let i = 0; i < N; i++) {
+    const at = wearFromBlow(draw)
+    if (at === null) continue
+    wore++
+    slots.add(at)
+  }
+  check('a blow wears something about one time in two hundred',
+    wore / N > 0.004 && wore / N < 0.006 && slots.size === EQUIPMENT_SLOTS,
+    `${wore} of ${N} blows (${(wore / N * 100).toFixed(3)}%), `
+    + `${slots.size} of ${EQUIPMENT_SLOTS} slots reached`)
+
+  // The starting warrior's greatsword: item level 2, quality 1, a two-handed
+  // sword — column 8 of `DurabilityCosts.dbc` row 2, which is 1 copper a point,
+  // and `DurabilityQuality.dbc` row (1 + 1) * 2 = 4, which is 0.8 as a float.
+  const sword = items.items['49778']
+  const mend = items.repair
+  check('the world ships the two repair tables and who mends',
+    !!mend && mend.by.length > 0 && sword[16] === 25 && sword[17] === 8
+    && mend.costs['2'][8] === 1 && Math.fround(0.8) === mend.quality['4'],
+    `${mend?.by.length} menders; sword ${sword[16]} points, column ${sword[17]}`)
+  const cost = (lost, discount = 1) =>
+    repairCost(mend, lost, sword[3], sword[2], sword[17], discount)
+  // `uint32(25 * 1 * 0.8f)` = 20.
+  check('mending the broken sword costs twenty copper', cost(25) === 20,
+    `${cost(25)}`)
+  // `uint32(2 * 0.8f)` = 1: one death's worth.
+  check('and one death of it costs one', cost(2) === 1, `${cost(2)}`)
+  // `uint32(1 * 0.8f)` = 0, and nought is one copper (Player.cpp:4961).
+  check('and a point that rounds to nothing still costs a copper',
+    cost(1) === 1, `${cost(1)}`)
+  // Two truncations: `uint32(20 * 0.95f)` = 18, where one truncation of the
+  // whole product would be 19.  Honoured's five per cent off.
+  check('and a discount is taken after the first truncation, not with it',
+    cost(25, 0.95) === 18
+    && Math.trunc(25 * Math.fround(0.8) * Math.fround(0.95)) === 19,
+    `${cost(25, 0.95)} rather than 19`)
+  check('and nothing lost is nothing charged', cost(0) === 0)
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

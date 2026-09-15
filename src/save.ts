@@ -21,8 +21,8 @@
  *     than quietly loaded.
  */
 
-/** Bumped whenever the shape below changes; `migrate` walks v1 → v2 → v3 → v4. */
-export const SAVE_VERSION = 4
+/** Bumped whenever the shape below changes; `migrate` walks v1 → … → v5. */
+export const SAVE_VERSION = 5
 
 export type Save = {
   version: number
@@ -89,6 +89,17 @@ export type Save = {
     /** Held by id, worn by slot, and what a trainer has taught. */
     items: number[]
     gear: Record<string, number>
+    /**
+     * How much wear is left, where it is less than whole — issue 83.
+     *
+     * `worn` is by slot and `held` by item id, and only what has lost
+     * something is written: a whole item is its own `MaxDurability`, which is
+     * the bake's, and a save that copied it would disagree with the item the
+     * day the column did.  By id for what is carried because a carried thing
+     * has nothing else to be known by here; two copies of one item in the bag
+     * share the number, and the one that shows is the more worn.
+     */
+    dura: { worn: Record<string, number>; held: Record<string, number> }
     taught: number[]
     /**
      * The recipes he knows, by the spell that makes the thing.
@@ -402,4 +413,16 @@ const STEPS: Record<number, (s: Save) => Save> = {
     return { ...s, version: 4, you: { ...s.you, bag: {}, trades,
                                       purse: s.you.purse + paid } }
   },
+  /**
+   * 4 → 5: things wear out.
+   *
+   * Every save before this was made in a game where nothing lost durability,
+   * so everything in it is whole — which is not a guess about the save but
+   * the only thing that could have happened to it.  Empty is whole.
+   */
+  4: (s) => ({
+    ...s,
+    version: 5,
+    you: { ...s.you, dura: { worn: {}, held: {} } },
+  }),
 }

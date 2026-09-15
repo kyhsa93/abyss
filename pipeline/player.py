@@ -239,12 +239,12 @@ def main(acore, client, out):
     # says which zone sends you to which — Elwynn has four, one of them beside
     # the abbey and one in Goldshire.
     #
-    # This is the whole cost of dying at these levels, and that is not a
-    # simplification: `Player::ResurrectPlayer` (Player.cpp:4605) says in its
-    # own comment that **characters from level 1 to 10 are not affected by
-    # resurrection sickness**.  Below eleven the game charges you the walk
-    # back and nothing else, so charging anything else here would be inventing
-    # a rule.
+    # The walk back is one cost of dying at these levels.  This comment said it
+    # was the whole cost, on `Player::ResurrectPlayer`'s (Player.cpp:4605) note
+    # that characters from level 1 to 10 are not affected by resurrection
+    # *sickness* — which is about sickness.  `Unit::Kill` (Unit.cpp:14187)
+    # wears what he is wearing on every death, with no level in it; see
+    # `src/sim/durability.ts`.
     yards = {}
     for col, f in table(base, 'game_graveyard'):
         if int(f[col['Map']]) == MAP:

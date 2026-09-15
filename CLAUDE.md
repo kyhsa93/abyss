@@ -1317,12 +1317,28 @@ through `migrate` to what `restore` reads — the chain had four links for a day
 before anything had put a version one through it. A new version needs a sample
 of its own shape or that check fails.
 
-**Dying costs the walk back, and that is the whole of it.**
-`Player::ResurrectPlayer` (Player.cpp:4605) says in its own comment that
-characters from level 1 to 10 are not affected by resurrection sickness — so
-below eleven the game charges the run from the graveyard and nothing else, and
-charging anything more here would be inventing a rule. Which graveyard is
-`game_graveyard` and `graveyard_zone`; Elwynn has four.
+**Dying costs the walk back and a tenth of what you are wearing.** This
+paragraph used to say the walk was the whole of it, on the strength of
+`Player::ResurrectPlayer` (Player.cpp:4605) saying characters from level 1 to 10
+are not affected by resurrection sickness — and that comment is about sickness
+and nothing else. `Unit::Kill` (Unit.cpp:14187) calls `DurabilityLossAll` for a
+player killed by anything that is not a player, with no level in the
+condition, at `DurabilityLoss.OnDeath = 10`. **A number read off the wrong line
+of the core is worse than no number** was already in this file, about skinning;
+this was the same mistake about a rule, and it closed an issue. Which graveyard
+is `game_graveyard` and `graveyard_zone`; Elwynn has four.
+
+What wear does is `src/sim/durability.ts`, line for line: a tenth of the
+maximum, never under one point, off everything worn on a death; half a per cent
+a blow that one of nineteen slots loses a point, for a blow taken and a blow
+dealt both, in the branch where the victim survives; and **a broken item stays
+on and counts for nothing** — `_ApplyItemMods` returns before applying a thing
+for one, so a broken sword swings like a bare hand. The spirit healer's 25% is
+not charged, because waking at the graveyard here is the corpse run and not his
+resurrection. Mending is any shopkeeper with `UNIT_NPC_FLAG_REPAIR`, in his
+own window, at `Player::DurabilityRepair`'s price out of the client's
+`DurabilityCosts.dbc` and `DurabilityQuality.dbc` — two truncations, the
+standing discount between them — paid item by item as far as the purse goes.
 
 **An item has an identity, not a noun.** The bag was `{our word: [how many,
 what it is worth]}`, which can count eleven bits of cloth and can never hold a

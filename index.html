@@ -126,7 +126,7 @@
          game and a click belongs to the game — so anything that answers a
          press has to say so here. */
       #ui .slot, #ui #bag li, #ui #micro button, #ui .auras .aura,
-      #ui #shop li, #ui #shop .page {
+      #ui #shop li, #ui #shop .page, #ui #shop .mend {
         pointer-events: auto; cursor: pointer;
       }
       /* And the two screens that come **instead of** the game rather than
@@ -353,6 +353,10 @@
         background: rgba(0,0,0,.3);
       }
       #sheet .worn .square.bare { opacity: .3; }
+      /* Worn to nothing: still on him and counting for nothing (issue 83).
+         Red and dimmed rather than hidden, because it is still there. */
+      #sheet .worn .square.broken { border-color: #c0392b; opacity: .6; }
+      #sheet .worn .square.broken .pic { filter: grayscale(1); }
       #sheet .worn .pic { width: 74%; height: 74%; margin: 0; }
       #sheet .k { color: #9aa6ae; }
 
@@ -774,6 +778,15 @@
         border-radius: 3px; cursor: pointer; font: inherit; padding: 0 6px;
       }
       #shop .page:disabled { opacity: .35; cursor: default; }
+      /* Mending is a page button's cousin and says what it costs on its face,
+         because the original's shows the price only on hover and a phone has
+         no hover. */
+      #shop .mend {
+        background: rgba(201,168,106,.1); border: 1px solid var(--gold-dark);
+        color: var(--ink); border-radius: 3px; cursor: pointer; font: inherit;
+        padding: 0 6px; white-space: nowrap;
+      }
+      #shop .mend:disabled { opacity: .45; cursor: default; }
       #shop .which, #book .which { color: #8a8f9e; }
       /* The book is two columns of six, which is what `SpellBookFrame.xml`
          says: button 2 sits 157 to the right of button 1 and button 3 sits

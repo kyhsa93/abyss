@@ -27,7 +27,8 @@ import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { cycleOf, standing } from './sim/pools.ts'
 import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Card, type Save } from './save.ts'
-import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_USE, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
+import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_DURA, I_DURA_COST, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_QUALITY, I_SELL, I_SLOT, I_USE, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
+import { afterDeath, broken, losePoints, repairCost, wearFromBlow, EQUIPMENT_SLOT } from './sim/durability.ts'
 import { askedFor, mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { afterThis, heatOf, nextRank, riseChance, short as lacking, skinAsks, GIVEN, SOLD, R_COST, R_COUNT, R_GREY, R_HOW, R_MAKES, R_NEEDS, R_RANK, R_SKILL, R_SPELL, R_YELLOW, type Rank, type Recipe, type Trades } from './sim/trades.ts'
 import { discountOf, paidBy, rankFloor, rankOf as standingRank, standAfter, EXALTED, NEUTRAL } from './sim/rep.ts'
@@ -3718,6 +3719,13 @@ async function main() {
    */
   let held: number[] = []
   let gear: Record<string, number> = {}
+  /**
+   * How much wear is left on what is worn, by slot, and on what is carried, by
+   * id — only where it is less than whole.  See `src/sim/durability.ts` and the
+   * `dura` note in `save.ts`; declared beside `gear` for the reason above.
+   */
+  let dura: Record<string, number> = {}
+  let duraHeld: Record<string, number> = {}
   let taught: number[] = []
   /**
    * What has been bought off a limited shelf, as `"<vendor>:<item>" -> [turn,
@@ -3797,8 +3805,28 @@ async function main() {
   let clock = 0
   /** What he is made of at each level — `pipeline/player.py`, plus what he wears. */
   const itemOf = (id: number): Item | null => shelf.items?.[String(id)] ?? null
+  /** How much wear a slot's item takes altogether, nought for none. */
+  const maxWearOf = (slot: string): number => {
+    const it = gear[slot] !== undefined ? itemOf(gear[slot]!) : null
+    return it ? (it[I_DURA] as number) ?? 0 : 0
+  }
+  /** How much it has left. */
+  const wearOf = (slot: string): number => dura[slot] ?? maxWearOf(slot)
+  /** `Item::IsBroken` for what is in a slot. */
+  const brokenAt = (slot: string): boolean =>
+    broken(maxWearOf(slot), wearOf(slot))
+  /**
+   * What counts: everything worn **that is not broken**.
+   *
+   * `Player::_ApplyItemMods` returns before applying anything for a broken
+   * item (Player.cpp:6749), so a breastplate worn down to nought is on him and
+   * adds nothing — no stats and no armour — and the moment it is mended it
+   * adds them back (Player.cpp:4994).  Every stat and the armour line come
+   * through here, so this one filter is the whole of that rule.
+   */
   const wornItems = (): Item[] =>
-    Object.values(gear).map(itemOf).filter((x): x is Item => !!x)
+    Object.entries(gear).filter(([slot]) => !brokenAt(slot))
+      .map(([, id]) => itemOf(id)).filter((x): x is Item => !!x)
   const statsAt = (lv: number): Stats => {
     const base = who?.stats?.[String(Math.max(1, lv))]
       ?? [23, 20, 22, 20, 20, 20, 0]
@@ -3873,7 +3901,10 @@ async function main() {
     held = held.filter((x) => x !== id).concat(put.off)
   }
   const heldWeapon = (): (string | number)[] | undefined => {
-    const it = gear['weapon'] !== undefined ? itemOf(gear['weapon']!) : null
+    // A broken weapon is a bare hand: `Player::GetWeaponForAttack` will not
+    // hand one to a swing (PlayerStorage.cpp:521).
+    const it = gear['weapon'] !== undefined && !brokenAt('weapon')
+      ? itemOf(gear['weapon']!) : null
     if (it) {
       return ['weapon', it[I_LO] as number, it[I_HI] as number,
         it[I_DELAY] as number, it[I_ARMOUR] as number, 0]
@@ -3895,8 +3926,11 @@ async function main() {
     if (!who || !weapon) return row
     const s = statsAt(lv)
     const up = blessing()
-    const worn = (wornArmour(wornItems())
-      || (who?.kit ?? []).reduce((n, k) => n + (k[K_ARMOUR] as number), 0))
+    // The kit's armour only when nothing is worn at all — a world baked with
+    // no items.  It was `||`, which also handed a character whose armour had
+    // all broken the kit's armour back, and a broken item counts for nothing.
+    const worn = (Object.keys(gear).length ? wornArmour(wornItems())
+      : (who?.kit ?? []).reduce((n, k) => n + (k[K_ARMOUR] as number), 0))
       + (up && up.stat === 'armour' ? up.amount : 0)
     // `Player::CalculateMinMaxDamage`: the weapon's own damage plus attack
     // power spread over its swing, which is the line the shout already used.
@@ -4227,6 +4261,8 @@ async function main() {
     if (dress) {
       held = []
       gear = {}
+      dura = {}
+      duraHeld = {}
       taught = []
       for (const k of who?.kit ?? []) {
         const id = k[K_ID] as number
@@ -4545,6 +4581,7 @@ async function main() {
           const dealt = Math.max(1, Math.round(
             hit * stanceOf().deal * (1 - mitigate(armourNow(n), you.level))))
           n.hp -= dealt
+          if (n.hp > 0) wearBlow()
           struck(n, dealt, n.max, hero.x, hero.y, n.x, n.y)
           n.angry = true
           n.threat['you'] = (n.threat['you'] ?? 0)
@@ -4911,10 +4948,11 @@ async function main() {
       // Not where you started and not where you fell.  `game_graveyard` and
       // `graveyard_zone` say where each zone sends you — Elwynn has four, one
       // beside the abbey and one in Goldshire — and the walk back from it is
-      // the whole cost of dying at these levels.  That is not a simplification:
-      // `Player::ResurrectPlayer` (Player.cpp:4605) says in its own comment
-      // that characters from level 1 to 10 are not affected by resurrection
-      // sickness, so charging anything else here would be inventing a rule.
+      // one cost of dying at these levels.  This comment said it was the whole
+      // cost, on `Player::ResurrectPlayer`'s (Player.cpp:4605) note that levels
+      // 1 to 10 are not affected by resurrection *sickness* — which is about
+      // sickness.  The other cost is wear, and it was charged when he fell:
+      // see `fall`.
       //
       // Before this you stood up four seconds later on the spot with full
       // health, which meant there was never a reason to run away — and half of
@@ -4931,6 +4969,8 @@ async function main() {
         placeHero(gx, gy)
         camX = gx; camY = gy
         ui.log('묘지에서 깨어났다.', 'note')
+        if (wornOnDeath) ui.log('쓰러질 때 입고 있던 것이 상했다.', 'note')
+        wornOnDeath = false
       }
       return
     }
@@ -4952,6 +4992,7 @@ async function main() {
         else if (clock >= n.bleed.next) {
           n.bleed.next += 3
           n.hp -= n.bleed.each
+          if (n.bleed.each > 0 && n.hp > 0) wearBlow()
           n.hurt = clock
           say(n.x, n.y, `${n.bleed.each}`, true)
           if (n.hp <= 0) { n.hp = 0; n.dead = clock; n.bleed = null; you.kills += 1
@@ -5046,6 +5087,7 @@ async function main() {
               * (1 - mitigate(you.line[ARMOUR]!, n.level))))
             const got = takeHit(bolt)
             you.hp -= got
+            if (got > 0 && you.hp > 0) wearBlow()
             breakUse()
             breakCast('맞았다')
             say(hero.x, hero.y, `-${got}`, false)
@@ -5076,6 +5118,7 @@ async function main() {
       const hit = takeHit(Math.max(0, Math.round(
         damageAfter(fate, raw, n.level - you.level) * stanceOf().take)))
       you.hp -= hit
+      if (hit > 0 && you.hp > 0) wearBlow()
       breakUse()
       n.swung = clock
       struck(you, hit, you.max, n.x, n.y, hero.x, hero.y)
@@ -5107,6 +5150,7 @@ async function main() {
       else if (clock >= youBleed.next) {
         youBleed.next = clock + 3
         you.hp -= youBleed.each
+        if (youBleed.each > 0 && you.hp > 0) wearBlow()
         breakUse()
         say(hero.x, hero.y, `-${youBleed.each}`, false)
         if (you.hp <= 0) {
@@ -5243,6 +5287,7 @@ async function main() {
     foe.threat['you'] = (foe.threat['you'] ?? 0)
       + threatFrom(hit, undefined, attackPower(you.level, mine)) * stance.threat
     foe.hp -= hit
+    if (hit > 0 && foe.hp > 0) wearBlow()
     struck(foe, hit, foe.max, hero.x, hero.y, foe.x, foe.y)
     if (hit > 0) { foe.angry = true; rouse(foe) }
     play(fate === CRIT ? 'crit' : hit > 0 ? 'hit' : 'miss', 0.92 + roll() * 0.16)
@@ -5396,6 +5441,128 @@ async function main() {
   }
 
   /**
+   * Wear, issue 83.  The rules are `src/sim/durability.ts`; this is where the
+   * scene holds the numbers and says when a rule fires.
+   */
+  const menders = new Set(shelf.repair?.by ?? [])
+  /** `Player::GetReputationPriceDiscount` against a creature, as a factor. */
+  const discountAt = (entry: number): number => {
+    const side = shelf.of?.[String(entry)]
+    return side && sides ? discountOf(rankWith(side)) : 1
+  }
+  /** Set what is left on a worn slot, and re-derive him if it broke or mended. */
+  const setWear = (slot: string, next: number) => {
+    const max = maxWearOf(slot)
+    if (!max) return
+    const was = wearOf(slot)
+    const now = Math.max(0, Math.min(max, next))
+    if (now >= max) delete dura[slot]
+    else dura[slot] = now
+    if (broken(max, was) !== broken(max, now)) {
+      you.line = lineFor(you.level)
+      you.max = you.line[HP]!
+      you.hp = Math.min(you.hp, you.max)
+    }
+  }
+  /**
+   * One blow a player was part of, which the victim survived: half a per cent
+   * that one of nineteen slots loses a point (Unit.cpp:1266 and :1283).
+   */
+  const wearBlow = () => {
+    const at = wearFromBlow(roll)
+    if (at === null) return
+    const slot = Object.keys(EQUIPMENT_SLOT).find((s2) => EQUIPMENT_SLOT[s2] === at)
+    if (!slot || !maxWearOf(slot)) return
+    setWear(slot, losePoints(maxWearOf(slot), wearOf(slot), 1))
+  }
+  /** Whether the last death cost anything, for the line on waking. */
+  let wornOnDeath = false
+  /**
+   * He falls.  Every place a blow or a bleed or a bolt could kill him used to
+   * write these four fields itself; the fifth thing a death does now is wear.
+   *
+   * `Unit::Kill` (Unit.cpp:14187) takes `RATE_DURABILITY_LOSS_ON_DEATH` off
+   * everything **worn** for a player killed by something that is not a player
+   * — every death in this game — and there is no level in the condition.
+   */
+  const fall = () => {
+    you.hp = 0; you.died = clock; you.target = null; you.calm = 0
+    for (const slot of Object.keys(gear)) {
+      const max = maxWearOf(slot)
+      if (!max) continue
+      setWear(slot, afterDeath(max, wearOf(slot)))
+      wornOnDeath = true
+    }
+  }
+  /**
+   * Move wear between a slot and the bag when `wear` swapped something, so
+   * taking a thing off and putting it back on is not a free repair.
+   */
+  const carryWear = (was: Record<string, number>) => {
+    for (const [slot, id] of Object.entries(was)) {
+      if (gear[slot] === id || dura[slot] === undefined) continue
+      const k = String(id)
+      duraHeld[k] = Math.min(duraHeld[k] ?? Infinity, dura[slot]!)
+      delete dura[slot]
+    }
+    for (const [slot, id] of Object.entries(gear)) {
+      const k = String(id)
+      if (was[slot] === id || duraHeld[k] === undefined) continue
+      dura[slot] = duraHeld[k]!
+      if (!held.includes(id)) delete duraHeld[k]
+    }
+  }
+  /**
+   * What is worn down, in the order `Player::DurabilityRepairAll`
+   * (Player.cpp:4903) walks it: the equipment slots by their own index, then
+   * what is carried.  The order is not cosmetic — a purse that runs out part
+   * way mends the first ones and not the last.
+   */
+  const wornDown = (): { slot: string | null; id: number; it: Item; lost: number }[] => {
+    const out: { slot: string | null; id: number; it: Item; lost: number }[] = []
+    const slots = Object.keys(gear).sort((a, b) =>
+      (EQUIPMENT_SLOT[a] ?? 99) - (EQUIPMENT_SLOT[b] ?? 99))
+    for (const slot of slots) {
+      const it = itemOf(gear[slot]!)
+      const lost = maxWearOf(slot) - wearOf(slot)
+      if (it && lost > 0) out.push({ slot, id: gear[slot]!, it, lost })
+    }
+    for (const [k, now] of Object.entries(duraHeld)) {
+      const it = itemOf(Number(k))
+      if (!it || !held.includes(Number(k))) continue
+      const lost = ((it[I_DURA] as number) ?? 0) - now
+      if (lost > 0) out.push({ slot: null, id: Number(k), it, lost })
+    }
+    return out
+  }
+  /** What mending one of those costs at this mender, or null for no price. */
+  const mendCost = (entry: number, m: { it: Item; lost: number }): number | null =>
+    shelf.repair ? repairCost(shelf.repair, m.lost, m.it[I_ILVL] as number,
+      m.it[I_QUALITY] as number, m.it[I_DURA_COST] as number,
+      discountAt(entry)) : null
+  /**
+   * Mend everything, item by item, as far as the purse goes.
+   *
+   * `DurabilityRepair` checks the money **per item** and returns without
+   * mending the one it cannot pay for (Player.cpp:4966) — and
+   * `DurabilityRepairAll` carries on to the next, so a cheap glove after a
+   * dear sword can still be mended.
+   */
+  const mendAll = (entry: number): { paid: number; left: number } => {
+    let paid = 0, left = 0
+    for (const m of wornDown()) {
+      const cost = mendCost(entry, m)
+      if (cost === null) continue
+      if (you.purse < cost) { left++; continue }
+      you.purse -= cost
+      paid += cost
+      if (m.slot) setWear(m.slot, maxWearOf(m.slot))
+      else delete duraHeld[String(m.id)]
+    }
+    return { paid, left }
+  }
+
+  /**
    * Handing in an errand, as far as the sides are concerned.
    *
    * Returns the lines to say, because the crossing is the whole point: the
@@ -5473,13 +5640,17 @@ async function main() {
    * one order this game has of its own — which is a list, and says so.
    */
   const wornSquares = (): Worn => {
-    const one = (slot: string): [string, string, string, string] => {
+    const one = (slot: string): [string, string, string, string, string?] => {
       const id = gear[slot]
       const it = id !== undefined ? itemOf(id) : null
+      const max = maxWearOf(slot)
       return [SLOT_WORD[slot] ?? slot,
         it ? iconFor(it) : (art.slots[slot] ?? ''),
         it ? tintOf(it) : '',
-        it ? `${describe(it)} — ${detail(it)}` : '']
+        it ? `${describe(it)} — ${detail(it)}`
+          + (max ? ` · 내구도 ${wearOf(slot)} / ${max}`
+            + (brokenAt(slot) ? ' (부서짐)' : '') : '') : '',
+        it && brokenAt(slot) ? '1' : '']
     }
     const doll = (layout?.spec?.doll ?? {}) as Record<string, string[]>
     const known = new Set([...(doll['left'] ?? []), ...(doll['right'] ?? []),
@@ -6474,6 +6645,7 @@ async function main() {
         .map(([id, at]) => [id, Math.max(0, at - clock)])
         .filter(([, left]) => (left as number) > 0)),
       items: held, gear, taught, bought, recipes, stands, bar,
+      dura: { worn: { ...dura }, held: { ...duraHeld } },
       auto: you.auto ? 1 : 0,
       auras: stillOn(),
       rest: you.rest, restedIn: resting() ? 1 : 0,
@@ -6572,6 +6744,9 @@ async function main() {
     putBackOn(save.you.auras)
     held = save.you.items ?? []
     gear = save.you.gear ?? {}
+    // Before `lineFor` below, which asks what is broken.
+    dura = { ...(save.you.dura?.worn ?? {}) }
+    duraHeld = { ...(save.you.dura?.held ?? {}) }
     taught = save.you.taught ?? []
     recipes = save.you.recipes ?? []
     stands = save.you.stands ?? {}
@@ -7152,7 +7327,29 @@ async function main() {
           'note')
         drawShop()
       },
-      (to) => { shopPage = to; drawShop() })
+      (to) => { shopPage = to; drawShop() },
+      undefined, mendOffer(at))
+  }
+  /**
+   * The mend button for this shopkeeper, or nothing if he does not mend.
+   *
+   * It says the whole price on its face — the sum of what each item costs, the
+   * number `DurabilityRepairAll` would take if the purse holds it.
+   */
+  const mendOffer = (at: number) => {
+    if (!menders.has(at) || !shelf.repair) return null
+    const down = wornDown()
+    const total = down.reduce((n, m) => n + (mendCost(at, m) ?? 0), 0)
+    return {
+      says: down.length ? `모두 수리 ${coin(total)}` : '고칠 것이 없다',
+      can: down.length > 0,
+      go: () => {
+        const { paid, left } = mendAll(at)
+        if (paid) ui.log(`고쳤다. ${coin(paid)}`, 'note')
+        if (left) ui.log('돈이 모자라 다 고치지 못했다.', 'note')
+        drawShop()
+      },
+    }
   }
 
   /**
@@ -7332,6 +7529,7 @@ async function main() {
     }
     you.bag = {}
     held = held.filter((id) => !spare.includes(id))
+    for (const id of spare) delete duraHeld[String(id)]
     you.purse += paid
     said.push(paid > 0 ? `모두 ${coin(paid)}.` : '한 푼도 쳐주지 않는다.')
     return said
@@ -7358,9 +7556,11 @@ async function main() {
       // Better is the item level, which is the world's own one-number answer
       // to "is this an upgrade".
       if (now && (now[I_ILVL] as number) >= (it[I_ILVL] as number)) continue
+      const was = gear
       const put = wear(gear, it, id)
       gear = put.gear
       held = held.filter((x) => x !== id).concat(put.off)
+      carryWear(was)
       said.push(`${describe(it)} — ${detail(it)}`)
       changed = true
     }
@@ -7807,9 +8007,12 @@ async function main() {
       // with twenty-eight things to sell had four of them on offer with no way
       // to reach the rest; the icons page had already printed the result,
       // *"lines 4 and 5 have the same words and the same price."*
-      if ((shelf.stock?.[String(n.entry)] ?? []).length) {
+      // A mender opens the same window with nothing on the shelf — the one
+      // in Goldshire who keeps none still mends.
+      const stocked = (shelf.stock?.[String(n.entry)] ?? []).length > 0
+      if (stocked || (menders.has(n.entry) && shelf.repair)) {
         speech.options.push({
-          label: '물건을 봅니다', lines: [],
+          label: stocked ? '물건을 봅니다' : '수리를 맡깁니다', lines: [],
           act: () => { openShop(n); return [] },
         })
       }
@@ -13501,10 +13704,45 @@ async function main() {
   /** Kill the player outright, for the check that dying costs a walk. */
   ;(window as unknown as { __die: () => unknown }).__die = () => {
     const was = { x: hero.x, y: hero.y, hp: you.hp }
-    you.hp = 0; you.died = clock - 5
+    // Through `fall`, which is the path every blow takes — a check that set
+    // the four fields itself would be dying a death that wears nothing.
+    fall(); you.died = clock - 5
     fighting()
     return { was, now: { x: hero.x, y: hero.y, hp: you.hp, max: you.max },
       walked: Math.hypot(hero.x - was.x, hero.y - was.y) }
+  }
+  /**
+   * Wear, as the checks read it — and set it, through `setWear`, which is the
+   * path a blow and a death take, so a slot set to nought breaks the way a
+   * slot worn to nought does.
+   */
+  ;(window as unknown as { __dura: (set?: Record<string, number>) => unknown })
+    .__dura = (set) => {
+      for (const [slot, v] of Object.entries(set ?? {})) setWear(slot, v)
+      const worn: Record<string, [number, number]> = {}
+      for (const slot of Object.keys(gear)) {
+        if (maxWearOf(slot)) worn[slot] = [wearOf(slot), maxWearOf(slot)]
+      }
+      return { worn, held: { ...duraHeld }, gear: { ...gear },
+        line: you.line.slice(), max: you.max, purse: you.purse,
+        stats: statsAt(you.level) }
+    }
+  /**
+   * Stand beside the nearest shopkeeper who mends and open his window the way
+   * the conversation does, and say what his discount is — the one input to
+   * the price that the check cannot read off `items.json`.
+   */
+  ;(window as unknown as { __mendAt: () => unknown }).__mendAt = () => {
+    let best: Npc | null = null, bd = Infinity
+    for (const n of npcs) {
+      if (!menders.has(n.entry) || n.dead || !n.up) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    if (!best) return null
+    placeHero(best.x - 1, best.y)
+    openShop(best)
+    return { entry: best.entry, discount: discountAt(best.entry) }
   }
   /**
    * The bar and the book, for the checks that the arrangement is a choice.

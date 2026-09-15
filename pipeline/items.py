@@ -372,6 +372,95 @@ def sides(base, client, who):
     return out
 
 
+#: `UNIT_NPC_FLAG_REPAIR` (UnitDefines.h:334).  `spawn_npcs.NPCFLAG` never
+#: tested it, because a role is one word and an armourer is a `vendor` first —
+#: so who mends is shipped beside the shelves rather than folded into a role
+#: that would have to stop meaning "sells things" to carry it.
+NPC_FLAG_REPAIR = 0x1000
+
+#: `ITEM_CLASS_ARMOR`, beside `spawn_npcs.WEAPON_CLASS`.
+ARMOUR_CLASS = 4
+
+
+def repair_column(cls, sub):
+    """Which of `DurabilityCosts.dbc`'s 29 multipliers an item is charged by.
+
+    `ItemSubClassToDurabilityMultiplierId` (ItemTemplate.h:557): a weapon's own
+    subclass, an armour's subclass plus 21, and column nought for anything
+    else — which is a column of noughts, and `DurabilityRepair` turns a cost of
+    nought into one copper rather than into free.
+    """
+    if cls == WEAPON_CLASS:
+        return sub
+    if cls == ARMOUR_CLASS:
+        return sub + 21
+    return 0
+
+
+def repairers(base, here):
+    """Every creature in the slice that mends, by entry.
+
+    `WorldSession::HandleRepairItemOpcode` (NPCHandler.cpp:768) will not repair
+    anything unless the creature carries the flag, so the flag is the whole
+    rule for *who*.  Counted over the slice's box it is sixty-nine creatures,
+    and `check_repair` prints how many of them also keep a shelf here.
+    """
+    out = []
+    path = os.path.join(base, 'creature_template.sql')
+    col = columns(path)
+    for line in rows(path):
+        f = split(line)
+        try:
+            entry, flags = int(f[col['entry']]), int(f[col['npcflag']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        if entry in here and flags & NPC_FLAG_REPAIR:
+            out.append(entry)
+    return sorted(out)
+
+
+def repair_tables(client, items):
+    """`DurabilityCosts.dbc` and `DurabilityQuality.dbc`, as numbers.
+
+    `Player::DurabilityRepair` (Player.cpp:4940) charges
+    `lost * costs[item level][column] * quality[(Quality + 1) * 2]`, and both
+    tables are the client's — AzerothCore reads them at start-up and its dump
+    has no rows for either.  Only the item levels something here can reach are
+    shipped; the quality table is sixteen rows and goes whole.
+
+    **The quality multiplier is a float32 and is shipped as one.**  The core
+    multiplies by `double(quality_mod)`, so poor's 0.6 is 0.6000000238… and a
+    truncation to a whole copper can land on the other side of an integer from
+    the rounded number.  Measured over every item that wears in this world and
+    every number of points it can lose, it does not — not once — so this is
+    written the core's way for the day it would rather than for a price it
+    changes now.  JSON keeps the double the float widens to.
+    """
+    if not client or not os.path.isdir(client):
+        return None
+    import bake_terrain as terrain
+    got = {}
+    for name, want in (('DurabilityCosts', 30), ('DurabilityQuality', 2)):
+        data = terrain.read_dbc(terrain.Client(client), name)
+        if not data:
+            return None
+        _magic, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
+        # The layout is asserted rather than trusted, the way `spells.py`
+        # holds spell 78 to a rage cost of 15: an id and 29 multipliers, and
+        # an id and a float.  A layout that is off by a field cannot put every
+        # row's id equal to its own index.
+        assert fields == want and rsize == 4 * want, (name, fields, rsize)
+        fmt = '<%di' % fields if want == 30 else '<If'
+        got[name] = [struct.unpack_from(fmt, data, 20 + i * rsize)
+                     for i in range(n)]
+        assert all(r[0] == i + 1 for i, r in enumerate(got[name])), name
+    levels = {v[3] for v in items.values() if v[16]}
+    costs = {str(r[0]): list(r[1:]) for r in got['DurabilityCosts']
+             if r[0] in levels}
+    quality = {str(r[0]): r[1] for r in got['DurabilityQuality']}
+    return {'costs': costs, 'quality': quality}
+
+
 def main(acore, client, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     # Which chests' loot tables this world actually stands — `objects.py` has
@@ -425,6 +514,10 @@ def main(acore, client, out):
             # not food.  `FoodType` is the only column that tells two of
             # Goldshire's shop rows apart — see `FOOD_TYPE`.
             food = int(f[col['FoodType']]) if 'FoodType' in col else None
+            # How much wear it takes before it stops counting.  Nought is an
+            # item with no durability at all — a shirt, a ring, a potion —
+            # and `Player::DurabilityLoss` (Player.cpp:4830) leaves those be.
+            dura = int(f[col['MaxDurability']])
         except (ValueError, KeyError, IndexError):
             skipped += 1
             continue
@@ -505,6 +598,10 @@ def main(acore, client, out):
             # computed, shipped and never read.  Issue 200 put a first aid
             # trainer in the game, so the bandage it teaches has to work.
             uses.get(e) or 0,
+            # And how much wear, and which column of the repair table it is
+            # charged by — issue 83.  Both are read by `src/sim/durability.ts`.
+            dura,
+            repair_column(cls, sub) if dura else 0,
         ]
 
     # Vendor rows whose item is not in the baked set are rows nobody can buy.
@@ -519,10 +616,18 @@ def main(acore, client, out):
     path = os.path.join(out, 'items.json')
     doc = {'items': items, 'stock': stock, 'trainers': teach,
            'of': sides(base, client, set(stock) | set(teach))}
+    # Who mends and what it costs.  A machine with no client has the first
+    # half and not the second, and a repair with no price is not offered —
+    # the same bargain every other client-fed column makes.
+    mend = repair_tables(client, items)
+    if mend:
+        mend['by'] = repairers(base, here)
+        doc['repair'] = mend
     with open(path, 'w') as f:
         json.dump(doc, f)
 
     check(doc)
+    check_repair(doc)
     check_lessons(doc, out)
     check_rewards(doc, out)
     check_loot(doc, out)
@@ -659,6 +764,29 @@ def check(doc):
     print(f'check: {sum(len(v) for v in stock.values())} things for sale, '
           f'{len(missing)} of them not in this world')
     assert not missing, f'a vendor sells what was never baked: {missing[:5]}'
+
+
+def check_repair(doc):
+    """Everything that wears out has a price to mend, and somebody to mend it.
+
+    `Player::DurabilityRepair` logs "Wrong item lvl" and charges nothing when
+    `DurabilityCosts.dbc` has no row for the level (Player.cpp:4943) — which in
+    this game would be an item that breaks and can never be fixed, and nothing
+    on screen would say why.
+    """
+    mend = doc.get('repair')
+    if not mend:
+        print('check: no client, so nothing can be repaired in this world')
+        return
+    worn = [(k, v) for k, v in doc['items'].items() if v[16]]
+    orphans = [k for k, v in worn if str(v[3]) not in mend['costs']
+               or str((v[2] + 1) * 2) not in mend['quality']]
+    shops = [e for e in mend['by'] if str(e) in doc['stock']]
+    print(f'check: {len(worn)} items wear out, {len(orphans)} with no repair '
+          f'price; {len(mend["by"])} creatures mend, {len(shops)} of them '
+          f'with a shelf')
+    assert not orphans, f'an item that cannot be priced for repair: {orphans[:5]}'
+    assert shops, 'nobody in this world both sells and mends'
 
 
 def check_rewards(doc, out):
