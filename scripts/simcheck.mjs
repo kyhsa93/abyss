@@ -97,36 +97,89 @@ const bar = (book.books?.[String(WARRIOR)] ?? [])
   .sort((a, b) => a.rage - b.rage)
 const opener = bar[0]
 
+/**
+ * A share of fights, with the error it carries.
+ *
+ * Issue 109 closed with the table below printing shares and nothing else,
+ * under an issue whose last paragraph was *always report the sample size and
+ * the expected error* — because the old abyss chased differences inside ±18
+ * points at thirty runs a row and took them for findings.  The standard error
+ * of a proportion, `sqrt(p (1 - p) / n)`; it is nought at nought and at a
+ * hundred per cent, which is the normal approximation being generous at the
+ * ends and not a certainty.
+ */
+const RUNS = 400
+const se = (p, n = RUNS) => Math.sqrt(p * (1 - p) / n)
+const rate = (p, n = RUNS) =>
+  `${(p * 100).toFixed(1)}% ±${(se(p, n) * 100).toFixed(1)}`
+
 console.log('a fight, run without a browser\n')
 console.log(`     ${'against'.padEnd(12)}${'policy'.padEnd(8)}${'survived'.padStart(9)}`
-  + `${'seconds'.padStart(9)}${'presses'.padStart(9)}`)
+  + `${'± se'.padStart(7)}${'seconds'.padStart(9)}${'presses'.padStart(9)}`)
 const table = []
 for (const [level, many] of [[1, 1], [3, 1], [3, 2], [5, 1]]) {
   for (const policy of ['auto', 'rota']) {
     reseed(20260913)
     const got = duel(player(1), creature(level), who,
-      { many, runs: 400, policy, bar })
+      { many, runs: RUNS, policy, bar })
     table.push({ level, many, policy, ...got })
     console.log(`     ${`level ${level} x${many}`.padEnd(12)}${policy.padEnd(8)}`
       + `${`${(got.survived * 100).toFixed(0)}%`.padStart(9)}`
+      + `${`±${(se(got.survived) * 100).toFixed(1)}`.padStart(7)}`
       + `${got.seconds.toFixed(1).padStart(9)}${got.presses.toFixed(1).padStart(9)}`)
   }
 }
-console.log()
+console.log(`     (${RUNS} fights a row; ± is one standard error)\n`)
 
 const at = (level, many, policy) =>
   table.find((r) => r.level === level && r.many === many && r.policy === policy)
 
 check('a level one beats a level one', at(1, 1, 'auto').survived > 0.9,
-  `${(at(1, 1, 'auto').survived * 100).toFixed(0)}% survived`)
+  `${rate(at(1, 1, 'auto').survived)} survived`)
 check('and pressing something beats pressing nothing',
   at(5, 1, 'rota').survived > at(5, 1, 'auto').survived + 0.25,
-  `against a level 5: ${(at(5, 1, 'auto').survived * 100).toFixed(0)}% vs `
-  + `${(at(5, 1, 'rota').survived * 100).toFixed(0)}%`)
+  `against a level 5: ${rate(at(5, 1, 'auto').survived)} vs `
+  + `${rate(at(5, 1, 'rota').survived)}`)
 check('and two is worse than one',
   at(3, 2, 'auto').survived < at(3, 1, 'auto').survived - 0.3,
-  `${(at(3, 1, 'auto').survived * 100).toFixed(0)}% vs `
-  + `${(at(3, 2, 'auto').survived * 100).toFixed(0)}%`)
+  `${rate(at(3, 1, 'auto').survived)} vs ${rate(at(3, 2, 'auto').survived)}`)
+
+// **Auto-attack alone beats its own level and nothing four above it**, at
+// every level of the slice.  Issue 109's first line was *auto-attack alone
+// cannot reach level ten* — the check the wiki called this project's win-rate
+// test — and its closing comment answered it honestly: with a graveyard to
+// run back from, killing level ones for ever gets there.  What it measured
+// instead, *it beats its own level and cannot get past four above*, was one
+// row of the table above at level one and never an assertion.  So it is
+// asserted wherever the world has a creature of that level, and a rate only
+// counts when it clears one half by three standard errors — "cannot beat" is
+// losing more fights than it wins, and a bar tighter than that would be a
+// number picked here.
+{
+  const [lo, hi] = roster.levels
+  const stands = (level) =>
+    (spawns.npcs ?? []).some((n) => n[4] === level && n[7] >= 0)
+  const rows = []
+  for (let level = lo; level <= hi; level++) {
+    for (const up of [0, 4]) {
+      if (!stands(level + up)) continue
+      reseed(20260913)
+      const got = duel(player(level), creature(level + up), who,
+        { many: 1, runs: RUNS, policy: 'auto' })
+      rows.push({ level, up, p: got.survived })
+    }
+  }
+  const own = rows.filter((r) => r.up === 0)
+  const above = rows.filter((r) => r.up === 4)
+  const said = (r) => `${r.level}${r.up ? ` vs ${r.level + r.up}` : ''} ${rate(r.p)}`
+  check('auto-attack alone beats its own level at every level of the slice',
+    own.length > 0 && own.every((r) => r.p - 3 * se(r.p) > 0.5),
+    own.map(said).join(', '))
+  check('and cannot beat anything four levels above it at any of them',
+    above.length > 0 && above.every((r) => r.p + 3 * se(r.p) < 0.5),
+    `${above.map(said).join(', ')} — levels with nothing four above them `
+    + `standing here: ${hi - lo + 1 - above.length}`)
+}
 
 // And the thing a browser could never check: the same seed gives the same
 // table.  A distribution nobody can run twice is a distribution nobody can
