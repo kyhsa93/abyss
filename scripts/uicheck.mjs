@@ -917,17 +917,50 @@ for (const [W, H] of SIZES) {
             window.__aimAtNearest()
             await new Promise((r) => setTimeout(r, 50))
           }
-          const was = window.__bar().asked
+          // What went off, counted by `fired` and not read off `asked`.
+          // `asked` is the last id pressed, so a run whose answer is the
+          // same id as the run before it could not tell firing from nothing
+          // happening: the first full run with the cooling pair read "fired
+          // 355" twice, and the second was ten seconds of nothing — the
+          // rabbit it was aimed at had died — reported as the old answer.
+          // And the squares this run is about have to be usable before the
+          // hand goes on — the right-hand one always, the leftmost unless it
+          // is the one put on a cooldown.  Taunt came back unusable for a
+          // moment after the run before it (the pull it answers had moved
+          // on), the hand quite rightly fired the next square, and the check
+          // read that as the order being ignored.  Waited for, re-aimed, and
+          // what was usable is returned so a failure says why.
+          const need = cooling === null ? [first, second] : [second]
+          for (let i = 0; i < 100; i++) {
+            window.__fuel()
+            if (window.__you().target === null && i % 20 === 0) window.__foe(3)
+            window.__aimAtNearest()
+            if (need.every((id) => window.__bar().usable.includes(id))) break
+            await new Promise((r) => setTimeout(r, 50))
+          }
+          const usable = window.__bar().usable.slice()
+          // Looked at every frame, and the hand is off the frame anything
+          // goes off.  Polled every fifty milliseconds it was three frames
+          // late, and two of these have no global cooldown: Taunt went off,
+          // Heroic Strike went off the frame after because Taunt was now
+          // cooling, and `fired` — which keeps only the last — said 78.  The
+          // hand casts at most once a frame, so a count that moved by two is
+          // said out loud rather than read as an answer.
+          const was = window.__bar().fired.n
           window.__fuel()
           window.__setAuto(true)
-          for (let i = 0; i < 200; i++) {
-            await new Promise((r) => setTimeout(r, 50))
+          for (let i = 0; i < 600; i++) {
+            await new Promise((r) => requestAnimationFrame(() => r()))
+            if (window.__bar().fired.n !== was) break
+            if (window.__you().target === null && i % 60 === 0) window.__foe(3)
             window.__aimAtNearest()
-            if (window.__bar().asked !== was) break
           }
           window.__setAuto(false)
           if (cooling !== null) window.__cool(cooling, 0)
-          return window.__bar().asked
+          const now = window.__bar().fired
+          const went = now.n - was
+          return `${went === 0 ? 'nothing' : went > 1 ? `${went} casts, the last ${now.id}` : now.id}`
+            + ` (usable ${usable})`
         }
         // Two the character has that are not stances: one costs rage and one
         // does not, and both want a target.
@@ -948,8 +981,9 @@ for (const [W, H] of SIZES) {
         return { pair, one, two, three, four }
       })
       check('and it is the leftmost square it can use',
-        !!both && both.one === both.pair[0] && both.two === both.pair[1]
-        && both.three === both.pair[1] && both.four === both.pair[0],
+        !!both && [[both.one, both.pair[0]], [both.two, both.pair[1]],
+          [both.three, both.pair[1]], [both.four, both.pair[0]]]
+          .every(([got, want]) => got.startsWith(`${want} `)),
         both ? `${both.pair} in that order fired ${both.one}, `
           + `the other way round fired ${both.two}; with the leftmost cooling `
           + `${both.three} and ${both.four}`
