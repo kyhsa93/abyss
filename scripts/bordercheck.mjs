@@ -319,17 +319,54 @@ check('and they run in Node with no browser at all',
    * own nave was "수도원 안", which no amount of comparing whole strings
    * finds.
    *
-   * So shape and bearing are listed and everything left over is a claim on a
-   * particular thing.  Both lists are ours; neither is long; and a word
-   * missing from them fails loudly rather than quietly, because the check
-   * then reads it as a proper name and complains about a collision that is
-   * not one.
+   * **Two of issue 119's ten went through it, and each through a different
+   * gap.**  61 was "삼거리" over two waterfalls and a bridge: the word was on
+   * the shape list, and a shape word was simply *removed* before comparing, so
+   * a name made only of shape words was a name nobody ever read.  62 was
+   * "제리프의 농장", a word that had slid over from the landing next door
+   * (797): once 797 was renamed there was no second place wearing it, and a
+   * check that only compares pairs cannot see a word with no pair.
+   *
+   * So neither list is a place to hide any more.  **A shape word is a claim
+   * the baked world can see** — the kind the bake derived, or a thing
+   * standing there — and a shape word with no such evidence is not allowed on
+   * the list.  **Every other word is owned** by the one place allowed to wear
+   * it (or a place inside that one), declared below: an undeclared word fails,
+   * so a name read off a map cannot arrive in silence, and a declared one on
+   * the wrong place fails without needing a neighbour to collide with.
+   *
+   * What this still cannot see is a declared word that is wrong about its
+   * own place: the client's names are prose and `bake_terrain.area_tree`
+   * refuses to read them, on purpose.  Claims about the kind of place and who
+   * lives there are held by the block above; this holds the words.
    */
-  const SHAPE = ['숲', '계곡', '호수', '마을', '밭', '포도밭', '야영지', '무덤가',
-    '물길', '여울', '언덕', '빈터', '어귀', '모래밭', '산', '항구', '초소',
-    '광산', '농장', '농가', '등성이', '물가', '주둔지', '숙영지', '안', '숲길',
-    '삼거리', '평원', '강', '다리', '탑', '해안', '바위', '벌목장', '채석장',
-    '들', '벌']
+  const stands = {}
+  for (const o of terrain.doodads ?? []) {
+    const i = Math.floor((x0 - o.x) / AU), j = Math.floor((y0 - o.y) / AU)
+    if (i < 0 || i >= AW || j < 0 || j >= AH) continue
+    const a = IDS[zones[i * AH + j]]
+    if (a === undefined) continue
+    ;(stands[a] ??= new Set()).add(o.k)
+  }
+  const kind = (...ks) => ({ why: ks.join('/'), ok: (id) => ks.includes(derived[id]) })
+  const has = (k) => ({ why: `a ${k}`, ok: (id) => !!stands[id]?.has(k) })
+  const either = (...ts) => ({ why: ts.map((t) => t.why).join(' or '),
+    ok: (id) => ts.some((t) => t.ok(id)) })
+  const SHAPE = {
+    숲: kind('wood'), 숲속: kind('wood'), 숲길: kind('wood'), 계곡: kind('wood'),
+    등성이: kind('wood'), 언덕: kind('wood', 'town'), 산: kind('open', 'wood'),
+    호수: kind('water'), 물길: kind('water'), 여울: kind('water'),
+    물가: either(kind('water'), has('water_plant')), 폭포: has('waterfall'),
+    바위: has('rock'),
+    마을: kind('town'), 항구: kind('town'), 벌목장: kind('town', 'wood'),
+    밭: kind('farm'), 농장: kind('farm'), 농가: kind('farm'),
+    주둔지: kind('camp'), 초소: kind('wood', 'camp'), 숙영지: kind('wood', 'camp'),
+    광산: kind('wood', 'camp'), 무덤가: kind('graves'),
+    모래밭: kind('open'), 어귀: kind('open'), 평원: kind('open'),
+    // Indoors has no terrain to derive a kind from; `안` is only ever worn by
+    // a `*` claim, which this does not test.
+    안: { why: 'indoors', ok: (id) => derived[id] === undefined },
+  }
   const WHERE = ['서쪽', '남쪽', '북쪽', '동쪽', '가운데', '밖', '앞', '뒤', '위',
     '아래']
   /**
@@ -340,37 +377,48 @@ check('and they run in Node with no browser at all',
    * is the whole point of the name.
    */
   const REGION = ['노스샤이어', '스톰윈드', '웨스트폴', '엘윈', '성']
-  const words = (name) => name.split(/[\s·]+/)
-    .filter((w) => w.length > 1 && !SHAPE.includes(w) && !WHERE.includes(w)
-      && !REGION.includes(w))
+  /** Every other word, and the one place that may wear it. */
+  const OWNED = {
+    스톤필드: 63, 골드샤이어: 87, 서부: 120, 광부의: 54, 검은바위: 2421,
+    도적: 56, 코볼트: 57, 다리목: 60, 무법자: 797, 불타는: 46, 어둠의: 10,
+    뼈: 91, 수도원: 24,
+  }
 
-  const names = Object.keys(ZONE_CLAIMS).map((id) => [id, zoneOf(+id)])
   const parent = terrain.areaParent ?? {}
   /** Whether one place sits inside the other, however many steps up. */
   const within = (a, b) => {
     for (let at = a, n = 0; at && n < 8; at = parent[at], n++) if (at === b) return true
     return false
   }
-  const clash = []
-  for (const [a, x] of names) {
-    for (const [b, y] of names) {
-      if (a >= b) continue
-      // A place may wear its parent's name — 웨스트폴 농가 is a farmhouse in
-      // Westfall and saying so is the point.  What is not allowed is two
-      // places side by side answering to one word, which is how the hillside
-      // came to be called the abbey.
-      if (within(String(a), Number(b)) || within(String(b), Number(a))) continue
-      // Token by token, because containment misses the shape this actually
-      // took: the hillside was "노스샤이어 수도원" while the abbey's own
-      // nave was "수도원 안", and neither string contains the other.  A word
-      // naming a thing belongs to one place.
-      if (x === y) { clash.push(`${a}/${b} both ${x}`); continue }
-      const shared = words(x).filter((w) => words(y).includes(w))
-      if (shared.length) clash.push(`${a}/${b} ${x} ~ ${y} (${shared.join(' ')})`)
+  const names = Object.keys(ZONE_CLAIMS).map((id) => [id, zoneOf(+id)])
+  const unseen = [], strays = [], clash = []
+  for (const [id, name] of names) {
+    for (const w of name.split(/[\s·]+/).filter(Boolean)) {
+      if (WHERE.includes(w) || REGION.includes(w)) continue
+      if (w in SHAPE) {
+        // A zone in its own right (`*`) wears the zone's name, not a claim
+        // about a corner of it.
+        if (ZONE_CLAIMS[id] !== '*' && !SHAPE[w].ok(id)) {
+          unseen.push(`${id} ${name}: "${w}" wants ${SHAPE[w].why}, world says `
+            + `${derived[id]}, standing: ${[...(stands[id] ?? [])].slice(0, 6).join(' ')}`)
+        }
+        continue
+      }
+      const owner = OWNED[w]
+      if (owner === undefined) strays.push(`${id} ${name}: "${w}" is declared nowhere`)
+      else if (+id !== owner && !within(String(id), owner))
+        strays.push(`${id} ${name}: "${w}" belongs to ${owner} ${zoneOf(owner)}`)
     }
   }
-  check('and no two places wear variants of one name', clash.length === 0,
-    clash.join('; '))
+  // Two places with the same whole name are still the same mistake, shape
+  // words or not.
+  for (const [a, x] of names) {
+    for (const [b, y] of names) if (a < b && x === y) clash.push(`${a}/${b} both ${x}`)
+  }
+  check('every shape word in a place\'s name is something the world shows there',
+    unseen.length === 0, unseen.join('; '))
+  check('and every other word in one belongs to that place alone',
+    strays.length === 0 && clash.length === 0, strays.concat(clash).join('; '))
 }
 
 /**

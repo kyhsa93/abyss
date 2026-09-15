@@ -772,14 +772,12 @@ const ZONE: Record<number, [string, string]> = {
   // Named, and the kind holds.
   9: ['노스샤이어 계곡', 'wood'],
   12: ['엘윈 숲', 'wood'],
-  62: ['제리프의 농장', 'farm'],
   63: ['스톤필드 농장', 'farm'],
   87: ['골드샤이어', 'town'],
   88: ['벌목장 마을', 'town'],
   916: ['웨스트폴 농가', 'farm'],
   4411: ['스톰윈드 항구', 'town'],
   120: ['서부 주둔지', 'camp'],
-  61: ['삼거리', 'wood'],
   54: ['광부의 언덕', 'wood'],
   2421: ['검은바위 산', 'open'],
   // Named for who lives there, because the ground cannot see it.  A mine is a
@@ -807,6 +805,10 @@ const ZONE: Record<number, [string, string]> = {
   799: ['바위 여울', 'water'],         // 33% water and the rockiest ground here
   86: ['동쪽 언덕', 'town'],           // the hill the abbey stands on; 24 is the abbey itself
   64: ['서쪽 밭', 'farm'],             // hay and fences, called a quarry
+  // Issue 119's last two, and neither was caught by the check written for the
+  // other eight — see `bordercheck`'s naming block for why.
+  62: ['동쪽 물가 밭', 'farm'],        // hay, fences and reeds east of 64; the word was 797's
+  61: ['숲속 폭포', 'wood'],           // two waterfalls and a bridge in the trees, called a crossroads
   89: ['성 밖 마을', 'town'],          // houses, called a farm
   91: ['뼈 무덤가', 'graves'],         // bones outnumber everything, called a tower
   34: ['북쪽 등성이', 'wood'],         // no water at all, called a river
