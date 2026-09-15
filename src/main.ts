@@ -13434,6 +13434,33 @@ async function main() {
       before, reached,
       after: short(log, log.held.find((h) => h.id === q.id)!) }
   }
+  /**
+   * The quests that finish by carrying something, and doing one.
+   *
+   * For `questcheck`'s walk over every kind of objective, which walked a kill
+   * and nothing else.  A fetch counts on the kill of something that drops it
+   * — `killed` in `sim/quest.ts` rolls the drop's own per cent — so this kills
+   * the named dropper with a roll of nought until the errand is carried, and
+   * reports how far short it was before and after.  The log goes back to what
+   * it was.
+   */
+  ;(window as unknown as { __fetchOne: () => unknown }).__fetchOne = () => {
+    const q = [...log.all.values()].find((e) => e.fetch.length
+      && e.fetch.every((f) => f[3].length) && !e.kill.length && !e.walk?.length)
+    if (!q) return { quests: 0 }
+    const was = log.held.slice()
+    log.held = log.held.filter((h) => h.id !== q.id)
+    const h = take(log, q)
+    const before = short(log, h)
+    let kills = 0
+    for (const [, want, , from] of q.fetch) {
+      for (let i = 0; i < want; i++) { killed(log, from[0]![0], () => 0); kills++ }
+    }
+    const after = short(log, h)
+    log.held = was
+    return { quests: [...log.all.values()].filter((e) => e.fetch.length).length,
+      id: q.id, before, kills, after }
+  }
   /** What a drop needs before it drops, for the check that `conditions` bites. */
   ;(window as unknown as { __gated: () => unknown }).__gated = () => {
     const gated: { entry: number; item: number; quest: number }[] = []

@@ -506,6 +506,9 @@ def main(acore, client_root, out):
     offerable = 0
     orphans = []
     wants_object = []
+    offered = []
+    # `RequiredFactionId1..n`, counted off the table like the reward slots.
+    sides = sorted(k for k in col if re.fullmatch(r'RequiredFactionId\d+', k))
     for q, f in sorted(raw.items()):
         giver, ender = starters.get(q), enders.get(q)
         if giver not in here:
@@ -551,6 +554,7 @@ def main(acore, client_root, out):
         # warrior of these levels would be offered by somebody standing in this
         # world, which is what "the quests the original has here" means.
         offerable += 1
+        offered.append((q, f))
         if ender not in here:
             dropped['nobody in the slice takes it'] += 1
             scaled['nobody in the slice takes it'] += scales
@@ -606,6 +610,19 @@ def main(acore, client_root, out):
                                            else ' (nothing drops it)'))
                 continue
             fetch.append([item, n, word_of.get(item, 'errand'), got])
+        # **Reaching a standing**, the objective kind issue 89 said was
+        # counted and was read by nothing: no line in `pipeline/` named the
+        # column, so a quest asking for one would have shipped asking for
+        # nothing and been finished on the spot.  This game has standings and
+        # no way to ask a quest to wait on one, so such a quest is dropped
+        # here with its reason — nought of them in this slice, which is the
+        # count below and not an assumption.
+        for k in sides:
+            side = int(f[col[k]])
+            if side:
+                unmet = True
+                want.append('a standing of %s with side %d' % (
+                    f[col[k.replace('Id', 'Value')]], side))
         if unmet:
             dropped['asks for something not in the slice'] += 1
             scaled['asks for something not in the slice'] += int(f[col['QuestLevel']]) <= 0
@@ -666,7 +683,7 @@ def main(acore, client_root, out):
     # of the missing three this slice actually uses.  `areatrigger_involvedrelation`
     # says which trigger finishes which quest and the client's `AreaTrigger.dbc`
     # says where it is and how big — a radius, or a box for the square ones.
-    reach = {}
+    reach, asked_walk = {}, set()
     path = os.path.join(acore, 'data/sql/base/db_world/'
                         'areatrigger_involvedrelation.sql')
     spots = triggers(client_root)
@@ -679,6 +696,7 @@ def main(acore, client_root, out):
                 q, t = int(f2[col2['quest']]), int(f2[col2['id']])
             except (ValueError, KeyError, IndexError):
                 continue
+            asked_walk.add(q)
             if q in kept and t in spots:
                 reach.setdefault(str(q), []).append(spots[t])
     for q in quests:
@@ -686,6 +704,39 @@ def main(acore, client_root, out):
             q['walk'] = reach[str(q['id'])]
 
     check_objects(wants_object, out)
+
+    # Every kind of objective, counted over the errands a character here is
+    # actually offered — issue 89's first condition, and the difference between
+    # "not implemented" and "not in the slice", which look the same from
+    # outside and only one of which is a hole.
+    kinds = Counter()
+    for q, f in offered:
+        npc = [(int(f[col['RequiredNpcOrGo%d' % i]]),
+                int(f[col['RequiredNpcOrGoCount%d' % i]])) for i in range(1, NPCS + 1)]
+        kinds['kill'] += any(w > 0 and n for w, n in npc)
+        kinds['use an object'] += any(w < 0 and n for w, n in npc)
+        kinds['fetch'] += any(
+            ('RequiredItemId%d' % i) in col
+            and f[col['RequiredItemId%d' % i]] not in ('0', 'NULL')
+            for i in range(1, ITEMS + 1))
+        kinds['reach a standing'] += any(int(f[col[k]]) for k in sides)
+        kinds['reach a place'] += q in asked_walk
+    print('check: of the %d errands offered here, by what they ask: %s'
+          % (len(offered), ', '.join(f'{k} {kinds[k]}' for k in
+                                     ('kill', 'fetch', 'reach a place',
+                                      'use an object', 'reach a standing'))))
+    # **And a spell cast, which is not a column.**  The quest page counted five
+    # kinds with `RequiredSpellCast1..4` as the fourth; this dump's
+    # `quest_template` has no such column at all, so there is nothing to read
+    # and nothing to count.  Said here, where the count is printed, so nobody
+    # goes looking — and asserted, so the day a dump grows one the bake stops
+    # and says the count is missing.
+    cast_cols = sorted(k for k in col if k.startswith('RequiredSpell'))
+    if cast_cols:
+        sys.exit('quest_template has spell-cast objective columns now (%s) and '
+                 'nothing here counts them' % cast_cols)
+    print('  cast a spell: not a column of this dump\'s quest_template '
+          '(no RequiredSpellCast), so there is no such objective to count')
 
     # A chain that starts outside this game cannot be walked, so it is not
     # shipped.

@@ -10,6 +10,7 @@
  *   npm run questcheck  # in another
  */
 import { chromium } from 'playwright'
+import { readFileSync } from 'node:fs'
 
 const HOST = process.env.ABYSS_URL ?? 'http://localhost:5173'
 
@@ -361,6 +362,51 @@ check('which is the next link of the chain',
   check('and the option carries the quest\'s own name',
     titles.some((t) => shown.includes(t)),
     shown.split('\n').find((l) => l.includes('레벨')) ?? '(nothing)')
+}
+
+// --- every kind of objective, walked ---------------------------------------
+//
+// Issue 89 asked this file to walk all five kinds and it walked one: the
+// starting chain is a carry and a kill, and everything else was left to
+// `viewcheck`, which walks a place.  What the slice's errands ask for is
+// counted by `quests.py` every bake — kill, fetch, reach a place, use an
+// object, reach a standing — and a spell cast is not a column of this dump.
+// The last two are nought here and a quest asking for either is dropped
+// before it ships, so what can be held to is narrower and exact: **every
+// errand that ships asks only for kinds that are walked below**, and each of
+// those kinds is walked on a real errand.
+{
+  const shipped = JSON.parse(readFileSync('public/world/quests.json', 'utf8')).quests
+  // Every key a shipped quest carries.  A new objective the pipeline starts
+  // shipping arrives as a key this list has not heard of, and fails here
+  // rather than being taken and never finished.
+  const KNOWN = new Set(['id', 'level', 'scales', 'min', 'from', 'to', 'kill',
+    'fetch', 'walk', 'xp', 'coin', 'after', 'group', 'leads', 'instead',
+    'classes', 'races', 'gives', 'pick', 'rep'])
+  const odd = [...new Set(shipped.flatMap((q) => Object.keys(q)))]
+    .filter((k) => !KNOWN.has(k))
+  const by = {
+    kill: shipped.filter((q) => q.kill.length).length,
+    fetch: shipped.filter((q) => q.fetch.length).length,
+    place: shipped.filter((q) => q.walk?.length).length,
+  }
+  check('every errand shipped asks for a kind of objective this walks',
+    odd.length === 0 && by.kill > 0 && by.fetch > 0 && by.place > 0,
+    odd.length ? `unwalked keys: ${odd.join(', ')}`
+      : `kill ${by.kill}, fetch ${by.fetch}, reach a place ${by.place}; use an `
+      + 'object and reach a standing are dropped in the bake, and cast a spell '
+      + 'is not a column')
+  // Kill: walked above, on quest 7's eight vermin.
+  const fetched = await p.evaluate(() => window.__fetchOne())
+  check('a fetch errand is finished by what its dropper drops',
+    fetched.quests > 0 && fetched.before > 0 && fetched.after === 0,
+    `quest ${fetched.id}: ${fetched.before} short, ${fetched.kills} kills, `
+    + `${fetched.after} short`)
+  const walkedTo = await p.evaluate(() => window.__walkTo())
+  check('and a place errand by standing in the place',
+    walkedTo.quests > 0 && walkedTo.reached > 0 && walkedTo.after < walkedTo.before,
+    `quest ${walkedTo.id}: ${walkedTo.before} short, standing in one of `
+    + `${walkedTo.places} took it to ${walkedTo.after}`)
 }
 
 console.log(`\nconsole errors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)
