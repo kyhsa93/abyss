@@ -4131,35 +4131,53 @@ for (const [name, x, y, zoom] of [['the abbey', -8930, -170, 0.7],
 // says nothing about a trainer the scene never placed at all.  So this counts
 // both ends: every spawn the bake stood under a roof, by role, against every
 // person the scene placed under one, by role, at home.
+//
+// **Except the rows the scene declines by name**, asked of placement's own
+// decision (`__spawnFates`).  Counted without that, the day the bake cut the
+// doorless buildings again at the ground (issue 168) this failed with *prey 4
+// baked, 3 placed*: a wolf spawned in the orc kennel on the Burning Steppes'
+// shut ground had always been `elsewhere` and never placed, and the only thing
+// that changed was that the re-cut kennel now has a roof over the cell it
+// stands on.  Nobody went missing; one side was counting a row the other side
+// had never been going to place.  The rows left out are printed with why.
 {
   const kept = await p.evaluate(async () => {
     const doc = await (await fetch('./world/npcs.json')).json()
+    const fates = window.__spawnFates()
     const roofed = (x, y) => {
       if (!window.__inside(x, y)) return false
       const q = window.__plotAt(x, y)
       return !q || q.roofed
     }
-    const baked = {}, placed = {}
-    for (const row of doc.npcs) {
-      if (!roofed(row[0], row[1])) continue
+    const baked = {}, placed = {}, declined = {}
+    doc.npcs.forEach((row, i) => {
+      if (!roofed(row[0], row[1])) return
       const role = doc.roles[row[5]]
+      if (fates[i] !== 'placed') {
+        const why = `${role} ${fates[i]}`
+        declined[why] = (declined[why] ?? 0) + 1
+        return
+      }
       baked[role] = (baked[role] ?? 0) + 1
-    }
+    })
     for (const n of window.__all()) {
       if (!roofed(n.hx, n.hy)) continue
       placed[n.role] = (placed[n.role] ?? 0) + 1
     }
-    return { baked, placed }
+    return { baked, placed, declined, rows: doc.npcs.length, fates: fates.length }
   })
   const roles = [...new Set([...Object.keys(kept.baked), ...Object.keys(kept.placed)])]
   const off = roles.filter((r) => (kept.baked[r] ?? 0) !== (kept.placed[r] ?? 0))
   const total = Object.values(kept.baked).reduce((a, v) => a + v, 0)
   check('and nobody the bake stood under a roof is missing from it, role by role',
-    total > 0 && off.length === 0,
+    total > 0 && off.length === 0 && kept.fates === kept.rows,
     off.length
       ? off.map((r) => `${r} ${kept.baked[r] ?? 0} baked, ${kept.placed[r] ?? 0} placed`).join('; ')
       : `${total} under a roof: `
         + roles.map((r) => `${kept.baked[r]} ${r}`).join(', '))
+  console.log(`      (${kept.fates} of ${kept.rows} rows have a fate; under a roof and `
+    + `declined by placement: ${Object.entries(kept.declined).map(([k, v]) => `${v} ${k}`)
+      .join(', ') || 'none'})`)
 }
 
 // 23. A screen has somebody on it.

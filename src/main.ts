@@ -1754,13 +1754,22 @@ async function main() {
    * that is not there is worse than no guard.
    */
   let elsewhere = 0
+  /**
+   * What became of each spawn row, in `npcs.json`'s order: `placed`,
+   * `elsewhere` (shut ground) or `unplaceable` (no picture).  Kept so a check
+   * that compares the bake's rows with the scene's people can ask this loop's
+   * own decision instead of counting a row the scene was never going to place
+   * as somebody who went missing.
+   */
+  const spawnFates: string[] = []
   for (const row of spawns.npcs) {
-    if (closedAt(row[0]!, row[1]!)) { elsewhere++; continue }
+    if (closedAt(row[0]!, row[1]!)) { elsewhere++; spawnFates.push('elsewhere'); continue }
     const kind = spawns.kinds[row[2]!]!
     const borrowed = BORROWED[kind]
     const art = faceOf(borrowed ? borrowed.art : kind, row[0]!, row[1]!)
     const a = npcArt.kinds[art]
-    if (!a) { unplaceable++; continue }
+    if (!a) { unplaceable++; spawnFates.push('unplaceable'); continue }
+    spawnFates.push('placed')
     const role = spawns.roles[row[5]!]!
     const fight = (spawns.fights && row[7] !== undefined && row[7]! >= 0)
       ? spawns.fights[row[7]!]! : null
@@ -13465,6 +13474,8 @@ async function main() {
    */
   ;(window as unknown as { __placeTaken: (x: number, y: number) => boolean })
     .__placeTaken = (x, y) => taken(x, y)
+  /** What placement decided about each spawn row — see `spawnFates`. */
+  ;(window as unknown as { __spawnFates: () => string[] }).__spawnFates = () => [...spawnFates]
   /** What is alive, and where the nearest of it is — asked by the tests. */
   ;(window as unknown as { __npcs: (x?: number, y?: number) => unknown }).__npcs = (x, y) => {
     const kinds: Record<string, number> = {}
