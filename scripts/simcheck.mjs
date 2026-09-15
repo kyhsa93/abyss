@@ -721,5 +721,119 @@ check('and the same seed gives the same fight',
       + 'bar kept; an old bag sold into the purse at its own worth')
 }
 
+// --- what a character is made of, at every level the slice has ----------------
+//
+// Issue 72's second condition: *a human warrior's stats at levels 1 to 10
+// agree with player_class_stats + player_race_stats.*  What stood for it was
+// level one — `player.py` asserts a warrior's sixty health and a mage's 165
+// mana — so a row from two to ten read off the wrong column would say nothing.
+//
+// Two halves with different reaches, the bargain `corecheck` makes with the
+// C++.  **With the world database's dump** (`$ABYSS_ACORE`, by default
+// `~/src/azerothcore-wotlk`, the tree `npm run bake` reads) every baked row —
+// every class `slice.json` offers, every level of its range — is the class's
+// row plus the race's, column by column, out of the two SQL files themselves.
+// **Without it** that half says so, and what runs everywhere is the table
+// `stats.ts` makes of the baked rows: health, mana, attack power, armour and
+// critical chance at every level, printed, held to the figures issue 72 closed
+// on for the warrior — 60 health, 42 armour and 8.4% at one, 227 health and 54
+// armour at ten — and to health that never falls as a level rises.
+//
+// The ids are read out of `pipeline/slice.py`, which is the one place a word
+// in `slice.json` becomes a number, rather than typed here a second time.
+{
+  const { existsSync } = await import('node:fs')
+  const { homedir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { critChance, maxMana } = await import('../src/sim/stats.ts')
+  const slice = JSON.parse(readFileSync('slice.json', 'utf8'))
+  const [lo, hi] = slice.levels
+  const py = readFileSync('pipeline/slice.py', 'utf8')
+  const idsOf = (name) => Object.fromEntries([...(py.match(
+    new RegExp(`^${name} = \\{([^}]*)\\}`, 'm'))?.[1] ?? '')
+    .matchAll(/'(\w+)':\s*(\d+)/g)].map((m) => [m[1], Number(m[2])]))
+  const CLASS_ID = idsOf('CLASS_ID'), RACE_ID = idsOf('RACE_ID')
+  const offered = slice.classes.map((c) => [c, CLASS_ID[c]])
+  const levels = [...Array(hi - lo + 1).keys()].map((i) => lo + i)
+  const gaps = offered.flatMap(([c, id]) => levels
+    .filter((l) => !roster.classes[String(id)]?.stats?.[String(l)])
+    .map((l) => `${c} ${l}`))
+  check('every class the slice offers has a stat row at every level of it',
+    offered.length > 0 && offered.every(([, id]) => id) && gaps.length === 0,
+    gaps.length ? `missing: ${gaps.slice(0, 6).join(', ')}`
+      : `${offered.length} classes x levels ${lo}-${hi}`)
+
+  const tableOf = (id) => {
+    const c = roster.classes[String(id)]
+    const worn = (c.kit ?? []).reduce((n, k) => n + k[K_ARMOUR], 0)
+    return levels.map((l) => {
+      const s = c.stats[String(l)]
+      return { level: l, health: maxHealth(s), mana: maxMana(s),
+        power: attackPower(l, s), armour: armourOf(s, worn),
+        crit: critChance(l, s, c) }
+    })
+  }
+  const warrior = tableOf(CLASS_ID.Warrior)
+  console.log(`\n     the warrior, as stats.ts makes him\n     ${'level'.padEnd(7)}`
+    + `${'health'.padStart(7)}${'power'.padStart(7)}${'armour'.padStart(8)}`
+    + `${'crit'.padStart(7)}`)
+  for (const r of warrior) {
+    console.log(`     ${String(r.level).padEnd(7)}${String(r.health).padStart(7)}`
+      + `${String(r.power).padStart(7)}${String(r.armour).padStart(8)}`
+      + `${`${r.crit.toFixed(1)}%`.padStart(7)}`)
+  }
+  console.log()
+  const one = warrior.find((r) => r.level === 1)
+  const ten = warrior.find((r) => r.level === 10)
+  const falls = offered.flatMap(([c, id]) => tableOf(id).slice(1)
+    .filter((r, i) => r.health < tableOf(id)[i].health).map((r) => `${c} ${r.level}`))
+  check('a warrior is what issue 72 closed on at one and at ten, and nobody '
+    + 'loses health for a level',
+    one?.health === 60 && one?.armour === 42 && one?.crit.toFixed(1) === '8.4'
+    && ten?.health === 227 && ten?.armour === 54 && falls.length === 0,
+    `level 1: ${one?.health} health, ${one?.armour} armour, `
+    + `${one?.crit.toFixed(1)}% crit; level 10: ${ten?.health} health, `
+    + `${ten?.armour} armour${falls.length ? `; health falls at ${falls.join(', ')}` : ''}`)
+
+  const ACORE = process.env['ABYSS_ACORE'] || join(homedir(), 'src/azerothcore-wotlk')
+  const DB = join(ACORE, 'data/sql/base/db_world')
+  const sql = (table) => {
+    const text = readFileSync(join(DB, `${table}.sql`), 'utf8')
+    const cols = [...(text.match(new RegExp(`CREATE TABLE \`${table}\` \\(([\\s\\S]*?)\\n\\)`))
+      ?.[1] ?? '').matchAll(/^\s*`(\w+)`/gm)].map((m) => m[1])
+    const at = text.indexOf(`INSERT INTO \`${table}\` VALUES`)
+    const block = at < 0 ? '' : text.slice(at, text.indexOf(';\n', at))
+    return [...block.matchAll(/\(([^()]*)\)/g)].map((m) => Object.fromEntries(
+      m[1].split(',').map((v, i) => [cols[i], Number(v)])))
+  }
+  if (!existsSync(join(DB, 'player_class_stats.sql'))) {
+    console.log(`      (no world database at ${ACORE}, so the baked rows are not `
+      + 'compared with player_class_stats — set ABYSS_ACORE to a checkout of '
+      + 'azerothcore-wotlk)')
+  } else {
+    const race = sql('player_race_stats').find((r) => r.Race === RACE_ID[slice.races[0]])
+    const byClass = sql('player_class_stats')
+    const COLS = ['Strength', 'Agility', 'Stamina', 'Intellect', 'Spirit']
+    const differ = []
+    for (const [c, id] of offered) {
+      for (const l of levels) {
+        const row = byClass.find((r) => r.Class === id && r.Level === l)
+        const want = row && race ? [...COLS.map((k) => row[k] + race[k]),
+          row.BaseHP, row.BaseMana] : null
+        const got = roster.classes[String(id)]?.stats?.[String(l)]
+        if (JSON.stringify(want) !== JSON.stringify(got)) {
+          differ.push(`${c} ${l}: table ${JSON.stringify(want)}, baked ${JSON.stringify(got)}`)
+        }
+      }
+    }
+    check('and every baked row is player_class_stats plus player_race_stats',
+      !!race && differ.length === 0,
+      !race ? `no ${slice.races[0]} row in player_race_stats`
+        : differ.length ? differ.slice(0, 3).join('; ')
+          : `${offered.length} classes x ${levels.length} levels, seven columns `
+          + `each, read out of ${DB}`)
+  }
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)
