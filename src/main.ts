@@ -3326,7 +3326,23 @@ async function main() {
    * Those keep their place and are allowed to move in it.
    */
   let settled = 0, afloat = 0
-  const taken = (x: number, y: number) => wetAt(x, y) || solidAt(x, y)
+  /**
+   * In the water, which standing on a deck over it is not.
+   *
+   * Walking has asked `onSpan` before the water since the crossings became
+   * floors, and this did not: the mask runs on under a bridge because the
+   * river does, so a guard, a troll and a townsman put on the road over
+   * Stormwind's canals read as swimming and were carried up to twenty-four
+   * yards off the bridge the database stood them on (issue 126).  Those five
+   * are Stormwind's now and not placed at all, which is why nothing showed it
+   * — the rule was still wrong, and the next spawn on a deck over a wet cell
+   * would have gone the same way.  So the deck is asked first, in the order
+   * `footing` asks it.
+   */
+  const afloatAt = (x: number, y: number) => !onSpan(x, y) && wetAt(x, y)
+  const taken = (x: number, y: number) => afloatAt(x, y) || solidAt(x, y)
+  /** Where the database put everybody this moves — see `__npcs().homes`. */
+  const spawnOf = new Map<(typeof npcs)[number], [number, number]>()
   const REACH = 6
   /**
    * Which kinds live in water, asked of the kind and not of the individual.
@@ -3348,13 +3364,14 @@ async function main() {
   for (const n of npcs) {
     const row = wetOf[n.art] ?? (wetOf[n.art] = [0, 0])
     row[0]++
-    if (wetAt(n.x, n.y)) row[1]++
+    if (afloatAt(n.x, n.y)) row[1]++
   }
   const lives = new Set(Object.entries(wetOf)
     .filter(([, [all, wet]]) => wet >= 3 && wet / all >= 0.25)
     .map(([art]) => art))
   for (const n of npcs) {
     if (!taken(n.x, n.y)) continue
+    spawnOf.set(n, [n.x, n.y])
     // A kind that lives on land gets a wider search before it is given up on:
     // six yards is the size of a rounding error in our own water mask, and
     // past that a townsman in a lake is not a rounding error, he is wrong.
@@ -3368,7 +3385,7 @@ async function main() {
     // Whoever is still standing in it belongs in it, and their own movement
     // test stops asking about water. Wherever they ended up is now home, or
     // they would walk straight back to the lake.
-    if (wetAt(n.x, n.y)) { n.swims = true; afloat++ }
+    if (afloatAt(n.x, n.y)) { n.swims = true; afloat++ }
     n.hx = n.x; n.hy = n.y
   }
 
@@ -12703,6 +12720,14 @@ async function main() {
     npcs.filter((n) => n.topic).map((n) =>
       speak(n.kind, n.role, n.level, n.seed, n.topic, () => directionsFrom(n)))
 
+  /**
+   * Whether placement would move a creature off this spot, for the check that
+   * a deck is floor to it — asked of the rule and not only of the spawns,
+   * because the one spawn left on a deck in this slice stands on a dry cell
+   * and would stay put under either reading.
+   */
+  ;(window as unknown as { __placeTaken: (x: number, y: number) => boolean })
+    .__placeTaken = (x, y) => taken(x, y)
   /** What is alive, and where the nearest of it is — asked by the tests. */
   ;(window as unknown as { __npcs: (x?: number, y?: number) => unknown }).__npcs = (x, y) => {
     const kinds: Record<string, number> = {}
@@ -12727,13 +12752,28 @@ async function main() {
     // itself, which is a 1.33-yard mask rounding a man into stone.
     return {
       total: npcs.length, unplaceable, settled, afloat, kinds, near,
-      wet: npcs.filter((n) => wetAt(n.x, n.y)).length,
+      // Asked with the deck taken out, the way placement asks it: a guard on
+      // a bridge is on the bridge, and counting him wet is the reading that
+      // carried him off it.
+      wet: npcs.filter((n) => afloatAt(n.x, n.y)).length,
       inside: npcs.filter((n) => solidAt(n.x, n.y)).length,
       /** Water dwellers, derived from where the kind stands — see above. */
       lives: [...lives],
       /** And the ones in water that are not: this has to be zero. */
-      adrift: npcs.filter((n) => wetAt(n.x, n.y) && !lives.has(n.art))
+      adrift: npcs.filter((n) => afloatAt(n.x, n.y) && !lives.has(n.art))
         .map((n) => `${n.art} (${Math.round(n.x)}, ${Math.round(n.y)})`),
+      /**
+       * Where the database put each creature and where placement left it, as
+       * `[art, spawn x, spawn y, home x, home y, lives in water]`.
+       *
+       * The home and not the live position, because everything here wanders
+       * and the rule being checked is about where it was put.
+       */
+      homes: npcs.map((n) => {
+        const s = spawnOf.get(n)
+        return [n.art, s ? s[0] : n.hx, s ? s[1] : n.hy, n.hx, n.hy,
+          lives.has(n.art) ? 1 : 0]
+      }),
       /** And anybody the wall mask closed on, which has to be zero. */
       walled: npcs.filter((n) => wallAt(n.x, n.y))
         .map((n) => `${n.art} (${Math.round(n.x)}, ${Math.round(n.y)})`),
@@ -14682,6 +14722,8 @@ async function main() {
   }
   ;(window as unknown as { __spans: () => unknown }).__spans = () => ({
     n: spans.length, list: spans.slice(0, 4),
+    /** Every crossing, not the first four — see the deck placement check. */
+    all: spans,
     hereSpan: onSpan(hero.x, hero.y),
     haveTiles: [!!tilesMeta['bridge'], !!tilesMeta['bridge_b']],
     baked: Object.keys(tintedGround().at),

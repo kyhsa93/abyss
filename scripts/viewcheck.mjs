@@ -2017,6 +2017,66 @@ check('and nobody is standing inside a wall',
 console.log(`      (${who.wet} in water, all of them ${who.lives.join(', ')}; `
   + `${who.settled} nudged out)`)
 
+// 10h2. And a deck is floor to placement, the way it is to walking.
+//
+// Walking asked `onSpan` before the water from the day the crossings became
+// floors; placement asked `wetAt` alone, so the water mask that runs on under a
+// bridge read a guard standing on one as swimming and carried him up to
+// twenty-four yards off it (issue 126).  The five the issue measured are
+// Stormwind's now and not placed at all, and the one spawn left on a deck in
+// this slice stands on a dry cell — so the spawns alone could not fail if the
+// rule went back.  Two halves, then: the rule itself, asked on every wet cell
+// under every crossing, and the spawns, measured at where they were put rather
+// than where they have wandered to.
+//
+// "Cannot swim" is the kind, the same as 10h: `swims` on a creature is set by
+// the very placement being judged, and `Swim` in the table says yes for wolves.
+const decks = await p.evaluate(() => {
+  const { all } = window.__spans()
+  const deckAt = (x, y) => all.some((b) => {
+    const dx = x - b.x, dy = y - b.y, along = dx * b.c + dy * b.s
+    return along >= b.lo && along <= b.hi && Math.abs(-dx * b.s + dy * b.c) <= b.w
+  })
+  let wetDeck = 0
+  const refused = []
+  for (const b of all) {
+    for (let a = b.lo; a <= b.hi; a += 1) {
+      for (let q = -b.w + 0.5; q <= b.w - 0.5; q += 1) {
+        const x = b.x + b.c * a - b.s * q, y = b.y + b.s * a + b.c * q
+        if (!window.__probe(x, y).wet || window.__probe(x, y).solid) continue
+        wetDeck++
+        if (window.__placeTaken(x, y)) refused.push(`${Math.round(x)},${Math.round(y)}`)
+      }
+    }
+  }
+  const { homes } = window.__npcs()
+  let spawned = 0
+  const off = [], afloat = []
+  for (const [art, sx, sy, hx, hy, lives] of homes) {
+    if (lives) continue
+    const onDeck = deckAt(hx, hy)
+    if (deckAt(sx, sy)) {
+      spawned++
+      if (!onDeck) off.push(`${art} spawned at ${Math.round(sx)},${Math.round(sy)} `
+        + `and put ${Math.hypot(hx - sx, hy - sy).toFixed(1)} yd away`)
+    }
+    if (!onDeck && window.__probe(hx, hy).wet) {
+      afloat.push(`${art} at ${Math.round(hx)},${Math.round(hy)}`)
+    }
+  }
+  return { crossings: all.length, wetDeck, refused, spawned, off, afloat }
+})
+check('placement stands a creature on a deck over the water rather than moving it',
+  decks.crossings > 0 && decks.wetDeck > 0 && decks.refused.length === 0,
+  `${decks.refused.length} of ${decks.wetDeck} wet cells under ${decks.crossings} `
+  + `crossings are refused: ${decks.refused.slice(0, 8).join('; ')}`)
+check('and no land creature spawned on a deck was put off it',
+  decks.off.length === 0, decks.off.join('; '))
+check('and nothing that cannot swim was put in open water',
+  decks.afloat.length === 0, decks.afloat.join('; '))
+console.log(`      (${decks.spawned} land spawns on ${decks.crossings} decks, `
+  + `${decks.wetDeck} wet cells under them)`)
+
 // 10i. Two grounds meeting have something to meet with.
 //
 // The floor looked like a staircase of 1.33-yard squares and the tile size

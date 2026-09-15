@@ -579,6 +579,13 @@ it: the hero has to be put back outside **before** asking what can be stood on,
 because indoors only the room is ground — asked the other way round every
 building after the first one entered reported nowhere to stand.
 
+**A deck is floor to placement as well as to walking.** Placement asked the
+water mask alone, and the mask runs on under a bridge because the river does,
+so creatures put on a deck were carried up to twenty-four yards off it (issue
+126). It asks `onSpan` first now, the order `footing` asks in, and the check
+asks the rule on every wet cell under every crossing — the one spawn left on a
+deck in the slice stands on a dry cell and could not have caught it.
+
 **A building had storeys and the drawing did not know it.** Both of the
 filters that decide what you can see from inside asked *whose building is
 this* — `o.in !== indoors` for the furniture, `roof !== indoors` for the people
