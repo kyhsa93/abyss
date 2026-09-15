@@ -1326,21 +1326,64 @@ check('the world moves in steps of a fixed length',
   Math.abs(steps.clock - steps.ran * steps.step) < 1e-9,
   `${steps.ran} steps of ${steps.step * 1000}ms moved the clock exactly `
   + `${steps.clock.toFixed(2)}s`)
+// The same walk, run as one long push and as many short ones: a fixed step
+// means they agree, and a variable one means they do not.
+//
+// **And the walk has to be a walk.**  `__hold` only changed the set of keys,
+// and a held key becomes `want` when a frame reads it — which never happens
+// inside one evaluation — so both runs went nought yards and the check passed
+// on nought against nought for as long as it existed.  `__hold` now reads the
+// keys through `steer`, the frame's own function, and the distance is held to
+// at least half of twenty steps at a run, out of the game's own `runBase`.
+//
+// The spot is looked for rather than typed.  The one this used to type,
+// (-8949.95, -132.493), is the start, and a questgiver stands 2.3 yards north
+// of it: once the walk was real it went 1.98 yards and stopped dead, so a
+// check about the length of a step was measuring a man in the way.  North is
+// up the glass and up is world x, so the lane is every piece of a stride
+// along +x.
+//
+// Two mistakes in looking for it, both kept.  `__canWalk` asks the grid of
+// people, which a step rebuilds around the camera — asked straight after
+// `__cam`, it described wherever this file had been before and called the
+// questgiver's lane open, which passed alone and failed in the full run.  So
+// one step on the spot comes first.  And a person who is not there now can
+// be there in a second, so the lane also stays out of every circle a spawn
+// may stand in: its home, its wander, its own radius.
 const twice = await p.evaluate(() => {
-  // The same walk, run as one long push and as many short ones: a fixed step
-  // means they agree, and a variable one means they do not.
+  const stride = 20 * window.__steps(0).step * window.__rules().runBase
   window.__cam({ x: -8949.95, y: -132.493 })
+  window.__steps(1)
+  const people = window.__all()
+  const clear = (x, y) => window.__canWalk(x, y)
+    && people.every((n) => Math.hypot(x - n.hx, y - n.hy) >= n.wander + n.r)
+  let from = null
+  for (let r = 0; r < 60 && !from; r += 3) {
+    for (let a = 0; a < 12 && !from; a++) {
+      const t = (a / 12) * Math.PI * 2
+      const x = -8949.95 + Math.cos(t) * r, y = -132.493 + Math.sin(t) * r
+      let open = true
+      for (let d = 0; d <= stride + 0.5 && open; d += 0.15) open = clear(x + d, y)
+      if (open) from = { x, y }
+      if (r === 0) break
+    }
+  }
+  if (!from) return null
+  window.__cam(from)
   window.__hold('w')
   const a = window.__steps(20)
-  window.__cam({ x: -8949.95, y: -132.493 })
+  window.__cam(from)
   let far = 0
   for (let i = 0; i < 20; i++) far += window.__steps(1).moved
   window.__hold(null)
-  return { one: a.moved, many: far }
+  return { from, one: a.moved, many: far, stride }
 })
 check('and twenty steps go as far as twenty steps',
-  Math.abs(twice.one - twice.many) < 0.01,
-  `${twice.one.toFixed(2)} yards in one run, ${twice.many.toFixed(2)} in twenty`)
+  !!twice && twice.one > twice.stride / 2 && Math.abs(twice.one - twice.many) < 0.01,
+  twice ? `${twice.one.toFixed(2)} yards in one run, ${twice.many.toFixed(2)} in twenty, `
+    + `against ${twice.stride.toFixed(2)} for twenty steps at a run, from `
+    + `(${twice.from.x.toFixed(1)}, ${twice.from.y.toFixed(1)})`
+    : 'nowhere near the start is open for a stride north')
 
 // 9u. The end of it.  The growth page warned that level ten would be a number
 // that means nothing, and it was: the milestone said "start it and finish it"

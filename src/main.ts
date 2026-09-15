@@ -9348,6 +9348,27 @@ async function main() {
     }
   }
 
+  /**
+   * What the keys and the thumb are asking for, read into `want`.
+   *
+   * Once a frame, and `walk` acts on it once a step.  A function of its own
+   * because `__hold` has to read a held key the same way: it only changed
+   * `keys`, and a check that holds a key and steps the world inside one
+   * evaluation never gives a frame the chance to read it — so 9t's "twenty
+   * steps go as far as twenty steps" walked nought yards both ways and passed
+   * on nought against nought.
+   */
+  function steer() {
+    let sdx = 0, sdy = 0
+    if (keys.has('w') || keys.has('arrowup')) sdy -= 1
+    if (keys.has('s') || keys.has('arrowdown')) sdy += 1
+    if (keys.has('a') || keys.has('arrowleft')) sdx -= 1
+    if (keys.has('d') || keys.has('arrowright')) sdx += 1
+    const stick = pad.push()
+    if (stick) { sdx = stick.x; sdy = stick.y }
+    want.x = sdx; want.y = sdy
+  }
+
   function frame(now: number) {
     const real = Math.min(0.25, (now - last) / 1000)
     last = now
@@ -9442,14 +9463,7 @@ async function main() {
     // in screen pixels and put through the same inverse the tile loop uses —
     // one place that knows how the projection works, rather than two that have
     // to agree.
-    let sdx = 0, sdy = 0
-    if (keys.has('w') || keys.has('arrowup')) sdy -= 1
-    if (keys.has('s') || keys.has('arrowdown')) sdy += 1
-    if (keys.has('a') || keys.has('arrowleft')) sdx -= 1
-    if (keys.has('d') || keys.has('arrowright')) sdx += 1
-    const stick = pad.push()
-    if (stick) { sdx = stick.x; sdy = stick.y }
-    want.x = sdx; want.y = sdy
+    steer()
     // On a phone the panel takes the bottom two thirds of the screen and the
     // person talking stands behind it, which is the one thing a conversation
     // cannot afford.  So the camera follows a point above the hero by exactly
@@ -14185,10 +14199,16 @@ async function main() {
   ;(window as unknown as { __marks: () => unknown }).__marks = () => ({
     clock, marks: marks.map((m) => ({ text: m.text, mine: m.mine, at: m.at })),
   })
-  /** Hold a direction down without a keyboard, for the step check. */
+  /**
+   * Hold a direction down without a keyboard, for the step check — and read
+   * it the way the frame does, through `steer`, so a check that holds a key
+   * and steps the world in one evaluation walks.  It used to change `keys` and
+   * nothing else, and 9t measured nought yards against nought yards.
+   */
   ;(window as unknown as { __hold: (k: string | null) => void }).__hold = (k) => {
     keys.clear()
     if (k) keys.add(k)
+    steer()
   }
   ;(window as unknown as { __steps: (n: number) => unknown }).__steps = (n) => {
     const from = { x: hero.x, y: hero.y, clock }
