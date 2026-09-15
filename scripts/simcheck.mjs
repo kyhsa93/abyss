@@ -707,6 +707,10 @@ check('and the same seed gives the same fight',
     'you.cools': counts,
     'you.auras': (a) => !!a && typeof a === 'object',
     'you.items': ids, 'you.gear': counts, 'you.taught': ids, 'you.recipes': ids,
+    // Wear, only where something has lost some: by slot for what is worn and
+    // by item id for what is carried (issue 83, v5).
+    'you.dura': (d) => !!d && counts(d.worn ?? {}) && counts(d.held ?? {})
+      && Object.keys(d.held ?? {}).every((k) => /^\d+$/.test(k)),
     'you.stands': counts,
     'you.bar': (b) => Array.isArray(b) && b.every((x) => x === null || num(x)),
     'you.auto': num,
