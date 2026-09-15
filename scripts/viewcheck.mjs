@@ -775,17 +775,50 @@ check('and he is made of the numbers the server makes him of',
 // probability from each other — which is the whole reason it cannot be built
 // as a sequence of independent rolls.
 const swings = await p.evaluate(() => window.__swings(1, 20000))
-const total = Object.values(swings).reduce((a, b) => a + b, 0)
-const pct = (k) => ((swings[k] ?? 0) / total) * 100
+const total = Object.values(swings.fates).reduce((a, b) => a + b, 0)
+const pct = (k) => ((swings.fates[k] ?? 0) / total) * 100
 check('a swing can miss, and be dodged, parried and blocked',
   pct('빗나감') > 3 && pct('피함') > 3 && pct('막아냄') > 3 && pct('막음') > 3,
-  Object.entries(swings).map(([k, v]) => `${k} ${((v / total) * 100).toFixed(1)}%`)
+  Object.entries(swings.fates).map(([k, v]) => `${k} ${((v / total) * 100).toFixed(1)}%`)
     .join('  '))
-check('and the bands add to one', Math.abs(total - 20000) < 1,
-  `${total} rolls`)
+// "The bands add to one" used to be the count of outcomes against the count
+// of swings, and one outcome a swing makes that `n` whatever the table is.
+// What it means is a statement about the table: read off `rollMelee` at every
+// whole roll, the seven outcomes lie end to end in the server's order, each
+// one unbroken, nought to ten thousand with nothing left over — and at level
+// one against level one they are the widths issue 71 measured and
+// `Unit::RollMeleeOutcomeAgainst` states: five per cent each of miss, dodge,
+// parry and block, no glancing or crushing blows, the character's own crit,
+// and the rest hits.  Then the 20,000 swings have to land on that table, each
+// share within four standard errors of its band.
+const hitTable = await p.evaluate(() => ({ bands: window.__bands(1), crit: window.__me().crit }))
+const hitWant = [['빗나감', 500], ['피함', 500], ['막아냄', 500], ['막음', 500],
+  ['치명타', hitTable.crit * 100]]
+hitWant.push(['hit', 10000 - hitWant.reduce((a, [, w]) => a + w, 0)])
+const hitRuns = hitTable.bands
+const hitLaid = hitRuns.length === hitWant.length
+  && hitRuns.every(([k, from, to], i) => k === hitWant[i][0]
+    && from === (i ? hitRuns[i - 1][2] : 0) && Math.abs((to - from) - hitWant[i][1]) <= 1)
+  && hitRuns.at(-1)[2] === 10000
+const hitOff = hitRuns.map(([k, from, to]) => {
+  const share = (to - from) / 10000
+  const se = Math.sqrt((share * (1 - share)) / total)
+  return [k, se ? Math.abs((swings.fates[k] ?? 0) / total - share) / se : 0]
+})
+const hitWorst = hitOff.reduce((a, b) => (b[1] > a[1] ? b : a), ['', 0])
+check('and the bands add to one',
+  hitLaid && hitWorst[1] < 4 && hitWant.every(([, w]) => w >= 0),
+  `table ${hitRuns.slice(0, 9).map(([k, f, t]) => `${k} ${((t - f) / 100).toFixed(2)}%`).join(' ')}`
+  + `${hitRuns.length > 9 ? ` and ${hitRuns.length - 9} runs more` : ''}; `
+  + `wanted ${hitWant.map(([k, w]) => `${k} ${(w / 100).toFixed(2)}%`).join(' ')}; `
+  + `20,000 swings are furthest from it at ${hitWorst[0]}, ${hitWorst[1].toFixed(1)} standard errors`)
+// And one roll a swing: the stream of chance moved exactly once for each.  A
+// table built as a sequence of rolls draws again inside `rollMelee`.
+check('and it is one roll a swing', swings.rolls === total,
+  `${swings.rolls.toLocaleString()} rolls for ${total.toLocaleString()} swings`)
 // Something four levels up eats most of your swings as glancing blows, which
 // is the rule that makes level difference feel like something.
-const high = await p.evaluate(() => window.__swings(6, 20000))
+const high = (await p.evaluate(() => window.__swings(6, 20000))).fates
 const glance = ((high['빗맞음'] ?? 0) / 20000) * 100
 check('and swinging above your weight is mostly glancing blows', glance > 20,
   `against a level 6: ${Object.entries(high).map(([k, v]) => `${k} ${((v / 20000) * 100).toFixed(1)}%`).join('  ')}`)

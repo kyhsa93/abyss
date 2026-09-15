@@ -12992,22 +12992,58 @@ async function main() {
     spells: spells.map((sp) => ({ id: sp.id, level: sp.level })),
     ceiling: roster?.levels?.[1] ?? 0,
   })
+  /**
+   * `rolls` is how far the stream of chance moved, counted off `seed()`.
+   *
+   * The loop below draws once a swing and hands the number in, so anything
+   * over `n` is `rollMelee` drawing again on its own — the sequence of
+   * independent rolls the hit table must not be.  The total of `fates` is
+   * `n` whatever the table says, which is why "the bands add to one" used to
+   * be a check that could not fail.
+   */
+  const swingAgainst = (against: number) => {
+    const mine = statsAt(you.level)
+    return (r: number) => rollMelee(
+      { level: you.level, crit: who ? critChance(you.level, mine, who) : 5,
+        humanoid: true },
+      { level: against, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
+        block: CREATURE_BLOCK },
+      r)
+  }
   ;(window as unknown as {
-    __swings: (against: number, n: number) => Record<string, number>
+    __swings: (against: number, n: number) => unknown
   }).__swings = (against, n) => {
     const out: Record<string, number> = {}
-    const mine = statsAt(you.level)
+    const fate = swingAgainst(against)
+    const from = seed()
     for (let i = 0; i < n; i++) {
-      const fate = rollMelee(
-        { level: you.level, crit: who ? critChance(you.level, mine, who) : 5,
-          humanoid: true },
-        { level: against, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
-          block: CREATURE_BLOCK },
-        roll() * 10000)
-      const word = OUTCOME_WORD[fate] ?? 'hit'
+      const word = OUTCOME_WORD[fate(roll() * 10000)] ?? 'hit'
       out[word] = (out[word] ?? 0) + 1
     }
-    return out
+    let rolls = 0
+    for (let s = from; s !== seed() && rolls <= n * 8; rolls++) {
+      s = (s + 0x6d2b79f5) >>> 0
+    }
+    return { fates: out, rolls }
+  }
+  /**
+   * The hit table itself, read off the function rather than sampled: every
+   * whole roll from nought to ten thousand, and the runs of outcome they fall
+   * in, in the order they fall.  One roll and cumulative bands means each
+   * outcome is one unbroken run and the runs tile the whole range.
+   */
+  ;(window as unknown as {
+    __bands: (against: number) => [string, number, number][]
+  }).__bands = (against) => {
+    const fate = swingAgainst(against)
+    const runs: [string, number, number][] = []
+    for (let r = 0; r < 10000; r++) {
+      const word = OUTCOME_WORD[fate(r)] ?? 'hit'
+      const last = runs[runs.length - 1]
+      if (last && last[0] === word && last[2] === r) last[2] = r + 1
+      else runs.push([word, r, r + 1])
+    }
+    return runs
   }
   /**
    * How a fight actually goes, run in the fight's own arithmetic.
