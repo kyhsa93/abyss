@@ -1249,6 +1249,41 @@ await p.waitForTimeout(300)
         + (small.length ? ` (${small.map((r) => r.id).join(', ')})` : ''))
 }
 
+// 12c. And every size text is set in is a rung of that ladder.
+//
+// The checks above hold four tokens to the ladder and Hangul to a floor, and
+// neither says anything about a size nobody wrote as a token.  `index.html`
+// had three: the bar's numbers at 9, the aura count at 9, and the lean frame's
+// health at 8 — each clear of the Hangul floor because a digit has no Hangul
+// in it, and each a size the client's `<FontHeight>` never states.  So this
+// reads every element that draws text of its own, hidden ones included for
+// the reason the floor check gives, at all three sizes this game lays out for.
+for (const [w, h] of [[390, 844], [844, 390], [MIN_SCREEN.width, MIN_SCREEN.height]]) {
+  await p.setViewportSize({ width: w, height: h })
+  await p.waitForTimeout(300)
+  const off = await p.evaluate(async () => {
+    const spec = (await (await fetch('./world/layout.json')).json()).spec
+    const out = []
+    let read = 0
+    const walk = (e) => {
+      if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) {
+        read++
+        const px = parseFloat(getComputedStyle(e).fontSize)
+        if (!spec.font.includes(px)) {
+          out.push(`${e.id || e.className || e.tagName} ${px}px "${e.textContent.trim().slice(0, 12)}"`)
+        }
+      }
+      for (const c of e.children) walk(c)
+    }
+    walk(document.body)
+    return { out, read, ladder: spec.font }
+  })
+  check(`${w}x${h}: every size text is set in is a rung of the client's ladder`,
+    off.read > 0 && off.out.length === 0,
+    `${off.out.length} of ${off.read} off ${off.ladder.join(' ')}: ${off.out.slice(0, 4).join(', ')}`)
+}
+await p.setViewportSize({ width: 390, height: 844 })
+
 // 13. A keyboard puts it all away again.
 await p.setViewportSize({ width: 390, height: 844 })
 await p.keyboard.press('w')

@@ -1526,6 +1526,44 @@ for (const [W, H] of SIZES) {
   await p.close()
 }
 
+// Every size text is set in on a desktop is a rung of the client's ladder.
+//
+// `<FontHeight>` is thirteen sizes and the stylesheet carries four of them as
+// tokens — and the check on the tokens said nothing about the sizes nobody
+// wrote as one.  Two numbers on the bars were nine pixels, which is no rung
+// at all.  Read off what each element computes, hidden panels included: a
+// window that is shut is still a window somebody opens.  The phone's half is
+// `padcheck`'s, because a phone stands a rung up.
+{
+  const p = await b.newPage({ viewport: { width: 1280, height: 800 } })
+  await p.goto(HOST)
+  await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+  await p.evaluate(() => window.__makeOne?.('사다리'))
+  await p.waitForFunction(() => !!document.querySelector('#me .num'), null,
+    { timeout: 10000 }).catch(() => null)
+  const off = await p.evaluate(async () => {
+    const spec = (await (await fetch('./world/layout.json')).json()).spec
+    const out = []
+    let read = 0
+    const walk = (e) => {
+      if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) {
+        read++
+        const px = parseFloat(getComputedStyle(e).fontSize)
+        if (!spec.font.includes(px)) {
+          out.push(`${e.id || e.className || e.tagName} ${px}px "${e.textContent.trim().slice(0, 12)}"`)
+        }
+      }
+      for (const c of e.children) walk(c)
+    }
+    walk(document.body)
+    return { out, read, ladder: spec.font }
+  })
+  check('every size text is set in on a desktop is a rung of the client\'s ladder',
+    off.read > 0 && off.out.length === 0,
+    `${off.out.length} of ${off.read} off ${off.ladder.join(' ')}: ${off.out.slice(0, 4).join(', ')}`)
+  await p.close()
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

@@ -197,14 +197,14 @@
       }
       #ui .rage { height: 10px; }
       #ui .rage .fill { background: var(--rage); }
-      #ui .rage .num { font-size: 9px; line-height: 10px; color: #ffd9d0; }
+      #ui .rage .num { font-size: var(--font-tiny); line-height: 10px; color: #ffd9d0; }
       /* The experience bar goes across the bottom, on the action bar's top
          edge, because that is where `MainMenuExpBar` is: 1024 by 13 anchored
          to `MainMenuBar`'s TOP.  `pipeline/layout.py` supplies the anchor and
          the size; what is here is only how it looks. */
       #ui #xp { height: 13px; margin: 0; z-index: 3; }
       #ui #xp .fill { background: var(--xp); }
-      #ui #xp .num { font-size: 9px; line-height: 13px; color: #ded4f2; }
+      #ui #xp .num { font-size: var(--font-tiny); line-height: 13px; color: #ded4f2; }
 
       /* The swing, which is the only timer there is — and the original's cast
          bar is 195 by 13 sitting 55 above the bottom edge, which is where the
@@ -252,7 +252,7 @@
       #ui .auras .aura img { width: 100%; height: 100%; }
       #ui .auras .aura span {
         position: absolute; right: 1px; bottom: 0;
-        font: 9px var(--mono); color: var(--gold); text-shadow: 0 1px 2px #000;
+        font: var(--font-tiny) var(--mono); color: var(--gold); text-shadow: 0 1px 2px #000;
       }
       #ui .oftarget {
         margin: 2px 0 2px 55px; font: var(--font-tiny)/1.5 var(--mono); color: #9aa6ae;
@@ -637,7 +637,7 @@
       }
       /* The line that says what you have chosen is a hint, and on a phone it
          was three characters wide and four lines tall beside the buttons. */
-      body.touch #create .say { flex: 1 1 0; min-width: 0; font-size: 11px; }
+      body.touch #create .say { flex: 1 1 0; min-width: 0; font-size: var(--font-tiny); }
       /* **A Korean word does not break in the middle.**  Left to the browser
          it breaks between any two syllables, so a button a few pixels too
          narrow read 지우 / 기 and a squeezed line read one letter a line. */
@@ -1026,7 +1026,11 @@
       #units.lean .frame .face { display: none; }
       #units.lean .frame .top { font-size: var(--font-tiny); line-height: 1.15; }
       #units.lean .frame .bar { height: 8px; margin-top: 2px; }
-      #units.lean .frame .num { font-size: 8px; line-height: 8px; }
+      /* A rung and not a size between two: this was 8px, which the client's
+         `<FontHeight>` never states, and the bar is 8 tall — so the phone's
+         smallest rung overhangs it a pixel and a half either side, on its
+         shadow, rather than sitting inside it at a number of our own. */
+      #units.lean .frame .num { font-size: var(--font-tiny); line-height: 8px; }
       #units.lean .rage { height: 5px; margin-top: 2px; }
       #units.lean .rage .num { display: none; }
       /* No plate: it sits over the grass between the map and the world, and a

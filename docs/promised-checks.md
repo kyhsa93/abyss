@@ -195,7 +195,7 @@ keeps it honest.
 | 전화기에서 늘 떠 있는 요소가 상태 표시뿐이다 | `scripts/padcheck.mjs: "and everything left standing is a readout"` |
 | 상인 창의 자리와 크기가 `layout.json` 에서 온다 | `scripts/uicheck.mjs: "a shop is the original's window"` |
 | 재고가 열 칸을 넘으면 쪽이 넘어간다 | `scripts/uicheck.mjs: "a shop is the original's window"` |
-| 화면의 글씨 크기가 전부 `spec.font` 에서 나온 값이다 | `scripts/padcheck.mjs: "the phone type is the client's own ladder"` |
+| 화면의 글씨 크기가 전부 `spec.font` 에서 나온 값이다 | `scripts/padcheck.mjs: ": every size text is set in is a rung of the client's ladder"` |
 | **정보창에 3D 모델이 없다** | `scripts/viewcheck.mjs: "the character sheet does not claim to show what you are wearing"` |
 | 정보창이 입은 것 전부를 보여 준다 | `scripts/viewcheck.mjs: "and shows every slot as a square instead"` |
 | **실내에서 미니맵이 바깥 지형을 안 그린다** | `scripts/viewcheck.mjs: "and indoors it is a map of the building"` |
@@ -206,7 +206,7 @@ keeps it honest.
 | 약속 | 지키는 검사 |
 | --- | --- |
 | 상태에 **두 창을 같이 여는 조합**이 있고, 같은 `area` 는 같이 못 뜬다 | `scripts/uicheck.mjs: ": no panel covers another"` |
-| 화면의 모든 글자 크기가 `<FontHeight>` 눈금 위에 있다 | `scripts/padcheck.mjs: "the phone type is the client's own ladder"` |
+| 화면의 모든 글자 크기가 `<FontHeight>` 눈금 위에 있다 | `scripts/uicheck.mjs: "every size text is set in on a desktop is a rung of the client's ladder"` |
 | 자원 바의 색이 `PowerBarColor` 다 | `scripts/uicheck.mjs: "and the page is using it"` |
 | 테두리 두께가 edgeSize 다섯 중 하나다 | `scripts/uicheck.mjs: "and what it does not take is written down"` |
 | 프레임의 조각 수가 클라이언트의 조각 수와 같다 | — 클라이언트 쪽은 셀 수 있다: `PlayerFrame.xml` 은 텍스처 20장(그중 9장은 상태가 켤 때까지 숨어 있다)·상태바 2개·글자 7줄을 세 레벨에 둔다. 우리 쪽에 같은 뜻의 수가 없다 — 테두리와 바탕이 텍스처가 아니라 CSS 라서, 세면 DOM 상자의 수가 나오고 그것은 조각의 수가 아니다. 같다고 단언하면 이 게임이 그리지 않는 텍스처를 약속하게 된다 |
