@@ -26,6 +26,8 @@ const check = (what, ok, detail = '') => {
 }
 
 import { standing } from '../src/sim/pools.ts'
+import { between, roll, seed } from '../src/sim/roll.ts'
+import { book as ledgerOf, killed, take } from '../src/sim/quest.ts'
 import { speak } from '../src/talk.ts'
 import { riseChance, short as lacking, skinAsks, R_GREY, R_MAKES, R_NEEDS, R_YELLOW } from '../src/sim/trades.ts'
 import { discountOf, paidBy, rankFloor, rankOf, standAfter, EXALTED, FRIENDLY, NEUTRAL, UNFRIENDLY } from '../src/sim/rep.ts'
@@ -512,6 +514,81 @@ check('and the same seed gives the same fight',
   check('and a warrior who stops fighting empties in a hundred seconds',
     MAX_RAGE / RAGE_LOST_PER_TICK * REGEN_TICK === 100,
     `${MAX_RAGE} at ${RAGE_LOST_PER_TICK} every ${REGEN_TICK}s`)
+}
+
+// --- the same seed and the same inputs are the same game, N steps on --------
+//
+// Issue 103's third condition: *same seed plus same inputs is the same state,
+// run N steps and compare.*  What stood for it was the pair of `duel()` calls
+// above — one function called twice with nothing in between, which is a claim
+// about one loop.
+//
+// This is the widest path Node can load, on one stream and in one order:
+// fights at every level of the slice, against its own level and up to three
+// above, one foe and two, both policies; every fight that is won credits every
+// errand in the world through `quest.ts`, whose item objectives roll the same
+// stream; and a draw from `between` each step.  Each step writes down what
+// came out and where the stream is, and the quest ledger is compared at the
+// end too.  And the save's half of it: the position written down half-way,
+// the stream used for something else, the position put back.
+//
+// **The boundary is `main.ts`.**  The world's own fifty-millisecond step —
+// walking, noticing, a creature's script, the loot off a body — lives in the
+// closure with the canvas, so the whole world's determinism is asked only in a
+// browser.  What is asked here is every rule in `src/sim/` that takes a roll.
+{
+  const errands = world('quests').quests
+  const entries = [...new Set(errands.flatMap((q) => [
+    ...q.kill.map(([whom]) => whom),
+    ...q.fetch.flatMap(([, , , from]) => from.map(([whom]) => whom))]))]
+  const [lo, hi] = roster.levels
+  const STEPS = 300
+  const session = (from, pauseAt = -1) => {
+    reseed(from)
+    const ledger = ledgerOf(errands)
+    for (const q of errands) take(ledger, q)
+    const steps = []
+    for (let i = 0; i < STEPS; i++) {
+      if (i === pauseAt) {
+        const at = seed()
+        reseed(0x5eed)
+        for (let k = 0; k < 97; k++) roll()
+        reseed(at)
+      }
+      const level = lo + (i % (hi - lo + 1))
+      const fought = duel(player(level), creature(level + (i % 4)), who,
+        { many: i % 3 === 2 ? 2 : 1, runs: 1,
+          policy: i % 2 ? 'rota' : 'auto', bar })
+      const news = fought.won
+        ? killed(ledger, entries[i % entries.length], roll) : []
+      steps.push([fought.won, fought.seconds, fought.presses, news.join(' '),
+        between(0, 99), seed()])
+    }
+    return { steps, said: JSON.stringify([steps, ledger.held]) }
+  }
+  const once = session(20260915)
+  const again = session(20260915)
+  const paused = session(20260915, STEPS / 2)
+  const other = session(20260916)
+  const won = once.steps.filter((s) => s[0]).length
+  const moved = once.steps.filter((s) => s[3]).length
+  const firstApart = (a, b) => a.steps.findIndex((s, i) =>
+    JSON.stringify(s) !== JSON.stringify(b.steps[i]))
+  check(`the same seed and the same inputs are the same state after ${STEPS} steps`,
+    once.said === again.said && won > 0 && won < STEPS && moved > 0,
+    once.said === again.said
+      ? `${won} of ${STEPS} fights won, ${moved} of them moved an errand, the `
+        + `stream at ${once.steps.at(-1)[5]} both times`
+      : `the two runs part at step ${firstApart(once, again)}`)
+  check('and a stream written down and put back is the same stream',
+    paused.said === once.said,
+    paused.said === once.said
+      ? `position saved at step ${STEPS / 2}, 97 rolls spent elsewhere, restored`
+      : `parts at step ${firstApart(once, paused)}`)
+  check('and a different seed is a different game', other.said !== once.said,
+    other.said !== once.said
+      ? `seed + 1 parts at step ${firstApart(once, other)}`
+      : 'the seed changes nothing, so the checks above are about nothing')
 }
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')

@@ -147,6 +147,34 @@ check('and they run in Node with no browser at all',
       : `${files.length} files, ${exported} exports, no browser`)
 }
 
+/**
+ * And nothing in the rules rolls its own dice.
+ *
+ * Issue 103: `Math.random` was called from fifteen places, `src/sim/roll.ts`
+ * replaced every one of them, and the issue's second condition — a check that
+ * none is left in `src/sim/` — was never attached.  One call is enough to
+ * break both things the stream is for: a save reloaded to re-roll a drop, and
+ * a distribution nobody can run twice.  Read off the directory, and with the
+ * comments blanked out, because `roll.ts` and `pools.ts` name it to say why
+ * they do not use it.  Blanked rather than removed, so the line a hit is
+ * reported on is the line it is on.
+ */
+{
+  const hits = []
+  for (const f of readdirSync(join('src', 'sim')).filter((n) => n.endsWith('.ts'))) {
+    readFileSync(join('src', 'sim', f), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
+      .split('\n').forEach((line, i) => {
+        if (/\bMath\s*\.\s*random\b|\bgetRandomValues\b/.test(line)) {
+          hits.push(`src/sim/${f}:${i + 1}`)
+        }
+      })
+  }
+  check('and nothing in src/sim rolls its own dice', hits.length === 0,
+    hits.length ? hits.join(', ') : 'every roll in the rules goes through roll.ts')
+}
+
 // --- a place is what the world says it is ----------------------------------
 //
 // The words in `src/talk.ts` are ours and always will be.  Which place each
