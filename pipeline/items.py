@@ -48,6 +48,9 @@ SLOTS = {
 }
 # The two-handed ones, which matter because they take the off hand with them.
 TWO_HANDED = {17, 26}
+# A shirt, a chest piece and a robe: the three `InventoryType`s whose
+# `subclass` decides what a man is drawn wearing — see `src/sim/outfit.ts`.
+TORSO = {4, 5, 20}
 
 # `item_template.stat_type`, as the five this game has.  The rest exist and do
 # nothing here, so they are dropped rather than carried as noise.
@@ -191,8 +194,17 @@ def wanted(base, acore, object_loots, client, here_out=None, made=True):
     # five items and not one of them was baked, because the slice's filter asks
     # what a vendor sells, what a creature drops and what an errand pays — and
     # nobody sells you the shirt you were made in.
-    for e in outfit(client):
-        want[e] += 1
+    #
+    # **Every class's, and it was the warrior's alone.**  `outfit` takes the
+    # class and defaults to one, and this line never passed it — so the day the
+    # game had six classes, `player.json` handed a mage his robe by id and
+    # `items.json` had no row for it.  `itemOf` answered nothing, the scene
+    # skipped the piece, and five classes of six walked out wearing nothing at
+    # all while the kit said otherwise.  The body sheet had plate baked into it,
+    # which is why nobody could see that.
+    for cls in CLASSES:
+        for e in outfit(client, CLASS_ID[cls]):
+            want[e] += 1
     return want, stock, here, drops
 
 
@@ -602,6 +614,18 @@ def main(acore, client, out):
             # charged by — issue 83.  Both are read by `src/sim/durability.ts`.
             dura,
             repair_column(cls, sub) if dura else 0,
+            # And the two columns the picture needs, as they are.  `SLOTS`
+            # folds `InventoryType` 5 and 20 into one `chest`, which is right
+            # for where a thing goes and wrong for what a man looks like in
+            # it: a robe is not a breastplate.  `src/sim/outfit.ts` reads them.
+            #
+            # **Only for the three shapes of torso, and nought for the rest.**
+            # Shipped for every row, five oddments on one shelf — identical in
+            # every column before, and counted by the shop's own check as one
+            # thing listed five times — came apart on a `subclass` of 2, 3 and
+            # 8 that nothing draws or says, and read as five different things
+            # nobody could tell apart.  `only_some` above is the same lesson.
+            sub if inv in TORSO else 0, inv if inv in TORSO else 0,
         ]
 
     # Vendor rows whose item is not in the baked set are rows nobody can buy.

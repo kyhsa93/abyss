@@ -153,6 +153,11 @@ ABILITY = {
 GOODS = {
     ('weapon', 'weapon'): ('lorc', 'broadsword'),
     ('weapon', 'ranged'): ('delapouite', 'bow-arrow'),
+    # A weapon carried in the off hand, which no item here was until the
+    # rogue's starting kit was baked: `items.py` asked `CharStartOutfit` for
+    # the warrior's alone, and the rogue walks out with a second blade.  Kind
+    # by shape — it is a weapon, so it is the weapon's picture.
+    ('weapon', 'offhand'): ('lorc', 'broadsword'),
     ('weapon', ''): ('lorc', 'battle-axe'),
     ('armour', 'chest'): ('delapouite', 'chest-armor'),
     ('armour', 'legs'): ('delapouite', 'leg-armor'),

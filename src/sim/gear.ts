@@ -24,6 +24,11 @@ import type { RepairTables } from './durability.ts'
  * there is no sheet for that.  It is `item_template.subclass` through
  * `spawn_npcs.WEAPON_SUBCLASS`, which is the same table that decides what an
  * NPC is holding: one vocabulary, two readers.
+ *
+ * `I_SUB` and `I_INV` are `item_template.subclass` and `InventoryType` as they
+ * are, and they travel because `I_SLOT` folds away the one difference the
+ * picture needs: a robe (20) and a breastplate (5) both go in `chest`.  What a
+ * man is drawn wearing is read off these two — see `sim/outfit.ts`.
  */
 export type Item = (string | number | (string | number)[][])[]
 export const I_WORD = 0, I_SLOT = 1, I_QUALITY = 2, I_ILVL = 3, I_NEED = 4,
@@ -34,7 +39,8 @@ export const I_WORD = 0, I_SLOT = 1, I_QUALITY = 2, I_ILVL = 3, I_NEED = 4,
    * mending it is charged by — see `src/sim/durability.ts`.  Nought for a
    * thing that does not wear.
    */
-  I_DURA = 16, I_DURA_COST = 17
+  I_DURA = 16, I_DURA_COST = 17,
+  I_SUB = 18, I_INV = 19
 
 /**
  * What quality looks like.
