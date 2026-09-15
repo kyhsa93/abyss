@@ -28,7 +28,7 @@ import { between, roll, seed, reseed } from './sim/roll.ts'
 import { cycleOf, standing } from './sim/pools.ts'
 import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Card, type Save } from './save.ts'
 import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_USE, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
-import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
+import { askedFor, mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { afterThis, heatOf, nextRank, riseChance, short as lacking, skinAsks, GIVEN, SOLD, R_COST, R_COUNT, R_GREY, R_HOW, R_MAKES, R_NEEDS, R_RANK, R_SKILL, R_SPELL, R_YELLOW, type Rank, type Recipe, type Trades } from './sim/trades.ts'
 import { discountOf, paidBy, rankFloor, rankOf as standingRank, standAfter, EXALTED, NEUTRAL } from './sim/rep.ts'
 import { duel } from './sim/duel.ts'
@@ -13654,10 +13654,19 @@ async function main() {
   /** What the game can say out loud, and whether anything is lost with it off. */
   ;(window as unknown as { __sound: () => unknown }).__sound = () => ({
     loaded: soundReady(), muted: muteIsOn(), words: SOUNDS.length,
+    asked: askedFor(),
   })
   /** Silence it, for the check that silence costs nothing. */
   ;(window as unknown as { __mute: (on: boolean) => void }).__mute =
     (on) => mute(on)
+  /**
+   * The words floating over people right now — the damage numbers and the
+   * outcome words — which are half of what `art/SOUND-CREDITS.md` pairs a
+   * sound with.  `mine` is over something else, not over him.
+   */
+  ;(window as unknown as { __marks: () => unknown }).__marks = () => ({
+    clock, marks: marks.map((m) => ({ text: m.text, mine: m.mine, at: m.at })),
+  })
   /** Hold a direction down without a keyboard, for the step check. */
   ;(window as unknown as { __hold: (k: string | null) => void }).__hold = (k) => {
     keys.clear()

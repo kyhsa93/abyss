@@ -74,7 +74,19 @@ async function load(name: string) {
 }
 
 /** Say it, if there is anything to say it with. */
+/**
+ * How many times each sound was asked for, heard or not.
+ *
+ * Counted before the mute, because it is for the check that turning the sound
+ * off loses nothing: that check has to know a sound *would* have played on a
+ * step to ask whether the screen said the same thing on it.  Without this it
+ * could only assert that the switch was off.
+ */
+const asked: Record<string, number> = {}
+export const askedFor = (): Record<string, number> => ({ ...asked })
+
 export function play(name: Sound, pitch = 1) {
+  asked[name] = (asked[name] ?? 0) + 1
   if (!ctx || !gain || muted) return
   const buf = buffers.get(name)
   if (!buf) return
