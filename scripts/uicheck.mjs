@@ -316,6 +316,39 @@ for (const [W, H] of SIZES) {
       !!born.made?.hair && !!born.made?.beard
       && looks.every((k) => (drawn.sheets ?? []).includes(k)),
       `wanted ${looks.join(' and ')}, drawn out of ${(drawn.sheets ?? []).join(', ')}`)
+    // **And what he is wearing, which was plate for all six.**  The body sheet
+    // had a breastplate composited into it; the torso is an overlay chosen from
+    // the worn item now (`sim/outfit.ts`), and `sheets` is what reached the
+    // glass on the last frame — so this waits for the overlay to *arrive*
+    // rather than for time to pass, and then for a frame to draw it.
+    const sheetsOf = async (page) => {
+      await page.waitForFunction(() => {
+        const a = window.__arms()
+        return a.outfit.length > 0 && a.outfit.every((k) => a.sheets.includes(k))
+      }, null, { timeout: 30000 }).catch(() => {})
+      await page.evaluate(() => new Promise((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(r))))
+      return page.evaluate(() => window.__arms().sheets)
+    }
+    const warriorWears = await sheetsOf(p)
+    check('and a new warrior is drawn in the shirt he is made in, not in plate',
+      warriorWears.includes('outfit-shirt')
+      && !warriorWears.some((k) => /plate/.test(k)),
+      warriorWears.join(', '))
+    // A mage, in a page of his own, because the kit is the class's and one
+    // class could pass on a rule that never looked at the item.
+    const mp = await b.newPage({ viewport: { width: 1280, height: 800 } })
+    mp.on('pageerror', (e) => errs.push(String(e)))
+    await mp.goto(HOST)
+    await mp.waitForFunction(() => window.__makeOne !== undefined
+      && !document.getElementById('create').hidden, null, { timeout: 60000 })
+    await mp.evaluate(() => window.__makeOne('마법사', 8))
+    const mageWears = await sheetsOf(mp)
+    check('and a new mage is drawn in his robe, and not in plate either',
+      mageWears.includes('outfit-robe')
+      && !mageWears.some((k) => /plate/.test(k)),
+      mageWears.join(', '))
+    await mp.close()
   } else {
     check('the screen that makes a character is up on a fresh start',
       false, 'it was not')

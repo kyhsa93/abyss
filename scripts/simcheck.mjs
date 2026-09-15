@@ -1071,5 +1071,104 @@ check('and the same seed gives the same fight',
     fine['100'] === 4.5 && fine['2687'] === 30, JSON.stringify(fine))
 }
 
+// --- what a new character is drawn wearing ------------------------------------
+//
+// `hero.png` had a breastplate baked into the body, so all six classes walked
+// out in plate while every one of them is made in a shirt or a robe.  The
+// torso is an overlay now, chosen by `sim/outfit.ts` from the worn item's own
+// `InventoryType` and `subclass` — and a rule about pictures is still a rule,
+// so it is asked here with no browser, off the same kit and the same items the
+// scene dresses him from.
+//
+// The kit is dressed the way `becomeClass` does it: the item's row, whether
+// this class may wear it at level one, and the first thing into each slot.
+// That second half is not decoration.  Five classes of six had **no rows** in
+// `items.json` for their kit — `items.py` asked `CharStartOutfit` for the
+// warrior's alone — so they were dressed in nothing, and a check that read
+// the kit straight out of `player.json` would have passed on it.
+{
+  const { outfitFor, outfitOf, WEIGHT } = await import('../src/sim/outfit.ts')
+  const { canWear, wear, I_SLOT, I_SUB, I_INV, I_ARMOUR, K_ID } =
+    await import('../src/sim/gear.ts')
+  const { weightOf } = await import('../src/sim/doll.ts')
+  const shelf = world('items').items
+  const dressed = (cls) => {
+    let gear = {}
+    for (const k of roster.classes[String(cls)]?.kit ?? []) {
+      const it = shelf[String(k[K_ID])]
+      if (!it || !canWear(it, 1, cls)) continue
+      if (!it[I_SLOT] || gear[it[I_SLOT]] !== undefined) continue
+      gear = wear(gear, it, k[K_ID]).gear
+    }
+    return gear
+  }
+  const drawn = (gear) => outfitFor(Object.values(gear).map((id) => shelf[String(id)]))
+  // By class **word**, because the promise is about who they are: the three
+  // that swing start in a shirt, the three that cast start in a robe.
+  const CLASS = { warrior: 1, paladin: 2, rogue: 4, priest: 5, mage: 8, warlock: 9 }
+  const expect = { warrior: 'shirt', paladin: 'shirt', rogue: 'shirt',
+    priest: 'robe', mage: 'robe', warlock: 'robe' }
+  const wrong = [], seen = []
+  for (const [word, id] of Object.entries(CLASS)) {
+    const gear = dressed(id)
+    const got = drawn(gear)
+    seen.push(`${word} ${got.join('+') || 'nothing'}`)
+    const top = got[got.length - 1]
+    if (top !== expect[word] || got.includes('plate')) wrong.push(`${word}: ${got}`)
+  }
+  check('every class walks out in what its kit is, and nobody in plate',
+    wrong.length === 0, wrong.length ? wrong.join('; ') : seen.join(', '))
+  // Every kit piece reached the gear — the rows are there to be worn.
+  const missing = Object.entries(CLASS).flatMap(([word, id]) =>
+    (roster.classes[String(id)]?.kit ?? [])
+      .filter((k) => k[1] === 'armour' && !shelf[String(k[K_ID])])
+      .map((k) => `${word} ${k[K_ID]}`))
+  check('and every piece of armour a kit hands over has a row to be worn from',
+    missing.length === 0, missing.length ? missing.join(', ')
+      : 'every class, every armour row of its kit')
+
+  // **The rule reads the item and not the class.**  A priest who puts on a
+  // leather jerkin is drawn in leather, and taking the robe off leaves the
+  // shirt: equipping a chest piece later changes the picture.
+  const leather = Object.entries(shelf).find(([, it]) =>
+    it[I_INV] === 5 && it[I_SUB] === 2)
+  const priest = dressed(CLASS.priest)
+  const swapped = leather ? drawn(wear(priest, leather[1], Number(leather[0])).gear) : []
+  const bare = { ...priest }; delete bare.chest
+  check('and putting a chest piece on changes what is drawn',
+    !!leather && swapped.join('+') === 'shirt+leather'
+    && drawn(bare).join('+') === 'shirt',
+    `priest ${drawn(priest).join('+')}, with item ${leather?.[0]} `
+    + `${swapped.join('+')}, robe off ${drawn(bare).join('+')}`)
+  // Every material reads the way `item_template` numbers it — a row built
+  // for each, because no plate chest piece is reachable in this slice and a
+  // rule that is never asked about plate is a rule nobody knows is right.
+  const row = (sub, inv) => {
+    const it = []; it[I_SLOT] = inv === 4 ? 'shirt' : 'chest'
+    it[I_SUB] = sub; it[I_INV] = inv; return it
+  }
+  const table = [[0, 4, 'shirt'], [1, 5, 'tunic'], [2, 5, 'leather'],
+    [3, 5, 'mail'], [4, 5, 'plate'], [0, 20, 'robe'], [1, 20, 'robe'], [0, 5, null]]
+  const off = table.filter(([s, i, w]) => outfitOf(row(s, i)) !== w)
+  check('and subclass 1 to 4 is cloth, leather, mail and plate, a robe is a robe',
+    off.length === 0, off.length ? JSON.stringify(off)
+      : `${table.length} rows of subclass and InventoryType`)
+
+  // And the paperdoll, which picks light, medium or heavy: every chest piece
+  // in the world is given the weight of its material rather than of its armour
+  // value, and the two disagreed on this many.
+  let chests = 0, disagreed = 0
+  for (const it of Object.values(shelf)) {
+    const w = outfitOf(it)
+    if (!w || it[I_SLOT] !== 'chest') continue
+    chests++
+    if (weightOf(it[I_ARMOUR]) !== WEIGHT[w]) disagreed++
+  }
+  check('and the paperdoll weighs a chest piece by the same material',
+    chests > 0 && Object.keys(WEIGHT).length === 6,
+    `${chests} chest pieces; the armour value alone would have given `
+    + `${disagreed} of them a different weight`)
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)
