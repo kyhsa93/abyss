@@ -13386,6 +13386,25 @@ async function main() {
    * rule about what `planNow` hands the painter — so the state is put there
    * and the rule is measured.
    */
+  /**
+   * For world points, how many storeys of the building you are in, above the
+   * one you are on, have outline over each — read off the plans the bake
+   * shipped, not off the drawing.  What the room drawing laid as outdoor ground
+   * is `__roomGround`; this is the fact it is held against.
+   */
+  ;(window as unknown as { __storeysOver: (at: [number, number][]) => number[] | null })
+    .__storeysOver = (at) => {
+      const b = indoors
+      if (!b) return null
+      return at.map(([x, y]) => {
+        let above = 0
+        for (let s = storey + 1; s < b.floors.length; s++) {
+          const f = b.floors[s]!
+          if (bitAt(f.bits, planCell(f, b, x, y))) above++
+        }
+        return above
+      })
+    }
   ;(window as unknown as { __floor: (n: number) => unknown })
     .__floor = (n) => {
       if (!indoors) return null

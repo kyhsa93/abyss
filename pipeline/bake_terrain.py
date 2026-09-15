@@ -533,7 +533,24 @@ def wmo_plan(client, path, only=None, nxt=None):
         # tell you is which of its 65% is a room and which is a courtyard, and
         # this is where the answer was being thrown away — the roof over a room
         # is a flat face and the sky over a courtyard is nothing at all.
-        roof = not wall and zhi > high
+        #
+        # **And a pitched roof is a ceiling too.**  This was `not wall and
+        # zhi > high`, and `steepness` calls anything past the climb limit a
+        # wall — which a roof pitched steeper than 0.9 is.  So wherever the only
+        # thing overhead was the roof itself, the plan said *open to the sky*:
+        # every stairwell, where the floor above has a hole in it, came out as a
+        # courtyard and got courtyard ground beside the stairs.  Measured over
+        # the storeys with a door, the cells called open with nothing flat over
+        # them split into those with a steep face over them — 141 on the
+        # abbey's ground floor, 33 and 56 on the inn's two, 71 in the Goldshire
+        # smithy, 49 in the barn — and those with nothing over them at all,
+        # which are the yards.  *A storey above counts as a roof* was tried
+        # first and moved the abbey from 26 cells of grass to 9 and the inn
+        # from 25 to 22, because a stairwell is exactly where there is no floor
+        # above.  What tells a roof from a wall is that a roof has area seen
+        # from above and a wall has none: a face standing on its edge is
+        # `flat` here and covers no cell centre, so it stays out.
+        roof = zhi > high and (not wall or not flat)
         # And whether it is a **step between this floor and the one above**.
         #
         # `steepness` already reads a stair tread as walkable — its own comment
@@ -885,7 +902,47 @@ def plan_key(client, path, key):
                 small = crop(plan)
                 if small:
                     PLAN_FLOORS[key].append((round(sill, 2), small))
+        # And a storey of the building over a cell is a ceiling over it —
+        # after the pitched roof, what is left is a crack between the faces of
+        # the roof, and a floor of the same building overhead says what the
+        # raster missed.  Only the storeys that ship, because they are the ones
+        # the scene can be asked about.
+        ups = [pl for _s, pl in PLAN_FLOORS[key]]
+        if ups and PLANS_BY_KEY[key]:
+            PLANS_BY_KEY[key] = ceilinged(PLANS_BY_KEY[key], ups)
+            PLAN_FLOORS[key] = [(s, ceilinged(pl, ups[k + 1:]))
+                                for k, (s, pl) in enumerate(PLAN_FLOORS[key])]
     return key if PLANS_BY_KEY[key] else 0
+
+
+def ceilinged(plan, uppers):
+    """A storey's plan with every storey above it counted as a ceiling over it.
+
+    On its own this was tried and reverted: it moved the abbey's grass from 26
+    cells to 9 and the inn's from 25 to 22, because a stairwell is exactly where
+    the floor above has its hole.  It stays for what the pitched-roof rule in
+    `wmo_plan` leaves — measured, two cells in each two-storey house, where
+    the upper storey is stone overhead and the faces of the roof meet on a seam
+    that no cell centre falls inside.
+    """
+    if not uppers:
+        return plan
+    cells, w, h, x0, y0, solid, floor, over, steps = plan
+    over = bytearray(over)
+    for i in range(w):
+        px = x0 + (i + 0.5) * PLAN_CELL
+        for j in range(h):
+            n = i * h + j
+            if not cells[n] or over[n]:
+                continue
+            py = y0 + (j + 0.5) * PLAN_CELL
+            for up in uppers:
+                ui = int(math.floor((px - up[3]) / PLAN_CELL))
+                uj = int(math.floor((py - up[4]) / PLAN_CELL))
+                if 0 <= ui < up[1] and 0 <= uj < up[2] and up[0][ui * up[2] + uj]:
+                    over[n] = 1
+                    break
+    return (cells, w, h, x0, y0, solid, floor, over, steps)
 
 
 #: Every doorless placement, as `(kind, x, y, share at the ground, storey z,
@@ -1001,6 +1058,69 @@ def ground_doorless(doodads, height):
         _GROUNDED.append((kind, wx, wy, share, storey, cut))
         GROUND_OF[(kind, round(wx, 2), round(wy, 2))] = [round(share * 100),
                                                         round(storey, 1)]
+
+
+def check_ceilings():
+    """No cell a building's plan calls open to the sky has a roof over it.
+
+    Asked of the triangles again, in a pass of its own rather than of the mask:
+    for every storey of every building with a door, every cell the plan leaves
+    open, and every face above head height with area seen from above — flat or
+    pitched — that covers the cell's centre.  A stairwell painted as a courtyard
+    was 141 of these on the abbey's ground floor, 71 in the Goldshire smithy and
+    49 in the barn, and nothing said so.
+    """
+    if not PLAN_PATH:
+        return
+    opened, roofed_over, bad = 0, 0, []
+    for key, path in PLAN_PATH.items():
+        ground = PLANS_BY_KEY.get(key)
+        if not ground or is_mouth(path):
+            continue
+        ways = doorways(_CLIENT[0], path)
+        if not ways:
+            continue
+        tris = wmo_triangles(_CLIENT[0], path)
+        here = 0
+        for sill, plan in [(min(d[0] for d in ways), ground)] + list(PLAN_FLOORS.get(key, [])):
+            cells, w, h, x0, y0, solid, _floor, over, steps = plan
+            high = sill + BODY
+            sky = set(n for n in range(w * h)
+                      if cells[n] and not solid[n] and not over[n] and not steps[n])
+            opened += len(sky)
+            hit = set()
+            for t in tris:
+                _wall, _lo, zhi = steepness(t)
+                if zhi <= high:
+                    continue
+                (ax, ay, _), (bx, by, _), (cx, cy, _) = t
+                det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+                if abs(det) < 1e-9:
+                    continue
+                i0 = max(0, int((min(ax, bx, cx) - x0) / PLAN_CELL))
+                i1 = min(w - 1, int((max(ax, bx, cx) - x0) / PLAN_CELL))
+                j0 = max(0, int((min(ay, by, cy) - y0) / PLAN_CELL))
+                j1 = min(h - 1, int((max(ay, by, cy) - y0) / PLAN_CELL))
+                for i in range(i0, i1 + 1):
+                    px = x0 + (i + 0.5) * PLAN_CELL
+                    for j in range(j0, j1 + 1):
+                        n = i * h + j
+                        if n not in sky or n in hit:
+                            continue
+                        py = y0 + (j + 0.5) * PLAN_CELL
+                        l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det
+                        l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det
+                        if l1 >= -0.02 and l2 >= -0.02 and l1 + l2 <= 1.02:
+                            hit.add(n)
+            here += len(hit)
+        roofed_over += here
+        if here:
+            bad.append('%s: %d' % (key, here))
+    print(f'check: {opened:,} cells of buildings with a door open to the sky, '
+          f'{roofed_over} of them with a roof over them')
+    assert roofed_over == 0, (
+        'cells called open to the sky have a face over them, by plan key: '
+        + ', '.join(bad))
 
 
 def check_grounded():
@@ -2493,6 +2613,7 @@ def bake(client, bounds, out, acore=None):
     check_storeys()
     check_plans()
     check_grounded()
+    check_ceilings()
     check_rooms(doodads)
     check_water(grid, wetmask, levels)
     check_walls()

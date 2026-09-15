@@ -2620,6 +2620,102 @@ check('and a wall that stands clear of the ground stops a walk straight at it',
   + clearWalls.through.join('; '))
 console.log(`      (${clearWalls.asked} walks at ${clearWalls.walls} buildings cut at the ground)`)
 
+// 10j8. And nothing with a floor over it is painted as the outdoors.
+//
+// A cell a building's plan calls open to the sky gets the ground the client
+// painted there, which is right for the abbey's yard and was wrong beside every
+// staircase: the ceiling mask counted only faces flatter than the climb limit,
+// a roof pitched steeper than that is a wall to `steepness`, and a stairwell is
+// exactly where the only thing overhead is the roof.  Counted off what the room
+// drawing laid, storey by storey, from inside every building with a front door,
+// it was **4,200 cells of outdoor ground in 12 buildings and 375 of them under a
+// storey of the same building** — the abbey's ground floor 167 of 182.
+//
+// Asked of what the room was composed with (`__roomGround`, the world position
+// of every cell laid as outdoor ground) and held against a fact the scene has
+// without the ceiling mask: the outline of every storey above
+// (`__storeysOver`).  A cell with another floor of the building over it is not
+// open to the sky, whatever else is true.  The bake's own check
+// (`check_ceilings`) holds the rest — a pitched roof over a building of one
+// storey — against the triangles.  A room is composed once a storey, so each
+// storey is read only after a frame has composed that storey.
+const skyIndoors = await p.evaluate(async () => {
+  const all = window.__buildings()
+  const porches = window.__porches()
+  const home = window.__start()
+  const frames = (n) => new Promise((done) => {
+    const tick = () => (n-- <= 0 ? done() : requestAnimationFrame(tick))
+    requestAnimationFrame(tick)
+  })
+  const walk = (tx, ty, n) => {
+    for (let s = 0; s < n; s++) {
+      if (window.__room().inside) return true
+      window.__aim(tx, ty)
+      window.__steps(1)
+    }
+    window.__aim(null)
+    return !!window.__room().inside
+  }
+  let storeys = 0, ground = 0, entered = 0
+  const under = [], per = [], unread = []
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i]
+    if (b.k === 'mine' || !porches[i].length) continue
+    const at = `${b.k} at ${Math.round(b.x)},${Math.round(b.y)}`
+    const [ax, ay, bx, by] = porches[i][0]
+    const len = Math.hypot(bx - ax, by - ay) || 1
+    const ux = (bx - ax) / len, uy = (by - ay) / len
+    window.__aim(null)
+    window.__put(home.x, home.y)
+    let inside = false
+    for (let r = 1; r <= 8 && !inside; r += 0.5) {
+      if (!window.__canWalk(bx + ux * r, by + uy * r)) continue
+      window.__put(bx + ux * r, by + uy * r)
+      inside = walk(bx, by, 120) || walk(ax, ay, 160)
+      break
+    }
+    if (!inside) continue
+    entered++
+    let mine = 0
+    for (let s = -1; s < b.floors.length; s++) {
+      window.__floor(s)
+      const h = window.__hero()
+      window.__cam({ x: h.x, y: h.y })
+      // Composed by the frame, not by the setter: wait for a frame that drew
+      // this storey's room, and a couple more so the laid room is this one.
+      let ok = false
+      for (let f = 0; f < 60 && !ok; f++) {
+        await frames(1)
+        const paint = window.__roomPaint()
+        ok = paint.storey === s && !!paint.room
+      }
+      await frames(2)
+      if (!ok) { unread.push(`${at} storey ${s}`); continue }
+      storeys++
+      const cells = window.__roomGround()
+      const over = window.__storeysOver(cells) ?? []
+      const cut = over.filter((n) => n > 0).length
+      mine += cells.length
+      if (cut) under.push(`${at} storey ${s}: ${cut} of ${cells.length}`)
+    }
+    ground += mine
+    if (mine) per.push(`${at} ${mine}`)
+    window.__floor(-1)
+  }
+  window.__aim(null)
+  window.__put(home.x, home.y)
+  window.__cam({ x: home.x, y: home.y, zoom: 0.8 })
+  await frames(3)
+  return { entered, storeys, ground, under, per, unread }
+})
+check('and nothing with a storey of its own building over it is painted as the outdoors',
+  skyIndoors.storeys > skyIndoors.entered && skyIndoors.under.length === 0
+    && skyIndoors.unread.length === 0,
+  `${skyIndoors.under.join('; ')}${skyIndoors.unread.length ? ` (never composed: ${skyIndoors.unread.join('; ')})` : ''}`
+  + ` (over ${skyIndoors.storeys} storeys of ${skyIndoors.entered} buildings)`)
+console.log(`      (${skyIndoors.ground} cells of outdoor ground inside ${skyIndoors.per.length} `
+  + `buildings, all of it open to the sky: ${skyIndoors.per.join('; ') || 'none'})`)
+
 // 10k. A mine comes from a model, and the ones that do not say so.
 //
 // **This block used to open with a sentence that is no longer true**, and it

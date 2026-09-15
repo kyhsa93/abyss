@@ -660,6 +660,23 @@ group with no portal and are walked in under their roofs on foot; Goldshire's
 smithy has two front doors; the orc smithy stands where nothing within reach
 can be stood on, and nobody was put inside it.
 
+**A pitched roof is a ceiling, and a stairwell is under one.** The plan's
+ceiling mask is what tells a room from a yard, and it counted a face over a
+man's head only if `steepness` did not call it a wall — which a roof pitched
+steeper than the climb limit is. So wherever the roof itself was the only thing
+overhead the plan said *open to the sky*, and a stairwell, where the floor above
+has its hole, got courtyard ground beside the stairs. Drawn from inside every
+building with a front door it was **4,200 cells of outdoor ground in 12
+buildings, 375 of them under a storey of the same building**. *A storey above
+counts as a roof* was tried first and reverted, because a stairwell is exactly
+where there is no floor above. What tells a roof from a wall is **area seen from
+above**: a face on its edge covers no cell centre, a pitched roof does. With
+that, it is 2,770 cells in 9 buildings and none under a storey, and the
+reverted rule came back for what was left — two cells in each two-storey house,
+a seam between roof faces that no cell centre falls in, with stone of the
+upper floor over it. `check_ceilings` asks the triangles again in a pass of its
+own, and `viewcheck` counts what `drawRoom` laid, storey by storey.
+
 **A deck is floor to placement as well as to walking.** Placement asked the
 water mask alone, and the mask runs on under a bridge because the river does,
 so creatures put on a deck were carried up to twenty-four yards off it (issue
