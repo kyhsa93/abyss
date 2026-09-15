@@ -996,5 +996,51 @@ check('and the same seed gives the same fight',
   check('and nothing lost is nothing charged', cost(0) === 0)
 }
 
+// --- who a creature hits, off its threat list (issue 73) --------------------
+//
+// `ThreatManager::ReselectVictim` (ThreatManager.cpp:632).  The game has one
+// name on every list, so the switching can only be exercised on lists built
+// here — the scene reads the same function, which `viewcheck` holds.
+{
+  const { reselect, matchHighest, OFFLINE, SUPPRESSED, ONLINE, NONE, TAUNT } =
+    await import('../src/sim/threat.ts')
+  const ref = (threat, melee = true, online = ONLINE, taunt = NONE) =>
+    ({ threat, melee, online, taunt })
+
+  check('an empty list has no victim, and nor does one whose only name is offline',
+    reselect({}, null) === null
+    && reselect({ you: ref(50, true, OFFLINE) }, 'you') === null)
+  check('a fresh list takes the highest',
+    reselect({ a: ref(10), b: ref(30) }, null) === 'b')
+  check('a melee rival at 109% does not take it',
+    reselect({ a: ref(100), b: ref(109) }, 'a') === 'a')
+  check('and at 111% does',
+    reselect({ a: ref(100), b: ref(111) }, 'a') === 'b')
+  check('a ranged rival at 129% does not take it',
+    reselect({ a: ref(100), b: ref(129, false) }, 'a') === 'a')
+  check('and at 131% does, from anywhere',
+    reselect({ a: ref(100), b: ref(131, false) }, 'a') === 'b')
+  check('a ranged top under 130% still loses it to a melee past 110% below',
+    reselect({ a: ref(100), b: ref(125, false), c: ref(115) }, 'a') === 'c')
+  check('a taunt outranks any number',
+    reselect({ a: ref(1000), b: ref(1, true, ONLINE, TAUNT) }, 'a') === 'b')
+  check('and online outranks suppressed whatever the numbers',
+    reselect({ a: ref(1000, true, SUPPRESSED), b: ref(5) }, 'a') === 'b')
+  check('a victim gone offline is replaced at once',
+    reselect({ a: ref(1000, true, OFFLINE), b: ref(5) }, 'a') === 'b')
+  // A taunt's timeline: the tank at 40 taunts a creature hitting a mage at
+  // 100.  The taunt raises him to the top (MatchUnitThreatToHighestThreat) and
+  // the state holds it; when the state goes, he holds it on the numbers,
+  // because nobody is past 110% of an equal.
+  const tank = matchHighest({ mage: ref(100, false), tank: ref(40) }, 'tank')
+  const held = reselect({ mage: ref(100, false), tank: ref(tank, true, ONLINE, TAUNT) }, 'mage')
+  const after = reselect({ mage: ref(100, false), tank: ref(tank) }, held)
+  const lost = reselect({ mage: ref(tank * 1.31, false), tank: ref(tank) }, after)
+  check('a taunt raises the taunter to the top, not past it, and he keeps it after',
+    tank === 100 && held === 'tank' && after === 'tank' && lost === 'mage',
+    `threat ${tank}; taunted -> ${held}; expired -> ${after}; `
+    + `mage at 131% -> ${lost}`)
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

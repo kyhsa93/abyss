@@ -29,6 +29,7 @@ import { cycleOf, standing } from './sim/pools.ts'
 import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Card, type Save } from './save.ts'
 import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_DURA, I_DURA_COST, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_QUALITY, I_SELL, I_SLOT, I_USE, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { afterDeath, broken, losePoints, repairCost, wearFromBlow, EQUIPMENT_SLOT } from './sim/durability.ts'
+import { matchHighest, reselect, NONE, OFFLINE, ONLINE, TAUNT, UPDATE_INTERVAL, type Ref } from './sim/threat.ts'
 import { askedFor, mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { afterThis, heatOf, nextRank, riseChance, short as lacking, skinAsks, GIVEN, SOLD, R_COST, R_COUNT, R_GREY, R_HOW, R_MAKES, R_NEEDS, R_RANK, R_SKILL, R_SPELL, R_YELLOW, type Rank, type Recipe, type Trades } from './sim/trades.ts'
 import { discountOf, paidBy, rankFloor, rankOf as standingRank, standAfter, EXALTED, NEUTRAL } from './sim/rep.ts'
@@ -1715,11 +1716,14 @@ async function main() {
     /**
      * Who it is angry at and how much — `ThreatManager`, keyed by name.
      *
-     * One entry, because there is one player and no pets; the list is here so
-     * that "who is it hitting" is a rule rather than the only thing in reach,
-     * and so taunt has something to act on when it arrives.
+     * One entry, because there is one player and no pet ever stands; the
+     * victim is read off it by `src/sim/threat.ts` all the same, so "who is it
+     * hitting" is a rule rather than the only thing in reach.
      */
     threat: Record<string, number>
+    /** Who that rule last picked, and when it may pick again (ms). */
+    victim: string | null
+    reselect: number
     /** Until when it is looking at you because it was told to — Taunt. */
     taunted: number
     /** How much of its armour is off, and until when — Sunder Armor. */
@@ -1803,6 +1807,7 @@ async function main() {
       was: { x: row[0] as number, y: row[1] as number },
       ix: row[0] as number, iy: row[1] as number,
       threat: {},
+      victim: null, reselect: 0,
       cools: {},
     })
   }
@@ -4660,14 +4665,19 @@ async function main() {
         t.bleed = { until: clock + sp.holds / 1000, next: clock + period! / 1000, each: amount! }
         t.angry = true
       } else if (effect === E_ATTACK_ME && t) {
-        // Taunt, which is the only thing in this game that reads the threat
-        // list rather than writing to it.  It does not add attention, it puts
-        // you at the top of whatever is there — so a creature you had lost
-        // comes back without your having to out-damage whoever took it.
-        const top = Math.max(0, ...Object.values(t.threat))
-        t.threat['you'] = top + 1
+        // Taunt.  The *state* is what puts you on top — `taunted` is read by
+        // `refsOf` as `TAUNT_STATE_TAUNT`, which outranks any number — and the
+        // numbers are only raised to the highest on the list, and only when
+        // you were not already the one being hit (`Spell::EffectTaunt`,
+        // SpellEffects.cpp:3367).  It used to add a point on top, which is a
+        // number nobody wrote.  `TauntUpdate` reselects at once
+        // (ThreatManager.cpp:548), so the wait for the next second is dropped.
+        if (t.victim !== 'you') {
+          t.threat['you'] = matchHighest(refsOf(t, true), 'you')
+        }
         t.angry = true
         t.taunted = clock + sp.holds / 1000
+        t.reselect = 0
         rouse(t)
       } else if (effect === E_TRIGGER && fires && t) {
         // The half of an ability that lives in another spell.  Sunder Armor
@@ -4885,6 +4895,53 @@ async function main() {
     }
   }
 
+  /**
+   * A creature's threat list in the shape `src/sim/threat.ts` reads.
+   *
+   * Only one name is ever on it here (see that file); `you` is offline while
+   * dead and taunting while a taunt holds.  `melee` is whether the creature
+   * has you in reach, which is all `IsWithinMeleeRange` answers.
+   */
+  const refsOf = (n: Npc, melee: boolean): Record<string, Ref> => {
+    const out: Record<string, Ref> = {}
+    for (const [k, v] of Object.entries(n.threat)) {
+      out[k] = { threat: v, melee,
+        online: k === 'you' && you.died ? OFFLINE : ONLINE,
+        taunt: k === 'you' && n.taunted > clock ? TAUNT : NONE }
+    }
+    return out
+  }
+  /**
+   * Who an angry creature is hitting, read off its list.
+   *
+   * An angry creature has you on its list at nought even before anything has
+   * landed: `Unit::EngageWithTarget` (Unit.cpp:7571) adds nought threat, which
+   * is how a wolf that noticed you across a field has somebody to run at.
+   * Re-read once a second, or at once when the one it had has gone offline
+   * (`GetCurrentVictim`, ThreatManager.cpp:250).
+   */
+  const victimOf = (n: Npc, melee: boolean): string | null => {
+    if (n.threat['you'] === undefined && !you.died) n.threat['you'] = 0
+    const list = refsOf(n, melee)
+    const now = clock * 1000
+    const gone = n.victim !== null && (list[n.victim]?.online ?? OFFLINE) === OFFLINE
+    if (n.victim === null || gone || now >= n.reselect) {
+      n.victim = reselect(list, n.victim)
+      n.reselect = now + UPDATE_INTERVAL
+    }
+    return n.victim
+  }
+  /**
+   * Nobody left to hit: it leaves the fight, and the list goes with it —
+   * `EnterEvadeMode` clears the threat it was holding.
+   */
+  const evade = (n: Npc) => {
+    n.angry = false
+    n.threat = {}
+    n.victim = null
+    n.taunted = 0
+  }
+
   /** A wound of somebody else's, ticking on the player. */
   let youBleed: { until: number; next: number; each: number } | null = null
   /** A clock the render check can hold still — see `__clock`. */
@@ -4943,6 +5000,12 @@ async function main() {
 
   function fighting() {
     if (you.died) {
+      // A dead man is offline on every list, so whatever killed him has
+      // nobody left to hit and goes home — see `victimOf`.  Before this the
+      // pack stood where he fell, angry, until he walked back into it.
+      for (const n of active) {
+        if (n.angry && !n.dead && !victimOf(n, false)) evade(n)
+      }
       // Dead is dead for a moment, and then you wake up at a graveyard.
       //
       // Not where you started and not where you fell.  `game_graveyard` and
@@ -5035,6 +5098,12 @@ async function main() {
       }
       if (n.angry) quiet = false
       if (!n.angry) continue
+      // Who it is hitting, off its list.  Always you while you stand — see
+      // `src/sim/threat.ts` for why — but read, not assumed.
+      if (victimOf(n, d2 <= reach2) !== 'you') {
+        if (!n.victim) evade(n)
+        continue
+      }
       // Angry ones walk at you; `wander` is told to leave them alone.
       if (d2 > reach2) continue
       if (clock * 1000 < n.next) continue
@@ -13744,6 +13813,16 @@ async function main() {
     openShop(best)
     return { entry: best.entry, discount: discountAt(best.entry) }
   }
+  /**
+   * Every creature near him that is angry or has anybody on its list — for
+   * the check that the victim is read off the list, and that a death takes
+   * him off every one of them.
+   */
+  ;(window as unknown as { __threat: (ids?: number[]) => unknown }).__threat =
+    (ids) => (ids ? ids.map((i) => npcs[i]).filter((n): n is Npc => !!n)
+      : active.filter((n) => n.angry || Object.keys(n.threat).length))
+      .map((n) => ({ id: npcs.indexOf(n), angry: n.angry, victim: n.victim,
+        threat: { ...n.threat } }))
   /**
    * The bar and the book, for the checks that the arrangement is a choice.
    *

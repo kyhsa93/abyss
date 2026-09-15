@@ -933,6 +933,33 @@ check('dying puts you at a graveyard and costs the walk back',
   `woke up ${died.walked.toFixed(0)} yards away with `
   + `${died.now.hp} of ${died.now.max} health`)
 
+// Who a creature hits is read off its threat list (issue 73).  `simcheck`
+// runs the switching on lists of two and three; this asks the scene whether it
+// reads the rule at all — the victim comes off the list, and a death takes the
+// player off every list so what killed him goes home.  **After** the check
+// above and not before it: this one dies too, and a second death from the
+// graveyard walks nowhere, which is how the check above failed the first time.
+{
+  await p.evaluate(() => window.__anger())
+  const angry = await p.waitForFunction(() => {
+    const t = window.__threat().filter((x) => x.angry)
+    return t.length && t.every((x) => x.victim === 'you' && 'you' in x.threat)
+      ? t : null
+  }, null, { timeout: 10000 }).then((h) => h.jsonValue()).catch(() => null)
+  check('an angry creature hits the name its threat list gives',
+    !!angry && angry.length > 0,
+    JSON.stringify(angry?.slice(0, 3)))
+  const after = await p.evaluate((ids) => {
+    window.__die()
+    return window.__threat(ids)
+  }, (angry ?? []).map((x) => x.id))
+  check('and a death takes you off every list, so it leaves the fight',
+    !!angry && after.length === angry.length
+    && after.every((x) => !x.angry && x.victim === null
+      && Object.keys(x.threat).length === 0),
+    JSON.stringify(after.slice(0, 3)))
+}
+
 // 9k. And closing the tab costs nothing.  There was no `localStorage` and no
 // `indexedDB` anywhere in `src/`: shutting the tab deleted the character.
 const before2 = await p.evaluate(() => window.__save())

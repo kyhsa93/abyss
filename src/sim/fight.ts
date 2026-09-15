@@ -198,11 +198,10 @@ export const RAGE_DEALT = 7.5, RAGE_TAKEN = 2.5, RAGE_PER_SECOND_OF_SWING = 3.5
  * for one, and a spell's own row in `spell_threat` moves it — a flat amount
  * on top, a multiplier over the whole, and a share of attack power.
  *
- * With one player and no pets there is only ever one name on a creature's
- * list, so nothing *chooses* differently yet.  It is here because the list is
- * the thing taunt acts on and because "who is it hitting" should be a rule
- * before it is a question — and because without it, `spell_threat`'s hundred
- * and six rows are another table nobody reads.
+ * With one player and no pet ever standing there is only ever one name on a
+ * creature's list; the victim is read off it by `src/sim/threat.ts` all the
+ * same, which says what that still changes.  Without this, `spell_threat`'s
+ * hundred and six rows are another table nobody reads.
  */
 export function threatFrom(damage: number, mods: number[] | undefined,
   attackPower = 0): number {
