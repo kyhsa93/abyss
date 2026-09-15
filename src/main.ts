@@ -3150,6 +3150,18 @@ async function main() {
         // against where it *is*, so a creature the database put inside is not
         // suddenly walled in by its own house.
         || (shutOut(x, y) !== shutOut(n.x, n.y))
+        // **And a roof**, which is the other edge the scene draws by.
+        //
+        // `shutOut` is where a man may walk and `roofOver` is who is drawn,
+        // and they stopped being the same edge twice: a building with no door
+        // shuts nobody out (be1db0c) and a front door's way in is open under
+        // the eaves (3ab00c8) — and both are still roof.  Measured over the
+        // slice's 998 wanderers, six had a leash crossing a roof edge that
+        // `shutOut` did not see, and a chicken grazing into a cottage's porch
+        // blinked out of the scene and back four times in two minutes.  The
+        // draw loop's edge is the one a wanderer must not cross, or it is seen
+        // to cross it.
+        || (!roofOver(x, y) !== !roofOver(n.x, n.y))
       if (!wall(n.x + dx, n.y)) n.x += dx
       if (!wall(n.x, n.y + dy)) n.y += dy
       n.dir = facing(n.vx, n.vy)
@@ -9302,6 +9314,42 @@ async function main() {
    * re-derives the condition is a check that agrees with itself.
    */
   const hidden: { x: number; y: number; kind: string; why: string }[] = []
+  /**
+   * Whether the scene can see somebody, and if not why — the draw loop's own
+   * decision, as a function, so a check can ask it every step without a frame
+   * in between.
+   *
+   * It was written inline in the loop, which is right for a check that reads
+   * one frame and wrong for the one issue 173 asked for: *somebody wandering
+   * does not appear and disappear*.  A frame is sixteen milliseconds and a
+   * wander is minutes, so a check that had to wait for frames to watch it
+   * could watch a few seconds.  Pulled out rather than copied, because a check
+   * that re-derives the rule is a check that agrees with itself.
+   */
+  const sightOf = (n: Npc) => {
+    // A kobold in a mine is in the mine, and the mine is not a WMO so
+    // `inRoom` cannot see it.  Without this the whole of Ant'hill stood on
+    // the hillside above itself.
+    const mine = n.cave !== undefined ? caves[n.cave]! : null
+    // Under somebody's **roof**, not merely inside somebody's outline — see
+    // `roofOver`.  Asked the outline's way this hid eight people standing in
+    // the abbey's yard under the open sky, and made anybody who wandered
+    // across the silhouette's edge blink.
+    const roof = mine ?? roofOver(n.x, n.y)
+    // And which floor of it.  A creature's height is the server's, the same
+    // number the mines already lean on, so this is the same question asked
+    // of a spawn instead of a barrel.
+    const up = roof ? storeyOf(roof, n.z) : -1
+    // Why, so the check can ask whether it was deserved.  Three reasons and
+    // they are not the same: a roof cut from the building's own triangles, a
+    // building with no plan at all — which is drawn as a picture, so its
+    // inside is not a place — and a mine, which is not a model and has no
+    // plan by construction.
+    const why = indoors
+      ? (roof !== indoors || up !== storey ? 'outside the room you are in' : null)
+      : !roof ? null : mine ? 'mine' : !roof.plan ? 'sprite' : 'roof'
+    return { roof, up, why }
+  }
   /** How many tiles this frame were an edge rather than a fill. */
   let edged = 0
   /** How many tiles the ground loop looked at, against how many it drew. */
@@ -11378,28 +11426,12 @@ async function main() {
       // A kobold in a mine is in the mine, and the mine is not a WMO so
       // `inRoom` cannot see it.  Without this the whole of Ant'hill stood on
       // the hillside above itself.
-      const mine = n.cave !== undefined ? caves[n.cave]! : null
-      // Under somebody's **roof**, not merely inside somebody's outline — see
-      // `roofOver`.  Asked the outline's way this hid eight people standing in
-      // the abbey's yard under the open sky, and made anybody who wandered
-      // across the silhouette's edge blink.
-      const roof = mine ?? roofOver(n.x, n.y)
-      // And which floor of it.  A creature's height is the server's, the same
-      // number the mines already lean on, so this is the same question asked
-      // of a spawn instead of a barrel.
-      const up = roof ? storeyOf(roof, n.z) : -1
-      if (indoors && roof === indoors && up === storey) {
-        indoorFolk.push([n.x, n.y, up, n.kind])
+      const seen = sightOf(n)
+      if (indoors && seen.roof === indoors && seen.up === storey) {
+        indoorFolk.push([n.x, n.y, seen.up, n.kind])
       }
-      if (indoors ? (roof !== indoors || up !== storey) : !!roof) {
-        // Why, so the check can ask whether it was deserved.  Three reasons
-        // and they are not the same: a roof cut from the building's own
-        // triangles, a building with no plan at all — which is drawn as a
-        // picture, so its inside is not a place — and a mine, which is not a
-        // model and has no plan by construction.
-        hidden.push({ x: n.x, y: n.y, kind: n.kind,
-          why: indoors ? 'outside the room you are in'
-            : mine ? 'mine' : roof && !roof.plan ? 'sprite' : 'roof' })
+      if (seen.why) {
+        hidden.push({ x: n.x, y: n.y, kind: n.kind, why: seen.why })
         continue
       }
       actors.push({ x: n.x, y: n.y, draw: () => drawNpc(n) })
@@ -13039,6 +13071,13 @@ async function main() {
   /** Who was on screen and left out anyway, last frame. */
   ;(window as unknown as { __hidden: () => unknown }).__hidden = () =>
     hidden.map((n) => ({ x: n.x, y: n.y, kind: n.kind, why: n.why }))
+  /**
+   * Whether the scene would leave each of these people out right now, and
+   * why — `sightOf`, which is the draw loop's own decision, asked between
+   * frames.  By index into `__all()`.
+   */
+  ;(window as unknown as { __sight: (at: number[]) => (string | null)[] })
+    .__sight = (at) => at.map((i) => (npcs[i] ? sightOf(npcs[i]!).why : null))
   /** What a building's outline was painted with, last frame, by tile name. */
   ;(window as unknown as { __underRoof: () => Record<string, number> })
     .__underRoof = () => Object.fromEntries(indoorPaint)

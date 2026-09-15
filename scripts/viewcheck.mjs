@@ -3865,6 +3865,80 @@ for (const [name, x, y, zoom] of [['the abbey', -8930, -170, 0.7],
       + 'them under a roof, in a sprite, or down a mine')
 }
 
+// 22b. And nobody wandering near a roof blinks in and out of the scene.
+//
+// Issue 173's second half, which the check above never asked: it reads one
+// frame, and blinking is a thing that happens *between* frames.  The draw loop
+// hides whoever `roofOver` puts under a roof and a wanderer's leash is held to
+// `shutOut` — and those stopped being one edge twice, once when a building
+// with no door stopped shutting anybody out (be1db0c) and once when a front
+// door's way in was opened under the eaves (3ab00c8).  Six of the slice's 998
+// leashes crossed a roof edge that `shutOut` did not see, and a chicken
+// grazing into a cottage's porch left the scene and came back four times in
+// two minutes.
+//
+// Who is watched is chosen from **home** positions, because a leash is a
+// circle round home and where somebody happens to be standing is the weather.
+// Asked with `__sight`, which is the draw loop's own decision rather than a
+// copy of it, every step for three thousand steps — two and a half minutes of
+// wandering, which no run of frames could afford.
+{
+  const watch = await p.evaluate(() => {
+    const roofed = (x, y) => {
+      if (!window.__inside(x, y)) return false
+      const q = window.__plotAt(x, y)
+      return !q || q.roofed
+    }
+    const all = window.__all()
+    const near = []
+    all.forEach((n, i) => {
+      if (!n.wander || n.dead) return
+      let under = false, open = false
+      for (let a = 0; a < 32; a++) {
+        for (const f of [0.25, 0.5, 0.75, 1]) {
+          const t = (a / 16) * Math.PI
+          if (roofed(n.hx + Math.cos(t) * n.wander * f, n.hy + Math.sin(t) * n.wander * f)) under = true
+          else open = true
+        }
+      }
+      if (under && open) near.push(i)
+    })
+    const out = []
+    for (const i of near) {
+      const n = all[i]
+      // Close enough to be awake and not so close that he is in anybody's way.
+      window.__cam({ x: n.hx + 30, y: n.hy })
+      let was = window.__sight([i])[0]
+      let blinks = 0, walked = 0
+      let at = window.__all()[i]
+      for (let s = 0; s < 3000; s++) {
+        window.__steps(1)
+        const now = window.__sight([i])[0]
+        if (!!now !== !!was) blinks++
+        was = now
+        const q = window.__all()[i]
+        walked += Math.hypot(q.x - at.x, q.y - at.y)
+        at = q
+      }
+      out.push({ who: `${n.kind} at ${Math.round(n.hx)},${Math.round(n.hy)}`, blinks, walked })
+    }
+    return out
+  })
+  const blinked = watch.filter((w) => w.blinks > 0)
+  // Non-vacuous twice over: somebody's leash has to cross a roof edge, and
+  // they have to have actually walked — a creature standing still does not
+  // blink under any rule.
+  check('and nobody wandering near a roof blinks in and out of the scene',
+    watch.length > 0 && watch.some((w) => w.walked > 5) && blinked.length === 0,
+    blinked.length
+      ? blinked.map((w) => `${w.who} ${w.blinks} times`).join(', ')
+      : `${watch.length} leashes cross a roof edge, `
+        + `${watch.filter((w) => w.walked > 5).length} of them walked`)
+  console.log(`      (${watch.length} watched for 3,000 steps each, `
+    + `${watch.reduce((a, w) => a + Math.round(w.walked), 0)} yards walked, `
+    + `${blinked.length} blinked)`)
+}
+
 // 23. A screen has somebody on it.
 //
 // 1,556 people over 5.4 million square yards is the original's own spawn
