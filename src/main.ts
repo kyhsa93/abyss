@@ -13315,6 +13315,8 @@ async function main() {
     slots: roomFor(),
     mine: me ? mySlot : 0,
     up: !document.getElementById('pick')?.hidden,
+    // Whether the question before a delete is on the screen.
+    asking: !(document.querySelector('#pick .confirm') as HTMLElement | null)?.hidden,
     rows: cards.map((c) => ({
       slot: c.slot,
       name: c.save.you.who?.name ?? '',
@@ -13339,13 +13341,34 @@ async function main() {
     drawCreate()
     return { slot: free }
   }
-  /** And remove one. */
-  ;(window as unknown as { __pickErase: (slot: number) => unknown })
-    .__pickErase = (slot) => {
-      cards = cards.filter((c) => c.slot !== slot)
-      wipeSave(slot).catch(() => {})
+  /**
+   * And remove one — **through the question, not around it.**
+   *
+   * This used to filter the list and wipe the slot itself, which was exactly
+   * what the screen's own button did on a single press; now the button asks
+   * for the name, and a hook that went round the question would keep the old
+   * checks green whatever became of it.  So it presses what a player presses:
+   * choose the row, open the question, type, and press 삭제.  `typed` is what
+   * goes in the box, the character's own name when it is left out, so a check
+   * can also type the wrong one.  `open` says whether the button would press.
+   */
+  ;(window as unknown as { __pickErase: (slot: number, typed?: string) => unknown })
+    .__pickErase = (slot, typed) => {
+      const card = cards.find((c) => c.slot === slot)
+      if (!card) return null
+      chosen = slot
       drawPick()
-      return { left: cards.length }
+      const q = <T extends HTMLElement>(sel: string) =>
+        document.querySelector(`#pick ${sel}`) as T | null
+      q<HTMLButtonElement>('.foot .erase')?.click()
+      const box = q<HTMLInputElement>('.confirm .name')
+      if (!box) return null
+      box.value = typed ?? (card.save.you.who?.name || '주인공')
+      box.dispatchEvent(new Event('input'))
+      const yes = q<HTMLButtonElement>('.confirm .really')
+      const open = !!yes && !yes.disabled
+      yes?.click()
+      return { open, left: cards.length }
     }
 
   ;(window as unknown as { __makeOne: (name: string, cls?: number) => unknown })

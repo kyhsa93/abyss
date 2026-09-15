@@ -805,6 +805,47 @@
       #pick .ok:hover:enabled, #pick .dice:hover:enabled,
       #pick .erase:hover:enabled { background: rgba(201,168,106,.24); }
       body.touch #pick .stage { width: calc(100vw - 20px); }
+      /* A label is one line.  On a phone the footer squeezed all four into
+         a 334-pixel row and each broke where it could: 지우/기, 새로 만들/기 and
+         the count over three lines, with the client's 200-pixel enter button
+         taking most of the row. */
+      #pick button, #pick .say { white-space: nowrap; }
+      /* `display: flex` beats `hidden`, the same trap `#pick` itself names. */
+      #pick .foot[hidden], #pick .confirm[hidden] { display: none; }
+      /* The footer's phone layout is the rule above that shares the row among
+         its three buttons; the question below it needs the same floor. */
+      body.touch #pick .really, body.touch #pick .confirm .dice,
+      body.touch #pick .confirm .name {
+        min-height: 44px;
+      }
+      /* The question before a character is deleted — see `pickAsk`. */
+      #pick .confirm {
+        display: flex; flex-direction: column; gap: 8px;
+        margin-top: 12px; padding-top: 8px;
+        border-top: 1px solid var(--gold-dark);
+      }
+      #pick .confirm .ask {
+        color: var(--ink); font: var(--font-small)/1.5 var(--body);
+        white-space: normal;
+      }
+      #pick .confirm .name {
+        background: rgba(0,0,0,.4); border: 1px solid var(--gold-dark);
+        border-radius: 3px; color: var(--ink); font: inherit; padding: 0 8px;
+        box-sizing: border-box; height: 32px;
+      }
+      #pick .confirm .row { display: flex; justify-content: flex-end; gap: 10px; }
+      #pick .confirm .dice, #pick .really {
+        border-radius: 3px; color: var(--ink); font: inherit; cursor: pointer;
+        padding: 0 14px; height: 32px;
+      }
+      #pick .confirm .dice {
+        background: rgba(201,168,106,.12); border: 1px solid var(--gold-dark);
+      }
+      /* Red, because it is the one button on this screen that cannot be
+         undone — and dim until the name is right, which is the whole gate. */
+      #pick .really { background: rgba(160,52,40,.35); border: 1px solid #a5483a; }
+      #pick .really:disabled { opacity: .35; cursor: default; }
+      #pick .really:hover:enabled { background: rgba(160,52,40,.55); }
 
       /* The shop.  Its box comes from `MerchantFrame` — 384 by 512 in the
          gossip window's corner — so what is written here is only what a row

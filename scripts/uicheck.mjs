@@ -408,13 +408,61 @@ for (const [W, H] of SIZES) {
     && second?.cls === 5,
     after.rows.map((r) => `${r.slot}:${r.name} ${r.level}레벨 직업${r.cls}`).join(', '))
 
-  // And deleting removes one and only one.
-  await p.evaluate(() => window.__pickErase(1))
+  // **And deleting asks for the name first.**  It was one press of a button
+  // beside 새로 만들기, and on a phone that is where a thumb lands when it
+  // misses.  Everything below is pressed through the pointer on the first
+  // row, which is not the one the list opened on — pressing what is already
+  // chosen passes whether or not the press arrived.
+  const rowsNow = async () => (await p.evaluate(() => window.__picks()))
+  await p.locator('#pick .card').nth(0).click()
+  await p.locator('#pick .foot .erase').click()
+  const pressed = await rowsNow()
+  const label = await p.locator('#pick .foot .erase').textContent()
+  check('pressing 캐릭터 삭제 alone deletes nothing, it asks',
+    pressed.asking === true && pressed.rows.length === 2 && label === '캐릭터 삭제',
+    `${pressed.rows.length} characters, question ${pressed.asking ? 'up' : 'not up'}, `
+    + `button says ${label}`)
+  const blank = await p.locator('#pick .confirm .really').isDisabled()
+  await boot()
+  const afterPress = await rowsNow()
+  check('and that stays true after a reload, and the delete button starts dim',
+    afterPress.rows.length === 2 && blank,
+    `${afterPress.rows.length} characters, 삭제 ${blank ? 'disabled' : 'enabled'}`)
+  // Cancel leaves everything.
+  await p.locator('#pick .card').nth(0).click()
+  await p.locator('#pick .foot .erase').click()
+  await p.locator('#pick .confirm .dice').click()
+  const cancelled = await rowsNow()
+  check('and 취소 puts the list back with everybody on it',
+    cancelled.asking === false && cancelled.rows.length === 2
+    && await p.locator('#pick .foot').isVisible(),
+    `${cancelled.rows.length} characters, question ${cancelled.asking ? 'up' : 'gone'}`)
+  // A wrong name keeps the button dim — typed through the hook, which goes
+  // through the question rather than round it.
+  const wrong = await p.evaluate(() => window.__pickErase(1, '첫'))
+  // Only if the question is still up: with the gate broken the wrong name
+  // deletes him and there is nothing left to cancel, and a check that then
+  // waits for a button that is gone reports a timeout instead of the rule.
+  if (await p.locator('#pick .confirm').isVisible()) {
+    await p.locator('#pick .confirm .dice').click()
+  }
+  await boot()
+  const afterWrong = await rowsNow()
+  check('and a name that is not his keeps 삭제 disabled and deletes nothing',
+    wrong?.open === false && afterWrong.rows.length === 2,
+    `typed 첫 for 첫째: button ${wrong?.open ? 'enabled' : 'disabled'}, `
+    + `${afterWrong.rows.length} characters after a reload`)
+  // The right name, typed into the box and confirmed by the pointer.
+  await p.locator('#pick .card').nth(0).click()
+  await p.locator('#pick .foot .erase').click()
+  await p.locator('#pick .confirm .name').fill('첫째')
+  await p.locator('#pick .confirm .really').click()
+  const gone1 = await rowsNow()
   await p.waitForTimeout(300)
   await boot()
   const left = await p.evaluate(() => window.__picks())
   check('deleting takes one away and leaves the rest',
-    left.rows.length === 1 && left.rows[0].slot === 2,
+    gone1.rows.length === 1 && left.rows.length === 1 && left.rows[0].slot === 2,
     left.rows.map((r) => `${r.slot}:${r.name}`).join(', ') || 'nobody')
   await ctx.close()
 }

@@ -493,6 +493,27 @@ export function hud(layout?: Layout) {
   const pickErase = el('button', 'erase', pickFoot) as HTMLButtonElement
   const pickNew = el('button', 'dice', pickFoot) as HTMLButtonElement
   const pickEnter = el('button', 'ok', pickFoot) as HTMLButtonElement
+  /**
+   * Deleting one, which asks you to type the name first.
+   *
+   * It was a button beside 새로 만들기 that deleted on a single press, and a
+   * phone's footer is where a thumb lands when it misses the button next
+   * door: one stray tap was a character gone for good.  The original asks
+   * for the same thing before it deletes — you type the name — so the button
+   * that does it is not enabled by pressing anything, only by a word that
+   * could not have been typed by accident.  Cancel is the list again.
+   */
+  const pickAsk = el('div', 'confirm', pickBox)
+  pickAsk.hidden = true
+  const pickAskSay = el('div', 'ask', pickAsk)
+  const pickAskName = el('input', 'name', pickAsk) as HTMLInputElement
+  pickAskName.autocomplete = 'off'
+  pickAskName.spellcheck = false
+  const pickAskFoot = el('div', 'row', pickAsk)
+  const pickAskNo = el('button', 'dice', pickAskFoot) as HTMLButtonElement
+  const pickAskYes = el('button', 'really', pickAskFoot) as HTMLButtonElement
+  /** Which slot the question is about, or null when nobody is being asked. */
+  let asking: number | null = null
 
   // The shop.
   //
@@ -809,8 +830,12 @@ export function hud(layout?: Layout) {
         el('span', 'who', b).textContent = row.name
         el('span', 'what', b).textContent = row.what
         el('span', 'where', b).textContent = row.can ? row.where : row.why ?? ''
-        b.onclick = () => screen.choose(row.slot)
-        b.ondblclick = () => { if (row.can) screen.enter(row.slot) }
+        // Not while the question is up: choosing somebody else under a box
+        // that names the first is how the wrong name gets typed.
+        b.onclick = () => { if (asking === null) screen.choose(row.slot) }
+        b.ondblclick = () => {
+          if (asking === null && row.can) screen.enter(row.slot)
+        }
       }
       if (!screen.rows.length) {
         el('div', 'empty', pickList).textContent = '아직 아무도 없다'
@@ -826,10 +851,60 @@ export function hud(layout?: Layout) {
       pickNew.style.height = `${screen.size.back[1]}px`
       pickNew.disabled = !screen.room
       pickNew.onclick = screen.make
-      pickErase.textContent = '지우기'
+      // **Any row may be deleted, a refused one included** — a save from a
+      // world that has since been re-baked is listed so that removing it is
+      // the player's decision, and that is still the rule.
+      pickErase.textContent = '캐릭터 삭제'
       pickErase.style.height = `${screen.size.back[1]}px`
       pickErase.disabled = !one
-      pickErase.onclick = () => screen.erase(screen.chosen)
+      const named = () => screen.rows.find((r) => r.slot === asking)
+      const typedRight = () => {
+        const who = named()
+        return !!who && pickAskName.value === who.name
+      }
+      /**
+       * Show or put away the question.  `fresh` empties the box: opening it
+       * starts from nothing, but a redraw of the list while it is open — a
+       * sheet finishing its download, say — must not throw away what was
+       * typed.
+       */
+      const show = (fresh: boolean) => {
+        const who = named()
+        if (!who) asking = null
+        pickAsk.hidden = !who
+        pickFoot.hidden = !!who
+        if (!who) return
+        pickAskSay.textContent = `「${who.name}」 캐릭터를 삭제한다. 되돌릴 수 `
+          + '없다. 지우려면 이름을 똑같이 입력한다.'
+        if (fresh) pickAskName.value = ''
+        pickAskYes.disabled = !typedRight()
+        if (fresh) pickAskName.focus()
+      }
+      show(false)
+      pickErase.onclick = () => { asking = screen.chosen; show(true) }
+      pickAskNo.textContent = '취소'
+      pickAskNo.onclick = () => { asking = null; show(false) }
+      pickAskYes.textContent = '삭제'
+      pickAskName.maxLength = 12
+      pickAskName.oninput = () => { pickAskYes.disabled = !typedRight() }
+      // The game reads keys off `window` as they bubble, so a name with a W in
+      // it would walk him; and Enter and Escape are the two keys a box that
+      // asks a question is expected to answer.
+      pickAskName.onkeydown = (e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter' && typedRight()) pickAskYes.click()
+        if (e.key === 'Escape') pickAskNo.click()
+      }
+      pickAskYes.onclick = () => {
+        // Asked again rather than trusted to the disabled flag: `disabled` is
+        // a property anybody can clear, and this is the one press here that
+        // cannot be taken back.
+        if (!typedRight()) return
+        const slot = asking!
+        asking = null
+        show(false)
+        screen.erase(slot)
+      }
       // The same on this screen: the client's 250-wide list and its wide
       // button left 지우기 and 새로 만들기 to break mid-word and 1 / 10 to
       // stand on end.  On a phone the list is the width of the panel and the

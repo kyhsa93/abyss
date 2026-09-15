@@ -1249,6 +1249,103 @@ check('the readout and the help line are Korean',
     JSON.stringify(overlay))
 }
 
+// 15. And deleting one, with a finger.
+//
+// The button was 지우기 and a single tap removed the character for good, and
+// on this screen it sat beside 새로 만들기 in a footer that broke every label
+// over two lines: 지우/기, 새로 만들/기, and the count on a third.  A delete a
+// stray thumb can do is the one press on the screen that cannot be undone, so
+// it asks for the name now, and every press here is a real touch.
+{
+  const tap = async (sel, nth = 0) => {
+    const at = await p.locator(sel).nth(nth).boundingBox()
+    await touch('touchStart', [[at.x + at.width / 2, at.y + at.height / 2]])
+    await touch('touchEnd', [])
+  }
+  const picks = () => p.evaluate(() => window.__picks())
+  const back = async () => {
+    await p.reload()
+    await p.waitForFunction(() => window.__picks !== undefined
+      && window.__picks().up, null, { timeout: 60000 })
+  }
+  await back()
+  const start = await picks()
+  const victim = start.rows.find((r) => r.name === '둘째')
+  const idx = start.rows.indexOf(victim)
+  check('a phone opens on the list with the one to delete on it',
+    start.up === true && !!victim && start.rows.length >= 2,
+    start.rows.map((r) => `${r.slot}:${r.name}`).join(', '))
+
+  // **The footer is one line a label and a thumb high.**  Counted as the
+  // distinct line tops of each label's own text, which is what wrapping is.
+  const foot = await p.evaluate(() => [...document.querySelectorAll('#pick .foot > *')]
+    .map((el) => {
+      const r = document.createRange()
+      r.selectNodeContents(el)
+      const tops = new Set([...r.getClientRects()].map((x) => Math.round(x.top)))
+      const b = el.getBoundingClientRect()
+      return { text: el.textContent, lines: tops.size, h: Math.round(b.height),
+        button: el.tagName === 'BUTTON', right: Math.round(b.right) }
+    }))
+  check('and every label in its footer is on one line, and a thumb high',
+    foot.length === 4 && foot.every((f) => f.lines <= 1)
+    && foot.filter((f) => f.button).every((f) => f.h >= 44)
+    && foot.every((f) => f.right <= p.viewportSize().width),
+    foot.map((f) => `${f.text} ${f.lines} line${f.lines === 1 ? '' : 's'} ${f.h}px`)
+      .join(' | '))
+
+  // A tap on 캐릭터 삭제 alone asks, and deletes nobody — reload to be sure.
+  await tap('#pick .card', idx)
+  await tap('#pick .foot .erase')
+  const asked = await picks()
+  const ask = await p.evaluate(() => [...document.querySelectorAll(
+    '#pick .confirm .name, #pick .confirm button')].map((el) =>
+    Math.round(el.getBoundingClientRect().height)))
+  check('a tap on 캐릭터 삭제 asks for the name and deletes nobody',
+    asked.asking === true && asked.rows.length === start.rows.length
+    && ask.length === 3 && ask.every((h) => h >= 44),
+    `question ${asked.asking ? 'up' : 'not up'}, ${asked.rows.length} characters, `
+    + `box and buttons ${ask.join(', ')}px`)
+  await back()
+  check('and nobody is gone after a reload',
+    (await picks()).rows.length === start.rows.length,
+    `${(await picks()).rows.length} of ${start.rows.length}`)
+
+  // 취소 leaves everything.
+  await tap('#pick .card', idx)
+  await tap('#pick .foot .erase')
+  await tap('#pick .confirm .dice')
+  const kept = await picks()
+  check('and 취소 is the list again, with everybody on it',
+    kept.asking === false && kept.rows.length === start.rows.length,
+    `question ${kept.asking ? 'up' : 'gone'}, ${kept.rows.length} characters`)
+
+  // A wrong name keeps 삭제 dim, and a tap on it does nothing.
+  await tap('#pick .card', idx)
+  await tap('#pick .foot .erase')
+  await p.locator('#pick .confirm .name').fill('둘')
+  const dim = await p.locator('#pick .confirm .really').isDisabled()
+  await tap('#pick .confirm .really')
+  const stillThere = await picks()
+  check('and with the wrong name typed 삭제 stays disabled and a tap on it does nothing',
+    dim && stillThere.rows.length === start.rows.length,
+    `typed 둘 for 둘째: ${dim ? 'disabled' : 'enabled'}, `
+    + `${stillThere.rows.length} characters`)
+
+  // The right name, and a tap: that one goes, and only that one, for good.
+  await p.locator('#pick .confirm .name').fill('둘째')
+  await tap('#pick .confirm .really')
+  await back()
+  const after = await picks()
+  check('and with his name typed a tap on 삭제 removes him and only him, for good',
+    after.rows.length === start.rows.length - 1
+    && !after.rows.some((r) => r.slot === victim?.slot)
+    && start.rows.filter((r) => r.slot !== victim?.slot)
+      .every((r) => after.rows.some((a) => a.slot === r.slot)),
+    `${start.rows.map((r) => r.name).join(', ')} -> `
+    + `${after.rows.map((r) => r.name).join(', ')} after a reload`)
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()
