@@ -12456,6 +12456,25 @@ async function main() {
   ;(window as unknown as { __put: (x: number, y: number) => unknown })
     .__put = (x, y) => { placeHero(x, y); return { x: hero.x, y: hero.y } }
   /**
+   * **Test only**: put him exactly here, inside a wall if that is where here is.
+   *
+   * Every way the game moves him goes through `placeHero`, which since issue
+   * 165 moves him off a cell nobody can stand on — so the check on escaping a
+   * wall teleported into one with `__cam`, landed two yards outside it, and
+   * measured a walk across open ground.  Getting into a rock is the thing the
+   * game now prevents; getting out of one is the rule under test, and that
+   * has to start inside.
+   */
+  ;(window as unknown as { __putUnchecked: (x: number, y: number) => unknown })
+    .__putUnchecked = (x, y) => {
+      hero.x = x; hero.y = y
+      hero.was.x = x; hero.was.y = y
+      hero.ix = x; hero.iy = y
+      camX = x; camY = y
+      if (indoors && !stillInside(indoors, x, y)) { indoors = null; storey = -1 }
+      return { x: hero.x, y: hero.y, wall: wallAt(x, y), refused: footing(x, y) }
+    }
+  /**
    * The two seams, run on demand, and what floor the player is on.
    *
    * `__put` places him; it does not walk him, so neither seam fires.  A check
@@ -13345,17 +13364,22 @@ async function main() {
    * waiting on a swing timer while the thing wanders, and a rabbit dies before
    * it can be angry at anybody — so the check would be measuring the weather.
    */
-  ;(window as unknown as { __anger: () => unknown }).__anger = () => {
-    let best: Npc | null = null, bd = Infinity
-    for (const n of active) {
-      if (n.dead || !fightable(n.fight)) continue
-      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
-      if (d < bd) { bd = d; best = n }
+  //
+  // Nearest to a point when given one, for the chase check: it angers a
+  // particular creature outside a wall, and the nearest to a player standing
+  // indoors is usually somebody in the room with him.
+  ;(window as unknown as { __anger: (x?: number, y?: number) => unknown })
+    .__anger = (x = hero.x, y = hero.y) => {
+      let best: Npc | null = null, bd = Infinity
+      for (const n of active) {
+        if (n.dead || !fightable(n.fight)) continue
+        const d = (n.x - x) ** 2 + (n.y - y) ** 2
+        if (d < bd) { bd = d; best = n }
+      }
+      if (!best) return null
+      best.angry = true
+      return { kind: best.kind, away: Math.sqrt(bd), x: best.x, y: best.y }
     }
-    if (!best) return null
-    best.angry = true
-    return { kind: best.kind, away: Math.sqrt(bd) }
-  }
   /** Let go of whatever is aimed at, for the check that aim comes back. */
   ;(window as unknown as { __unaim: () => unknown }).__unaim = () => {
     you.target = null

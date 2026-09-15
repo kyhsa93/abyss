@@ -2630,48 +2630,70 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
 // four directions out of a blocked cell ended on another blocked cell, so the
 // hatch never closed behind you.  Indoors it was wider still — `footing`
 // refuses every cell that is not floor, which is 41% of the abbey.
+//
+// And it has to start inside.  This teleported with `__cam`, which goes
+// through `placeHero`, and since issue 165 that moves him off anything nobody
+// can stand on — so it started two yards outside the wall, measured nought
+// yards of rock and passed on a walk across a field.  `__putUnchecked` is the
+// test-only way in, the start is asserted to be refused, and the spot is one
+// step inside with open ground two yards off, which is the case `wayOut`
+// exists for; a man in the middle of a mountain is let move freely on purpose.
+//
+// Walked a step at a time with `__steps`, not sampled off the clock: the held
+// key becomes the walk the next time a frame is drawn, so two frames are
+// waited for and then the steps are run and every one of them is read.
 {
   const spot = await p.evaluate(() => {
     const B = window.__bounds()
     for (let x = B[0] + 200; x < B[1] - 200; x += 7) {
       for (let y = B[2] + 200; y < B[3] - 200; y += 7) {
-        if (window.__wallAt(x, y)) return { x, y }
+        if (!window.__wallAt(x, y)) continue
+        for (let a = 0; a < 8; a++) {
+          const t = (a / 8) * Math.PI * 2
+          if (window.__canWalk(x + Math.cos(t) * 2, y + Math.sin(t) * 2)) return { x, y }
+        }
       }
     }
     return null
   })
   check('there is somewhere in this world a man cannot stand', !!spot)
   if (spot) {
-    const worst = []
-    for (const [name, k] of [['north', 'w'], ['south', 's'],
-      ['west', 'a'], ['east', 'd']]) {
-      await p.evaluate(([x, y]) => window.__cam({ x, y }), [spot.x, spot.y])
-      await p.waitForTimeout(150)
-      await p.keyboard.down(k)
-      let run = 0, worstRun = 0, last = null, ends = false
-      for (let i = 0; i < 20; i++) {
-        await p.waitForTimeout(100)
-        const at = await p.evaluate(() => {
+    const worst = await p.evaluate(async (spot) => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => r()))
+      const out = []
+      for (const [name, k] of [['north', 'w'], ['south', 's'], ['west', 'a'], ['east', 'd']]) {
+        window.__putUnchecked(spot.x, spot.y)
+        window.__hold(k)
+        await frame()
+        await frame()
+        const start = window.__putUnchecked(spot.x, spot.y)
+        let run = 0, worstRun = 0, last = [spot.x, spot.y], ends = true, pushed = false
+        for (let i = 0; i < 40; i++) {
+          const w = window.__steps(1).want
+          pushed ||= w.x !== 0 || w.y !== 0
           const h = window.__hero()
-          return [h.x, h.y, window.__wallAt(h.x, h.y)]
-        })
-        if (at[2]) {
-          if (last) run += Math.hypot(at[0] - last[0], at[1] - last[1])
-          worstRun = Math.max(worstRun, run)
-        } else run = 0
-        last = [at[0], at[1]]
-        ends = at[2]
+          const inWall = window.__wallAt(h.x, h.y)
+          if (inWall) {
+            run += Math.hypot(h.x - last[0], h.y - last[1])
+            worstRun = Math.max(worstRun, run)
+          } else run = 0
+          last = [h.x, h.y]
+          ends = !window.__canWalk(h.x, h.y)
+        }
+        window.__hold(null)
+        out.push({ name, inside: start.wall && start.refused && pushed, worstRun, ends,
+          moved: Math.hypot(last[0] - spot.x, last[1] - spot.y) })
       }
-      await p.keyboard.up(k)
-      worst.push({ name, worstRun, ends })
-    }
-    const far = worst.filter((w) => w.worstRun > 3)
+      return out
+    }, spot)
+    const far = worst.filter((w) => !w.inside || w.worstRun > 3)
     check('walking out of it never crosses three yards of solid ground',
       far.length === 0,
-      worst.map((w) => `${w.name} ${w.worstRun.toFixed(1)}yd`).join(' '))
+      worst.map((w) => `${w.name} ${w.inside ? '' : '(did not start inside) '}`
+        + `${w.worstRun.toFixed(1)}yd of wall, ${w.moved.toFixed(1)}yd moved`).join(' · '))
     check('and every way out of it ends somewhere you can stand',
-      worst.every((w) => !w.ends),
-      worst.filter((w) => w.ends).map((w) => w.name).join(' '))
+      worst.every((w) => w.inside && !w.ends),
+      worst.filter((w) => !w.inside || w.ends).map((w) => w.name).join(' ') || 'all four')
   }
 }
 
@@ -2722,48 +2744,92 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
 //
 // Read as straight lines from a target, which is the shape a chase has: it
 // goes at you, not round anything.
+//
+// Driven rather than reasoned about — and it has to be driven.  It used to
+// pick the nearest thing marked `enemy`, never anger it and never ask whether
+// it moved: measured, a bandit 261 yards off, nought yards moved, not angry,
+// and a pass.  So the creature is one close enough to come — within forty
+// yards, one that moves at all (a spawn with no wander does not), whose
+// straight line in reaches the building's shut ground at least five yards
+// before it would reach him — it is angered, the world is stepped three
+// seconds at a time it can read, and it has to have come closer and never
+// once stood inside.
 {
-  // Driven rather than reasoned about: stand the player inside a building,
-  // anger something outside it, and watch.
+  // Chosen, placed, angered and watched in one evaluation, so no frame runs
+  // in between: the first version of this chose in one call and angered in
+  // the next, the creature had wandered a yard by then, and the nearest
+  // thing to where it had been was somebody else.
   const chase = await p.evaluate(() => {
-    const inside = window.__buildings()
-      .filter((b) => b.k !== 'mine' && (b.doors ?? []).length)
-      .map((b) => {
-        // Somewhere in it a body fits, found by walking out from the middle.
-        for (let r = 0; r < b.l; r += 2) {
-          for (let a = 0; a < 12; a++) {
-            const t = (a / 12) * Math.PI * 2
-            const x = b.x + Math.cos(t) * r, y = b.y + Math.sin(t) * r
-            const q = window.__plotAt(x, y)
-            if (q && q.floor && !q.wall) return { b, x, y }
-          }
+    let best = null
+    for (const b of window.__buildings()) {
+      if (b.k === 'mine' || !(b.doors ?? []).length) continue
+      let inside = null
+      // Somewhere in it a body fits, found by walking out from the middle.
+      for (let r = 0; r < b.l && !inside; r += 2) {
+        for (let a = 0; a < 12; a++) {
+          const t = (a / 12) * Math.PI * 2
+          const x = b.x + Math.cos(t) * r, y = b.y + Math.sin(t) * r
+          const q = window.__plotAt(x, y)
+          if (q && q.floor && !q.wall) { inside = { x, y }; break }
         }
-        return null
-      }).find(Boolean)
-    if (!inside) return null
-    // The nearest thing that would come at you, standing outside.
-    const foe = window.__all()
-      .filter((n) => !n.dead && n.stance === 'enemy'
-        && !window.__shutOut(n.x, n.y))
-      .sort((a, c) => Math.hypot(a.x - inside.x, a.y - inside.y)
-        - Math.hypot(c.x - inside.x, c.y - inside.y))[0]
-    if (!foe) return null
-    window.__put(inside.x, inside.y)
-    return { at: [inside.x, inside.y], foe: { x: foe.x, y: foe.y, kind: foe.kind } }
+      }
+      if (!inside) continue
+      for (const n of window.__all()) {
+        if (n.dead || n.stance === 'friend' || !(n.wander > 0)) continue
+        if (window.__shutOut(n.x, n.y)) continue
+        const d = Math.hypot(n.x - inside.x, n.y - inside.y)
+        if (d > 40) continue
+        let clear = null
+        for (let s = 0; s < d; s += 0.5) {
+          if (window.__shutOut(n.x + ((inside.x - n.x) / d) * s,
+            n.y + ((inside.y - n.y) / d) * s)) { clear = s; break }
+        }
+        if (clear === null || clear < 5) continue
+        if (!best || clear > best.clear) {
+          best = { b: b.k, at: [inside.x, inside.y], clear, gap: d,
+            foe: { x: n.x, y: n.y, kind: n.kind } }
+        }
+      }
+    }
+    if (!best) return null
+    // `__cam` and not `__put`: the creatures the world simulates are the ones
+    // near the *camera*, and `__put` leaves the camera where it was — so the
+    // creature chosen was not awake, `__anger` could not reach it, and the
+    // first run of this angered nothing.  `__cam` places him the same way and
+    // puts the camera on him, and one step rebuilds the list around it.
+    window.__cam({ x: best.at[0], y: best.at[1] })
+    window.__steps(1)
+    const it = window.__all().filter((m) => !m.dead)
+      .sort((a, c) => Math.hypot(a.x - best.foe.x, a.y - best.foe.y)
+        - Math.hypot(c.x - best.foe.x, c.y - best.foe.y))[0]
+    const angry = it ? window.__anger(it.x, it.y) : null
+    if (!angry || angry.away > 0.5) return { ...best, angry: null }
+    let pos = [angry.x, angry.y], inside = 0, closest = Infinity
+    for (let i = 0; i < 120; i++) {
+      window.__steps(1)
+      const n = window.__all().filter((m) => m.angry && !m.dead)
+        .sort((a, c) => Math.hypot(a.x - pos[0], a.y - pos[1])
+          - Math.hypot(c.x - pos[0], c.y - pos[1]))[0]
+      if (!n) break
+      pos = [n.x, n.y]
+      if (window.__shutOut(n.x, n.y)) inside++
+      const h = window.__hero()
+      closest = Math.min(closest, Math.hypot(n.x - h.x, n.y - h.y))
+    }
+    const h = window.__hero()
+    return { ...best, angry, inside, closest,
+      from: Math.hypot(angry.x - h.x, angry.y - h.y) }
   })
   check('there is a building with a floor and something outside it', !!chase,
     JSON.stringify(chase))
   if (chase) {
-    await p.waitForTimeout(2500)
-    const got = await p.evaluate(([fx, fy]) => {
-      const n = window.__all()
-        .sort((a, c) => Math.hypot(a.x - fx, a.y - fy)
-          - Math.hypot(c.x - fx, c.y - fy))[0]
-      return { in: window.__shutOut(n.x, n.y), moved: Math.hypot(n.x - fx, n.y - fy) }
-    }, [chase.foe.x, chase.foe.y])
-    check('and it does not walk through the wall to get at you', !got.in,
-      `it moved ${got.moved.toFixed(1)} yards and ended `
-      + `${got.in ? 'inside' : 'outside'}`)
+    check('and it does not walk through the wall to get at you',
+      !!chase.angry && chase.from - chase.closest >= 3 && chase.inside === 0,
+      chase.angry
+        ? `a ${chase.foe.kind} ${chase.from.toFixed(1)} yards off came to within `
+          + `${chase.closest.toFixed(1)} of him (the wall is ${chase.clear} yards `
+          + `along its way), and stood inside on ${chase.inside} of 120 steps`
+        : `the ${chase.foe.kind} chosen could not be angered`)
   }
 }
 
