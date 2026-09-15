@@ -8743,6 +8743,24 @@ async function main() {
   const splatLayer = document.createElement('canvas')
   const splatShare = document.createElement('canvas')
   /**
+   * **A canvas that is dropped is sized to nothing first.**
+   *
+   * Dropping the last reference leaves its pixels to the collector, and a
+   * phone's browser collects canvases late and caps what they may hold all
+   * together — iOS Safari at a few hundred megabytes.  Counted with nothing
+   * collected, zooming held 29 MB after load, 156 after five zoom steps and
+   * 449 after twenty: every step makes a new ground atlas of 20 to 30 MB and a
+   * screenful of plates, and the old ones waited.  Past the cap `getContext`
+   * answers null, the frame throws, and the game stops — which is what a phone
+   * saw as "zooming freezes it".  A canvas of nought by nought holds nothing
+   * whether or not anybody has collected it yet.
+   */
+  const releaseCanvas = (c: HTMLCanvasElement | null | undefined) => {
+    if (c) { c.width = 0; c.height = 0 }
+  }
+  /** The plate being composed, so a plate abandoned half-way is released too. */
+  let composing: HTMLCanvasElement | null = null
+  /**
    * What the blends inside a plate actually came out as, read back off the
    * layer's own pixels.  Only while a check asks — reading a plate back is a
    * `getImageData` of a quarter of a million pixels a ground.
@@ -8799,9 +8817,13 @@ async function main() {
   /** One flat colour a roof word, for the fringe the kit does not reach. */
   const inks = new Map<string, string>()
   const forgetPlates = () => {
+    for (const v of plates.values()) releaseCanvas(v.c)
     plates.clear()
     plateBytes = 0
     platePending = null
+    releaseCanvas(composing)
+    composing = null
+    for (const c of sheets.values()) releaseCanvas(c)
     // The roof patterns are cut from the same tinted atlas, so they go with
     // it: a pattern is a *copy*, and a copy of an atlas that no longer exists
     // is a roof drawn at the last zoom's size.
@@ -8824,6 +8846,8 @@ async function main() {
       ;[baked, bakedBefore] = [bakedBefore, baked]
       return baked
     }
+    // The one before the one before goes, and its pixels with it.
+    if (bakedBefore) releaseCanvas(bakedBefore.c)
     bakedBefore = baked
     const px = Math.ceil(TILE * zoom) + 1
     const edges = [...Object.values(RING), 't_shore'].flatMap((pre) =>
@@ -8884,6 +8908,7 @@ async function main() {
       rg.drawImage(tilesImg, p.x, p.y, p.w, p.h, i * px, 0, px, px)
     })
     for (let j = 0; j < SHADES; j++) g.drawImage(row, 0, j * px)
+    releaseCanvas(row)
     for (let j = 0; j < SHADES; j++) {
       const sl = SHADE_LO + (j / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
       // Straight across the range, not clamped again on the way out.  The
@@ -8962,6 +8987,7 @@ async function main() {
       const c = sheets.get(oldest)!
       sheetBytes -= c.width * c.height * 4
       sheets.delete(oldest)
+      releaseCanvas(c)
     }
     const ground = tintedGround()
     const c = document.createElement('canvas')
@@ -9024,6 +9050,8 @@ async function main() {
         inks.set(key, `rgb(${Math.round(r / n)},${Math.round(gr / n)},`
           + `${Math.round(bl / n)})`)
       }
+      // The pattern holds its own copy of the square, so the square goes.
+      releaseCanvas(c)
     }
     patterns.set(key, pat)
     return pat
@@ -9501,6 +9529,12 @@ async function main() {
   }
 
   function frame(now: number) {
+    // **The next frame is asked for first.**  It was the last line, so one
+    // frame that threw — a canvas the browser would not allocate, on a phone
+    // out of canvas memory — was the last frame there would ever be, and the
+    // game sat frozen on its final picture.  Asked first, a bad frame is one
+    // bad frame.
+    requestAnimationFrame(frame)
     const real = Math.min(0.25, (now - last) / 1000)
     last = now
     // As many whole steps as the time will pay for, and no more.  The leftover
@@ -9715,7 +9749,7 @@ async function main() {
     // And the ones nobody has looked at for a while, once there is pressure.
     if (plateBytes > PLATE_BUDGET / 2) {
       for (const [k, v] of plates) {
-        if (frames - v.used > 240) { plates.delete(k); plateBytes -= v.bytes }
+        if (frames - v.used > 240) { plates.delete(k); plateBytes -= v.bytes; releaseCanvas(v.c) }
       }
     }
     platesDrawn = 0
@@ -10158,8 +10192,10 @@ async function main() {
         const gone = plates.get(old)!
         plates.delete(old)
         plateBytes -= gone.bytes
+        releaseCanvas(gone.c)
       }
       const c = document.createElement('canvas')
+      composing = c
       c.width = c.height = Math.ceil(side)
       const g = c.getContext('2d')!
       g.imageSmoothingEnabled = false
@@ -10484,6 +10520,7 @@ async function main() {
         // painted over by the tile pass a moment later anyway.
         g.imageSmoothingEnabled = true
         g.drawImage(lm, -0.5 * tpx, -0.5 * tpx, (PLATE + 1) * tpx, (PLATE + 1) * tpx)
+        releaseCanvas(lm)
         g.imageSmoothingEnabled = false
       }
       const made: Plate = { c, used: frames, bytes: c.width * c.height * 4, fresh: true, tile: tpx }
@@ -10500,8 +10537,10 @@ async function main() {
         const gone = plates.get(old)!
         plates.delete(old)
         plateBytes -= gone.bytes
+        releaseCanvas(gone.c)
       }
       plates.set(key, made)
+      composing = null
       return made
     }
     /**
@@ -10556,7 +10595,11 @@ async function main() {
       if (platePending && (platePending.pi < Math.floor(xLo / PLATE)
         || platePending.pi > Math.floor(xHi / PLATE)
         || platePending.pj < Math.floor(yLo / PLATE)
-        || platePending.pj > Math.floor(yHi / PLATE))) platePending = null
+        || platePending.pj > Math.floor(yHi / PLATE))) {
+        platePending = null
+        releaseCanvas(composing)
+        composing = null
+      }
       const done = new Set<string>()
       if (usePlates) {
         for (let pi = Math.floor(xLo / PLATE); pi <= Math.floor(xHi / PLATE); pi++) {
@@ -11939,7 +11982,6 @@ async function main() {
       : [])
 
     ;(window as unknown as { __ready: boolean }).__ready = true
-    requestAnimationFrame(frame)
   }
   /**
    * Put the character back, and keep putting him down.

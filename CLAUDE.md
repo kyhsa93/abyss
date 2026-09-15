@@ -969,6 +969,26 @@ no frame of the pinch takes a quarter of a second — measured, the worst went
 from 1,083 ms to 133. The desktop's range, and the
 paragraph below about it, are unchanged.
 
+**And on a real phone it still froze, because a dropped canvas is not a freed
+one.** The ladder and the cheaper atlas held sixty in a throttled Chromium, and
+a phone went on freezing the moment the zoom moved. Chromium collects quickly;
+iOS Safari collects canvases late and caps what they may hold all together.
+Counted with every canvas held and none collected, zooming held 29 MB after load
+and then 156, 254, 351 — each step a new atlas of 20 to 30 MB and a screenful of
+plates, the old ones waiting. With `getContext` refusing past 384 MB, as an
+iPhone does, the old build threw `Cannot set properties of null` at 396 MB and
+drew **no frame after that**: `requestAnimationFrame(frame)` was the last line of
+the frame, so one frame that threw was the last there would ever be. Two
+changes. Every canvas that is dropped — an evicted plate, the atlas before the
+one before, the strip it was copied from, a roof sheet, a pattern's source
+square, a light map, a plate abandoned half-way — is **sized to nought first**,
+which frees it whether or not anybody has collected it; held that way the same
+zooming stays at 56.5 MB round after round. And the next frame is **asked for
+first**, so a bad frame is one bad frame. Compared against the old build at four
+places the picture moved 0.03% at most, which is people walking. `padcheck`
+holds every canvas the page makes and asserts four rounds of zooming hold no
+more than one, and that frames are still coming.
+
 Two things guard it, and neither restates the arithmetic. `viewcheck` walks
 **seven zooms** rather than the one it used to read — the old check typed
 `__cam({ zoom: 0.12 })`, which after this is a screen no player can reach, so

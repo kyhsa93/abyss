@@ -23,6 +23,27 @@ const HOST = process.env.ABYSS_URL ?? 'http://localhost:5173'
 
 const b = await chromium.launch()
 const ctx = await b.newContext({ ...devices['iPhone 13'] })
+// **A phone's canvas memory, counted the way a phone counts it.**  Every canvas
+// the page makes is held here, so nothing is ever collected, and one released
+// by being sized to nought counts nought.  iOS Safari caps what canvases may
+// hold all together and collects them late; past the cap a canvas gets no
+// context, and a game that throws on that loses its frame loop.
+await ctx.addInitScript(() => {
+  const made = []
+  const orig = Document.prototype.createElement
+  Document.prototype.createElement = function (tag, ...rest) {
+    const el = orig.call(this, tag, ...rest)
+    if (String(tag).toLowerCase() === 'canvas') made.push(el)
+    return el
+  }
+  let frames = 0
+  const raf = window.requestAnimationFrame.bind(window)
+  window.requestAnimationFrame = (f) => raf((t) => { frames++; f(t) })
+  window.__canvasHeld = () => ({
+    MB: made.reduce((a, c) => a + (c.width && c.height ? c.width * c.height * 4 : 0), 0) / 1048576,
+    frames,
+  })
+})
 const p = await ctx.newPage()
 const errs = []
 p.on('console', (m) => m.type() === 'error' && errs.push(m.text()))
@@ -167,6 +188,33 @@ await p.waitForTimeout(200)
     && pinched.zs.includes(opened.floor) && pinched.zs.includes(opened.ceiling)
     && pinched.worst < 250,
     `zooms ${JSON.stringify(pinched.zs)}, worst frame ${Math.round(pinched.worst)} ms`)
+  await p.evaluate(() => window.__cam({ zoom: 0 }))
+  await p.waitForTimeout(300)
+}
+// **And zooming does not pile up canvas memory.**  It did: every step made a
+// new ground atlas of 20 to 30 MB and a screenful of plates and left the old
+// ones for the collector, so held with nothing collected it went 29 MB, 156,
+// 254, 351 — and at the 384 MB an iPhone allows, the next canvas got no
+// context, the frame threw, and the game froze on its last picture.  Zoomed
+// round the steps four times, what is held after the last round is no more
+// than after the first, and the frames are still coming.
+{
+  const round = async () => {
+    for (const z of [1.25, 0.8, 1, 1.25, 1]) {
+      await p.evaluate((z) => window.__cam({ zoom: z }), z)
+      await p.waitForTimeout(500)
+    }
+    return p.evaluate(() => window.__canvasHeld())
+  }
+  const first = await round()
+  await round(); await round()
+  const last = await round()
+  await p.waitForTimeout(500)
+  const later = await p.evaluate(() => window.__canvasHeld())
+  check('zooming round a phone\'s steps does not pile up canvas memory',
+    last.MB <= first.MB + 1 && later.frames > last.frames + 10,
+    `${first.MB.toFixed(1)} MB after one round, ${last.MB.toFixed(1)} after four, `
+    + `${later.frames - last.frames} frames in the half second after`)
   await p.evaluate(() => window.__cam({ zoom: 0 }))
   await p.waitForTimeout(300)
 }
