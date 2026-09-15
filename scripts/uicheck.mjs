@@ -1185,12 +1185,29 @@ for (const [W, H] of SIZES) {
         window.__setAuto(true)
         const off = await watch(2500)
         window.__setAuto(false)
+        // Beside it where it is *now*: a rabbit wanders, and two and a half
+        // seconds after it was found it can be further than a swing from where
+        // it stood — one run walked up to nothing and the shout, rightly,
+        // never went off.
+        const beside = () => {
+          const h = window.__hero()
+          const it = window.__all()
+            .filter((n) => !n.dead && n.kind === kind)
+            .map((n) => ({ n, d: Math.hypot(n.x - h.x, n.y - h.y) }))
+            .sort((a2, b2) => a2.d - b2.d)[0]
+          if (it) window.__put(it.n.x - 1.2, it.n.y)
+        }
         window.__put(q.n.x - 1.2, q.n.y)
+        beside()
         window.__unaim()
         window.__aimAtNearest()
         window.__cool(6673, 0)
         window.__setAuto(true)
-        const near = await watch(2500)
+        const near = []
+        for (let k = 0; k < 5 && !near.some(([id]) => id === 6673); k++) {
+          beside()
+          near.push(...await watch(500))
+        }
         window.__setAuto(false)
         window.__unaim()
         // And back beside something, for whatever is asked after this.

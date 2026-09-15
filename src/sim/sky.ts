@@ -63,7 +63,7 @@ export function skyAt(chances: Weather | undefined, at: Date, seed = 0): number 
  * unable to see — it is blue and dim, which is the difference between an
  * evening and a power cut.
  */
-export function lightAt(at: Date, sky: number): { ground: string; tint: number } {
+export function lightAt(at: Date, sky: number): { ground: string; tint: number; rgb: [number, number, number] } {
   const hour = at.getHours() + at.getMinutes() / 60
   // Dawn at six, dusk at eight, which is what the original's outdoor light
   // does over a long summer's day and is the only shape worth having.
@@ -76,8 +76,18 @@ export function lightAt(at: Date, sky: number): { ground: string; tint: number }
   const r = Math.round(10 + lit * 17)
   const g = Math.round(14 + lit * 22)
   const b = Math.round(24 + lit * 8)
-  return { ground: `rgb(${r},${g},${b})`, tint: lit }
+  return { ground: `rgb(${r},${g},${b})`, tint: lit, rgb: [r, g, b] }
 }
+
+/**
+ * The brightest the colour behind the world ever gets: a clear noon.
+ *
+ * A room is composed once and kept while the hour goes on turning behind it,
+ * so anything in a room that has to stand out from the backdrop has to stand
+ * out from this one — the backdrop's darker hours are further away, not
+ * nearer.
+ */
+export const BACKDROP_MOST = lightAt(new Date(2026, 5, 21, 12), CLEAR).rgb
 
 /** Our word for it, for the readout. */
 export const SKY_WORD: Record<number, string> = {

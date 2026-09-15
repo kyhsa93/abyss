@@ -650,6 +650,40 @@ nine in ten points within 0.68 px; stamped per tile, 4.05. It reads a side with
 **no stroke** on it on purpose: the edges are vector paths and would come out
 straight over a staircase of a picture.
 
+**A floor stands out from its walls, three to one.** Reported from a phone:
+no way to find the way inside a building, and no making out what the inside
+looks like. Every building's wall was one tone, `in_wall`'s, and the floors are
+the building's own, so measured between the wall and every region of standing
+room a cottage's light boards came out at 3.68 to 1 — and the abbey's blue-grey
+flagstones at **1.15**, the towers at 1.53 and every mine at 1.38: twelve
+storeys of thirty-nine, exactly the ones with a dark floor, where the rooms and
+the walls between them were one grey field. Three to one is WCAG's contrast
+for a boundary a person has to see, not a number picked here. Where a room has
+it nothing changes; where it does not, the wall goes towards `SHADOW`, the dark
+this scene already paints round a room, by the least that reaches it, and
+where that cannot — a mine's floor is nearly as dark as its rock — the floor
+takes a light film by the least that reaches it. **The wall stops short of
+nothing, and nothing stops short of the outside.** Taken all the way to
+`SHADOW` the abbey's walls were the colour of a hole, and `shotcheck`'s test
+for a screen with one in it read the nave at 11.2% of the darkest two of
+sixteen levels against a bar of eight. Stopped a hair above that band instead,
+at 34, the wall sat one unit off the backdrop the glass is cleared to at a
+clear noon, 33 — and the nothing beside it, a stairwell or the eaves, was held
+to the wall and so *was* the backdrop: the building's outline is a side with
+no stroke on it, the abbey's longest run of it is mostly eaves, and the check
+that reads that outline as a straight line found six points of sixty. Both
+tests were right. So nothing stops one of `shotcheck`'s levels above the
+brighter of the hole band and the backdrop at its brightest hour
+(`BACKDROP_MOST`, a clear noon, because a room is composed once while the hour
+turns behind it), the wall a level above nothing, and the film carries the
+rest: the abbey's wall reads 65 on that scale, its eaves 49, the outside 33.
+What is measured is the middle of every cell of the wall and of each region,
+averaged, where it used to be one pixel of one cell, and it is measured again
+after painting and topped up, because a colour rounds to whole numbers: one
+mine came out at 2.99 on the first pass. All thirty-nine are at three or better
+now, the least 3.06, and `viewcheck` holds every storey of every building and
+every mine to it.
+
 **And a room shows its ways out, from the doors the bake names and not from
 the plan.** Standing room runs through a doorway the same as through the middle
 of a room — that is how the doorways fall out of the bake — so a plan read for

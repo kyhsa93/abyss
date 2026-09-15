@@ -23,7 +23,7 @@
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, maxMana, manaPerSecond, rollMelee, BASE_MANA, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, ENERGY_PER_SECOND, FIVE_SECOND_RULE, GLANCING, HIT, healPerTick, MAX_ENERGY, MAX_RAGE, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, RAGE_LOST_PER_TICK, REGEN_TICK, type Roster, type Stats, type Who } from './sim/stats.ts'
 import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
 import { outfitFor, outfitOf, WEIGHT } from './sim/outfit.ts'
-import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
+import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM, BACKDROP_MOST } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { cycleOf, standing } from './sim/pools.ts'
@@ -10609,20 +10609,162 @@ async function main() {
       g.globalCompositeOperation = 'source-over'
     }
     // What the room is where nothing is marked, before anything is: the wall
-    // and one cell of each floor region, off the canvas itself.
+    // and each floor region, off the canvas itself — the middle of every cell
+    // of it, averaged.  It was one pixel of one cell, and on a textured
+    // flagstone one pixel is as likely to be a crack as a stone.
+    const measure = () => {
+      const img = g.getImageData(0, 0, c.width, c.height).data
+      const wall = [0, 0, 0, 0]
+      const floors = regionsOut.map(() => [0, 0, 0, 0])
+      for (let n = 0; n < W * H; n++) {
+        const into = code[n] === CELL.wall ? wall
+          : region[n]! >= 0 && kind[n] === 0 ? floors[region[n]!]! : null
+        if (!into) continue
+        const o = (((n % H) * S + (S >> 1)) * c.width + ((n / H) | 0) * S + (S >> 1)) * 4
+        into[0] += img[o]!; into[1] += img[o + 1]!; into[2] += img[o + 2]!; into[3]++
+      }
+      const mean = (t: number[]) => [t[0]! / t[3]!, t[1]! / t[3]!, t[2]! / t[3]!]
+      return { wall: wall[3] ? mean(wall) : null,
+        floors: floors.map((t) => (t[3] ? mean(t) : null)) }
+    }
+    /**
+     * **A floor has to stand out from its walls, three to one.**
+     *
+     * Reported from a phone: no way to find the way inside a building, and no
+     * making out what the inside looks like.  Every building's wall is one
+     * tone, `in_wall`'s, and the floors are the building's own: a cottage's
+     * light boards came out at 3.68 to 1 against it, and the abbey's blue-grey
+     * flagstones at **1.15**, the towers at 1.53 and every mine at 1.38 — twelve
+     * storeys of thirty-nine, exactly the ones with a dark floor, where the
+     * rooms and the walls between them were one grey field.  Three to one is
+     * WCAG's contrast for a boundary a person has to see, and not a number
+     * picked here.  Where a room already has it nothing changes.  Where it
+     * does not the wall goes towards `SHADOW`, the dark this scene already
+     * paints round a room, by the least that reaches it and no further than
+     * a level above nothing, which stops a level above the backdrop; and
+     * where the dark cannot — a mine's floor is nearly as dark as its rock —
+     * the floor takes a light film, again by the least that reaches it.
+     */
+    const lumOf = (t: number[]) => {
+      const f = (v: number) => {
+        const u = v / 255
+        return u <= 0.03928 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(t[0]!) + 0.7152 * f(t[1]!) + 0.0722 * f(t[2]!)
+    }
+    const contrast = (a: number[], b2: number[]) => {
+      const x = lumOf(a), y = lumOf(b2)
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+    }
+    // A hair over three, because what is painted is whole numbers of a
+    // colour and what is solved for is not.
+    const LEGIBLE = 3.05
+    let seen = measure()
+    const lit = seen.floors.filter((t): t is number[] => !!t && !!seen.wall
+      && lumOf(t) > lumOf(seen.wall))
+    if (seen.wall && lit.some((t) => contrast(seen.wall!, t) < LEGIBLE)) {
+      const from = seen.wall
+      const darkest = lit.reduce((a2, t) => (lumOf(t) < lumOf(a2) ? t : a2))
+      const [sr, sgr, sb, deep] = SHADOW
+      const toward = (t: number) => [from[0]! + (sr - from[0]!) * t,
+        from[1]! + (sgr - from[1]!) * t, from[2]! + (sb - from[2]!) * t]
+      // **But a wall is a thing and not a hole, and nothing is not the
+      // outside.**  Taken all the way to `SHADOW` the abbey's walls were the
+      // colour of nothing at all, and `shotcheck`'s test for a screen with a
+      // hole in it — the share in the darkest two of sixteen levels of
+      // `0.3 r + 0.6 g + 0.1 b` — read the nave at 11.2% against a bar of
+      // eight.  Stopped a hair above that band instead, at 34, the wall was
+      // one unit off the backdrop the glass is cleared to at a clear noon,
+      // 33, and the nothing beside it — a stairwell, the eaves — was held to
+      // the wall and so was the backdrop exactly: the building's outline is a
+      // side with no stroke on it, the abbey's longest is mostly eaves, and
+      // the check that reads that outline as a line found six points of
+      // sixty.  Both tests are right.  So nothing stops one of `shotcheck`'s
+      // levels above the brighter of the hole band and the backdrop at its
+      // brightest hour — one level being the smallest difference that
+      // instrument counts as a different picture — and the wall stops a level
+      // above nothing, so that a stairwell still reads as further down than a
+      // wall.  What the floor still needs it gets from the film.
+      const glow = (t: number[]) => t[0]! * 0.3 + t[1]! * 0.6 + t[2]! * 0.1
+      const LEVEL = 16
+      const VOID_LEAST = Math.max(2 * LEVEL, glow([...BACKDROP_MOST])) + LEVEL
+      const WALL_LEAST = VOID_LEAST + LEVEL
+      // The furthest towards `SHADOW` a tone can go and still glow this much.
+      const deepest = (least: number) => {
+        if (glow(from) < least) return 0
+        if (glow(toward(1)) >= least) return 1
+        let m0 = 0, m1 = 1
+        for (let k = 0; k < 20; k++) {
+          const mid = (m0 + m1) / 2
+          if (glow(toward(mid)) >= least) m0 = mid; else m1 = mid
+        }
+        return m0
+      }
+      const most = deepest(WALL_LEAST)
+      let lo = 0, hi = most
+      if (contrast(toward(most), darkest) >= LEGIBLE) {
+        for (let k = 0; k < 20; k++) {
+          const mid = (lo + hi) / 2
+          if (contrast(toward(mid), darkest) >= LEGIBLE) hi = mid; else lo = mid
+        }
+      }
+      const rgb = (t: number[]) => `rgb(${t.map((v) => Math.round(v)).join(',')})`
+      const wall = toward(hi).map((v) => Math.round(v))
+      // Nothing keeps `roomTones`' own share of the way to `SHADOW`, from
+      // where the wall now is, and stops at its own floor — unless the stone
+      // itself is under that floor, as a mine's unlit rock is, where there is
+      // no floor to stop at and the share is all there is.
+      const share = hi + (1 - hi) * deep
+      const voidTone = toward(glow(from) < VOID_LEAST ? share : Math.min(deepest(VOID_LEAST), share))
+      for (let n = 0; n < W * H; n++) {
+        const cc = code[n]
+        if (cc !== CELL.wall && cc !== CELL.void) continue
+        g.fillStyle = cc === CELL.wall ? rgb(wall) : rgb(voidTone)
+        g.fillRect(((n / H) | 0) * S, (n % H) * S, S, S)
+      }
+      // And the floors the dark could not carry, each by its own least film.
+      const film = seen.floors.map((t) => {
+        if (!t || contrast(wall, t) >= LEGIBLE) return 0
+        let a0 = 0, a1 = 0.85
+        for (let k = 0; k < 20; k++) {
+          const mid = (a0 + a1) / 2
+          const up = t.map((v) => v + (255 - v) * mid)
+          if (contrast(wall, up) >= LEGIBLE) a1 = mid; else a0 = mid
+        }
+        return a1
+      })
+      const lay = (alpha: number[]) => {
+        for (let n = 0; n < W * H; n++) {
+          const at = region[n]!
+          if (at < 0 || !alpha[at]) continue
+          g.fillStyle = `rgba(255,255,255,${alpha[at]!.toFixed(3)})`
+          g.fillRect(((n / H) | 0) * S, (n % H) * S, S, S)
+        }
+      }
+      if (film.some((a2) => a2 > 0)) lay(film)
+      seen = measure()
+      // And measured again, because what is painted is not quite what was
+      // solved: a colour rounds to whole numbers and a film lands on the
+      // picture's own pixels, so one mine came out at 2.99.  Whatever is still
+      // short takes the difference, from what the canvas now says it is.
+      for (let pass = 0; pass < 3; pass++) {
+        const more = seen.floors.map((t) => {
+          if (!t || contrast(wall, t) >= LEGIBLE) return 0
+          let a0 = 0, a1 = 0.85
+          for (let k = 0; k < 20; k++) {
+            const mid = (a0 + a1) / 2
+            if (contrast(wall, t.map((v) => v + (255 - v) * mid)) >= LEGIBLE) a1 = mid; else a0 = mid
+          }
+          return Math.max(a1, 0.01)
+        })
+        if (!more.some((a2) => a2 > 0)) break
+        lay(more)
+        seen = measure()
+      }
+    }
     const plain: number[][] = []
-    const toneAt = (i: number, j: number) => {
-      const d = g.getImageData(i * S + (S >> 1), j * S + (S >> 1), 1, 1).data
-      plain.push([d[0]!, d[1]!, d[2]!])
-    }
-    if (wallCell) toneAt(wallCell[0], wallCell[1])
-    const toned = new Set<number>()
-    for (let n = 0; n < W * H && toned.size < regionsOut.length; n++) {
-      const at = region[n]!
-      if (at < 0 || toned.has(at) || kind[n] !== 0) continue
-      toned.add(at)
-      toneAt((n / H) | 0, n % H)
-    }
+    if (wallCell && seen.wall) plain.push(seen.wall.map((v) => Math.round(v)))
+    for (const t of seen.floors) if (t) plain.push(t.map((v) => Math.round(v)))
     // After the tones, so they stay the floor where nothing is marked — the
     // middle of a room, which is what the shade is measured against — and
     // before the ways out, so a porch in daylight is not in a wall's lee.

@@ -4624,6 +4624,72 @@ if (refused) {
       rooms: r.regions.filter((g) => g.cells >= (r.cut?.cells ?? Infinity)).length,
       cut: r.cut?.cells, toned: toned / (c.width * c.height) }
   })
+  // (b2) **And a floor stands out from its walls.**  Reported from a phone: *no
+  // way to find the way inside a building; what the inside looks like cannot be
+  // made out at all*.  Measured, the abbey's flagstones and its walls came out
+  // at 1.15 to 1 — a blue-grey floor beside a grey wall — the towers at 1.53
+  // and every mine at 1.38, while a cottage's light boards were 3.68.  Twelve
+  // of thirty-nine storeys, and exactly the buildings with a dark floor.  The
+  // bar is WCAG's for a boundary a person has to see, three to one, and it is
+  // held between the wall and **every** region of standing room, on every
+  // storey of every building and in every mine.
+  const legible = await p.evaluate(async () => {
+    const lum = ([r, g, b]) => {
+      const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const ratio = (a, b) => {
+      const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m)
+      return (x + 0.05) / (y + 0.05)
+    }
+    const frames = (n) => new Promise((done) => {
+      const t = () => (n-- <= 0 ? done() : requestAnimationFrame(t))
+      requestAnimationFrame(t)
+    })
+    const read = (at) => {
+      const t = window.__roomExits()?.tones
+      if (!t || t.length < 2) return null
+      return { at, worst: Math.min(...t.slice(1).map((f) => ratio(t[0], f))) }
+    }
+    const out = []
+    const all = window.__buildings()
+    for (let i = 0; i < all.length; i++) {
+      if (!all[i].doors?.length) continue
+      window.__put(window.__start().x, window.__start().y)
+      const got = window.__enterOne(i)
+      if (!got) continue
+      for (let s = -1; s < (got.floors ?? 0); s++) {
+        window.__floor(s)
+        await frames(3)
+        const r = read(`${all[i].k} ${i} storey ${s}`)
+        if (r) out.push(r)
+      }
+      window.__floor(-1)
+    }
+    for (let m = 0; m < 16; m++) {
+      window.__put(window.__start().x, window.__start().y)
+      const got = window.__enterMine(m)
+      if (!got) break
+      if (!got.inside) continue
+      await frames(3)
+      const r = read(`mine ${m}`)
+      if (r) out.push(r)
+    }
+    window.__put(window.__start().x, window.__start().y)
+    return out
+  })
+  const dim = legible.filter((r) => r.worst < 3)
+  check('and every room\'s floor stands out from its walls by three to one',
+    legible.length > 30 && dim.length === 0,
+    `${legible.length - dim.length} of ${legible.length} storeys at 3:1 or better`
+    + `${dim.length ? '; under: ' + dim.map((r) => `${r.at} ${r.worst.toFixed(2)}`).join(', ') : ''}`
+    + `; the least is ${Math.min(...legible.map((r) => r.worst)).toFixed(2)}`)
+  await p.evaluate(() => {
+    const r = window.__enterAt(-8904, -185)
+    if (r) window.__cam({ x: r.x, y: r.y, zoom: 0 })
+  })
+  await settle()
+
   check('the abbey\'s ground floor has walls and rooms inside it',
     inside.storey === -1 && inside.interior > 0 && inside.rooms > 1 && inside.toned > 0.01,
     `${inside.interior} cell sides of interior wall, ${inside.rooms} room regions of `
