@@ -1729,6 +1729,8 @@ async function main() {
     /** What it is carrying, and whether anybody has been through it yet. */
     haul: [number, number, number[][]] | null
     looted: boolean
+    /** Whether the player killed it — what a phone loots without being asked. */
+    yours: boolean
     /** What comes off with a knife, once the pockets are empty. */
     hide: [number, number, number[][]] | null
     skinned: boolean
@@ -1835,6 +1837,7 @@ async function main() {
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
         ? spawns.hauls[row[8]!]! : null,
       looted: false,
+      yours: false,
       // What comes off the carcass afterwards, and whether it has come off.
       hide: (spawns.hauls && (row[18] ?? -1) >= 0)
         ? spawns.hauls[row[18]!]! : null,
@@ -5070,6 +5073,9 @@ async function main() {
    * slow in the original for the same arithmetic.
    */
   const reward = (foe: Npc): number => {
+    // Every way this is reached is a kill of the player's — a blow, a spell, a
+    // bleed he put on it — which is what makes the body his to loot.
+    foe.yours = true
     // `creature_template.ExperienceModifier`, which is one for everything in
     // this forest and is read anyway: a number that is always one until the
     // day it is not is exactly the sort that gets left out.
@@ -5392,7 +5398,7 @@ async function main() {
         // Back on its feet after a while, where it stood.
         if (clock - n.dead > n.back) {
           n.dead = 0; n.hp = n.max; n.angry = false; n.alpha = 1
-          n.looted = false; n.skinned = false
+          n.looted = false; n.skinned = false; n.yours = false
           n.x = n.hx; n.y = n.hy
         }
         continue
@@ -8824,6 +8830,34 @@ async function main() {
 
   function endTalk() { chat = null; drawTalk() }
 
+  /**
+   * **On a phone a kill is looted the moment he stands by it.**
+   *
+   * A thumb that has just finished a fight had to find the body and tap it,
+   * and a body is a sprite lying in grass beside the next thing that wants to
+   * fight — so a hunt on a phone was a fight, a hunt for the corpse, and a
+   * second tap that as often as not aimed at something else.  The original's
+   * auto loot is the same bargain: what you killed comes into your bags when
+   * you reach it, and nobody else's does.  Only the pockets: a hide wants a
+   * knife and a trade, which is a decision, and stays a tap.  **Only when he
+   * is by it** — `EARSHOT`, the reach a tap loots at — so a mage who kills from
+   * thirty yards still walks over, the same as he would to press E.  An empty
+   * body is emptied without a line, because a hunt of wolves that carry
+   * nothing would otherwise fill the log with *아무것도 없다*.
+   */
+  function autoLoot() {
+    if (you.died) return
+    for (const n of active) {
+      if (!n.dead || n.looted || !n.yours) continue
+      if ((n.x - hero.x) ** 2 + (n.y - hero.y) ** 2 > EARSHOT * EARSHOT) continue
+      const got = loot(n)
+      const said = flat(got)
+      if (said === '아무것도 없다') continue
+      say(n.x, n.y, said, true)
+      ui.log([`${nameOf(n.kind)}에게서 `, ...got], 'gain')
+    }
+  }
+
   function toggleTalk() {
     if (chat) { endTalk(); return }
     // A body cannot answer you, so the same key goes through its pockets.
@@ -11385,6 +11419,7 @@ async function main() {
     restocking()
     walk(STEP)
     slide(STEP)
+    if (pad.on) autoLoot()
     // Every fifteen seconds, which is cheap and means a crash costs a walk
     // rather than an afternoon.
     if (clock - saved > 15) { saved = clock; keep() }
@@ -15782,6 +15817,30 @@ async function main() {
       openShop(who)
       return { kind: who.kind, rows: shelf.stock?.[String(entry)]?.length ?? 0 }
     }
+  /**
+   * **Test only**: kill the nearest thing that carries something, the way the
+   * player kills — through `reward` — standing a yard from it.  `__hunted`
+   * says what became of the body.
+   */
+  let hunted: Npc | null = null
+  ;(window as unknown as { __hunt: () => unknown }).__hunt = () => {
+    const foe = npcs.find((n) => !n.dead && fightable(n.fight) && !!n.haul
+      && (n.haul[1] > 0 || n.haul[2].length > 0))
+    if (!foe) return null
+    placeHero(foe.x - 1, foe.y)
+    // And the camera with him, as `__goto` does: who is awake is asked of the
+    // camera, so a body the camera has not reached is nobody's to loot.
+    camX = hero.x; camY = hero.y
+    foe.hp = 0; foe.dead = clock; foe.looted = false
+    reward(foe)
+    hunted = foe
+    return { kind: foe.kind, phone: pad.on, looted: foe.looted, purse: you.purse,
+      away: Math.hypot(foe.x - hero.x, foe.y - hero.y) }
+  }
+  ;(window as unknown as { __hunted: () => unknown }).__hunted = () => hunted
+    ? { looted: hunted.looted, yours: hunted.yours, purse: you.purse,
+      away: Math.hypot(hunted.x - hero.x, hunted.y - hero.y) }
+    : null
   ;(window as unknown as { __lootNearby: () => unknown }).__lootNearby = () => {
     // **Until something actually falls.**  A haul is a roll, so the first body
     // is often empty — and a check that reads a colour off a line saying

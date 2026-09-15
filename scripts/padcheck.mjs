@@ -662,6 +662,21 @@ check('a tap on the world ends the conversation',
   }
 }
 
+// **And what you kill is looted when you stand by it.**  On a phone the body
+// had to be found and tapped, and a tap beside the next creature as often as
+// not aimed at it instead.  Killed the way the player kills — through `reward`
+// — a yard from where he stands, a few steps later the pockets are empty and
+// the purse is no lighter; nobody asks for a tap.
+{
+  const before = await p.evaluate(() => window.__hunt())
+  await p.evaluate(() => window.__steps(3))
+  const after = await p.evaluate(() => window.__hunted())
+  check('on a phone what you kill is looted when you stand by it, without a tap',
+    !!before && before.phone && !before.looted && !!after && after.looted
+    && after.purse >= before.purse,
+    `${before?.kind}: ${JSON.stringify(before)} -> ${JSON.stringify(after)}`)
+}
+
 // 11. Landscape: the controls follow the corners.
 await p.setViewportSize({ width: 844, height: 390 })
 await p.waitForTimeout(300)

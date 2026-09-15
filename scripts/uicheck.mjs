@@ -1389,6 +1389,18 @@ for (const [W, H] of SIZES) {
     check('and the line that says a thing just fell does',
       !!fell && fell.tinted > 0 && logTints.length >= fell.tinted,
       `${logTints.join(' ')} — ${JSON.stringify(fell)}`)
+    // And on a desktop a kill waits for E.  Looting what you killed without
+    // being asked is the phone's answer to a thumb that cannot find a body in
+    // the grass; a keyboard has the key, and doing it anyway would take the
+    // decision away from somebody who has it.
+    const kept = await p.evaluate(() => {
+      const got = window.__hunt()
+      window.__steps(3)
+      return { got, after: window.__hunted() }
+    })
+    check('and on a desktop a kill waits to be looted',
+      !!kept.got && !kept.got.phone && !!kept.after && !kept.after.looted,
+      JSON.stringify(kept))
   }
   // --- what a save is, and what it costs ------------------------------------
   //

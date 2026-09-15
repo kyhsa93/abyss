@@ -272,6 +272,20 @@ tap the person now, and the ground beside him, and press each of the five
 squares with him standing there; and the long press is held against the words
 it actually painted rather than against a finger being down.
 
+**On a phone a kill is looted the moment he stands by it**, by the owner's
+decision on 2026-09-15. A thumb that had just finished a fight had to find the
+body and tap it, and a body lies in the grass beside the next thing that wants
+to fight, so the second tap as often as not aimed at that instead. The
+original's auto loot is the same bargain: what you killed comes into your bags
+when you reach it, and nobody else's does — `reward` marks the body as his,
+because every way it is reached is his kill. Three limits, each a decision
+rather than a number. Only the pockets: a hide wants a knife and a trade, and
+stays a tap. Only within `EARSHOT`, the reach a tap loots at, so a mage who
+kills from thirty yards still walks over. And only on a phone: a keyboard has
+E, and `uicheck` holds that a desktop kill waits for it while `padcheck` holds
+that a phone's does not. An empty body is emptied without a line, or a hunt of
+wolves that carry nothing fills the log with 아무것도 없다.
+
 **Where a panel goes on a phone is `placePhone`, not the stylesheet**, and that
 is the whole lesson of a round spent on it. The old branch removed every pin
 and let the base rules stand, which sounds like the honest answer — but
