@@ -3939,6 +3939,45 @@ for (const [name, x, y, zoom] of [['the abbey', -8930, -170, 0.7],
     + `${blinked.length} blinked)`)
 }
 
+// 22c. And the people under the roofs are all still there, role by role.
+//
+// The wiki's promise was *the fifty-five moved indoors — none of them lost,
+// the count by role kept*, and the only thing pointing at it was the check
+// above, which asks whether the people the scene hides deserve hiding.  That
+// says nothing about a trainer the scene never placed at all.  So this counts
+// both ends: every spawn the bake stood under a roof, by role, against every
+// person the scene placed under one, by role, at home.
+{
+  const kept = await p.evaluate(async () => {
+    const doc = await (await fetch('./world/npcs.json')).json()
+    const roofed = (x, y) => {
+      if (!window.__inside(x, y)) return false
+      const q = window.__plotAt(x, y)
+      return !q || q.roofed
+    }
+    const baked = {}, placed = {}
+    for (const row of doc.npcs) {
+      if (!roofed(row[0], row[1])) continue
+      const role = doc.roles[row[5]]
+      baked[role] = (baked[role] ?? 0) + 1
+    }
+    for (const n of window.__all()) {
+      if (!roofed(n.hx, n.hy)) continue
+      placed[n.role] = (placed[n.role] ?? 0) + 1
+    }
+    return { baked, placed }
+  })
+  const roles = [...new Set([...Object.keys(kept.baked), ...Object.keys(kept.placed)])]
+  const off = roles.filter((r) => (kept.baked[r] ?? 0) !== (kept.placed[r] ?? 0))
+  const total = Object.values(kept.baked).reduce((a, v) => a + v, 0)
+  check('and nobody the bake stood under a roof is missing from it, role by role',
+    total > 0 && off.length === 0,
+    off.length
+      ? off.map((r) => `${r} ${kept.baked[r] ?? 0} baked, ${kept.placed[r] ?? 0} placed`).join('; ')
+      : `${total} under a roof: `
+        + roles.map((r) => `${kept.baked[r]} ${r}`).join(', '))
+}
+
 // 23. A screen has somebody on it.
 //
 // 1,556 people over 5.4 million square yards is the original's own spawn
@@ -4078,6 +4117,182 @@ if (refused) {
   check('and it arrives in steps rather than creeping',
     steps > 0 && steps < trace.length - 1,
     `${steps} steps over ${trace.length} half-seconds: ${trace.join(' ')}`)
+}
+
+// 26. A building's inside is laid with three floor pictures at most.
+//
+// Issue 159 made the inside of every building one uniform floor and left a
+// second promise in the wiki that nothing counted.  Counted off what `drawRoom`
+// actually laid (`__roomPaint`), from inside every building that can be
+// walked into and every mine, at the widest zoom so the whole room is on the
+// glass — a room drawn in part would be a count of the part.  Under the roof
+// only: a courtyard is the ground the client painted there, which is the sky's
+// business and not the room's, and the walls are the wall.
+{
+  const rooms = []
+  const widest = await p.evaluate(() => window.__zooms().floor)
+  const count = await p.evaluate(() => window.__buildings().length)
+  const settle = async () => {
+    await p.waitForFunction(() => !!window.__room().inside
+      && Object.keys(window.__roomPaint().floor).length > 0, null, { timeout: 8000 })
+      .catch(() => null)
+    await p.evaluate(() => new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+    return p.evaluate(() => window.__roomPaint())
+  }
+  for (let i = 0; i < count; i++) {
+    const went = await p.evaluate(([i, z]) => {
+      const r = window.__enterOne(i)
+      if (r) window.__cam({ x: r.x, y: r.y, zoom: z })
+      return r
+    }, [i, widest])
+    if (!went) continue
+    const laid = await settle()
+    rooms.push({ at: `${went.k} ${i}`, floor: Object.keys(laid.floor) })
+  }
+  for (let i = 0; ; i++) {
+    const went = await p.evaluate(([i, z]) => {
+      const r = window.__enterMine(i)
+      if (r?.inside) {
+        const h = window.__hero()
+        window.__cam({ x: h.x, y: h.y, zoom: z })
+      }
+      return r
+    }, [i, widest])
+    if (!went) break
+    if (!went.inside) continue
+    const laid = await settle()
+    rooms.push({ at: `mine ${i}`, floor: Object.keys(laid.floor) })
+  }
+  await p.evaluate(() => { const s = window.__start(); window.__put(s.x, s.y) })
+  const over = rooms.filter((r) => r.floor.length > 3)
+  const blank = rooms.filter((r) => r.floor.length === 0)
+  check('a building\'s inside is laid with three floor pictures at most',
+    rooms.length > 0 && over.length === 0 && blank.length === 0,
+    over.length ? over.map((r) => `${r.at}: ${r.floor.join(', ')}`).join('; ')
+      : `${blank.length} rooms drew no floor at all: ${blank.map((r) => r.at).join(', ')}`)
+  console.log(`      (${rooms.length} rooms, the most pictures in one being `
+    + `${Math.max(0, ...rooms.map((r) => r.floor.length))}: `
+    + `${[...new Set(rooms.flatMap((r) => r.floor))].join(', ')})`)
+}
+
+// 27. A character saved indoors wakes up indoors, on the floor he was on.
+//
+// The save wrote a position and nothing else, and a position is not a place
+// when the same spot is a nave from inside and a roof from outside: `restore`
+// put him down with nobody saying he had come through a door, `placeHero`
+// asked whether a man *outside* could stand there, and a character saved in
+// the abbey woke on the grass beside it (issues 132 and 206).  So it saves one
+// floor up in the abbey, walks him out of the building, loads, and asks all
+// three things back — the building, the storey, the spot.
+{
+  const back = await p.evaluate(() => {
+    const went = window.__enter('hall', 2)
+    if (!went) return null
+    // Somewhere to stand one floor up.  A setter, the same bargain `__floor`
+    // makes: what is checked is the save and not the staircase.
+    window.__floor(1)
+    const h = window.__hero()
+    let spot = null
+    for (let r = 0; r < 30 && !spot; r += 1) {
+      for (let a = 0; a < 16 && !spot; a++) {
+        const x = h.x + Math.cos((a / 8) * Math.PI) * r
+        const y = h.y + Math.sin((a / 8) * Math.PI) * r
+        if (window.__canWalk(x, y)) spot = [x, y]
+      }
+    }
+    if (spot) window.__put(spot[0], spot[1])
+    const was = { inside: window.__room().inside, storey: window.__shown().storey,
+      at: window.__hero() }
+    const raw = JSON.parse(JSON.stringify(window.__save()))
+    // Out, so a load that did nothing would be caught outside.
+    const s = window.__start()
+    window.__put(s.x, s.y)
+    const left = window.__room().inside
+    window.__load(raw)
+    const now = { inside: window.__room().inside, storey: window.__shown().storey,
+      at: window.__hero() }
+    window.__put(s.x, s.y)
+    return { was, left, now }
+  })
+  check('a character saved indoors wakes up indoors, on the floor he was on',
+    !!back && back.was.inside === 'hall' && back.was.storey === 1
+    && back.left === null && back.now.inside === back.was.inside
+    && back.now.storey === back.was.storey
+    && Math.hypot(back.now.at.x - back.was.at.x, back.now.at.y - back.was.at.y) < 0.01,
+    back ? `saved in ${back.was.inside} on ${back.was.storey}, loaded into `
+      + `${back.now.inside} on ${back.now.storey}, `
+      + `${Math.hypot(back.now.at.x - back.was.at.x, back.now.at.y - back.was.at.y).toFixed(2)} yards off`
+      : 'no hall with an upstairs could be walked into')
+}
+
+// 28. Every front door lets you in on to the room's floor, and a building's
+// ways out are its front doors.
+//
+// Two of the wiki's promises about doors that had nothing behind them.  *Every
+// door's inside is that room's floor* — asked the way the game asks it: in
+// through each front door with the game's own step, and the spot it lands a
+// man on has to be floor in the building's plan.  And *the number of
+// directions you can walk out of a building's middle is its number of doors*,
+// which issue 161 wrote as a hundred and eighty rays from a centre.  A centre
+// is the wrong place now — a placement's box is its grounds, and the abbey's
+// middle is a courtyard — so it is asked from where each front door lets you
+// in: flooded with the step a man takes indoors, the doors it reaches are the
+// ways out, and they must be all of that building's front doors.  Any fewer
+// is a room a door does not lead to; the step indoors refuses everything off
+// the plan, so more is a door this list does not know.
+{
+  const doors = await p.evaluate(() => {
+    const all = window.__buildings()
+    let fronts = 0, floored = 0
+    const notFloor = [], short = []
+    let buildings = 0
+    for (let i = 0; i < all.length; i++) {
+      const b = all[i]
+      if (b.k === 'mine' || !b.doors?.length) continue
+      const front = b.doors.map((d, j) => [d, j]).filter(([d]) => d.length === 5)
+      if (!front.length) continue
+      buildings++
+      for (const [, j] of front) {
+        fronts++
+        const went = window.__enterOne(i, j)
+        const q = went ? window.__plotAt(went.x, went.y) : null
+        if (went && q && q.floor) floored++
+        else { notFloor.push(`${b.k} at ${Math.round(b.x)},${Math.round(b.y)} door ${j}`); continue }
+        const S = 0.67
+        const key = (x, y) => `${Math.round(x / S)},${Math.round(y / S)}`
+        const seen = new Set([key(went.x, went.y)])
+        const stack = [[went.x, went.y]]
+        const out = new Set()
+        while (stack.length) {
+          const [x, y] = stack.pop()
+          for (const [d, k] of front) {
+            if (Math.hypot(x - d[0], y - d[1]) < 1.6) out.add(k)
+          }
+          for (const [ax, ay] of [[S, 0], [-S, 0], [0, S], [0, -S]]) {
+            const k = key(x + ax, y + ay)
+            if (seen.has(k)) continue
+            seen.add(k)
+            if (window.__canWalk(x + ax, y + ay)) stack.push([x + ax, y + ay])
+          }
+        }
+        if (out.size !== front.length) {
+          short.push(`${b.k} at ${Math.round(b.x)},${Math.round(b.y)}: `
+            + `${out.size} ways out of ${front.length} from door ${j}`)
+        }
+      }
+    }
+    const s = window.__start()
+    window.__put(s.x, s.y)
+    return { buildings, fronts, floored, notFloor, short }
+  })
+  check('every front door lets a man in on to the room\'s floor',
+    doors.fronts > 0 && doors.floored === doors.fronts,
+    `${doors.floored} of ${doors.fronts}: ${doors.notFloor.join(', ')}`)
+  check('and the ways out of a building are its front doors, as many as it has',
+    doors.fronts > 0 && doors.short.length === 0,
+    doors.short.join('; '))
+  console.log(`      (${doors.fronts} front doors on ${doors.buildings} buildings)`)
 }
 
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)

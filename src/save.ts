@@ -29,7 +29,24 @@ export type Save = {
   /** Which baked world this was made in — see `public/manifest.json`. */
   world: string
   at: number
-  hero: { x: number; y: number; dir: number }
+  hero: {
+    x: number; y: number; dir: number
+    /**
+     * Which room he is in, if he is in one — `[0 a building or 1 a mine, its
+     * index in the world's list, the storey]`.
+     *
+     * Not written, until issue 206's question came back through issue 132: a
+     * position is not a place when the same spot is a nave from inside and a
+     * roof from outside.  `restore` put him back at his coordinates with
+     * nobody saying he had come through a door, and the first thing
+     * `placeHero` does is ask whether a man standing outside can stand there
+     * — so a character saved in the abbey woke up on the grass beside it.
+     * An index and not a name, because the save carries the world's hash and
+     * a different world is refused before this is read.  Optional, because
+     * every save before this was made outdoors as far as it knows.
+     */
+    inside?: [number, number, number]
+  }
   you: {
     level: number; xp: number; hp: number; purse: number
     /**

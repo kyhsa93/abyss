@@ -698,6 +698,10 @@ check('and the same seed gives the same fight',
     'you.kills': num, seed: num,
   }
   const SHAPED = {
+    // Which room he was saved in, if any: a building or a mine, its index and
+    // the storey.  No save before issue 132 has it and none of them needs it —
+    // every one of them was, as far as it knew, made outdoors.
+    'hero.inside': (v) => Array.isArray(v) && v.length === 3 && v.every(num),
     'you.who': (w) => typeof w.name === 'string' && [w.race, w.sex, w.cls].every(num),
     'you.hp': num,
     // Item id to how many, which is the whole of what v3 → v4 is for.

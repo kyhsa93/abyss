@@ -6865,7 +6865,12 @@ async function main() {
 
   const snapshot = (): Save => ({
     version: SAVE_VERSION, world: worldHash, at: Date.now(),
-    hero: { x: hero.x, y: hero.y, dir: hero.dir },
+    hero: { x: hero.x, y: hero.y, dir: hero.dir,
+      ...(indoors ? { inside: (() => {
+        const mine = caves.findIndex((c) => c === indoors)
+        return [mine >= 0 ? 1 : 0,
+          mine >= 0 ? mine : buildings.indexOf(indoors!), storey] as [number, number, number]
+      })() } : {}) },
     you: {
       level: you.level, xp: you.xp, hp: you.hp, power: you.power,
       purse: you.purse, kills: you.kills,
@@ -6951,6 +6956,18 @@ async function main() {
   }
 
   const restore = (save: Save) => {
+    // Back in the room before being put down in it: `placeHero` asks whether
+    // the spot can be stood on *from where the scene thinks he is*, and from
+    // outside a room is a roof.
+    const inside = save.hero.inside
+    const room = inside ? (inside[0] ? caves : buildings)[inside[1]] ?? null : null
+    indoors = room && room.plan ? room : null
+    storey = indoors
+      ? Math.max(-1, Math.min(inside![2], (indoors.floors?.length ?? 0) - 1)) : -1
+    onRung = false
+    // On a doorstep counts as having just come through it, or the first step
+    // walks him straight back out of the door he was saved beside.
+    onStep = !!indoors
     placeHero(save.hero.x, save.hero.y); hero.dir = save.hero.dir
     camX = hero.x; camY = hero.y
     if (save.you.who) {
@@ -9223,6 +9240,9 @@ async function main() {
               : (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall']!)(hash(i, j))
         const at = ground.at[id]
         if (at === undefined) continue
+        // What was laid, and on which part of the room — see `roomPaint`.
+        const part = isWall ? 'wall' : roofed ? 'floor' : 'open'
+        roomPaint.set(`${part}:${id}`, (roomPaint.get(`${part}:${id}`) ?? 0) + 1)
         // Lit flat.  A room has no hillside and no sun in it, so the shading
         // that makes a field read as ground would only make a floor read as
         // a dented one.  The middle step is the unshaded one.
@@ -9306,6 +9326,18 @@ async function main() {
    * hands it to the check.
    */
   const indoorPaint = new Map<string, number>()
+  /**
+   * What the last frame laid **inside** a room, as `part:tile` — `floor` under
+   * the roof, `open` where the sky is over a courtyard, and `wall` round the
+   * edge.
+   *
+   * `indoorPaint` is the outside's count of the same outline and cannot say
+   * it: once you are through the door that pass does not run.  Issue 159 asked
+   * that a building's inside use three floor pictures at most, and nothing had
+   * counted what `drawRoom` puts down, so the promise sat in the wiki with a
+   * dash beside it.
+   */
+  const roomPaint = new Map<string, number>()
   /**
    * Who the draw loop left out this frame, for the check that asks whether
    * they deserved it.
@@ -9868,6 +9900,7 @@ async function main() {
     waterTilesDrawn = 0
     tilesInView = 0
     indoorPaint.clear()
+    roomPaint.clear()
     indoorProps.length = 0
     indoorFolk.length = 0
     edged = 0
@@ -12737,6 +12770,50 @@ async function main() {
       return { mines: caves.length, fromModel: c.fromModel, inside: indoors === c,
         ours: dugByUs(indoors) }
     }
+  /**
+   * Walk in through one particular building's door, by its index in
+   * `__buildings()` — `__enter` takes the first of a kind, and a check that
+   * has to go into every building, or into one named place, cannot say which.
+   * Each door is tried in turn, the same step `__enter` takes.
+   */
+  ;(window as unknown as { __enterOne: (i: number, d?: number) => unknown })
+    .__enterOne = (i, d) => {
+      const b = buildings[i]
+      if (!b || !b.plan || !b.doors.length) return null
+      for (let j = 0; j < b.doors.length; j++) {
+        if (d !== undefined && j !== d) continue
+        const door = b.doors[j]!
+        placeHero(door[0], door[1])
+        throughTheDoor()
+        if (indoors === b) {
+          return { i, k: b.k, door: j, storey, x: hero.x, y: hero.y,
+            floors: b.floors?.length ?? 0 }
+        }
+        // Into a neighbour whose door is nearer, or nowhere: out again.
+        indoors = null
+        storey = -1
+      }
+      return null
+    }
+  /** The same, for the building whose outline holds a point. */
+  ;(window as unknown as { __enterAt: (x: number, y: number) => unknown })
+    .__enterAt = (x, y) => {
+      const b = inRoom(x, y)
+      return b ? (window as unknown as { __enterOne: (i: number) => unknown })
+        .__enterOne(buildings.indexOf(b)) : null
+    }
+  /**
+   * What the last frame laid inside the room you are in, by part — see
+   * `roomPaint`.
+   */
+  ;(window as unknown as { __roomPaint: () => unknown }).__roomPaint = () => {
+    const out: Record<string, Record<string, number>> = { floor: {}, open: {}, wall: {} }
+    for (const [key, n] of roomPaint) {
+      const [part, id] = key.split(':') as [string, string]
+      out[part]![id] = n
+    }
+    return { inside: indoors ? indoors.k : null, storey, ...out }
+  }
   /**
    * Stand on another storey.
    *

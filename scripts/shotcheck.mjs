@@ -63,6 +63,27 @@ const SPOTS = [
   ['wide', -8983, -316, 'widest',
     'the widest the camera goes — the opening framing halved'],
   ['hills', -8700, -900, 0.7, 'bare rock, where the slope decides the ground'],
+  // **Two from inside**, which the wiki asked for (실내와 바깥) and which all
+  // six above could never be: since 327779e a room is a scene of its own, and
+  // a regression in it — a floor drawn as a pit, the forest showing through a
+  // wall — is invisible from every one of them.  Walked in through the
+  // building's own door with the game's own step, from the point in the last
+  // column, and only then stood at the spot: a reference taken of a room a
+  // teleport put him in would be a room the scene does not think he is in.
+  //
+  // **Framed away from the stairs, and that is a known fault and not a
+  // choice of scenery.**  The first pictures taken here had grass growing in
+  // both rooms, beside every staircase: `over` keeps a ceiling within a
+  // storey's reach of the floor, a stairwell's ceiling is the roof two storeys
+  // up, so the cell reads as open sky and `drawRoom` lays it with the
+  // outdoor ground a courtyard gets.  Nothing the bake ships can tell a
+  // stairwell from a yard — the storeys above have the same hole in them —
+  // so the fix is in `bake_terrain.py` and not here.  A reference with the
+  // grass in it would be a promise that the grass is right.
+  ['inn', -9464.3, 24.2, 1.4, 'the inn at Goldshire from inside, among its tables',
+    'inside', [-9463, 16]],
+  ['nave', -8915.5, -209.4, 2, 'Northshire abbey from inside, in the nave',
+    'inside', [-8904, -185]],
 ]
 
 let bad = 0
@@ -85,11 +106,28 @@ await page.evaluate(() => { window.__clock?.(new Date(2026, 5, 21, 12, 0, 0)) })
 
 mkdirSync(DIR, { recursive: true })
 if (WRITE) mkdirSync(SEEN, { recursive: true })
-for (const [name, x, y, zoom, why] of SPOTS) {
+for (const [name, x, y, zoom, why, where, door] of SPOTS) {
   const z = zoom === 'widest'
     ? await page.evaluate(() => window.__zooms().floor) : zoom
-  await page.evaluate((c) => window.__cam(c), { x, y, zoom: z })
-  await page.waitForTimeout(400)
+  if (where === 'inside') {
+    const went = await page.evaluate(([a, c, zz, ex, ey]) => {
+      const r = window.__enterAt(ex, ey)
+      if (r) window.__cam({ x: a, y: c, zoom: zz })
+      return r && window.__room().inside ? r : null
+    }, [x, y, z, door[0], door[1]])
+    check(`${name} can be walked into`, !!went,
+      went ? `in through door ${went.door} of a ${went.k}`
+        : `nothing at ${door[0]}, ${door[1]} has a door, or ${x}, ${y} is not in its room`)
+    // Waited on: inside, and the room laid, and two frames drawn after it.
+    await page.waitForFunction(() => !!window.__room().inside
+      && Object.keys(window.__roomPaint().floor).length > 0, null, { timeout: 10000 })
+      .catch(() => null)
+    await page.evaluate(() => new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  } else {
+    await page.evaluate((c) => window.__cam(c), { x, y, zoom: z })
+    await page.waitForTimeout(400)
+  }
   // The canvas only: the overlays are `uicheck`'s business and they carry
   // fonts, which are the one thing that really does differ between machines.
   const grid = await page.evaluate(([w, h]) => {
