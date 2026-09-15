@@ -4295,6 +4295,65 @@ if (refused) {
   console.log(`      (${doors.fronts} front doors on ${doors.buildings} buildings)`)
 }
 
+// 29. And what he puts on changes the face in his frame.
+//
+// Issue 137's promise, and the check that stood for it compared the
+// paperdoll's *layer names*, which were right while the portrait was wrong
+// twice over.  The portrait was cut from a composition keyed on those names,
+// and a layer arrives a moment after it is asked for — so the face was cut
+// before the layer loaded and never again: a helmet put on never reached the
+// frame.  And a helmet was a face: the items call the slot `head`, the doll
+// calls the face `head` and the helmet `helm`, so nothing drew a helmet and,
+// bare-headed, nothing drew a face.  Read off the frame's own canvas, on a
+// character of its own so what the rest of this file bought him is not in it.
+{
+  const q = await b.newPage({ viewport: { width: 1200, height: 760 } })
+  await q.goto(HOST)
+  await q.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+  await q.evaluate(() => window.__makeOne?.('초상'))
+  const face = () => q.evaluate(() => {
+    const c = document.querySelector('#me .face canvas')
+    if (!c) return null
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    let h = 7
+    for (let i = 0; i < d.length; i++) h = (h * 31 + d[i]) >>> 0
+    return h
+  })
+  // The bare face first, settled: the layers load after the first compose.
+  await q.waitForFunction(() => window.__doll()?.ink > 200, null, { timeout: 10000 })
+    .catch(() => null)
+  await q.waitForTimeout(0)
+  const put = async (slot) => {
+    const was = await face()
+    const worn = await q.evaluate(async (slot) => {
+      const shelf = await (await fetch('./world/items.json')).json()
+      const pick = Object.entries(shelf.items)
+        .filter(([, v]) => v[1] === slot && v[4] <= 1)
+        .sort((a, z) => z[1][8] - a[1][8])[0]
+      if (!pick) return null
+      window.__buy(Number(pick[0]))
+      window.__dress()
+      return window.__doll().worn.includes(slot) ? Number(pick[0]) : null
+    }, slot)
+    // Waited on, not slept on: the face has changed, or ten seconds have gone.
+    const changed = await q.waitForFunction((h) => {
+      const c = document.querySelector('#me .face canvas')
+      if (!c) return false
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+      let k = 7
+      for (let i = 0; i < d.length; i++) k = (k * 31 + d[i]) >>> 0
+      return k !== h
+    }, was, { timeout: 10000 }).then(() => true).catch(() => false)
+    return { slot, worn, changed }
+  }
+  const chest = await put('chest')
+  const helm = await put('head')
+  await q.close()
+  check('and what he puts on changes the face in his frame',
+    !!chest.worn && !!helm.worn && chest.changed && helm.changed,
+    [chest, helm].map((r) => `${r.slot}: ${r.worn ? `wearing ${r.worn}` : 'nothing to wear'}, `
+      + `the portrait ${r.changed ? 'changed' : 'stayed the same'}`).join('; '))
+}
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

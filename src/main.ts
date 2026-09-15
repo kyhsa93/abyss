@@ -7872,7 +7872,13 @@ async function main() {
   const paintFace = () => {
     const doll = paintDoll()
     if (!doll || !doll.width) return null
-    const key = `${dollKey}|${doll.width}`
+    // **Keyed on the composition, not on the names in it.**  It was the list
+    // of layers, and a layer arrives a moment after it is first asked for:
+    // the doll was composed without it, the face was cut from that, and when
+    // the image landed `paintDoll` composed the same list again — the same
+    // key — so the portrait kept the picture from before it loaded for as
+    // long as the page was open.  A helmet put on never reached the frame.
+    const key = `${dollDrawn}|${doll.width}`
     if (key === faceFrom && faceCanvas.width) return faceCanvas
     const side = 64
     faceCanvas.width = side
@@ -7943,6 +7949,8 @@ async function main() {
   const dollCanvas = document.createElement('canvas')
   const dollLayers = new Map<string, HTMLImageElement>()
   let dollKey = ''
+  /** How many times the doll has actually been composed — see `paintFace`. */
+  let dollDrawn = 0
   /** Where the man himself is inside `dollCanvas` — see `paintDoll`. */
   let dollPerson: { x0: number; y0: number; x1: number; y1: number } | null = null
   /** Slots something is worn in that the layer sheets cannot draw. */
@@ -7959,11 +7967,18 @@ async function main() {
     // sheet and the world cannot put two different materials on one man.
     const want: string[] = []
     for (const slot of ORDER) {
-      const from = slot === 'body' ? null
-        : slot === 'hair' ? null
-          : gear[slot] !== undefined ? itemOf(gear[slot]!) : null
+      // **The doll's `head` is a face and its `helm` is what goes on it**, and
+      // the items call the helmet's slot `head`.  Read straight across, a
+      // helmet drew a bare face and nothing drew the helmet — and with no
+      // helmet on, nothing drew a face at all: `body` stops at the neck, so
+      // the portrait was hair over a stump.  `render_paperdoll.py` renders the
+      // face with every body (`ALWAYS`) for exactly this reason.
+      const worn = slot === 'helm' ? gear['head'] : gear[slot]
+      const from = slot === 'body' || slot === 'hair' || slot === 'head' ? null
+        : worn !== undefined ? itemOf(worn) : null
       const armour = slot === 'body' ? 0 : (from?.[I_ARMOUR] as number) ?? 0
       const name = slot === 'body' ? `${who}_body_bare`
+        : slot === 'head' ? `${who}_head_bare`
         : slot === 'hair' ? `${who}_hair_1`
           : from ? layerFor(dollArt, who, slot, armour,
             slot === 'weapon' ? armFor(gear[slot]) : null,
@@ -8054,6 +8069,7 @@ async function main() {
     // `pack_paperdoll.py` makes one file away when it leaves the weapon out of
     // the cell.
     for (const name of want) if (!held(name)) put(name)
+    dollDrawn++
     dollPerson = inkBox(g, dollCanvas.width, dollCanvas.height)
     for (const name of want) if (held(name)) put(name)
     return dollCanvas

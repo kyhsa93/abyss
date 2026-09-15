@@ -209,8 +209,8 @@ keeps it honest.
 | 화면의 모든 글자 크기가 `<FontHeight>` 눈금 위에 있다 | `scripts/padcheck.mjs: "the phone type is the client's own ladder"` |
 | 자원 바의 색이 `PowerBarColor` 다 | `scripts/uicheck.mjs: "and the page is using it"` |
 | 테두리 두께가 edgeSize 다섯 중 하나다 | `scripts/uicheck.mjs: "and what it does not take is written down"` |
-| 프레임의 조각 수가 클라이언트의 조각 수와 같다 | — 조각을 세는 것이 없다 |
-| 초상이 비어 있지 않고, 장비를 바꾸면 바뀐다 | `scripts/viewcheck.mjs: "and what he is wearing changes the picture"` |
+| 프레임의 조각 수가 클라이언트의 조각 수와 같다 | — 클라이언트 쪽은 셀 수 있다: `PlayerFrame.xml` 은 텍스처 20장(그중 9장은 상태가 켤 때까지 숨어 있다)·상태바 2개·글자 7줄을 세 레벨에 둔다. 우리 쪽에 같은 뜻의 수가 없다 — 테두리와 바탕이 텍스처가 아니라 CSS 라서, 세면 DOM 상자의 수가 나오고 그것은 조각의 수가 아니다. 같다고 단언하면 이 게임이 그리지 않는 텍스처를 약속하게 된다 |
+| 초상이 비어 있지 않고, 장비를 바꾸면 바뀐다 | `scripts/viewcheck.mjs: "and what he puts on changes the face in his frame"` |
 | 내보낸 숫자에 파일 이름도 문장도 없다 | `scripts/uicheck.mjs: "and what it does not take is written down"` |
 | `shotcheck` 기준을 다시 뜰 때 사람이 본다 | `scripts/shotcheck.mjs: " is a picture of somewhere"` |
 
