@@ -8995,7 +8995,7 @@ async function main() {
       ...Object.values(ROOF_OF).flatMap((w) => KIT_CELLS.map((k) => `${w}${k}`)),
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone',
       // Indoors, which is its own scene and its own set.
-      'in_floor', 'in_floor2', 'in_rug', 'in_wall',
+      'in_floor', 'in_floor2', 'in_wall',
       'in_house', 'in_house2', 'in_tower', 'in_tower2',
       ...edges]
       .filter((k) => k && tilesMeta[k]) as string[])]
@@ -9220,6 +9220,10 @@ async function main() {
     walls: Path2D; specks: Path2D
     /** Cell sides on each kind of edge, and the segments they were merged into. */
     edges: { interior: number; outline: number; speck: number; runs: number }
+    /** Each room region's size and every picture laid on it, for the checks. */
+    regions: { cells: number; pictures: string[] }[]
+    /** Each flight: how many cells, and whether its treads were turned. */
+    flights: { cells: number; turned: boolean }[]
   }
   const roomCache = new Map<Plan, Room>()
   let roomBytes = 0
@@ -9447,11 +9451,13 @@ async function main() {
    * as over its floor.
    */
   const roomTones = (k: string) => {
-    const [r, g, bl] = inkOfPicture(k === 'mine' ? 'rock_floor' : 'in_wall')
+    const from = k === 'mine' ? 'rock_floor' : 'in_wall'
+    const [r, g, bl] = inkOfPicture(from)
     const [sr, sg, sb, deep] = SHADOW
     const rgb = (u: number, v: number, w: number) =>
       `rgb(${Math.round(u)},${Math.round(v)},${Math.round(w)})`
     return {
+      from,
       wall: rgb(r, g, bl),
       void: rgb(r * (1 - deep) + sr * deep, g * (1 - deep) + sg * deep, bl * (1 - deep) + sb * deep),
     }
@@ -9494,6 +9500,97 @@ async function main() {
       kind[n] = !r.inside[n] ? 3 : r.walk[n] ? 0
         : r.edge[r.piece[n]!] || r.sizes[r.piece[n]!]! >= cut ? 2 : 1
     }
+    // Open to the sky, which inside an outline is a courtyard.
+    //
+    // An outline is a silhouette, so "inside the building" and "in a room"
+    // are not the same thing — the abbey's yard is inside its outline and
+    // the sky is over it.  The bake was throwing away the one face that
+    // says which: a ceiling is a flat surface above a man's head and it
+    // was being dropped as "not near this storey".  Baked, the outline's
+    // 65% that is neither stone nor standing room splits **167,238 roofed
+    // and 25,433 open**.  A tent has no floor of its own and is all yard.
+    const roofed = (n: number) => b.k !== 'tent' && (!p.over.length || bitAt(p.over, n))
+    /**
+     * **One floor picture a room, not a coin tossed a cell.**  Two pictures
+     * were mixed by a hash on every cell, which is a floor that shimmers:
+     * nothing in it lines up with a room, and the seams between the two
+     * pictures read as structure where there is none.  A room region is
+     * standing room under a roof joined four ways, with the specks standing in
+     * it, and the building's own pair is tossed once for the whole of it — so
+     * the pair still gets used, and where it changes is a doorway or a wall.
+     *
+     * A mine is one picture, the lit cut of the rock.  It was the unlit one
+     * with the lit one thrown in on three cells in ten, and a lit rock beside
+     * an unlit one is exactly what the wall looks like — the floor read as
+     * rubble.  `bake_tiles.py` cuts the two as the same rock lit and dark, so
+     * the floor takes the light and the wall (`roomTones`) keeps the dark.
+     */
+    const floorOf = (i: number, j: number) => b.k === 'mine'
+      ? (tilesMeta['stone'] ? 'stone' : ROCK_TILE)
+      : (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall']!)(hash(i, j))
+    /**
+     * **And the way up is drawn on the cells a man stands on while climbing,
+     * as treads.**  It was a rug on every `steps` cell, and a `steps` cell is a
+     * walkable face *between* this floor and the next: the abbey's gallery has
+     * 1,299 of them, most of them the inside of its crossing tower, and the
+     * storey came out a purple carpet.  What is drawn now is `stair` — a steps
+     * cell, this storey's or the one below's, with standing room over it — in
+     * the found tread picture: stone for a hall, a tower or a mine, timber for
+     * a house.  The picture's treads run across its rows, so a flight longer
+     * across the plan's first axis than its second is turned a quarter: a
+     * flight is longer than it is wide.  Which end is up is not in the plan,
+     * and is not guessed here.
+     */
+    const stairId = b.k === 'house' && tilesMeta['in_stair_wood'] ? 'in_stair_wood'
+      : tilesMeta['in_stair'] ? 'in_stair' : null
+    const region = new Int32Array(W * H).fill(-1)
+    const flight = new Int32Array(W * H).fill(-1)
+    const regionsOut: { cells: number; id: string; pictures: Set<string> }[] = []
+    const flights: { cells: number; turned: boolean }[] = []
+    const stack: number[] = []
+    const flood = (n0: number, into: Int32Array, label: number, ok: (o: number) => boolean) => {
+      let cells = 0, iLo = W, iHi = -1, jLo = H, jHi = -1
+      into[n0] = label
+      stack.push(n0)
+      while (stack.length) {
+        const m = stack.pop()!
+        cells++
+        const i = (m / H) | 0, j = m % H
+        if (i < iLo) iLo = i
+        if (i > iHi) iHi = i
+        if (j < jLo) jLo = j
+        if (j > jHi) jHi = j
+        if (i > 0 && into[m - H]! < 0 && ok(m - H)) { into[m - H] = label; stack.push(m - H) }
+        if (i < W - 1 && into[m + H]! < 0 && ok(m + H)) { into[m + H] = label; stack.push(m + H) }
+        if (j > 0 && into[m - 1]! < 0 && ok(m - 1)) { into[m - 1] = label; stack.push(m - 1) }
+        if (j < H - 1 && into[m + 1]! < 0 && ok(m + 1)) { into[m + 1] = label; stack.push(m + 1) }
+      }
+      return { cells, across: iHi - iLo, along: jHi - jLo }
+    }
+    const inRoom = (o: number) => kind[o]! <= 1 && !(stairId && r.stair[o]) && roofed(o)
+    const onFlight = (o: number) => !!stairId && r.stair[o] === 1
+    for (let n = 0; n < W * H; n++) {
+      if (region[n]! < 0 && inRoom(n)) {
+        const got = flood(n, region, regionsOut.length, inRoom)
+        regionsOut.push({ cells: got.cells, id: floorOf((n / H) | 0, n % H), pictures: new Set() })
+      }
+      if (flight[n]! < 0 && onFlight(n)) {
+        const got = flood(n, flight, flights.length, onFlight)
+        flights.push({ cells: got.cells, turned: got.across > got.along })
+      }
+    }
+    // The tread picture a quarter turned, once, for the flights that want it.
+    let turned: HTMLCanvasElement | null = null
+    const stairPic = stairId ? tilesMeta[stairId] : undefined
+    if (stairPic && flights.some((f) => f.turned)) {
+      turned = document.createElement('canvas')
+      turned.width = stairPic.h; turned.height = stairPic.w
+      const tg = turned.getContext('2d')!
+      tg.imageSmoothingEnabled = false
+      tg.translate(stairPic.h, 0)
+      tg.rotate(Math.PI / 2)
+      tg.drawImage(tilesImg, stairPic.x, stairPic.y, stairPic.w, stairPic.h, 0, 0, stairPic.w, stairPic.h)
+    }
     for (let i = 0; i < W; i++) {
       for (let j = 0; j < H; j++) {
         const n = i * H + j
@@ -9502,43 +9599,40 @@ async function main() {
           const stone = bitAt(p.solid, n)
           g.fillStyle = stone ? tones.wall : tones.void
           g.fillRect(i * S, j * S, S, S)
-          add(stone ? 'wall:stone' : 'void:nothing')
+          // Named for the picture the tone is the colour of, so a count says
+          // what the wall is made of and cannot be read as a mine's floor.
+          add(stone ? `wall:${tones.from}` : `void:${tones.from}`)
           continue
         }
-        const [wx, wy] = fromPlan(p, b, p.x0 + (i + 0.5) * p.s, p.y0 + (j + 0.5) * p.s)
-        // Open to the sky, which inside an outline is a courtyard.
-        //
-        // An outline is a silhouette, so "inside the building" and "in a room"
-        // are not the same thing — the abbey's yard is inside its outline and
-        // the sky is over it.  The bake was throwing away the one face that
-        // says which: a ceiling is a flat surface above a man's head and it
-        // was being dropped as "not near this storey".  Baked, the outline's
-        // 65% that is neither stone nor standing room splits **167,238 roofed
-        // and 25,433 open**.
-        //
-        // What an open cell gets is the ground the client painted there, asked
-        // the short way: this is a yard and not a hillside, so the slope bands
-        // and the meadow blotch that the outdoor pass spends its time on have
-        // nothing to say about it.
-        const roofed = !p.over.length || bitAt(p.over, n)
-        // The way up, drawn as what it is.  A landing is not flat floor and
-        // the one thing a player needs to see about it is that it is the seam.
-        const rung = bitAt(p.steps, n)
-        const id = rung
-          ? 'in_rug'
-          : !roofed || b.k === 'tent'
-            ? (paintAt(wx, wy) === 'paved' && PAVED_TILES.length
-              ? PAVED_TILES[Math.floor(hash(i, j) * PAVED_TILES.length)]!
-              : GROUND_TILES[Math.floor(hash(i, j) * GROUND_TILES.length)]!)
-            : b.k === 'mine'
-              ? (hash(i, j) > 0.7 ? 'stone' : 'rock_floor')
-              : (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall']!)(hash(i, j))
+        if (flight[n]! >= 0 && stairPic) {
+          add(`stairs:${stairId}`)
+          if (turned && flights[flight[n]!]!.turned) g.drawImage(turned, i * S, j * S, S, S)
+          else g.drawImage(tilesImg, stairPic.x, stairPic.y, stairPic.w, stairPic.h, i * S, j * S, S, S)
+          continue
+        }
+        let id: string
+        if (region[n]! >= 0) {
+          const home = regionsOut[region[n]!]!
+          id = home.id
+          home.pictures.add(id)
+        } else {
+          // What an open cell gets is the ground the client painted there,
+          // asked the short way: this is a yard and not a hillside, so the
+          // slope bands and the meadow blotch that the outdoor pass spends its
+          // time on have nothing to say about it.  Still a picture a cell,
+          // because it is ground, and ground is laid that way everywhere else.
+          const [wx, wy] = fromPlan(p, b, p.x0 + (i + 0.5) * p.s, p.y0 + (j + 0.5) * p.s)
+          id = paintAt(wx, wy) === 'paved' && PAVED_TILES.length
+            ? PAVED_TILES[Math.floor(hash(i, j) * PAVED_TILES.length)]!
+            : GROUND_TILES[Math.floor(hash(i, j) * GROUND_TILES.length)]!
+        }
         const pic = tilesMeta[id]
         if (!pic) continue
-        add(`${kind[n] === 1 ? 'speck' : roofed ? 'floor' : 'open'}:${id}`)
+        add(`${kind[n] === 1 ? 'speck' : region[n]! >= 0 ? 'floor' : 'open'}:${id}`)
         g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h, i * S, j * S, S, S)
       }
     }
+    releaseCanvas(turned)
     // Lit flat, at the row the tile pass used to take a room's pictures from,
     // with the same wash that row is given — over what was laid and nothing
     // else, so the dark round a room stays the dark.
@@ -9588,7 +9682,8 @@ async function main() {
       }
     }
     return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0,
-      walls, specks, edges }
+      walls, specks, edges,
+      regions: regionsOut.map((x) => ({ cells: x.cells, pictures: [...x.pictures] })), flights }
   }
 
   /**
@@ -13199,6 +13294,7 @@ async function main() {
       ms: roomLaid.ms, kept: roomCache.size, keptBytes: roomBytes, budget: roomBudget } : null
     return { inside: indoors ? indoors.k : null, storey, ...out, room,
       edges: roomLaid?.edges ?? null, cut: speckStats,
+      regions: roomLaid?.regions ?? [], flights: roomLaid?.flights ?? [],
       // And the transform the frame drew it under, cell units to the glass, so
       // a check can say where a wall of the plan should be on the screen.
       xform: roomXform.length ? roomXform : null }

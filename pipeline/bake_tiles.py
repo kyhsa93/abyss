@@ -119,6 +119,10 @@ SHEETS = {
     'watergrass.png': 'base',
     'castlefloors.png': 'base',
     'castlewalls.png': 'base',
+    # Both in Sharm's own list of the base tileset, beside every other sheet
+    # this bake cuts from `base`.
+    'cementstair.png': 'base',
+    'stairs.png': 'base',
 }
 
 # --- and the roof as a kit rather than as one flat square ----------------
@@ -230,7 +234,6 @@ GROUND = [
     # set.  A flagstone floor and a slate wall are what a room is made of.
     ('in_floor',   'castlefloors.png',        192, 192, 32, 32, 'sharm_base'),
     ('in_floor2',  'castlefloors.png',        224, 192, 32, 32, 'sharm_base'),
-    ('in_rug',     'castlefloors.png',         64,  64, 32, 32, 'sharm_base'),
     ('in_wall',    'castlewalls.png',          32,  32, 32, 32, 'sharm_base'),
     # A floor a kind of building.  One picture for every inside was the
     # complaint, and `doodads` already sorts the slice's buildings into four
@@ -248,6 +251,19 @@ GROUND = [
     ('in_house2',  'castlefloors_outside.png', 64,  32, 32, 32, 'sharm_base'),
     ('in_tower',   'castlefloors.png',        160,   0, 32, 32, 'sharm_base'),
     ('in_tower2',  'castlefloors.png',        288,   0, 32, 32, 'sharm_base'),
+    # The way up, seen from above, and it was a rug.  `in_rug` — castlefloors
+    # (64, 64), no longer cut, because nothing else ever laid it — was put on
+    # every `steps` cell, and a storey that is mostly stairwell came out a
+    # purple carpet: the abbey's gallery floor was 738 cells of rug to 77 of
+    # stone.
+    # Both sheets draw a flight side-on for a three-quarter view, which is not
+    # this camera; what does hold from above is the one column of each that is
+    # treads seen face-on, four to a 32-pixel square and repeating every eight
+    # rows, so a square tiles along the flight.  Stone for a hall and a tower,
+    # timber for a house.  Rows 32 to 56 of the stone column are a landing and
+    # rows 96 on are its shadowed foot: neither tiles, so neither is cut.
+    ('in_stair',      'cementstair.png',       0,  64, 32, 32, 'sharm_base'),
+    ('in_stair_wood', 'stairs.png',            0, 376, 32, 32, 'sharm_base'),
     ('grass',      'Terrain and Outside.png',   0, 352, 32, 32, 'sharm'),
     ('grass2',     'Terrain and Outside.png',  32, 352, 32, 32, 'sharm'),
     ('grass3',     'Terrain and Outside.png',  64, 352, 32, 32, 'sharm'),
