@@ -41,7 +41,7 @@ import {
   short, take, walked, wants, type Errand,
 } from './sim/quest.ts'
 import {
-  mitigate, noticeAt, rageFrom, swing, xpFor, E_DAMAGE, E_TRIGGER, E_ATTACK_ME,
+  mitigate, noticeAt, rageFrom, seenYards, swing, xpFor, E_DAMAGE, E_TRIGGER, E_ATTACK_ME,
   A_THREAT_PCT, A_DAMAGE_PCT_DONE, A_DAMAGE_PCT_TAKEN, A_BASE_RESISTANCE_PCT,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
   A_PERIODIC_HEAL, A_MOD_STAT, A_MOD_RESISTANCE, A_ABSORB, SCHOOL_PHYSICAL,
@@ -7923,8 +7923,14 @@ async function main() {
    *
    * It is a floor and not a fixed value: a wide desktop shows more, because
    * there is no reason to crop it, and a pinch still does what a pinch does.
+   *
+   * **And it is read, not typed.**  This was `40` under a comment that said
+   * so, and nothing read the column; `seenYards` doubles the largest
+   * `notice` the bake wrote, with the same default a spawn with no row gets
+   * below, and `bordercheck` holds this line to it.
    */
-  const SEEN_YARDS = 40
+  const SEEN_YARDS = seenYards(spawns.npcs.map((row) =>
+    spawns.moves?.[row[10] ?? -1]?.[MOVE_NOTICE] ?? 20))
   let zoom = 1
   /**
    * How far out you may pull, which **used to be a frame-rate decision and is

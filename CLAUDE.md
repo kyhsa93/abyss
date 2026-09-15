@@ -864,9 +864,10 @@ It was also three times further out than the number the paragraph was
 defending, so nobody was standing on the cliff even when it was there.
 
 So the far limit is not about frames and the client states what it is about.
-The near one has been derived since `SEEN_YARDS` — forty yards is
+The near one has been derived since `SEEN_YARDS` — forty yards is twice
 `creature_template.detection_range`'s own maximum, *what can see you, you must
-be able to see*. The far one is **`cameraDistanceMaxFactor` in
+be able to see*. It was typed as forty, beside a comment calling forty the
+maximum itself, until issue 172's check made `seenYards` read the column. The far one is **`cameraDistanceMaxFactor` in
 `InterfaceOptionsPanels.lua`**, a slider from 1 to **2**: you may pull back to
 twice the default distance, and twice the distance is half the zoom. The floor
 is the **opening framing halved**, so a phone and a desktop get different ones

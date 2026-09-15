@@ -74,6 +74,25 @@ export function noticeAt(mine: number, theirs: number, sight: number): number {
 }
 
 /**
+ * How many yards a screen has to show across its short side: twice the
+ * furthest anything in this world notices you from.
+ *
+ * `sights` is `creature_template.detection_range` for every spawn the bake
+ * wrote — the column `noticeAt` takes — and it is twice because you stand in
+ * the middle of the glass and a creature can come from either side.  It was
+ * `SEEN_YARDS = 40` in `main.ts` under a comment calling forty the column's
+ * own maximum (issue 172).  The maximum is twenty; forty was right and was
+ * typed, and nothing read the column to say whether it still was.
+ *
+ * `noticeAt`'s stretch is not in it: a creature above you notices from up to
+ * five yards further.  The rule was stated on the column, so it is kept on
+ * the column — widening the floor is a change to what a phone shows, not a
+ * derivation.
+ */
+export const seenYards = (sights: number[]): number =>
+  2 * sights.reduce((most, s) => Math.max(most, s), 0)
+
+/**
  * Melee reach, in yards.
  *
  * It was 3.0 with a comment saying "two bodies and an arm", which is a guess.

@@ -3108,11 +3108,15 @@ for (const [name, x, y, zoom] of [['the abbey', -8930, -170, 0.7],
       wide: i.yardsWide, tall: i.yardsTall,
       atStart: all.filter((m) => Math.abs(m.x - s.x) < hw
         && Math.abs(m.y - s.y) < hh).length,
+      // The floor the scene derived, rather than a 39.5 typed here beside the
+      // 40 that used to be typed there (issue 172).
+      floor: window.__zooms().seen,
     }
   })
   check('a screen shows at least forty yards across its short side',
-    Math.min(seen.wide, seen.tall) >= 39.5,
-    `${seen.wide.toFixed(0)} x ${seen.tall.toFixed(0)} yards`)
+    seen.floor > 0 && Math.min(seen.wide, seen.tall) >= seen.floor - 0.5,
+    `${seen.wide.toFixed(0)} x ${seen.tall.toFixed(0)} yards, the floor being `
+    + `${seen.floor}`)
   check('and a walkable spot has somebody on screen on average',
     seen.perScreen >= 1,
     `${seen.perScreen.toFixed(2)} people over ${seen.spots} spots`)

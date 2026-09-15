@@ -175,6 +175,37 @@ check('and they run in Node with no browser at all',
     hits.length ? hits.join(', ') : 'every roll in the rules goes through roll.ts')
 }
 
+/**
+ * How much world a screen shows is the world's own number, and it is read.
+ *
+ * Issue 172: `SEEN_YARDS = 40` in `main.ts`, under a comment calling forty
+ * `creature_template.detection_range`'s maximum — it is twice the maximum —
+ * and nothing read the column.  The scene derives it through `seenYards` now,
+ * and this holds the two halves a browser cannot: the line in the scene is
+ * that call and not a number, and the call over the baked spawns is twice the
+ * largest detection range the bake wrote.  The position in the move tuple is
+ * read from `main.ts`'s own `MOVE_NOTICE` and from the tuple `spawn_npcs.py`
+ * builds, so a field added in front moves all three or fails here.
+ * `viewcheck` asks the running scene for the value instead of typing 39.5.
+ */
+{
+  const { seenYards } = await import('../src/sim/fight.ts')
+  const people = JSON.parse(readFileSync(join('public', 'world', 'npcs.json'), 'utf8'))
+  const scene = code(readFileSync(join('src', 'main.ts'), 'utf8'))
+  const at = Number(scene.match(/\bMOVE_NOTICE = (\d+)/)?.[1] ?? NaN)
+  const typed = (scene.match(/const SEEN_YARDS = ([^\n]*)/)?.[1] ?? '').trim()
+  const tuple = (readFileSync(join('pipeline', 'spawn_npcs.py'), 'utf8')
+    .match(/^\s*way = \(([^)]*)\)/m)?.[1] ?? '').split(',').map((s) => s.trim())
+  const sights = people.npcs.map((r) => people.moves?.[r[10] ?? -1]?.[at] ?? 20)
+  const most = sights.reduce((m, s) => Math.max(m, s), 0)
+  check("a screen's short side is twice the furthest anything here notices you from",
+    /^seenYards\(/.test(typed) && tuple.indexOf('notice') === at
+    && most > 0 && seenYards(sights) === 2 * most,
+    `SEEN_YARDS = ${typed.slice(0, 24)}…, notice at ${at} in main.ts and `
+    + `${tuple.indexOf('notice')} in the bake; the largest over `
+    + `${people.npcs.length} spawns is ${most}, so ${seenYards(sights)} yards`)
+}
+
 // --- a place is what the world says it is ----------------------------------
 //
 // The words in `src/talk.ts` are ours and always will be.  Which place each
