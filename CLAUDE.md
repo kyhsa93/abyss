@@ -1134,23 +1134,24 @@ several sharing a slot, but a pooled *object* is a herb node — Elwynn has 36
 copper-vein spots with nine up at a time — and dropping them leaves the
 starting zone with nothing to gather, which is what the first run produced.
 
-**The core's C++ is at `~/src/acore-src`**, sparse and blobless — eight
-megabytes of `src/server/game/Entities`, `Spells`, `Combat` and
-`Miscellaneous`, and `Reputation` since. Everything in `src/sim/stats.ts` cites the file and line it came
-from. The commands that make it were only ever in issue 101's closing comment:
+**The core's C++ is at `~/src/acore-src`**, sparse and blobless — ten
+megabytes of `src/server/game/Entities`, `Spells`, `Combat`, `Miscellaneous`,
+`Reputation`, `DataStores` and `AI`, and the core's top-level tools tree. Everything in
+`src/sim/stats.ts` cites the file and line it came from. The commands that make
+it were only ever in issue 101's closing comment:
 
 ```
 git clone --depth 1 --filter=blob:none --sparse \
   https://github.com/azerothcore/azerothcore-wotlk ~/src/acore-src
 cd ~/src/acore-src
 git sparse-checkout set src/server/game/Combat src/server/game/Entities \
-  src/server/game/Miscellaneous src/server/game/Reputation src/server/game/Spells
+  src/server/game/Miscellaneous src/server/game/Reputation src/server/game/Spells \
+  src/server/game/DataStores src/server/game/AI src/tools
 ```
 
-That is what is checked out, and it is narrower than the issue asked for:
-`DataStores` (where `DBCStores.cpp` lives), `AI` (`SmartScript.cpp`) and the
-top-level `tools` tree (`map_extractor/System.cpp`) are **not** in it. Add them
-with `git sparse-checkout add` before citing a line from one. `corecheck` reads
+The last three came in on 2026-09-15: until then the checkout was narrower than
+issue 101 asked for, and the files it named — `DBCStores.cpp`, `SmartScript.cpp`
+and `map_extractor/System.cpp` — could not be cited from here. `corecheck` reads
 this tree, or `$ABYSS_CORE`. The world database's dump is a different checkout,
 `~/src/azerothcore-wotlk`, sparse on `data/sql/base` alone. Until it was there, the layer of this game that is *rules* had no source
 at all and the gap showed: every blow landed, there were no stats, and the
