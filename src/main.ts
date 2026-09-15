@@ -7277,40 +7277,117 @@ async function main() {
      * floor and not the wall, because the room does not draw it as a wall.
      */
     speck: '#7a7160',
+    /**
+     * **Another storey of the same building, faint.**  Where this storey has
+     * nothing — outside its outline, or a stairwell — the storeys above and
+     * below show through, so the circle says where a flight comes out before
+     * you climb it.  A cool slate rather than a dim floor colour, because a
+     * dim floor colour came out the wall's brown and the two read as one.
+     */
+    ghost: '#2e3444',
+    /** And their flights, which is the part of another storey worth finding. */
+    ghostSteps: '#6a5836',
   }
   const inkRgb = (hex: string) =>
     [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)] as const
 
   /**
-   * The plan of the storey you are on, a pixel at a time.
+   * The plan of the storey you are on, a pixel at a time, with the others under it.
    *
    * **The room's own cells, not the bake's masks.**  Each pixel asks
    * `codesOf` — the sort `roomCells` makes for the room drawing — so a wall is
    * where the room draws wall, a pew end is floor with something on it, and a
-   * stairwell's air is not a purple carpet of `steps`.
+   * stairwell's air is not a purple carpet of `steps`.  A storey the room has
+   * not been composed for is sorted all the same, without composing it: the
+   * sort is bytes, and the picture is megabytes.
    *
    * One sample a pixel indoors, where outdoors takes one every two: the
    * outdoor circle is 120 yards and a ground, the indoor one is the building's
    * own size and a plan, and at two a pixel a cottage's inner wall was a
-   * dotted line or nothing.
+   * dotted line or nothing.  The abbey's four storeys come to a millisecond.
    */
   function paintPlan(b: Built, n: number, yd: number, px: Uint8ClampedArray) {
     const all = [b.plan!, ...b.floors]
     const here = Math.max(0, Math.min(all.length - 1, storey + 1))
-    const q = all[here]!, mine = codesOf(b, q, here ? all[here - 1]! : null)
+    const codes = all.map((q, k) => codesOf(b, q, k ? all[k - 1]! : null))
+    // The nearest storey first: under a stairwell the floor it leads to is
+    // the one worth showing, not the attic three floors up.
+    const others = all.map((_, k) => k).filter((k) => k !== here)
+      .sort((u, v) => Math.abs(u - here) - Math.abs(v - here))
     const byCode = [PLAN_INK.off, PLAN_INK.wall, PLAN_INK.dark, PLAN_INK.floor,
       PLAN_INK.yard, PLAN_INK.speck, PLAN_INK.steps].map(inkRgb)
+    const ghost = inkRgb(PLAN_INK.ghost), ghostSteps = inkRgb(PLAN_INK.ghostSteps)
+    const q = all[here]!, mine = codes[here]!
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
         const wx = hero.x + (n / 2 - j) * yd
         const wy = hero.y + (n / 2 - i) * yd
         const cell = planCell(q, b, wx, wy)
-        const ink = byCode[cell < 0 ? CELL.off : mine[cell]!]!
+        const cc = cell < 0 ? CELL.off : mine[cell]!
+        let ink = byCode[cc]!
+        if (cc === CELL.off || cc === CELL.void) {
+          for (const k of others) {
+            const m = planCell(all[k]!, b, wx, wy)
+            if (m < 0) continue
+            const o = codes[k]![m]!
+            if (o === CELL.stairs) { ink = ghostSteps; break }
+            if (o === CELL.floor || o === CELL.yard || o === CELL.speck) { ink = ghost; break }
+          }
+        }
         const at = (j * n + i) * 4
         px[at] = ink[0]; px[at + 1] = ink[1]; px[at + 2] = ink[2]; px[at + 3] = 255
       }
     }
   }
+
+  /**
+   * The ways out and the flights' marks, on the plan, at the plan's size — the
+   * same marks `drawRoom` puts on the glass, out of the same composed room.
+   *
+   * Only from a room already kept: the storey you stand on is composed by the
+   * frame before the circle is painted, and composing one for the circle alone
+   * would be megabytes for a mark.  A doorway between rooms is a bar across its
+   * gap, the threshold's own width; a front door is the arrow going out.
+   */
+  function mapMarks(b: Built, p: Plan, room: Room, toMap: (x: number, y: number) => [number, number],
+    size: number) {
+    const at = (i: number, j: number) => {
+      const [x, y] = fromPlan(p, b, p.x0 + i * p.s, p.y0 + j * p.s)
+      return toMap(x, y)
+    }
+    const rim = Math.max(1.5, size / 5)
+    for (const x of room.exits) {
+      const [X, Y] = at(x.at[0], x.at[1])
+      const [X2, Y2] = at(x.at[0] + x.along[0], x.at[1] + x.along[1])
+      const l = Math.hypot(X2 - X, Y2 - Y) || 1
+      const ux = (X2 - X) / l, uy = (Y2 - Y) / l
+      if (x.kind === 'front') { drawMark(X, Y, ux, uy, 'out', mapCtx, size, rim); continue }
+      const h = Math.max(1, x.half / toMapScale)
+      mapCtx.lineCap = 'round'
+      mapCtx.strokeStyle = 'rgba(22, 18, 14, 0.9)'
+      mapCtx.lineWidth = rim + 1.5
+      mapCtx.beginPath()
+      mapCtx.moveTo(X + uy * h, Y - ux * h)
+      mapCtx.lineTo(X - uy * h, Y + ux * h)
+      mapCtx.stroke()
+      mapCtx.strokeStyle = markInk
+      mapCtx.lineWidth = rim
+      mapCtx.stroke()
+      mapCtx.lineCap = 'butt'
+    }
+    for (const fl of room.flights) {
+      const pair = fl.marks.length === 2 && fl.marks[0]!.at[0] === fl.marks[1]!.at[0]
+        && fl.marks[0]!.at[1] === fl.marks[1]!.at[1]
+      fl.marks.forEach((m, which) => {
+        const [X, Y] = at(m.at[0], m.at[1])
+        drawMark(X + (pair ? (which ? 0.55 : -0.55) * size : 0), Y, 0, 0, m.what, mapCtx, size, rim)
+      })
+    }
+  }
+  /** Yards a minimap pixel is, as the last paint had it. */
+  let toMapScale = 1
+  /** How big a mark on the circle is, in its own pixels, as the last paint had it. */
+  let mapMark = 7
 
   function paintMap() {
     const n = ui.map.width
@@ -7328,6 +7405,16 @@ async function main() {
       ? Math.min(MAP_YARDS, 2 * Math.max(inside.l, inside.w) + 6)
       : MAP_YARDS
     const yd = span / n
+    toMapScale = yd
+    // Marks a set size on the glass, whatever the circle is drawn at: five
+    // pixels of mark on a desktop's 150-pixel circle is twelve of the canvas's
+    // on a phone's 64.  Seven was tried first and the abbey's tower storey was
+    // a field of triangles, and on a phone the inn's plan was mostly marks.
+    // Read off the page four times a second, which is the rate this is painted
+    // at and not the frame's.
+    const dial = ui.map.clientWidth || n
+    const size = Math.max(4, Math.round((5 * n) / dial))
+    mapMark = size
     const img = mapCtx.createImageData(n, n)
     const px = img.data
     if (inside && plan && inside.plan) paintPlan(inside, n, yd, px)
@@ -7354,6 +7441,12 @@ async function main() {
     }
     mapCtx.putImageData(img, 0, 0)
     const mid = n / 2
+    const toMap = (x: number, y: number): [number, number] =>
+      [mid - (y - hero.y) / yd, mid - (x - hero.x) / yd]
+    if (inside && plan) {
+      const room = roomCache.get(plan)
+      if (room) mapMarks(inside, plan, room, toMap, size)
+    }
     // Everybody awake, as a dot: red if it would fight you, green if it would
     // not.  Only the awake, which is the same couple of hundred the scene is
     // already thinking about.
@@ -7372,8 +7465,28 @@ async function main() {
         : fightable(m.fight) ? '#d8b24a' : '#7fc46f'
       mapCtx.fillRect(Math.round(i) - 1, Math.round(j) - 1, 2, 2)
     }
+    // **The player, and which way he faces.**  A three-pixel square was a
+    // pixel and a third on a phone's circle, and it said nothing about where
+    // he would go next — which on a plan with doors in it is the question.  A
+    // dot with a dark rim and a wedge ahead of it, the way the sprite faces:
+    // the four poses are the glass's four directions, and north is up both.
+    const r0 = Math.max(2, size * 0.35)
+    const [fx, fy] = hero.dir === DIR_UP ? [0, -1] : hero.dir === DIR_DOWN ? [0, 1]
+      : hero.dir === DIR_LEFT ? [-1, 0] : [1, 0]
+    const tip = r0 + size * 0.8, base = r0 * 0.4, wide = size * 0.45
+    mapCtx.beginPath()
+    mapCtx.moveTo(mid + fx * tip, mid + fy * tip)
+    mapCtx.lineTo(mid + fx * base - fy * wide, mid + fy * base + fx * wide)
+    mapCtx.lineTo(mid + fx * base + fy * wide, mid + fy * base - fx * wide)
+    mapCtx.closePath()
+    mapCtx.moveTo(mid + r0, mid)
+    mapCtx.arc(mid, mid, r0, 0, Math.PI * 2)
+    mapCtx.lineJoin = 'round'
+    mapCtx.lineWidth = Math.max(1.5, size / 5)
+    mapCtx.strokeStyle = 'rgba(12, 10, 8, 0.9)'
+    mapCtx.stroke()
     mapCtx.fillStyle = '#ffffff'
-    mapCtx.fillRect(mid - 1, mid - 1, 3, 3)
+    mapCtx.fill()
   }
   const help = document.getElementById('help') as HTMLDivElement
   let talkingNow = false
@@ -10387,13 +10500,15 @@ async function main() {
    * One mark, upright, centred on the glass at `(X, Y)`: an arrow along the
    * unit vector `(ux, uy)` for a way out, and a triangle pointing up or down
    * the glass for a flight.  A dark rim round it, the wall's own stroke, so it
-   * reads on a pale floor and a dark one alike.
+   * reads on a pale floor and a dark one alike.  On the glass by default, and
+   * on the minimap at the minimap's own size.
    */
-  function drawMark(X: number, Y: number, ux: number, uy: number, what: 'out' | 'up' | 'down') {
-    const s = markPx / 2
-    ctx.save()
-    ctx.translate(X, Y)
-    ctx.beginPath()
+  function drawMark(X: number, Y: number, ux: number, uy: number, what: 'out' | 'up' | 'down',
+    g: CanvasRenderingContext2D = ctx, size = markPx, rim = 3) {
+    const s = size / 2
+    g.save()
+    g.translate(X, Y)
+    g.beginPath()
     if (what === 'out') {
       // Along the way out: x forward, y across.
       const pt = (fx: number, fy: number) =>
@@ -10402,23 +10517,23 @@ async function main() {
         [-0.9, 0.35], [0.05, 0.35], [0.05, 0.85]]
       shape.forEach(([fx, fy], k) => {
         const [qx, qy] = pt(fx!, fy!)
-        if (k) ctx.lineTo(qx, qy); else ctx.moveTo(qx, qy)
+        if (k) g.lineTo(qx, qy); else g.moveTo(qx, qy)
       })
-      ctx.fillStyle = markInk
+      g.fillStyle = markInk
     } else {
       const tip = what === 'up' ? -1 : 1
-      ctx.moveTo(0, tip * s)
-      ctx.lineTo(s * 0.95, -tip * s * 0.75)
-      ctx.lineTo(-s * 0.95, -tip * s * 0.75)
-      ctx.fillStyle = PLAN_INK.steps
+      g.moveTo(0, tip * s)
+      g.lineTo(s * 0.95, -tip * s * 0.75)
+      g.lineTo(-s * 0.95, -tip * s * 0.75)
+      g.fillStyle = PLAN_INK.steps
     }
-    ctx.closePath()
-    ctx.lineJoin = 'round'
-    ctx.lineWidth = 3
-    ctx.strokeStyle = 'rgba(22, 18, 14, 0.9)'
-    ctx.stroke()
-    ctx.fill()
-    ctx.restore()
+    g.closePath()
+    g.lineJoin = 'round'
+    g.lineWidth = rim
+    g.strokeStyle = 'rgba(22, 18, 14, 0.9)'
+    g.stroke()
+    g.fill()
+    g.restore()
   }
   /** The room the last frame drew, and the transform it drew it under. */
   let roomLaid: Room | null = null
@@ -13432,6 +13547,11 @@ async function main() {
     // labelled as one we made up, which is the same lie the other way round
     // from the one this label was written to stop.  What is ours is
     // `fromModel === false`, and that is the question now.
+    // Which storey of how many, beside the circle — only in a building that
+    // has more than one.  Counted from the ground as one, the way a Korean
+    // building is: the bake's storeys are all above the sill of the front door.
+    ui.setStorey(indoors && indoors.floors.length
+      ? `${storey + 2}/${indoors.floors.length + 1}층` : null)
     ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}`
       + `${dugByUs(indoors) ? ' · 우리가 판 굴' : ''}`
       + `${overhead ? ` · ${overhead}` : ''}`
@@ -14526,9 +14646,11 @@ async function main() {
     }
     const b = indoors
     return {
-      inside: b ? b.k : null, storey, n, palette: PLAN_INK,
+      inside: b ? b.k : null, storey, n, mark: mapMark, palette: PLAN_INK,
       hero: { x: hero.x, y: hero.y, dir: hero.dir },
       storeys: b ? b.floors.length + 1 : 0,
+      plate: (document.querySelector('#map .storey') as HTMLElement | null)?.hidden === false
+        ? document.querySelector('#map .storey')!.textContent : null,
       span: b ? Math.min(MAP_YARDS, 2 * Math.max(b.l, b.w) + 6) : MAP_YARDS,
       // Which of the two palettes the circle is painted out of, counted.
       ground: Object.entries(INK)

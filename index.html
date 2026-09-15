@@ -281,6 +281,15 @@
       #map .where { border-radius: 0 0 3px 3px; margin-top: -2px; }
       #map .clock { color: #9aa6ae; border-radius: 3px; margin-top: 3px;
         border-top: 1px solid var(--gold-dark); }
+      /* The storey, in the top left corner of the box — the corner of a
+         square the circle does not reach, and on a phone the width the
+         plates keep either side of the dial. */
+      #map .storey {
+        position: absolute; left: 0; top: 0; padding: 0 4px;
+        font: var(--font-tiny)/1.5 var(--mono); color: var(--gold);
+        background: var(--panel); border: 1px solid var(--gold-dark);
+        border-radius: 3px; white-space: nowrap; pointer-events: none;
+      }
 
       /* What just happened, newest last. */
       /* A box things scroll through, bottom-aligned inside it so the newest

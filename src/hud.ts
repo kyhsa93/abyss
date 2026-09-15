@@ -396,6 +396,13 @@ export function hud(layout?: Layout) {
   mapCv.width = mapCv.height = 150
   const mapWhere = el('div', 'where', mapBox)
   const mapClock = el('div', 'clock', mapBox)
+  // Which storey, in the corner of the box the circle leaves empty.  Not a
+  // third plate under the other two: the box's height is what `placePhone`
+  // stacks the tracker and the five buttons under, and it is measured when the
+  // page is laid out, not when somebody climbs a flight — a plate that came
+  // and went indoors would have grown the box on top of them.
+  const mapStorey = el('div', 'storey', mapBox)
+  mapStorey.hidden = true
 
   // What just happened, newest last, which is the way every game's log reads
   // and the opposite of the way every feed does.
@@ -955,6 +962,12 @@ export function hud(layout?: Layout) {
     setWhere(text: string, time: string) {
       if (mapWhere.textContent !== text) mapWhere.textContent = text
       if (mapClock.textContent !== time) mapClock.textContent = time
+    },
+
+    /** Which storey of how many, beside the circle, or nothing outdoors. */
+    setStorey(text: string | null) {
+      mapStorey.hidden = text === null
+      if (text !== null && mapStorey.textContent !== text) mapStorey.textContent = text
     },
 
     /**
