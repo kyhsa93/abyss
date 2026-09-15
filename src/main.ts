@@ -7271,30 +7271,43 @@ async function main() {
     steps: '#c9a86a',
     /** Inside the outline and none of the above: fill, cellar, thickness. */
     dark: '#25272e',
+    /**
+     * Standing room with something standing on it — a pew end, a pillar: the
+     * room drawing's *speck*, floor with an edge round it.  A shade of the
+     * floor and not the wall, because the room does not draw it as a wall.
+     */
+    speck: '#7a7160',
   }
+  const inkRgb = (hex: string) =>
+    [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)] as const
 
-  function paintPlan(b: Built, p: Plan, n: number, yd: number,
-    px: Uint8ClampedArray, step: number) {
-    for (let j = 0; j < n; j += step) {
-      for (let i = 0; i < n; i += step) {
+  /**
+   * The plan of the storey you are on, a pixel at a time.
+   *
+   * **The room's own cells, not the bake's masks.**  Each pixel asks
+   * `codesOf` — the sort `roomCells` makes for the room drawing — so a wall is
+   * where the room draws wall, a pew end is floor with something on it, and a
+   * stairwell's air is not a purple carpet of `steps`.
+   *
+   * One sample a pixel indoors, where outdoors takes one every two: the
+   * outdoor circle is 120 yards and a ground, the indoor one is the building's
+   * own size and a plan, and at two a pixel a cottage's inner wall was a
+   * dotted line or nothing.
+   */
+  function paintPlan(b: Built, n: number, yd: number, px: Uint8ClampedArray) {
+    const all = [b.plan!, ...b.floors]
+    const here = Math.max(0, Math.min(all.length - 1, storey + 1))
+    const q = all[here]!, mine = codesOf(b, q, here ? all[here - 1]! : null)
+    const byCode = [PLAN_INK.off, PLAN_INK.wall, PLAN_INK.dark, PLAN_INK.floor,
+      PLAN_INK.yard, PLAN_INK.speck, PLAN_INK.steps].map(inkRgb)
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
         const wx = hero.x + (n / 2 - j) * yd
         const wy = hero.y + (n / 2 - i) * yd
-        const cell = planCell(p, b, wx, wy)
-        const hex = cell < 0 || !bitAt(p.bits, cell) ? PLAN_INK.off
-          : bitAt(p.steps, cell) ? PLAN_INK.steps
-            : bitAt(p.floor, cell)
-              ? (!p.over.length || bitAt(p.over, cell)
-                ? PLAN_INK.floor : PLAN_INK.yard)
-              : bitAt(p.solid, cell) ? PLAN_INK.wall : PLAN_INK.dark
-        const r = parseInt(hex.slice(1, 3), 16)
-        const g = parseInt(hex.slice(3, 5), 16)
-        const bl = parseInt(hex.slice(5, 7), 16)
-        for (let dy = 0; dy < step; dy++) {
-          for (let dx = 0; dx < step; dx++) {
-            const o = ((j + dy) * n + (i + dx)) * 4
-            px[o] = r; px[o + 1] = g; px[o + 2] = bl; px[o + 3] = 255
-          }
-        }
+        const cell = planCell(q, b, wx, wy)
+        const ink = byCode[cell < 0 ? CELL.off : mine[cell]!]!
+        const at = (j * n + i) * 4
+        px[at] = ink[0]; px[at + 1] = ink[1]; px[at + 2] = ink[2]; px[at + 3] = 255
       }
     }
   }
@@ -7317,7 +7330,7 @@ async function main() {
     const yd = span / n
     const img = mapCtx.createImageData(n, n)
     const px = img.data
-    if (inside && plan) paintPlan(inside, plan, n, yd, px, step)
+    if (inside && plan && inside.plan) paintPlan(inside, n, yd, px)
     else {
       for (let j = 0; j < n; j += step) {
         for (let i = 0; i < n; i += step) {
@@ -7340,6 +7353,7 @@ async function main() {
       }
     }
     mapCtx.putImageData(img, 0, 0)
+    const mid = n / 2
     // Everybody awake, as a dot: red if it would fight you, green if it would
     // not.  Only the awake, which is the same couple of hundred the scene is
     // already thinking about.
@@ -7348,7 +7362,6 @@ async function main() {
     // scene asks before it draws anybody: a dot on the plan for somebody
     // standing in the meadow outside is the forest coming back in through the
     // other door.
-    const mid = n / 2
     for (const m of active) {
       if (m.dead) continue
       if (inside && roofOver(m.x, m.y) !== inside) continue
@@ -9742,24 +9755,26 @@ async function main() {
    * width on the glass at every zoom instead of being resampled with the
    * picture.
    */
-  function composeRoom(b: Built, p: Plan, under: Plan | null): Room {
-    const t0 = performance.now()
+  /**
+   * What each cell of a storey is, once, for everything that draws it: the
+   * room's own canvas and the minimap's plan.
+   *
+   * **One rule and two pictures of it.**  The minimap used to ask the baked
+   * masks for itself — `steps` straight off the plan, stone wherever `solid`
+   * said — while the room asked `roomPieces` and the speck cut, so the circle
+   * drew a purple stairwell and every pew end as a wall that the screen beside
+   * it did not.  Both read this now.
+   *
+   * `kind` is the room's sort: 0 standing room, 1 a speck, 2 wall or nothing
+   * inside the outline, 3 outside it.  `code` is what a picture of the plan
+   * needs on top of that — which of wall and nothing, whether standing room is
+   * under a roof, and whether it is a flight — as one of `CELL`.
+   */
+  const CELL = { off: 0, wall: 1, void: 2, floor: 3, yard: 4, speck: 5, stairs: 6 } as const
+  const roomCells = (b: Built, p: Plan, under: Plan | null) => {
     const cut = speckCut()
     const r = roomPieces(p, under)
     const { W, H } = r
-    const S = roomScale(p)
-    const c = document.createElement('canvas')
-    c.width = W * S
-    c.height = H * S
-    const g = c.getContext('2d')!
-    g.imageSmoothingEnabled = false
-    const tones = roomTones(b.k)
-    let wallCell: [number, number] | null = null
-    const grounds: number[] = []
-    const tally = new Map<string, number>()
-    const add = (key: string) => tally.set(key, (tally.get(key) ?? 0) + 1)
-    // 0 standing room, 1 a speck, 2 wall or nothing inside the outline,
-    // 3 outside it.
     const kind = new Uint8Array(W * H)
     for (let n = 0; n < W * H; n++) {
       kind[n] = !r.inside[n] ? 3 : r.walk[n] ? 0
@@ -9775,6 +9790,54 @@ async function main() {
     // 65% that is neither stone nor standing room splits **167,238 roofed
     // and 25,433 open**.  A tent has no floor of its own and is all yard.
     const roofed = (n: number) => b.k !== 'tent' && (!p.over.length || bitAt(p.over, n))
+    // The tread picture a building's flights are laid in — see `composeRoom`.
+    // Without one there are no flights to draw, and a stair cell is floor.
+    const stairId = b.k === 'house' && tilesMeta['in_stair_wood'] ? 'in_stair_wood'
+      : tilesMeta['in_stair'] ? 'in_stair' : null
+    const code = new Uint8Array(W * H)
+    for (let n = 0; n < W * H; n++) {
+      const k = kind[n]!
+      code[n] = k === 3 ? CELL.off
+        : k === 2 ? (bitAt(p.solid, n) ? CELL.wall : CELL.void)
+          : stairId && r.stair[n] ? CELL.stairs
+            : k === 1 ? CELL.speck
+              : roofed(n) ? CELL.floor : CELL.yard
+    }
+    planCodes.set(p, code)
+    return { r, kind, code, roofed, stairId }
+  }
+  /**
+   * The codes of the storeys of the building you are in, kept — the minimap
+   * asks every storey four times a second, and a storey it has not been
+   * composed for has no room to ask.  Bytes, not canvases: a cell a byte, so
+   * the abbey's ground floor, 70 cells square, is 4.9 KB.  Emptied when the
+   * building changes, so it
+   * holds one building and not every building ever walked into.
+   */
+  const planCodes = new Map<Plan, Uint8Array>()
+  let planCodesFor: Built | null = null
+  const codesOf = (b: Built, p: Plan, under: Plan | null) => {
+    if (planCodesFor !== b) { planCodes.clear(); planCodesFor = b }
+    return planCodes.get(p) ?? roomCells(b, p, under).code
+  }
+
+
+  function composeRoom(b: Built, p: Plan, under: Plan | null): Room {
+    const t0 = performance.now()
+    if (planCodesFor !== b) { planCodes.clear(); planCodesFor = b }
+    const { r, kind, code, roofed, stairId } = roomCells(b, p, under)
+    const { W, H } = r
+    const S = roomScale(p)
+    const c = document.createElement('canvas')
+    c.width = W * S
+    c.height = H * S
+    const g = c.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    const tones = roomTones(b.k)
+    let wallCell: [number, number] | null = null
+    const grounds: number[] = []
+    const tally = new Map<string, number>()
+    const add = (key: string) => tally.set(key, (tally.get(key) ?? 0) + 1)
     /**
      * **One floor picture a room, not a coin tossed a cell.**  Two pictures
      * were mixed by a hash on every cell, which is a floor that shimmers:
@@ -9804,10 +9867,9 @@ async function main() {
      * a house.  The picture's treads run across its rows, so a flight longer
      * across the plan's first axis than its second is turned a quarter: a
      * flight is longer than it is wide — unless its own cells say which way
-     * it climbs, which is below.
+     * it climbs, which is below.  Which picture is `roomCells`' `stairId`,
+     * because whether a cell is a flight at all depends on there being one.
      */
-    const stairId = b.k === 'house' && tilesMeta['in_stair_wood'] ? 'in_stair_wood'
-      : tilesMeta['in_stair'] ? 'in_stair' : null
     const region = new Int32Array(W * H).fill(-1)
     const flight = new Int32Array(W * H).fill(-1)
     const regionsOut: { cells: number; id: string; pictures: Set<string> }[] = []
@@ -9942,9 +10004,10 @@ async function main() {
     for (let i = 0; i < W; i++) {
       for (let j = 0; j < H; j++) {
         const n = i * H + j
-        if (kind[n] === 3) continue
-        if (kind[n] === 2) {
-          const stone = bitAt(p.solid, n)
+        const cc = code[n]!
+        if (cc === CELL.off) continue
+        if (cc === CELL.wall || cc === CELL.void) {
+          const stone = cc === CELL.wall
           g.fillStyle = stone ? tones.wall : tones.void
           g.fillRect(i * S, j * S, S, S)
           if (stone && !wallCell) wallCell = [i, j]
@@ -9953,7 +10016,7 @@ async function main() {
           add(stone ? `wall:${tones.from}` : `void:${tones.from}`)
           continue
         }
-        if (flight[n]! >= 0 && stairPic) {
+        if (cc === CELL.stairs && stairPic) {
           add(`stairs:${stairId}`)
           if (turned && flights[flight[n]!]!.turned) g.drawImage(turned, i * S, j * S, S, S)
           else g.drawImage(tilesImg, stairPic.x, stairPic.y, stairPic.w, stairPic.h, i * S, j * S, S, S)
@@ -9978,7 +10041,7 @@ async function main() {
         }
         const pic = tilesMeta[id]
         if (!pic) continue
-        add(`${kind[n] === 1 ? 'speck' : region[n]! >= 0 ? 'floor' : 'open'}:${id}`)
+        add(`${cc === CELL.speck ? 'speck' : region[n]! >= 0 ? 'floor' : 'open'}:${id}`)
         g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h, i * S, j * S, S, S)
       }
     }
@@ -14463,7 +14526,9 @@ async function main() {
     }
     const b = indoors
     return {
-      inside: b ? b.k : null, storey,
+      inside: b ? b.k : null, storey, n, palette: PLAN_INK,
+      hero: { x: hero.x, y: hero.y, dir: hero.dir },
+      storeys: b ? b.floors.length + 1 : 0,
       span: b ? Math.min(MAP_YARDS, 2 * Math.max(b.l, b.w) + 6) : MAP_YARDS,
       // Which of the two palettes the circle is painted out of, counted.
       ground: Object.entries(INK)
@@ -14474,6 +14539,26 @@ async function main() {
     }
   }
 
+  /**
+   * What the bake's own masks say about one spot on one storey of the building
+   * you are in — the plan the minimap is held against, asked without the room's
+   * sort in between.  `below` is the steps of the storey under it, which lead
+   * down from this one.
+   */
+  ;(window as unknown as { __planAt: (x: number, y: number, s: number) => unknown })
+    .__planAt = (x, y, s) => {
+      const b = indoors
+      if (!b || !b.plan) return null
+      const all = [b.plan, ...b.floors]
+      const q = all[s + 1]
+      if (!q) return null
+      const under = s >= 0 ? all[s]! : null
+      const n = planCell(q, b, x, y)
+      const on = (m: Uint8Array) => n >= 0 && bitAt(m, n)
+      return { inside: on(q.bits), floor: on(q.floor), solid: on(q.solid), steps: on(q.steps),
+        below: !!under && bitAt(under.steps, planCell(under, b, x, y)),
+        roofed: b.k !== 'tent' && (!q.over.length || on(q.over)), cell: q.s }
+    }
   /** Where each kind's head is, in pixels over its feet — see `headOf`. */
   ;(window as unknown as { __heads: () => unknown }).__heads = () => headOf
 
