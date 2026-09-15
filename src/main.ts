@@ -9597,6 +9597,13 @@ async function main() {
      * a door was laid, so a check can ask whether a door differs from them.
      */
     tones: number[][]
+    /**
+     * The shade along the walls: how long laying it took and how many cells of
+     * what cannot be stood on border standing room — see `shadeRoom`.
+     */
+    shade: { ms: number; band: number }
+    /** Which room region each cell is in, or -1 — for the check on the shade. */
+    region: Int32Array
   }
   /**
    * One way out.  `at` is the door in plan cells, `along` a unit vector in
@@ -9607,6 +9614,12 @@ async function main() {
     at: [number, number]; along: [number, number]; half: number }
   const roomCache = new Map<Plan, Room>()
   let roomBytes = 0
+  /**
+   * How many rooms were composed and how many frames found theirs kept, since
+   * the page opened — so a check can say that what is composed once is not
+   * being composed every frame, which a picture cannot.
+   */
+  let roomComposed = 0, roomHits = 0
   /**
    * The most one room may weigh: a roof sheet's own cap, because a room and a
    * roof are the same kind of thing — a building composed into a canvas — and
@@ -9632,6 +9645,7 @@ async function main() {
   const roomOf = (b: Built, p: Plan, under: Plan | null): Room => {
     const had = roomCache.get(p)
     if (had) {
+      roomHits++
       // Most recently used goes to the back, so eviction takes the oldest.
       roomCache.delete(p)
       roomCache.set(p, had)
@@ -9935,8 +9949,118 @@ async function main() {
   }
 
 
+  /**
+   * **A wall stands, so the floor beside it is in its lee.**  Seen from above
+   * a room is a floor and a flat fill of wall tone, and a flat fill reads as
+   * paint on the floor: nothing in the picture says the wall goes up.  What
+   * says it in every top-down game that has walls is the dark the floor takes
+   * next to them — the light from the open side of the room does not reach
+   * the foot of a wall — so standing room is shaded by how far it is from the
+   * nearest cell nobody can stand on.
+   *
+   * Every number in it is one this file already has.  **How far** is
+   * `BODY_YARDS`, a man's height: the wall is at least that tall, since a man
+   * does not fit through it, and a lee reaches out about as far as its wall is
+   * high.  **How dark at the foot** is the darkest wash the atlas has, row 0's
+   * — `SHADOW`, colour and share — which is what `roomTones` already calls
+   * *further down than a wall*.  Between the two it falls off as the square of
+   * what is left of the reach, which is a choice and is the one part that is:
+   * a straight ramp drew a visible line where it met the floor.
+   *
+   * **A layer and not a picture**, so the promises the room already keeps are
+   * kept: a region is still one floor picture, laid first, and this is
+   * multiplied over it; the room is still lit flat, because *lit* is the
+   * terrain's light — the strip's rows, which `indoorRows` counts — and none
+   * of those is used.  What cannot be stood on is what shades: stone, nothing,
+   * and the outside of the outline.  A speck does not: it is floor with a prop
+   * on it, and the prop is drawn standing.
+   *
+   * **Composed once, at half a cell.**  The distance is sampled at every half
+   * cell corner into a canvas two samples a cell across, blown up over the
+   * room with smoothing on — the hillside light's own trick, one sample a
+   * corner — and clipped to standing room, so a wall keeps its own tone.  It is
+   * worked from the edge inwards rather than from each sample outwards: only
+   * the cells that border standing room splat, which in the abbey is a tenth
+   * of the storey.  The small canvas is released the moment it is laid.
+   */
+  let shadesLaid = 0
+  function shadeRoom(g: CanvasRenderingContext2D, p: Plan, W: number, H: number, S: number,
+    kind: Uint8Array): { ms: number; band: number } {
+    const t0 = performance.now()
+    const SUB = 2
+    const reach = BODY_YARDS / p.s
+    const rc = Math.ceil(reach)
+    const sw = W * SUB + 1, sh = H * SUB + 1
+    const near = new Float32Array(sw * sh).fill(Infinity)
+    const stands = (i: number, j: number) => i >= 0 && j >= 0 && i < W && j < H && kind[i * H + j]! <= 1
+    let band = 0
+    for (let i = -1; i <= W; i++) {
+      for (let j = -1; j <= H; j++) {
+        if (stands(i, j)) continue
+        let edge = false
+        for (let a = -1; a <= 1 && !edge; a++) {
+          for (let c = -1; c <= 1; c++) if (stands(i + a, j + c)) { edge = true; break }
+        }
+        if (!edge) continue
+        band++
+        const a0 = Math.max(0, (i - rc) * SUB), a1 = Math.min(sw - 1, (i + 1 + rc) * SUB)
+        const c0 = Math.max(0, (j - rc) * SUB), c1 = Math.min(sh - 1, (j + 1 + rc) * SUB)
+        for (let a = a0; a <= a1; a++) {
+          const x = a / SUB
+          const dx = Math.max(0, i - x, x - (i + 1))
+          for (let c = c0; c <= c1; c++) {
+            const y = c / SUB
+            const dy = Math.max(0, j - y, y - (j + 1))
+            const d = dx * dx + dy * dy
+            const o = a * sh + c
+            if (d < near[o]!) near[o] = d
+          }
+        }
+      }
+    }
+    if (!band) return { ms: performance.now() - t0, band }
+    const sc = document.createElement('canvas')
+    sc.width = sw
+    sc.height = sh
+    const sg = sc.getContext('2d')!
+    const img = sg.createImageData(sw, sh)
+    const [sr, sgr, sb, deep] = SHADOW
+    for (let a = 0; a < sw; a++) {
+      for (let c = 0; c < sh; c++) {
+        const d = Math.sqrt(near[a * sh + c]!) / reach
+        if (d >= 1) continue
+        const o = (c * sw + a) * 4
+        img.data[o] = sr; img.data[o + 1] = sgr; img.data[o + 2] = sb
+        img.data[o + 3] = Math.round(255 * deep * (1 - d) * (1 - d))
+      }
+    }
+    sg.putImageData(img, 0, 0)
+    const clip = new Path2D()
+    for (let i = 0; i < W; i++) {
+      let from = -1
+      for (let j = 0; j <= H; j++) {
+        const on = j < H && stands(i, j)
+        if (on && from < 0) from = j
+        if (!on && from >= 0) { clip.rect(i * S, from * S, S, (j - from) * S); from = -1 }
+      }
+    }
+    g.save()
+    g.clip(clip)
+    g.globalCompositeOperation = 'multiply'
+    g.imageSmoothingEnabled = true
+    // A sample is a corner, and a pixel's middle is where it lands on the
+    // glass: half a sample up and left.
+    const q = S / SUB
+    g.drawImage(sc, -q / 2, -q / 2, sw * q, sh * q)
+    g.restore()
+    releaseCanvas(sc)
+    shadesLaid++
+    return { ms: performance.now() - t0, band }
+  }
+
   function composeRoom(b: Built, p: Plan, under: Plan | null): Room {
     const t0 = performance.now()
+    roomComposed++
     if (planCodesFor !== b) { planCodes.clear(); planCodesFor = b }
     const { r, kind, code, roofed, stairId } = roomCells(b, p, under)
     const { W, H } = r
@@ -10184,6 +10308,10 @@ async function main() {
       toned.add(at)
       toneAt((n / H) | 0, n % H)
     }
+    // After the tones, so they stay the floor where nothing is marked — the
+    // middle of a room, which is what the shade is measured against — and
+    // before the ways out, so a porch in daylight is not in a wall's lee.
+    const shade = shadeRoom(g, p, W, H, S, kind)
     const exits = composeExits(b, p, g, S, r)
     // The edges, as runs: a cell side is on an edge when standing room is on
     // exactly one side of it, and consecutive sides of the same kind are one
@@ -10236,7 +10364,7 @@ async function main() {
       }
     }
     return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0,
-      walls, specks, edges,
+      walls, specks, edges, shade, region,
       regions: regionsOut.map((x) => ({ cells: x.cells, pictures: [...x.pictures] })), flights,
       outline, wallCell, ground: Float32Array.from(grounds), exits, tones: plain }
   }
@@ -14487,7 +14615,8 @@ async function main() {
     // And the room itself: what a cell was composed at, what it weighs, what
     // composing it cost, and how many rooms the budget is holding.
     const room = roomLaid ? { scale: roomLaid.S, bytes: roomLaid.bytes,
-      ms: roomLaid.ms, kept: roomCache.size, keptBytes: roomBytes, budget: roomBudget } : null
+      ms: roomLaid.ms, kept: roomCache.size, keptBytes: roomBytes, budget: roomBudget,
+      composed: roomComposed, hits: roomHits, shades: shadesLaid, shade: roomLaid.shade } : null
     return { inside: indoors ? indoors.k : null, storey, ...out, room,
       edges: roomLaid?.edges ?? null, cut: speckStats,
       regions: roomLaid?.regions ?? [], flights: roomLaid?.flights ?? [],
@@ -14681,6 +14810,57 @@ async function main() {
         below: !!under && bitAt(under.steps, planCell(under, b, x, y)),
         roofed: b.k !== 'tent' && (!q.over.length || on(q.over)), cell: q.s }
     }
+  /**
+   * The shade the room the last frame drew was composed with, read back off
+   * its canvas: for each room region, the mean brightness of its cells beside
+   * something nobody can stand on against its cells well clear of all of it.
+   * Every cell of a region is the same picture, so before the shade the two
+   * means are one number.  Cells near a way out are left out, because the
+   * thresholds and porches are laid over the shade.
+   */
+  ;(window as unknown as { __roomShade: () => unknown }).__roomShade = () => {
+    const r = roomLaid, p = roomPlan, b = indoors
+    const codes = p ? planCodes.get(p) : null
+    // Only the storey he is on: a frame not yet drawn since a door or a flight
+    // still has the last room laid, and its shade would answer for this one.
+    if (!r || !p || !b || !codes || p !== planNow()) return null
+    const W = p.w, H = p.h, S = r.S
+    const d = r.c.getContext('2d')!.getImageData(0, 0, r.c.width, r.c.height).data
+    const blocked = (i: number, j: number) => i < 0 || j < 0 || i >= W || j >= H
+      || (codes[i * H + j]! !== CELL.floor && codes[i * H + j]! !== CELL.yard
+        && codes[i * H + j]! !== CELL.speck && codes[i * H + j]! !== CELL.stairs)
+    const clear = Math.ceil(BODY_YARDS / p.s) + 1
+    const rows = new Map<number, { near: number; nNear: number; mid: number; nMid: number }>()
+    for (let i = 0; i < W; i++) {
+      for (let j = 0; j < H; j++) {
+        const n = i * H + j
+        if (codes[n] !== CELL.floor || r.region[n]! < 0) continue
+        if (r.exits.some((x) => Math.hypot(x.at[0] - i, x.at[1] - j) < 4)) continue
+        const beside = blocked(i - 1, j) || blocked(i + 1, j) || blocked(i, j - 1) || blocked(i, j + 1)
+        let far = !beside
+        for (let a = -clear; a <= clear && far; a++) {
+          for (let c = -clear; c <= clear; c++) if (blocked(i + a, j + c)) { far = false; break }
+        }
+        if (!beside && !far) continue
+        let sum = 0
+        for (let y = j * S; y < (j + 1) * S; y++) {
+          for (let x = i * S; x < (i + 1) * S; x++) {
+            const o = (y * r.c.width + x) * 4
+            sum += 0.3 * d[o]! + 0.6 * d[o + 1]! + 0.1 * d[o + 2]!
+          }
+        }
+        const lum = sum / (S * S)
+        const row = rows.get(r.region[n]!) ?? { near: 0, nNear: 0, mid: 0, nMid: 0 }
+        if (beside) { row.near += lum; row.nNear++ } else { row.mid += lum; row.nMid++ }
+        rows.set(r.region[n]!, row)
+      }
+    }
+    return { inside: b.k, storey, shade: r.shade,
+      regions: [...rows.entries()].filter(([, v]) => v.nNear && v.nMid)
+        .map(([k, v]) => ({ region: k, near: v.near / v.nNear, nearCells: v.nNear,
+          mid: v.mid / v.nMid, midCells: v.nMid })) }
+  }
+
   /** Where each kind's head is, in pixels over its feet — see `headOf`. */
   ;(window as unknown as { __heads: () => unknown }).__heads = () => headOf
 
