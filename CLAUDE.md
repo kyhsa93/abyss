@@ -1255,7 +1255,11 @@ and a game that will not start because it could not save is worse than one that
 does not save. Derived things are never saved: maximum health is stamina and
 stamina is the level. The save carries the hash of the world it was made in,
 out of `public/manifest.json`, because a save that does not know its bake is a
-save whose item ids may now mean something else.
+save whose item ids may now mean something else. An old save is kept as a
+sample, one a version, in `scripts/fixtures/saves/`, and `simcheck` brings each
+through `migrate` to what `restore` reads — the chain had four links for a day
+before anything had put a version one through it. A new version needs a sample
+of its own shape or that check fails.
 
 **Dying costs the walk back, and that is the whole of it.**
 `Player::ResurrectPlayer` (Player.cpp:4605) says in its own comment that

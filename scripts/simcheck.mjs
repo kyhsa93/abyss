@@ -591,5 +591,135 @@ check('and the same seed gives the same fight',
       : 'the seed changes nothing, so the checks above are about nothing')
 }
 
+// --- an old save still loads --------------------------------------------------
+//
+// Issue 84's second condition: *old save samples are in the repository and a
+// check loads them.*  `save.ts` has walked v1 → v2 → v3 → v4 for as long as
+// the chain has had anything in it, and nothing had ever put a v1 through it.
+// So there is one sample a version under `scripts/fixtures/saves/`, built by
+// hand from the shape each version's `snapshot` wrote (0969de9, bbd5dc3,
+// d195b09, ab9c4f4) — nobody's character.  The newest is a finished one,
+// because that is also the save `budgetcheck` weighs.
+//
+// `migrate` has no browser in it — IndexedDB is only touched inside the
+// functions that open the store — so it runs here as it is.
+//
+// **What "loads" means is what `restore` in `main.ts` reads.**  `REQUIRED` is
+// what it reads with nothing to fall back on; `SHAPED` is what it reads behind
+// a fallback, so it may be missing but may not be the wrong shape.  Which
+// fields `restore` reads is taken off its own body, and a field it reads that
+// neither list names fails — the bargain `audit.py` makes with a default.
+//
+// One thing no sample can say, and it is worth keeping: cooldowns became *what
+// is left* rather than *when it ends* in 0d7962d, four hours after v4 shipped
+// and with no version of its own, so a v4 save from that afternoon holds
+// moments on a clock that has since restarted and nothing in it says which.
+{
+  const { readdirSync } = await import('node:fs')
+  const { migrate, SAVE_VERSION } = await import('../src/save.ts')
+  const DIR = 'scripts/fixtures/saves'
+  const samples = new Map(readdirSync(DIR).filter((f) => /^v\d+\.json$/.test(f))
+    .map((f) => [Number(f.slice(1, -5)),
+      JSON.parse(readFileSync(`${DIR}/${f}`, 'utf8'))]))
+  const absent = [...Array(SAVE_VERSION).keys()].map((i) => i + 1)
+    .filter((v) => samples.get(v)?.version !== v)
+  check('there is a sample save for every version there has been',
+    absent.length === 0,
+    absent.length ? `no v${absent.join(', v')} in ${DIR}`
+      : `v1 to v${SAVE_VERSION} in ${DIR}`)
+
+  const scene = readFileSync('src/main.ts', 'utf8')
+  const from = scene.indexOf('const restore = (save: Save) => {')
+  const body = from < 0 ? '' : scene.slice(from, scene.indexOf('\n  }\n', from))
+  // Comments out first: `restore` says "see the note in `save.ts`", and read
+  // as code that was a field called `ts`.
+  const reads = [...new Set([...body.replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ').matchAll(/\bsave\.((?:you|hero)\.\w+|\w+)/g)]
+    .map((m) => m[1]))]
+  const num = (v) => typeof v === 'number' && Number.isFinite(v)
+  const ids = (v) => Array.isArray(v) && v.every(num)
+  const counts = (v) => !!v && typeof v === 'object' && Object.values(v).every(num)
+  const REQUIRED = {
+    'hero.x': num, 'hero.y': num, 'hero.dir': num,
+    'you.level': num, 'you.xp': num, 'you.power': num, 'you.purse': num,
+    'you.kills': num, seed: num,
+  }
+  const SHAPED = {
+    'you.who': (w) => typeof w.name === 'string' && [w.race, w.sex, w.cls].every(num),
+    'you.hp': num,
+    // Item id to how many, which is the whole of what v3 → v4 is for.
+    'you.bag': (b) => counts(b) && Object.keys(b).every((k) => /^\d+$/.test(k)),
+    'you.trades': (t) => Object.entries(t).every(([k, v]) => /^\d+$/.test(k)
+      && Array.isArray(v) && v.length === 2 && v.every(num)),
+    'you.cools': counts,
+    'you.auras': (a) => !!a && typeof a === 'object',
+    'you.items': ids, 'you.gear': counts, 'you.taught': ids, 'you.recipes': ids,
+    'you.stands': counts,
+    'you.bar': (b) => Array.isArray(b) && b.every((x) => x === null || num(x)),
+    'you.auto': num,
+    'you.bought': (o) => Object.values(o).every((v) => ids(v) && v.length === 2),
+    'you.rest': num, 'you.finished': num, 'you.born': num,
+    quests: (q) => !!q && Array.isArray(q.held ?? []) && ids(q.done ?? []),
+  }
+  const unnamed = reads.filter((r) => !(r in REQUIRED) && !(r in SHAPED))
+  check('and every field restore reads is one this check knows the rule for',
+    body.length > 0 && reads.length > 10 && unnamed.length === 0,
+    unnamed.length ? `restore reads ${unnamed.join(', ')} and nothing here says `
+      + 'whether a migrated save must have it'
+      : `${reads.length} fields, ${Object.keys(REQUIRED).length} with no fallback`)
+
+  const get = (o, path) => path.split('.').reduce((x, k) => x?.[k], o)
+  const wrong = [], lost = []
+  for (const [v, was] of [...samples].sort((a, b) => a[0] - b[0])) {
+    const now = migrate(structuredClone(was))
+    if (!now || now.version !== SAVE_VERSION) {
+      wrong.push(`v${v} came out as ${now ? `v${now.version}` : 'nothing'}`)
+      continue
+    }
+    for (const [k, ok] of Object.entries(REQUIRED)) {
+      if (!ok(get(now, k))) wrong.push(`v${v} ${k} is ${JSON.stringify(get(now, k))}`)
+    }
+    for (const [k, ok] of Object.entries(SHAPED)) {
+      const x = get(now, k)
+      if (x !== undefined && !ok(x)) wrong.push(`v${v} ${k} is ${JSON.stringify(x)}`)
+    }
+    if (!now.you.who) wrong.push(`v${v} came out as nobody`)
+    // And what the character had is still his: a migration may rename and
+    // may sell, and may not drop.
+    for (const k of ['hero.x', 'hero.y', 'hero.dir', 'you.level', 'you.xp',
+      'you.kills', 'seed']) {
+      if (get(now, k) !== get(was, k)) lost.push(`v${v} ${k} ${get(was, k)} -> ${get(now, k)}`)
+    }
+    if (JSON.stringify(now.quests) !== JSON.stringify(was.quests)) {
+      lost.push(`v${v} quests`)
+    }
+    if (now.you.power !== (was.you.power ?? was.you.rage)) {
+      lost.push(`v${v} the bar ${was.you.power ?? was.you.rage} -> ${now.you.power}`)
+    }
+    const sold = Object.values(was.you.bag ?? {})
+      .reduce((n, x) => n + (Array.isArray(x) ? x[1] : 0), 0)
+    if (now.you.purse !== was.you.purse + sold) {
+      lost.push(`v${v} purse ${was.you.purse} + ${sold} sold -> ${now.you.purse}`)
+    }
+    if (Object.keys(now.you.trades ?? {}).length
+      !== Object.keys(was.you.trades ?? {}).length) {
+      lost.push(`v${v} trades ${JSON.stringify(was.you.trades)} -> `
+        + JSON.stringify(now.you.trades))
+    }
+    if (v === SAVE_VERSION && JSON.stringify(now) !== JSON.stringify(was)) {
+      lost.push(`v${v} is the current shape and migrate changed it`)
+    }
+  }
+  check(`every sample comes forward to v${SAVE_VERSION} with what restore reads`,
+    samples.size > 0 && wrong.length === 0,
+    wrong.length ? wrong.slice(0, 4).join('; ')
+      : [...samples.keys()].sort().map((v) => `v${v}`).join(', '))
+  check('and nothing a character had is lost on the way',
+    samples.size > 0 && lost.length === 0,
+    lost.length ? lost.slice(0, 4).join('; ')
+      : 'position, level, experience, kills, the stream, the errands and the '
+      + 'bar kept; an old bag sold into the purse at its own worth')
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)
