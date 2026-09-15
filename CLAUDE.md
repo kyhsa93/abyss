@@ -579,6 +579,17 @@ it: the hero has to be put back outside **before** asking what can be stood on,
 because indoors only the room is ground — asked the other way round every
 building after the first one entered reported nowhere to stand.
 
+**A door is one of two things, and issue 167's promise is kept in the client's
+shape.** It asked for nine in ten of the baked doors walked to from outside and
+all eight of the abbey's; `MOPR` and `MOGI` say the abbey has one front door and
+seven doorways between its own rooms. So `viewcheck` walks through **every**
+front door from outside — 26, where 10j2 stops at the first way into each
+building and the Goldshire smithy has two — and from inside each floods the
+floor with `roomOpen`, the rule a step indoors is held to, and asks that every
+doorway of that storey is reached: the abbey's eight all are. The flood was
+first written against the floor mask and reached one of them, which is why the
+check calls the rule rather than copying it.
+
 **A deck is floor to placement as well as to walking.** Placement asked the
 water mask alone, and the mask runs on under a bridge because the river does,
 so creatures put on a deck were carried up to twenty-four yards off it (issue

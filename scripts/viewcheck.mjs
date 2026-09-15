@@ -2296,6 +2296,88 @@ check('every building with a door has a front door out of its own portals, facin
 check('and the front doors are drawn on the roofs', fronts.drawn > 0,
   `${fronts.drawn} drawn at Goldshire`)
 
+// 10j4. Every front door is a way in, and every doorway behind it is a way on.
+//
+// Issue 167 asked for this in the shape the doors had then: nine in ten of the
+// baked doors walked to from outside, and all eight of the abbey's.  A door it
+// counted was any opening a man fits through, and those are two things — `MOPR`
+// and `MOGI` say the abbey has one front door and seven doorways between its
+// own rooms, and a cottage one door and nothing else.  *Walk to it from outside*
+// is the question for the first kind and the wrong one for the second, which is
+// reached by going in; the rule that answered it for a while ("clear ground in
+// some direction within eight yards") filed a cottage's only door as an inner
+// one.  So the promise is kept in the shape the client gives it:
+//
+//   * **every** front door is walked through from outside with the game's own
+//     step — 10j2 stops at the first way in that works, and the smithy at
+//     Goldshire has two
+//   * and from inside it, the floor it opens on to reaches every doorway of the
+//     storey, flooded over the plan with the rule a step indoors is held to
+//
+// The flood was first written against the floor mask and reached one doorway of
+// the abbey's eight, while a man could walk to all of them — which is why it
+// asks `roomOpen` through `__roomFlood` and not a copy of it.
+const doorsIn = await p.evaluate(() => {
+  const all = window.__buildings()
+  const porches = window.__porches()
+  const home = window.__start()
+  const walk = (tx, ty, n) => {
+    for (let s = 0; s < n; s++) {
+      if (window.__room().inside) return true
+      const h = window.__hero()
+      if (Math.hypot(h.x - tx, h.y - ty) < 0.6) break
+      window.__aim(tx, ty)
+      window.__steps(1)
+    }
+    window.__aim(null)
+    return !!window.__room().inside
+  }
+  let fronts = 0, through = 0, doorways = 0, reached = 0, abbey = null
+  const shut = [], cut = [], exempt = []
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i]
+    if (b.k === 'mine' || !b.doors?.length) continue
+    const at = `${b.k} at ${Math.round(b.x)},${Math.round(b.y)}`
+    for (const [ax, ay, bx, by] of porches[i]) {
+      const len = Math.hypot(bx - ax, by - ay) || 1
+      const ux = (bx - ax) / len, uy = (by - ay) / len
+      // Outside first, and only then asked what can be stood on: indoors only
+      // the room is ground — the lesson 10j2 already paid for.
+      window.__aim(null)
+      window.__put(home.x, home.y)
+      let landing = null
+      for (let r = 1; r <= 8 && !landing; r += 0.5) {
+        if (window.__canWalk(bx + ux * r, by + uy * r)) landing = [bx + ux * r, by + uy * r]
+      }
+      if (!landing) { exempt.push(at); continue }
+      fronts++
+      window.__put(landing[0], landing[1])
+      if (!(walk(bx, by, 120) || walk(ax, ay, 160))) { shut.push(at); continue }
+      through++
+      const f = window.__roomFlood()
+      doorways += f.doors.length
+      reached += f.doors.filter(Boolean).length
+      const missed = b.doors.filter((_, j) => !f.doors[j])
+      if (missed.length) {
+        cut.push(`${at}: ${missed.map((d) => `${Math.round(d[0])},${Math.round(d[1])}`).join(' ')}`)
+      }
+      if (b.k === 'hall' && b.doors.length > 1) abbey = `${f.doors.filter(Boolean).length} of ${b.doors.length}`
+    }
+  }
+  window.__aim(null)
+  window.__put(home.x, home.y)
+  return { fronts, through, doorways, reached, abbey, shut, cut, exempt }
+})
+check('every front door can be walked through from outside',
+  doorsIn.fronts > 0 && doorsIn.shut.length === 0,
+  `${doorsIn.through} of ${doorsIn.fronts} front doors walked through; `
+  + `shut: ${doorsIn.shut.join('; ')}`)
+check('and every doorway on the floor behind it is reached from it',
+  doorsIn.doorways > doorsIn.through && doorsIn.cut.length === 0,
+  `${doorsIn.reached} of ${doorsIn.doorways} doorways reached; cut off: ${doorsIn.cut.join('; ')}`)
+console.log(`      (the abbey's doorways reached from its front door: ${doorsIn.abbey}; `
+  + `front doors with no ground outside: ${doorsIn.exempt.join(', ') || 'none'})`)
+
 // 10k. A mine comes from a model, and the ones that do not say so.
 //
 // **This block used to open with a sentence that is no longer true**, and it
@@ -2902,31 +2984,12 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
         stack.push([px, py])
       }
     }
-    // A door on the building's outer edge is one you are meant to walk to.
-    // One with the silhouette all round it is an inner door or an upper
-    // storey's, and "walk to it from outside" is the wrong question for it.
-    const outer = (dx, dy) => {
-      for (let a = 0; a < 16; a++) {
-        const t = (a / 16) * Math.PI * 2
-        let clear = true
-        for (let r = 1; r <= 8; r += 1) {
-          if (window.__plotAt(dx + Math.cos(t) * r, dy + Math.sin(t) * r)) {
-            clear = false; break
-          }
-        }
-        if (clear) return true
-      }
-      return false
-    }
-    let outerAll = 0, outerGot = 0
-    doors.forEach((q, i) => {
-      if (!outer(q.d[0], q.d[1])) return
-      outerAll++
-      if (got.has(i)) outerGot++
-    })
+    // Which doors are a building's outside ones used to be decided here, by
+    // whether some ray eight yards long from a door met no plan — and that
+    // filed a cottage's only door as an inner one.  The client says which
+    // is which (`MOPR` and `MOGI`), so walking to and through them is 10j4's.
     return {
       cells: seen.size, doors: doors.length, reached: got.size,
-      outerAll, outerGot,
       goldshire: seen.has(key(-9461.6, 16.19)),
       abbey: seen.has(key(-8930, -200)),
     }
@@ -3050,10 +3113,6 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
       : `${trek.walked} yards walked of the ${trek.yards} the flood found, `
       + `over ${trek.cells} waypoints, ending ${trek.left} yards off `
       + `(${trek.stuck} waypoints rounded rather than stood on)`)
-  check('every door on a building\'s outside can be walked to',
-    world.outerAll > 0 && world.outerGot === world.outerAll,
-    `${world.outerGot} of ${world.outerAll} outer doors, `
-    + `${world.reached} of ${world.doors} in all`)
   console.log(`      (${world.cells.toLocaleString()} cells, `
     + `${world.reached}/${world.doors} doors)`)
 }

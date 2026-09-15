@@ -2326,6 +2326,14 @@ async function main() {
   }
   const bitAt = (bits: Uint8Array, n: number) =>
     n >= 0 && ((bits[n >> 3]! >> (n & 7)) & 1) === 1
+  /**
+   * `planCell` backwards: a point in the model's own space, in the world.
+   *
+   * The turn in `planCell` is its own inverse — the matrix is symmetric and
+   * its square is one — so the same four numbers take a model point back out.
+   */
+  const fromPlan = (p: Plan, b: Built, lx: number, ly: number) =>
+    [b.x + lx * p.sn + ly * p.c, b.y - (lx * p.c - ly * p.sn)] as const
 
   /**
    * A building's outline as one shape, **in the model's own axes**.
@@ -2651,17 +2659,8 @@ async function main() {
     // Indoors the world is the room, and nothing else is anywhere.  A wall is
     // the plan's own stone; off the plan is not a place.
     if (indoors) {
-      const p = planNow()
-      if (!p) return false
-      const n = planCell(p, indoors, wx, wy)
-      // A stair is standing room too — it is the one part of a floor that is
-      // not flat, and refusing it is refusing the way up.  The floor below's
-      // is the way back down, and it is under your feet on this one.
-      const under = planUnder()
-      const climbable = bitAt(p.steps, n)
-        || (!!under && bitAt(under.steps, planCell(under, indoors, wx, wy)))
-      return !(bitAt(p.floor, n) || climbable || atDoor(indoors, wx, wy))
-        || npcAt(wx, wy, null)
+      if (!planNow()) return false
+      return !roomOpen(wx, wy) || npcAt(wx, wy, null)
     }
     // The edge of the slice is the edge of the world, and it had no wall.
     //
@@ -2699,6 +2698,27 @@ async function main() {
     }
     return (onSpan(wx, wy) ? false : closedAt(wx, wy) || openHole(wx, wy))
       || solidAt(wx, wy) || shutOut(wx, wy) || npcAt(wx, wy, null)
+  }
+  /**
+   * Standing room indoors, on the floor you are on: what `footing` asks of the
+   * building once you are inside it, less whoever happens to be standing there.
+   *
+   * Its own function so that the check which floods a floor from its front
+   * door asks the rule a step is held to rather than a copy of it — the first
+   * copy, which asked the floor mask round each door, reached one of the
+   * abbey's eight doorways while a man could walk to all of them.
+   */
+  function roomOpen(wx: number, wy: number) {
+    const p = planNow()
+    if (!p || !indoors) return false
+    const n = planCell(p, indoors, wx, wy)
+    // A stair is standing room too — it is the one part of a floor that is
+    // not flat, and refusing it is refusing the way up.  The floor below's
+    // is the way back down, and it is under your feet on this one.
+    const under = planUnder()
+    const climbable = bitAt(p.steps, n)
+      || (!!under && bitAt(under.steps, planCell(under, indoors, wx, wy)))
+    return bitAt(p.floor, n) || climbable || atDoor(indoors, wx, wy)
   }
   /**
    * Which way out of a cell nobody can stand in, as a unit vector.
@@ -13744,6 +13764,46 @@ async function main() {
   /** How many of the placed pieces stand inside a building. */
   ;(window as unknown as { __indoors: () => number }).__indoors = () =>
     placed.filter((o) => o.in).length
+  /**
+   * From where the player stands indoors, the cells of this floor he can walk
+   * to and which of the building's doorways they reach.
+   *
+   * A flood over the plan's own cells, four ways, asking `roomOpen` — the rule
+   * a step indoors is held to — at each cell's centre.  People are left out on
+   * purpose: somebody standing in a doorway is weather, and the question is
+   * whether the floor joins the rooms.
+   */
+  ;(window as unknown as { __roomFlood: () => unknown }).__roomFlood = () => {
+    const b = indoors
+    const p = planNow()
+    if (!b || !p) return null
+    const at = (i: number, j: number) =>
+      fromPlan(p, b, p.x0 + (i + 0.5) * p.s, p.y0 + (j + 0.5) * p.s)
+    const start = planCell(p, b, hero.x, hero.y)
+    if (start < 0) return { cells: 0, doors: b.doors.map(() => false) }
+    const seen = new Uint8Array(p.w * p.h)
+    const stack = [start]
+    seen[start] = 1
+    const got: (readonly [number, number])[] = []
+    while (stack.length) {
+      const n = stack.pop()!
+      const i = Math.floor(n / p.h), j = n % p.h
+      got.push(at(i, j))
+      for (const [a, c] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]] as const) {
+        if (a < 0 || a >= p.w || c < 0 || c >= p.h) continue
+        const m = a * p.h + c
+        if (seen[m]) continue
+        seen[m] = 1
+        const [x, y] = at(a, c)
+        if (roomOpen(x, y)) stack.push(m)
+      }
+    }
+    return {
+      cells: got.length,
+      doors: b.doors.map(([dx, dy]) =>
+        got.some(([x, y]) => Math.hypot(x - dx, y - dy) < doorstepOf(b))),
+    }
+  }
   /** Each building's door passages, in `__buildings()` order — see `porchesOf`. */
   ;(window as unknown as { __porches: () => unknown }).__porches = () =>
     buildings.map((b) => porchesOf(b).map((q) => [q.ax, q.ay, q.bx, q.by, q.half]))

@@ -83,7 +83,7 @@ keeps it honest.
 | --- | --- |
 | **시작 지점에서 걸어 닿는 칸의 수가 이전 판보다 줄지 않는다** | `scripts/viewcheck.mjs: "the walkable world is still a world"` |
 | **시작 지점에서 골드샤이어와 수도원 문 둘 다에 걸어 닿는다** | `scripts/viewcheck.mjs: "and every yardstick agrees you can get to the places that matter"` |
-| 구운 문의 90% 이상을 밖에서 걸어가 밟을 수 있다 | `scripts/viewcheck.mjs: "every door on a building's outside can be walked to"` |
+| 구운 문의 90% 이상을 밖에서 걸어가 밟을 수 있다 | `scripts/viewcheck.mjs: "every front door can be walked through from outside"` |
 | 어떤 순간이동도 막힌 칸에 사람을 내려놓지 않는다 | `scripts/viewcheck.mjs: "a charge that would land inside something lands beside it instead"` |
 | 막힌 칸에서 출발해도 열린 칸으로만 나갈 수 있다 | `scripts/viewcheck.mjs: "and every way out of it ends somewhere you can stand"` |
 | 쫓아오는 NPC가 플레이어가 못 지나는 곳을 못 지난다 | `scripts/viewcheck.mjs: "and it does not walk through the wall to get at you"` |
@@ -141,7 +141,7 @@ keeps it honest.
 | 건물 하나의 실내에 쓰이는 바닥 그림이 세 종 이하다 | — 세는 것이 없다 |
 | `solid` 중 4칸 이하 덩어리에 있는 칸이 20% 미만이다 | `pipeline/bake_terrain.py: "of them in lumps of"` |
 | 건물 테두리 중 벽으로 표시된 비율이 80% 이상이다 | `pipeline/bake_terrain.py: "cells of outline"` |
-| **건물 중심에서 걸어 나갈 수 있는 방향의 수가 문 개수와 맞는다** | `scripts/viewcheck.mjs: "every door on a building's outside can be walked to"` |
+| **건물 중심에서 걸어 나갈 수 있는 방향의 수가 문 개수와 맞는다** | `scripts/viewcheck.mjs: "and every doorway on the floor behind it is reached from it"` |
 | 실내 바닥의 음영 단계가 세 단 이하다 | — 실내 음영을 세는 것이 없다 |
 
 ## [실내와-바깥](https://github.com/kyhsa93/abyss/wiki/실내와-바깥)
