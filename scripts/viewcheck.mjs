@@ -568,8 +568,22 @@ check('and a good share of the forest actually carries one',
   // steps at most.  Counted off what was actually *drawn* rather than read
   // back out of the constant — so it has to be asked from inside one, with a
   // frame between going in and asking.
+  //
+  // Waited on rather than slept on, the shape b95038e gave the storeys check:
+  // what is read is what a frame *drew*, and 600 ms after a jump is a
+  // statement about how fast the runner is.  Being inside is not enough to
+  // wait for either: `__enter` puts him on a doorstep and leaves the camera
+  // where it was, and measured frame by frame the scene was indoors from the
+  // first frame and drew **no tile of the room for twenty-two of them** while
+  // the camera eased across.  So it reads once he is inside, the last frame
+  // drew some of the room, and two more frames have been drawn.
   const went = await p.evaluate(() => window.__enter())
-  await p.waitForTimeout(600)
+  if (went) {
+    await p.waitForFunction(() => !!window.__room().inside
+      && window.__edges().tiles > 0, null, { timeout: 10000 }).catch(() => null)
+    await p.evaluate(() => new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  }
   const room = await p.evaluate(() => window.__shading())
   check('and a room is lit flat',
     !!went && room.indoor.length > 0 && room.indoor.length <= 3,
