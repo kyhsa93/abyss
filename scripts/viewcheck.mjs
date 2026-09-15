@@ -576,11 +576,15 @@ check('and a good share of the forest actually carries one',
   // where it was, and measured frame by frame the scene was indoors from the
   // first frame and drew **no tile of the room for twenty-two of them** while
   // the camera eased across.  So it reads once he is inside, the last frame
-  // drew some of the room, and two more frames have been drawn.
+  // drew some of the room, and two more frames have been drawn.  What a frame
+  // drew is `__roomPaint` since a room became one picture composed in its own
+  // axes: it lays no ground tiles at all, so waiting on the tile count waited
+  // out the whole timeout and read a frame nobody had checked was a room.
   const went = await p.evaluate(() => window.__enter())
   if (went) {
     await p.waitForFunction(() => !!window.__room().inside
-      && window.__edges().tiles > 0, null, { timeout: 10000 }).catch(() => null)
+      && Object.keys(window.__roomPaint().floor).length > 0, null, { timeout: 10000 })
+      .catch(() => null)
     await p.evaluate(() => new Promise((r) =>
       requestAnimationFrame(() => requestAnimationFrame(() => r()))))
   }

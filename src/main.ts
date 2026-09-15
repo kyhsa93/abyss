@@ -8789,6 +8789,22 @@ async function main() {
    */
   const FLAT_ROW = Math.round(((0 - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))
   /**
+   * The wash one row of the tinted strip is given, or null for the untinted.
+   *
+   * Out of `tintedGround`'s loop so a room — composed from the sheet rather
+   * than from the atlas — is washed with the same numbers the atlas would have
+   * given it.  Straight across the range, not clamped again on the way out.
+   * The old mapping reached its cap two thirds of the way down and flattened
+   * everything below it, which put a second black on top of the first.
+   */
+  const washOf = (row: number) => {
+    const sl = SHADE_LO + (row / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
+    if (Math.abs(sl) <= 0.02) return null
+    return sl > 0
+      ? `rgba(255,247,224,${(sl / SHADE_HI) * 0.34})`
+      : `rgba(8,14,26,${(sl / SHADE_LO) * 0.46})`
+  }
+  /**
    * Which rows of the tinted strip an indoor scene actually used last frame.
    *
    * A room is lit flat on purpose — 실내 바닥 6절 asks for three steps at most
@@ -9018,14 +9034,9 @@ async function main() {
     for (let j = 0; j < SHADES; j++) g.drawImage(row, 0, j * px)
     releaseCanvas(row)
     for (let j = 0; j < SHADES; j++) {
-      const sl = SHADE_LO + (j / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
-      // Straight across the range, not clamped again on the way out.  The
-      // old mapping reached its cap two thirds of the way down and flattened
-      // everything below it, which put a second black on top of the first.
-      if (Math.abs(sl) <= 0.02) continue
-      g.fillStyle = sl > 0
-        ? `rgba(255,247,224,${(sl / SHADE_HI) * 0.34})`
-        : `rgba(8,14,26,${(sl / SHADE_LO) * 0.46})`
+      const wash = washOf(j)
+      if (!wash) continue
+      g.fillStyle = wash
       // A fill is a full square and on a whole tile that never mattered; an
       // edge piece is mostly hole, and tinting the hole paints a grey square
       // around every boundary in the world — so over the pieces, only where
@@ -9170,22 +9181,110 @@ async function main() {
   }
 
   /**
-   * The room, drawn from the building's own plan.
+   * The row of the tinted strip a room is lit at.
+   *
+   * The middle one, which is what `drawRoom` has always drawn a room from — a
+   * room has no hillside and no sun in it.  Named because a room is composed
+   * straight from the sheet now and has to be washed the way that row is.
+   */
+  const ROOM_ROW = (SHADES - 1) >> 1
+  /**
+   * A room, composed once in the building's own axes, and kept.
+   *
+   * **The roof's lesson, one storey down.**  A room was laid one plan cell to
+   * one tile of the *world* at a time, and the world's grid is not the
+   * building's: 41 of this world's 43 buildings stand at an angle it cannot
+   * hold, so every wall of every room came out as a staircase — the exact
+   * thing issue 216 took off the roofs.  In the model's own space a wall *is*
+   * straight, so the room is laid there, one picture a cell into a canvas of
+   * its own, and the frame turns the whole canvas at once under the transform
+   * the roofs use.
+   *
+   * Three things about it are the roofs' costs again, and all three are
+   * *doing per frame what could be done once*.  It is **composed once a
+   * storey** and not a frame: a turned `drawImage` costs its destination, and
+   * laying a few thousand of them a frame is the fifteen frames a second the
+   * roof kit measured.  It is **composed from the sheet at the picture's own
+   * size, not from the tinted atlas**, because the atlas is rebuilt whenever the
+   * zoom moves and a room keyed on it would be thrown away by every pinch.  And
+   * it is **keyed on the plan**, which is one storey of one placement, so going
+   * up a flight and back down composes nothing.
+   */
+  type Room = {
+    c: HTMLCanvasElement; S: number; bytes: number; ms: number
+    /** What was laid, as `part:tile` cells — what `roomPaint` is filled from. */
+    tally: Map<string, number>
+  }
+  const roomCache = new Map<Plan, Room>()
+  let roomBytes = 0
+  /**
+   * The most one room may weigh: a roof sheet's own cap, because a room and a
+   * roof are the same kind of thing — a building composed into a canvas — and
+   * the argument for the cap is the same phone.
+   */
+  const ROOM_BYTES = 8 * 1048576
+  /**
+   * Pixels a plan cell is composed at: the picture's own 32, or fewer for a
+   * plan too big to hold at that.  The abbey's ground floor is 70 cells square
+   * and comes to 20; the gold mine, 143 by 65, to 13.
+   */
+  const roomScale = (p: Plan) => Math.max(4,
+    Math.min(TILE, Math.floor(Math.sqrt(ROOM_BYTES / 4 / (p.w * p.h)))))
+  const roomWeight = (p: Plan) => roomScale(p) ** 2 * p.w * p.h * 4
+  /**
+   * How many rooms may be kept, as bytes: **every storey of the heaviest
+   * building**, worked out from the buildings rather than typed.  Climbing is
+   * the one thing that must never compose twice, and a budget smaller than a
+   * building's own storeys would evict the floor you are about to walk back
+   * down to.
+   */
+  let roomBudget = 0
+  const roomOf = (b: Built, p: Plan, under: Plan | null): Room => {
+    const had = roomCache.get(p)
+    if (had) {
+      // Most recently used goes to the back, so eviction takes the oldest.
+      roomCache.delete(p)
+      roomCache.set(p, had)
+      return had
+    }
+    if (!roomBudget) {
+      for (const one of [...buildings, ...caves]) {
+        if (!one.plan) continue
+        const all = [one.plan, ...(one.floors ?? [])]
+        roomBudget = Math.max(roomBudget, all.reduce((n, q) => n + roomWeight(q), 0))
+      }
+    }
+    const made = composeRoom(b, p, under)
+    while (roomBytes + made.bytes > roomBudget && roomCache.size) {
+      const oldest = roomCache.keys().next().value as Plan
+      const gone = roomCache.get(oldest)!
+      roomBytes -= gone.bytes
+      roomCache.delete(oldest)
+      releaseCanvas(gone.c)
+    }
+    roomCache.set(p, made)
+    roomBytes += made.bytes
+    return made
+  }
+
+  /**
+   * The room itself, cell by cell, into its own canvas.
    *
    * No terrain at all: a floor bit is a flagstone, a wall bit is slate, and
    * everything else is the dark.  The plan was rasterised at `PLAN_CELL` —
-   * 32/24 of a yard, which is exactly one ground tile — precisely so that this
-   * could be one cell to one tile with nothing to alias, and until now nothing
-   * read it that way.
+   * 32/24 of a yard, which is exactly one ground tile — so a cell is one
+   * picture, and here the picture lands on the cell in the model's axes.
    */
-  function drawRoom(b: (typeof buildings)[number], ground: ReturnType<typeof tintedGround>, px: number) {
-    const p = planNow()
-    if (!p) return
-    const wide = px
-    // The plan's own cells, walked in model space and put on the glass one at
-    // a time.  Cheaper than walking the screen: the abbey is 750 by 393 cells
-    // and a room is a few hundred of them.
-    const half = p.s / 2
+  function composeRoom(b: Built, p: Plan, under: Plan | null): Room {
+    const t0 = performance.now()
+    void under
+    const S = roomScale(p)
+    const c = document.createElement('canvas')
+    c.width = p.w * S
+    c.height = p.h * S
+    const g = c.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    const tally = new Map<string, number>()
     for (let i = 0; i < p.w; i++) {
       for (let j = 0; j < p.h; j++) {
         const n = i * p.h + j
@@ -9214,13 +9313,7 @@ async function main() {
           || ((out(n - p.h) || out(n + p.h) || out(n - 1) || out(n + 1))
             && !(out(n - p.h) && out(n + p.h))
             && !(out(n - 1) && out(n + 1)))
-        // Model space back to the map: the inverse of `planCell`.
-        const lx = p.x0 + (i + 0.5) * p.s, ly = p.y0 + (j + 0.5) * p.s
-        const u = lx * p.sn + ly * p.c, v = lx * p.c - ly * p.sn
-        const wx = b.x + u, wy = b.y - v
-        const cx = screenX(wx, wy), cy = screenY(wx, wy)
-        if (cx < -wide || cx > canvas.width + wide
-          || cy < -wide || cy > canvas.height + wide) continue
+        const [wx, wy] = fromPlan(p, b, p.x0 + (i + 0.5) * p.s, p.y0 + (j + 0.5) * p.s)
         // Open to the sky, which inside an outline is a courtyard.
         //
         // An outline is a silhouette, so "inside the building" and "in a room"
@@ -9254,22 +9347,56 @@ async function main() {
             : b.k === 'mine'
               ? (hash(i, j) > 0.7 ? 'stone' : 'rock_floor')
               : (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall']!)(hash(i, j))
-        const at = ground.at[id]
-        if (at === undefined) continue
-        // What was laid, and on which part of the room — see `roomPaint`.
+        const pic = tilesMeta[id]
+        if (!pic) continue
         const part = isWall ? 'wall' : roofed ? 'floor' : 'open'
-        roomPaint.set(`${part}:${id}`, (roomPaint.get(`${part}:${id}`) ?? 0) + 1)
-        // Lit flat.  A room has no hillside and no sun in it, so the shading
-        // that makes a field read as ground would only make a floor read as
-        // a dented one.  The middle step is the unshaded one.
-        indoorRows.add((SHADES - 1) >> 1)
-        ctx.drawImage(ground.c, at, ((SHADES - 1) >> 1) * px, px, px,
-          Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
-        tilesDrawn++
+        tally.set(`${part}:${id}`, (tally.get(`${part}:${id}`) ?? 0) + 1)
+        g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h, i * S, j * S, S, S)
       }
     }
-    void half
+    // Lit flat, at the row the tile pass used to take a room's pictures from,
+    // with the same wash that row is given — over what was laid and nothing
+    // else, so the dark round a room stays the dark.
+    const wash = washOf(ROOM_ROW)
+    if (wash) {
+      g.globalCompositeOperation = 'source-atop'
+      g.fillStyle = wash
+      g.fillRect(0, 0, c.width, c.height)
+      g.globalCompositeOperation = 'source-over'
+    }
+    return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0 }
   }
+
+  /**
+   * The room you are in, on the glass: one turned blit of the room composed
+   * for this storey.
+   *
+   * The transform is the roofs' — `planCell` read backwards, with a negative
+   * determinant, so it is a `setTransform` and not a `rotate` — scaled by the
+   * pixels a cell was composed at.
+   */
+  function drawRoom(b: (typeof buildings)[number]) {
+    const p = planNow()
+    if (!p) return
+    const room = roomOf(b, p, planUnder())
+    const kk = k()
+    const q = kk * p.s
+    const a = q * p.c, bb = -q * p.sn, c = -q * p.sn, d = -q * p.c
+    const Ox = screenX(b.x, b.y), Oy = screenY(b.x, b.y)
+    const i0 = p.x0 / p.s, j0 = p.y0 / p.s
+    const e = Ox + a * i0 + c * j0, f = Oy + bb * i0 + d * j0
+    ctx.setTransform(a / room.S, bb / room.S, c / room.S, d / room.S, e, f)
+    ctx.drawImage(room.c, 0, 0)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    roomLaid = room
+    // What was laid, and on which part of the room — see `roomPaint`.  The
+    // whole room and not the part on the glass: it is one picture now, and a
+    // count of what happens to be in view was a count of the camera.
+    for (const [key, n] of room.tally) roomPaint.set(key, (roomPaint.get(key) ?? 0) + n)
+    indoorRows.add(ROOM_ROW)
+  }
+  /** The room the last frame drew, for the checks. */
+  let roomLaid: Room | null = null
 
   /**
    * And back again, which the tile loop needs.
@@ -10728,7 +10855,7 @@ async function main() {
       } while (performance.now() < deadline)
       return null
     }
-    if (indoors) { drawRoom(indoors, ground, px); }
+    if (indoors) { drawRoom(indoors) }
     else {
       // Plates first, whole, and then the tile pass over them.
       // At every grain, not only the finest: a plate is keyed on the tile grid
@@ -12828,7 +12955,11 @@ async function main() {
       const [part, id] = key.split(':') as [string, string]
       out[part]![id] = n
     }
-    return { inside: indoors ? indoors.k : null, storey, ...out }
+    // And the room itself: what a cell was composed at, what it weighs, what
+    // composing it cost, and how many rooms the budget is holding.
+    const room = roomLaid ? { scale: roomLaid.S, bytes: roomLaid.bytes,
+      ms: roomLaid.ms, kept: roomCache.size, keptBytes: roomBytes, budget: roomBudget } : null
+    return { inside: indoors ? indoors.k : null, storey, ...out, room }
   }
   /**
    * Stand on another storey.
