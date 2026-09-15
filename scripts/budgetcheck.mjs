@@ -169,13 +169,35 @@ check('and the sounds are a rounding error',
 const size = (f) => {
   const b = readFileSync(f)
   // PNG: width and height are the first two big-endian words of IHDR.
-  return (b.length > 24 && b.readUInt32BE(12) === 0x49484452)
-    ? b.readUInt32BE(16) * b.readUInt32BE(20) : 0
+  if (b.length > 24 && b.readUInt32BE(12) === 0x49484452) {
+    return b.readUInt32BE(16) * b.readUInt32BE(20)
+  }
+  // WebP, which is what the spell sheets came over from the ICC prototype as.
+  // A WebP this read as nought was a sheet this budget did not count — the
+  // same hole the regex below had, one format over.  Three chunk shapes:
+  // `VP8X` states the canvas as two 24-bit words less one, `VP8L` packs
+  // fourteen bits each after its signature byte, and `VP8 ` has two 14-bit
+  // words after the frame's start code.
+  if (b.length > 30 && b.toString('latin1', 0, 4) === 'RIFF'
+      && b.toString('latin1', 8, 12) === 'WEBP') {
+    const chunk = b.toString('latin1', 12, 16)
+    if (chunk === 'VP8X') return (b.readUIntLE(24, 3) + 1) * (b.readUIntLE(27, 3) + 1)
+    if (chunk === 'VP8L') {
+      const bits = b.readUInt32LE(21)
+      return ((bits & 0x3fff) + 1) * (((bits >> 14) & 0x3fff) + 1)
+    }
+    if (chunk === 'VP8 ') return (b.readUInt16LE(26) & 0x3fff) * (b.readUInt16LE(28) & 0x3fff)
+  }
+  return 0
 }
-const opened = readdirSync('src')
-  .filter((f) => f.endsWith('.ts'))
-  .flatMap((f) => [...readFileSync(join('src', f), 'utf8')
-    .matchAll(/'\.\/(art\/[\w./-]+\.png)'/g)].map((m) => m[1]))
+// And every directory under `src/`, not only the top of it: the spell sheets
+// are opened from `src/render/`, and a sheet opened from a file this did not
+// read was a sheet it did not count.
+const sources = readdirSync('src', { recursive: true })
+  .filter((f) => f.endsWith('.ts')).map((f) => join('src', f))
+const opened = sources
+  .flatMap((f) => [...readFileSync(f, 'utf8')
+    .matchAll(/'\.\/(art\/[\w./-]+\.(?:png|webp))'/g)].map((m) => m[1]))
 const loaded = [...new Set(opened)].map((rel) => join(dist, rel))
   .filter((f) => { try { statSync(f); return true } catch { return false } })
 /**

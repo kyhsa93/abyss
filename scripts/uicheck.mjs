@@ -348,6 +348,52 @@ for (const [W, H] of SIZES) {
       mageWears.includes('outfit-robe')
       && !mageWears.some((k) => /plate/.test(k)),
       mageWears.join(', '))
+
+    // --- a spell that flies, and the bar that says it is coming -----------
+    //
+    // Came over from the ICC prototype with its cast ring, its bar under the
+    // body and its bolts.  What is checked is the part that is a rule rather
+    // than a picture: the cast is drawn while it runs, the bolt leaves when
+    // the cast ends at the client's own speed and in its school's colour, and
+    // **the damage is done when it arrives** — the server's order, and the
+    // thing the prototype's first bolts got wrong by being scenery over a hit
+    // that had already landed.
+    //
+    // Twenty yards, because a bolt is only a bolt across a gap; the target
+    // used to be let go past fifteen, which is why this could not have been
+    // written before.
+    {
+      await mp.evaluate(() => { window.__earn(20000); window.__learn(116) })
+      const shot = await mp.evaluate(() => {
+        const got = window.__bolt(20)
+        return { got, press: window.__press(116), casting: window.__you().casting }
+      })
+      let cast = null, flew = null, landed = null
+      for (let i = 0; i < 80 && !landed && shot.got; i++) {
+        const f = await mp.evaluate(() => ({ ...window.__flights(),
+          casting: window.__you().casting }))
+        if (!cast && f.casting === 116 && f.cast.ring > 0 && f.cast.bar > 0) cast = f
+        const bolt = f.flights.find((x) => x.id === 116 && x.to === shot.got.entry)
+        if (!flew && bolt) flew = { ...f, bolt }
+        if (flew && !bolt) landed = f
+        await mp.waitForTimeout(40)
+      }
+      check('a cast is drawn under the one casting while it runs, ring and bar',
+        cast !== null && cast.cast.done > 0 && cast.cast.done < 1,
+        cast ? `${Math.round(cast.cast.done * 100)}% through`
+          : `never seen: ${JSON.stringify(shot)}`)
+      check('and when it ends a frostbolt flies, at 28 yards a second and frost blue',
+        flew !== null && flew.casting === null && flew.bolt.speed === 28
+        && flew.bolt.colour === '#7dd3fc',
+        flew ? JSON.stringify(flew.bolt) : 'no bolt left the hand')
+      check('and its damage is done when it arrives, not when it is thrown',
+        flew !== null && landed !== null && flew.target?.hp === shot.got?.hp
+        && (landed.target === null || landed.target.dead
+          || landed.target.hp < shot.got.hp)
+        && landed.flashes.length > 0,
+        `${shot.got?.hp} before, ${flew?.target?.hp} in the air, `
+        + `${landed?.target?.hp ?? 'dead'} after, flash ${landed?.flashes[0]?.fx}`)
+    }
     await mp.close()
   } else {
     check('the screen that makes a character is up on a fresh start',

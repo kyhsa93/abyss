@@ -430,6 +430,37 @@ left, *right*, down. Every wrong reading of a grid divides evenly, so the only
 thing that catches it is cutting the sheet and looking at all four directions:
 `bake_npcs.py` writes `npcs-contact.png` for exactly that.
 
+**A spell is thrown, and it lands when it gets there.** The cast ring, the
+bar under the body, the bolts and the flash where one lands came over from the
+ICC prototype — tag `icc-final`, its `drawCasts`, `drawProjectiles`,
+`spawnBolt` and burst layer — with the two sheets they draw from,
+`public/art/bolt.webp` and `public/art/fx.webp`, and three things were decided
+rather than copied. **The speed and the colour are the client's**: `spells.py`
+reads `Spell.dbc`'s `Speed` and `SchoolMask`, so a frostbolt flies at 28 yards
+a second in frost blue and a kobold's fireball is the mage's, where the
+prototype coloured a bolt by the icon somebody had picked for its ability.
+**The damage is done on arrival**, which is the server's order
+(`Spell::prepare` holds a spell with a speed back for distance over speed) and
+the one the prototype reached last — its first bolts were scenery over a hit
+that had already landed. A creature's spell flies at you the same way, and one
+that arrives at a man already down does nothing. And **the target is kept as
+far as the farthest thing he can reach**: it was let go past fifteen yards,
+three swings, from when every class here was a warrior, so a mage's thirty-yard
+frostbolt could never be thrown from twenty.
+
+Two costs were measured rather than carried over. The effect sheet is **cut to
+the eight rows a hit plays**, 3.12 MB decoded to 0.88: the other seventeen were
+effects that loop on a boss's floor, which this game has not got, and the whole
+sheet did not fit the phone's 24 MB. `budgetcheck` was not counting it either
+way — it read PNG headers and the top of `src/` alone, and the sheets are WebP
+opened from `src/render/` — so it reads both now, and the scene's sheets are
+23.2 of the 24. And **on a meadow the flash picture is painted, not added**:
+the prototype added it on a dark stone floor, and added on to sunlit grass a
+flame came out yellow-green; only the ring in the school's colour is added.
+`uicheck` casts a frostbolt from twenty yards and asks that the ring and the bar
+are drawn while it runs and that the target's health is the same while the bolt
+is in the air and lower once it lands.
+
 ## Why the world kept coming out different
 
 Both sources are complete and both are on this machine, and for several rounds

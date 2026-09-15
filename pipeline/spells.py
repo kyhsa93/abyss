@@ -326,6 +326,14 @@ F_TRIGGER = 116
 # Sunder Armor.  A debuff that does not say how deep it goes is a debuff whose
 # depth somebody here would have to choose.
 F_STACK = 49
+# How fast it flies and what school it is.  `Speed` is a float packed into an
+# int column, yards a second, and nought for everything that lands the moment
+# it goes off — `Spell::prepare` puts a spell with a speed on a delay of
+# distance over speed (Spell.cpp, `m_delayMoment`), which is the whole
+# difference between a frostbolt and a smite.  `SchoolMask` is one bit a
+# school: 1 physical, 2 holy, 4 fire, 8 nature, 16 frost, 32 shadow, 64
+# arcane.
+F_SPEED, F_SCHOOL = 47, 225
 E_TRIGGER_SPELL, E_TRIGGER_MISSILE, E_PERSISTENT_AREA = 64, 32, 27
 A_PERIODIC_TRIGGER = 23
 
@@ -630,6 +638,11 @@ def main(client_root, acore, out, upto=None):
                   durations, acore, out, upto, c, fixed)
 
 
+def speed_of(r):
+    """`Spell.dbc`'s speed, which is a float stored in an int column."""
+    return struct.unpack('<f', struct.pack('<i', r[F_SPEED]))[0]
+
+
 def build(want, free, spells, ranges, radii, casts, durations, power):
     """One class's book, as rows.
 
@@ -680,6 +693,10 @@ def build(want, free, spells, ranges, radii, casts, durations, power):
             # How deep the same thing may sit on one target.  Sunder Armor's
             # five, which is the client's and not a choice made here.
             'stack': r[F_STACK],
+            # How fast it flies, and which school — the second is what a bolt
+            # and the flash where it lands are coloured by.
+            **({'speed': round(speed_of(r), 2)} if speed_of(r) else {}),
+            'school': r[F_SCHOOL],
         }
         # What a combo point adds, per effect — a float packed into an int
         # column.  Only the rogue's finishers have one, and without it
@@ -751,6 +768,14 @@ def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
     if not debuff or debuff[F_STACK] != 5 \
             or A_BASE_RESISTANCE_PCT not in [debuff[F_AURA + i] for i in range(3)]:
         sys.exit('Spell.dbc trigger field is wrong: 7386 fires %s' % fired)
+    # And the flight, the same way.  A frostbolt flies at 28 yards a second and
+    # is frost; read one field out, the speed comes back nought and every bolt
+    # in the game lands the moment it is thrown, which is exactly what this
+    # game did before it read the column.
+    frost = next((r for r in out_rows if r['id'] == 116), None)
+    if frost and (frost.get('speed') != 28 or frost['school'] != 16):
+        sys.exit('Spell.dbc speed or school field is wrong: 116 came back %s'
+                 % frost)
     # And the stance, which is four columns deep: the aura says the form, the
     # core says which passive that form is, and the passive says the numbers.
     # Defensive Stance has to come back taking a tenth off what hits you.
@@ -801,6 +826,8 @@ def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
                 'wide': [radii.get(r[F_RADIUS + i], 0.0) for i in range(3)],
                 'holds': durations.get(r[F_DURATION], 0),
                 'does': does,
+                **({'speed': round(speed_of(r), 2)} if speed_of(r) else {}),
+                'school': r[F_SCHOOL],
             })
             # What this engine cannot run, counted rather than dropped in
             # silence.  A creature whose only ability is an effect nothing

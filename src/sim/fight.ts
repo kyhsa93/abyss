@@ -276,6 +276,15 @@ export type Spell = {
   /** How deep the same thing may sit on one target.  Sunder Armor's five. */
   stack?: number
   /**
+   * How fast it flies, yards a second — `Spell.dbc`'s `Speed`, absent for a
+   * spell that lands the moment it goes off.  The server holds the effect back
+   * for distance over speed (`Spell::prepare`'s `m_delayMoment`), which is why
+   * a frostbolt thrown from thirty yards gives the target a second.
+   */
+  speed?: number
+  /** `SchoolMask`: 1 physical, 2 holy, 4 fire, 8 nature, 16 frost, 32 shadow, 64 arcane. */
+  school?: number
+  /**
    * What a combo point adds, per effect slot — `EffectPointsPerComboPoint`.
    *
    * A float in an integer column, which is why `spells.py` unpacks it the way

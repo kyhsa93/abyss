@@ -15,12 +15,12 @@ going red on four of them for rounds.
 
 | what | measured | budget | on a phone |
 | --- | ---: | ---: | ---: |
-| the script a browser is handed | 94 KB | 500 KB | the same |
+| the script a browser is handed | 97 KB | 500 KB | the same |
 | the world a first visit downloads | 3.38 MB | 4.00 MB | the same |
-| everything the deploy carries | 31.31 MB | 200.00 MB | not paid |
+| everything the deploy carries | 31.38 MB | 200.00 MB | not paid |
 | the sounds | 135 KB | 2048 KB | the same |
-| the sheets the scene opens, decoded | 22.28 MB | 24.00 MB | 24.00 MB |
-| and against the desktop ceiling | 22.28 MB | 64.00 MB | 24.00 MB |
+| the sheets the scene opens, decoded | 23.24 MB | 24.00 MB | 24.00 MB |
+| and against the desktop ceiling | 23.24 MB | 64.00 MB | 24.00 MB |
 | the buildings, decoded | 0.42 MB | 4.00 MB | the same |
 | a save, a character who has finished this game | 2 KB | 4 KB | the same |
 | and every slot holding one | 17 KB | 40 KB | the same |

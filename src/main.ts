@@ -39,6 +39,10 @@ import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
 import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, RANK_WORD, SIDE_WORD, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
+import { drawBolt } from './render/boltimage.ts'
+import { drawFx } from './render/fximage.ts'
+import { flightKind, landingFx, schoolColour, tint as rgbaOf } from './render/school.ts'
+import type { ProjectileKind } from './render/bolt.ts'
 import { hud as makeHud, type BookRow, type Layout, type ShopRow, type Slot, type Worn } from './hud.ts'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
@@ -4671,7 +4675,91 @@ async function main() {
         at: you.target }
       return
     }
-    finishCast(sp, you.target)
+    release(sp, you.target)
+  }
+
+  /**
+   * What is in the air, and what has just landed on somebody.
+   *
+   * Came over from the ICC prototype (tag `icc-final`, `spawnBolt` and
+   * `drawProjectiles`), with the one thing that prototype settled late kept
+   * from the start: **a bolt carries its spell and the spell resolves when it
+   * arrives**.  The prototype's first bolts were scenery over damage that had
+   * already landed, and a number that appears a second before the thing that
+   * caused it reads as the shot being decoration.  The server agrees —
+   * `Spell::prepare` holds a spell with a `Speed` back for distance over
+   * speed — so a frostbolt from thirty yards is a second in which the target
+   * is still standing.
+   *
+   * Not saved, which is the rule a cast under way already keeps: closing the
+   * tab interrupts it.  `to` and `from` are a creature or nought for the
+   * player.
+   */
+  type Flight = {
+    x: number; y: number; was: { x: number; y: number }; ix: number; iy: number
+    trail: [number, number][]
+    kind: ProjectileKind; colour: string; speed: number; id: number
+    from: Npc | null; to: Npc | null
+    land: () => void
+    /** How far off the ground it was last drawn, in pixels — for the checks. */
+    lift?: number
+  }
+  const flights: Flight[] = []
+  /** Where the prototype kept a trail: five steps, a step and not a frame. */
+  const TRAIL = 5
+  /**
+   * How big each body is, in yards — the prototype's `BOLT` table, whose
+   * numbers were arena units against a raider's radius and are a share of a
+   * yard here.  Two sizes a kind for the prototype's reason: one multiplier
+   * big enough for a dart to read made the heavy orb as tall as its thrower.
+   */
+  const FLIGHT: Record<ProjectileKind, { radius: number; sprite: number }> = {
+    bolt: { radius: 0.15, sprite: 0.9 },
+    dot: { radius: 0.17, sprite: 1 },
+    heavy: { radius: 0.25, sprite: 1.3 },
+    heal: { radius: 0.17, sprite: 1 },
+  }
+  /** When the cast's ring and its bar were last drawn, for the checks. */
+  const castShown = { ring: -1, bar: -1, done: 0 }
+  const heals = (sp: Spell) => sp.does.some((d) => d[0] === E_HEAL)
+  const launch = (from: Npc | null, to: Npc | null, sp: Spell, land: () => void) => {
+    const x = from ? from.x : hero.x, y = from ? from.y : hero.y
+    flights.push({ x, y, was: { x, y }, ix: x, iy: y, trail: [[x, y]],
+      kind: flightKind(heals(sp), sp.cast ?? 0, sp.does.some((d) => d[0] === E_AURA)),
+      colour: schoolColour(sp.school), speed: sp.speed!, id: sp.id,
+      from, to, land })
+  }
+  /**
+   * The flash where a spell lands: a picture from `fx.webp` under a ring in
+   * the school's colour, the prototype's burst.  Only for spells — a swing
+   * already has its flinch and its number, and a flash on every blow is the
+   * noise the prototype spent a round taking back out.
+   */
+  const flashes: { to: Npc | null; at: number; fx: string; colour: string
+    life: number }[] = []
+  const flash = (to: Npc | null, sp: Spell) => {
+    flashes.push({ to, at: clock, fx: landingFx(sp.school, false, heals(sp)),
+      colour: schoolColour(sp.school), life: 0.34 })
+    if (flashes.length > 24) flashes.shift()
+  }
+  /** Whether a spell does anything to the one it is aimed at. */
+  const strikes = (sp: Spell) => sp.does.some((d) => d[0] === E_DAMAGE
+    || (d[0] === E_AURA && d[3] === A_PERIODIC_DAMAGE))
+  /**
+   * A cast that has gone off: straight to `finishCast` if it has no speed or
+   * nobody to fly at, and into the air if it has both.
+   */
+  const release = (sp: Spell, target: Npc | null) => {
+    if (!sp.speed || !target || target.dead || !strikes(sp)) {
+      if (target && !target.dead && strikes(sp)) flash(target, sp)
+      finishCast(sp, target)
+      return
+    }
+    launch(null, target, sp, () => {
+      const t = target.dead ? null : target
+      if (t) flash(t, sp)
+      finishCast(sp, t)
+    })
   }
 
   /**
@@ -5203,8 +5291,15 @@ async function main() {
     // same reason.  Five per cent a second after three seconds of quiet.
     let quiet = you.target === null
     // The target has to still be there, still be alive, and still be close.
+    //
+    // Close was three swings' reach, fifteen yards, when every class here
+    // fought in melee — and a mage's frostbolt reaches thirty, so a target
+    // picked at twenty was let go on the next step and nothing with a cast
+    // bar could ever be thrown from where it is meant to be thrown from.  It
+    // is the farthest thing he can reach now, and never less than it was.
     const t = you.target
-    if (t && (t.dead || (t.x - hero.x) ** 2 + (t.y - hero.y) ** 2 > reach2 * 9))
+    const keep = Math.max(MELEE * 3, ...spells.map((sp) => sp.reach[1]))
+    if (t && (t.dead || (t.x - hero.x) ** 2 + (t.y - hero.y) ** 2 > keep * keep))
       you.target = null
 
     for (const n of active) {
@@ -5309,28 +5404,39 @@ async function main() {
             || (d[0] === E_AURA && d[3] === A_PERIODIC_DAMAGE)))
       if (trick) {
         n.cools[trick.id] = clock + Math.max(4, trick.cool / 1000)
-        for (const [effect, amount, die, aura, period] of trick.does) {
-          if (effect === E_DAMAGE) {
-            const bolt = Math.max(1, Math.round(
-              between(amount!, amount! + (die ?? 0)) * stanceOf().take
-              * (1 - mitigate(you.line[ARMOUR]!, n.level))))
-            const got = takeHit(bolt)
-            you.hp -= got
-            if (got > 0 && you.hp > 0) wearBlow()
-            breakUse()
-            breakCast('맞았다')
-            say(hero.x, hero.y, `-${got}`, false)
-            ui.log(`${nameOf(n.kind)}의 주문에 ${bolt} 맞았다.`, 'hurt')
-          } else if (effect === E_AURA && aura === A_PERIODIC_DAMAGE) {
-            youBleed = { until: clock + trick.holds / 1000,
-              next: clock + (period ?? 3000) / 1000, each: amount! }
-            ui.log(`${nameOf(n.kind)}에게 물렸다.`, 'hurt')
+        // And it flies, if the client says it does — a kobold's fireball is
+        // the mage's fireball, 24 yards a second — and what it does is done
+        // when it gets there.  `you.died` is asked on arrival because a bolt
+        // already thrown still reaches a man who fell to something else.
+        const caster = n, sp = trick
+        const land = () => {
+          if (you.died) return
+          flash(null, sp)
+          for (const [effect, amount, die, aura, period] of sp.does) {
+            if (effect === E_DAMAGE) {
+              const bolt = Math.max(1, Math.round(
+                between(amount!, amount! + (die ?? 0)) * stanceOf().take
+                * (1 - mitigate(you.line[ARMOUR]!, caster.level))))
+              const got = takeHit(bolt)
+              you.hp -= got
+              if (got > 0 && you.hp > 0) wearBlow()
+              breakUse()
+              breakCast('맞았다')
+              say(hero.x, hero.y, `-${got}`, false)
+              ui.log(`${nameOf(caster.kind)}의 주문에 ${bolt} 맞았다.`, 'hurt')
+            } else if (effect === E_AURA && aura === A_PERIODIC_DAMAGE) {
+              youBleed = { until: clock + sp.holds / 1000,
+                next: clock + (period ?? 3000) / 1000, each: amount! }
+              ui.log(`${nameOf(caster.kind)}에게 물렸다.`, 'hurt')
+            }
+          }
+          if (you.hp <= 0) {
+            you.hp = 0; you.died = clock; you.target = null; you.calm = 0
+            ui.log('쓰러졌다.', 'note')
           }
         }
-        if (you.hp <= 0) {
-          you.hp = 0; you.died = clock; you.target = null; you.calm = 0
-          ui.log('쓰러졌다.', 'note')
-        }
+        if (sp.speed) launch(caster, null, sp, land)
+        else land()
         continue
       }
       // What happens when it swings, by the server's own table: one roll, and
@@ -5415,11 +5521,30 @@ async function main() {
         say(hero.x, hero.y, `+${you.mend.each}`, false)
       }
     }
+    // What is in the air, a step further on.  It follows whoever it was thrown
+    // at, which is what a homing missile in the client does and what makes a
+    // bolt that has left the hand a bolt that will land.
+    for (let i = flights.length - 1; i >= 0; i--) {
+      const f = flights[i]!
+      const tx = f.to ? f.to.x : hero.x, ty = f.to ? f.to.y : hero.y
+      f.was = { x: f.x, y: f.y }
+      const gap = Math.hypot(tx - f.x, ty - f.y), go = f.speed * STEP
+      if (gap <= go) {
+        f.x = tx; f.y = ty
+        flights.splice(i, 1)
+        f.land()
+        continue
+      }
+      f.x += ((tx - f.x) / gap) * go
+      f.y += ((ty - f.y) / gap) * go
+      f.trail.push([f.x, f.y])
+      if (f.trail.length > TRAIL) f.trail.shift()
+    }
     // A cast that was under way, finishing.
     if (you.casting && clock >= you.casting.until) {
       const done = you.casting
       you.casting = null
-      finishCast(done.sp, done.at && !done.at.dead ? done.at : null)
+      release(done.sp, done.at && !done.at.dead ? done.at : null)
     }
     // The bar filling.
     //
@@ -10899,6 +11024,7 @@ async function main() {
     for (const n of active) { n.ix = tween(n.was.x, n.x); n.iy = tween(n.was.y, n.y) }
     hero.ix = tween(hero.was.x, hero.x)
     hero.iy = tween(hero.was.y, hero.y)
+    for (const f of flights) { f.ix = tween(f.was.x, f.x); f.iy = tween(f.was.y, f.y) }
     const dt = real
 
     // --- the thumbs, before the keys, because they answer the same question
@@ -12427,6 +12553,37 @@ async function main() {
         ctx.clip()
       }
       shadow(hero.ix, hero.iy, 0.34)
+      // The cast, gathering on the ground round him — the prototype's
+      // `drawCasts`: a dashed ring closing in from a way out to the edge of
+      // him as the cast completes, and a dial filling clockwise from noon.
+      // Under him, because it is on the floor, and in the colour of the
+      // school the spell belongs to.
+      if (you.casting) {
+        const c0 = you.casting
+        const done = Math.max(0, Math.min(1, (clock + between * STEP - c0.began)
+          / Math.max(0.001, c0.until - c0.began)))
+        const colour = schoolColour(c0.sp.school)
+        const cx = screenX(hero.ix, hero.iy), cy = screenY(hero.ix, hero.iy)
+        const base = Math.max(4, 0.5 * PPY * zoom)
+        ctx.save()
+        ctx.lineCap = 'round'
+        ctx.beginPath()
+        ctx.arc(cx, cy, base + (1 - done) * 1.4 * PPY * zoom, 0, Math.PI * 2)
+        ctx.strokeStyle = rgbaOf(colour, 0.2 + 0.5 * done)
+        ctx.lineWidth = Math.max(1, 2 * zoom)
+        ctx.setLineDash([5, 6])
+        ctx.lineDashOffset = -done * 40
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.beginPath()
+        ctx.arc(cx, cy, base + 5 * zoom, -Math.PI / 2,
+          -Math.PI / 2 + Math.PI * 2 * done)
+        ctx.strokeStyle = rgbaOf(colour, 0.9)
+        ctx.lineWidth = Math.max(1.5, 3 * zoom)
+        ctx.stroke()
+        ctx.restore()
+        castShown.ring = clock
+      }
       // What is in his hand, in two halves either side of him — the same
       // arrangement everybody else in the world already had.  A weapon has no
       // idle of its own, so standing still it takes the pose LPC puts at frame
@@ -12853,6 +13010,131 @@ async function main() {
       }
       ctx.stroke()
       ctx.globalAlpha = 1
+    }
+
+    // What is in the air, and where it has just landed — the prototype's
+    // `drawProjectiles` and its bursts.  Over the scenery for the same reason
+    // the numbers are: a bolt behind a tree is not a bolt.
+    {
+      const at = clock + between * STEP
+      // Flying at chest height rather than along the ground, from the
+      // thrower's chest to the target's: a position here is a point on the
+      // ground, and a bolt aimed at one arrives between somebody's ankles.
+      // How far along it is comes from the two distances, because both ends
+      // walk about while it is in the air.
+      //
+      // The chest is three fifths of the way down the figure, not two: LPC
+      // draws people chibi with the head two fifths of them, so two fifths down
+      // is the chin and a fireball thrown from there left from his face.
+      const chestOf = (who: Npc | null) => who
+        ? (headOf[who.art] ?? 40) * 0.45 * zoom
+        : (heroMeta.cell * 0.82 - (heroMeta.body
+          ? heroMeta.body.top + (heroMeta.body.bottom - heroMeta.body.top) * 0.6
+          : heroMeta.cell * 0.5)) * zoom
+      ctx.lineCap = 'round'
+      for (const f of flights) {
+        const style = FLIGHT[f.kind]
+        const ox = f.from ? f.from.ix : hero.ix, oy = f.from ? f.from.iy : hero.iy
+        const tx = f.to ? f.to.ix : hero.ix, ty = f.to ? f.to.iy : hero.iy
+        const gone = Math.hypot(f.ix - ox, f.iy - oy)
+        const left = Math.hypot(tx - f.ix, ty - f.iy)
+        const along = gone + left > 0.01 ? gone / (gone + left) : 1
+        const lands = chestOf(f.to)
+        const lift = chestOf(f.from) + (lands - chestOf(f.from)) * along
+        const x = screenX(f.ix, f.iy), y = screenY(f.ix, f.iy) - lift
+        f.lift = lift
+        const r = Math.max(2, style.radius * PPY * zoom)
+        // The trail behind it, thinning and fading toward where it came from.
+        for (let i = 1; i < f.trail.length; i++) {
+          const [ax, ay] = f.trail[i - 1]!, [bx, by] = f.trail[i]!
+          const fade = i / f.trail.length
+          ctx.beginPath()
+          ctx.moveTo(screenX(ax, ay), screenY(ax, ay) - lift)
+          ctx.lineTo(screenX(bx, by), screenY(bx, by) - lift)
+          ctx.strokeStyle = rgbaOf(f.colour, 0.35 * fade)
+          ctx.lineWidth = Math.max(1, r * 1.2 * fade)
+          ctx.stroke()
+        }
+        // A halo that falls off, under the body: it is what lifts a sixteen
+        // pixel sprite off ground as busy as a forest floor.
+        const halo = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2)
+        halo.addColorStop(0, rgbaOf(f.colour, 0.5))
+        halo.addColorStop(0.45, rgbaOf(f.colour, 0.22))
+        halo.addColorStop(1, rgbaOf(f.colour, 0))
+        ctx.beginPath()
+        ctx.arc(x, y, r * 3.2, 0, Math.PI * 2)
+        ctx.fillStyle = halo
+        ctx.fill()
+        // Which way it points: at whoever it is going to.  The prototype read
+        // it off the trail, which on the step it is thrown is one point and
+        // says east; a bolt that homes is always pointing at its target.
+        const angle = Math.atan2(screenY(tx, ty) - lands - y, screenX(tx, ty) - x)
+        if (!drawBolt(ctx, f.kind, x, y, Math.max(6, style.sprite * PPY * zoom),
+          angle, f.colour, at)) {
+          ctx.beginPath()
+          ctx.arc(x, y, r, 0, Math.PI * 2)
+          ctx.fillStyle = f.colour
+          ctx.fill()
+        }
+      }
+      // And the flashes: the picture first, then the ring in the school's
+      // colour on top of it, because the ring is the part that says which.
+      //
+      // The prototype added both, so two hits at once brightened instead of
+      // muddying — on a dark stone floor.  Added on to a sunlit meadow a
+      // flame is yellow-green and a frost burst is white, so here the picture
+      // is painted and only the ring is added.
+      ctx.save()
+      for (let i = flashes.length - 1; i >= 0; i--) {
+        const b = flashes[i]!
+        const t = (at - b.at) / b.life
+        if (t >= 1) { flashes.splice(i, 1); continue }
+        if (t < 0) continue
+        const fade = 1 - t
+        const wx = b.to ? b.to.ix : hero.ix, wy = b.to ? b.to.iy : hero.iy
+        const x = screenX(wx, wy), y = screenY(wx, wy) - chestOf(b.to)
+        ctx.globalCompositeOperation = 'source-over'
+        drawFx(ctx, b.fx, x, y, 1.6 * PPY * zoom, t, fade)
+        ctx.globalCompositeOperation = 'lighter'
+        // A heal closes on its target instead of leaving it.
+        const spread = b.fx === 'heal' ? 1 - t : t
+        const r = Math.max(1, 0.9 * PPY * zoom * (0.25 + spread * 0.75))
+        ctx.strokeStyle = rgbaOf(b.colour, 0.85 * fade)
+        ctx.lineWidth = Math.max(1, 4 * fade * zoom)
+        ctx.beginPath()
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+        ctx.stroke()
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 6) * Math.PI * 2
+          const outer = r * (1 + 0.35 * t)
+          ctx.beginPath()
+          ctx.moveTo(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55)
+          ctx.lineTo(x + Math.cos(a) * outer, y + Math.sin(a) * outer)
+          ctx.strokeStyle = rgbaOf(b.colour, 0.55 * fade)
+          ctx.lineWidth = Math.max(1, 2.5 * fade * zoom)
+          ctx.stroke()
+        }
+      }
+      ctx.restore()
+      ctx.lineCap = 'butt'
+      // The cast bar under him, the prototype's: forty-eight wide and five
+      // tall under the body, filling in the school's colour.  The bar at the
+      // bottom of the screen says the same thing in the original's place;
+      // this one is where the eye already is.
+      if (you.casting) {
+        const c0 = you.casting
+        const done = Math.max(0, Math.min(1, (at - c0.began)
+          / Math.max(0.001, c0.until - c0.began)))
+        const w = Math.round(48 * Math.max(1, zoom)), h = 5
+        const X = Math.round(screenX(hero.ix, hero.iy) - w / 2)
+        const Y = Math.round(screenY(hero.ix, hero.iy) + 6 * zoom)
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'
+        ctx.fillRect(X - 1, Y - 1, w + 2, h + 2)
+        ctx.fillStyle = schoolColour(c0.sp.school)
+        ctx.fillRect(X, Y, Math.round(w * done), h)
+        castShown.bar = clock
+        castShown.done = done
+      }
     }
 
     // Damage, floating off whoever took it.  Drawn over the scenery for the
@@ -16018,6 +16300,44 @@ async function main() {
    * outcome words — which are half of what `art/SOUND-CREDITS.md` pairs a
    * sound with.  `mine` is over something else, not over him.
    */
+  // What is in the air, what has just landed, and when the cast was last
+  // drawn — so a check can ask whether a bolt carries its damage rather than
+  // whether something moved.
+  ;(window as unknown as { __flights: () => unknown }).__flights = () => ({
+    clock,
+    flights: flights.map((f) => ({ id: f.id, kind: f.kind, colour: f.colour,
+      x: f.x, y: f.y, speed: f.speed, trail: f.trail.length, lift: f.lift,
+      from: f.from ? f.from.entry : 'you', to: f.to ? f.to.entry : 'you' })),
+    flashes: flashes.map((b) => ({ fx: b.fx, colour: b.colour, at: b.at })),
+    cast: { ...castShown },
+    target: you.target ? { entry: you.target.entry, hp: you.target.hp,
+      dead: !!you.target.dead } : null,
+    hp: you.hp,
+  })
+  /**
+   * **Test only**: stand `away` yards from the nearest creature that can be
+   * fought — one of `entries` if given — and aim at it.  A bolt is only a bolt
+   * across a gap, and every other placing hook here puts him in reach of a
+   * swing.
+   */
+  ;(window as unknown as { __bolt: (away: number, entries?: number[]) => unknown })
+    .__bolt = (away, entries) => {
+      let best: Npc | null = null, bd = Infinity
+      for (const n of npcs) {
+        // Something a spell does not kill outright: a rabbit with one health
+        // dies to the first spark, and a check that got a corpse measured
+        // nothing about when the damage landed.
+        if (n.dead || !fightable(n.fight) || n.hp < 30) continue
+        if (entries && !entries.includes(n.entry)) continue
+        const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+        if (d < bd) { bd = d; best = n }
+      }
+      if (!best) return null
+      placeHero(best.x - away, best.y)
+      you.target = best
+      return { entry: best.entry, hp: best.hp, level: best.level,
+        x: best.x, y: best.y, away: Math.hypot(best.x - hero.x, best.y - hero.y) }
+    }
   ;(window as unknown as { __marks: () => unknown }).__marks = () => ({
     clock, marks: marks.map((m) => ({ text: m.text, mine: m.mine, at: m.at })),
   })

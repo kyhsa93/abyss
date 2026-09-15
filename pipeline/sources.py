@@ -138,6 +138,25 @@ SOURCES = [
          gives=['creature', 'character', 'prop', 'building', 'vegetation'],
          note='the same art as `polypizza` but packaged, with the .blend '
               'sources and every LOD.  Behind an itch.io download form'),
+    # --- what a spell looks like in flight and where it lands --------------
+    #
+    # All three are pixel art and CC0, and all three came over from the ICC
+    # prototype with the sheets they were packed into (`public/art/bolt.webp`,
+    # `public/art/fx.webp`).  The unpacked originals live under `~/src/fx` and
+    # `~/src/superpowers-asset-packs`; the prototype's own packers are kept at
+    # the tag `icc-final` as `scripts/bolt.ts` and `scripts/fx.ts`.
+    dict(id='devwizard', name='Pixelart Spells', author='DevWizard',
+         licence='CC0-1.0', how='manual',
+         home='https://opengameart.org/content/pixelart-spells',
+         gives=['vfx']),
+    dict(id='superpowers', name='Superpowers asset packs (rpg-battle-system)',
+         author='Sparklin Labs', licence='CC0-1.0', how='git',
+         home='https://github.com/sparklinlabs/superpowers-asset-packs',
+         gives=['vfx', 'ui', 'audio']),
+    dict(id='codemanu', name='Free Pixel Effects Pack', author='CodeManu',
+         licence='CC0-1.0', how='manual',
+         home='https://opengameart.org/content/free-pixel-effects-pack',
+         gives=['vfx']),
     dict(id='oga', name='OpenGameArt (the rest of it)', author='many',
          licence='CC0-1.0 / CC-BY-3.0 / CC-BY-SA-3.0 / GPL', how='manual',
          home='https://opengameart.org',
@@ -167,7 +186,7 @@ NEEDS = {
     'spell and item icons': ['game-icons', 'kenney'],
     'interface frames': ['kenney'],
     'cursors': ['kenney'],
-    'spell effects': ['kenney'],
+    'spell effects': ['devwizard', 'superpowers', 'codemanu', 'kenney'],
     'sound': ['kenney', 'freesound'],
     'Korean type': ['pretendard'],
 }
