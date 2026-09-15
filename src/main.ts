@@ -2283,6 +2283,13 @@ async function main() {
    * guessable, because the two are the same shape once they are in the list.
    */
   const caves: (Built & { fromModel: boolean })[] = []
+  /**
+   * Whether a place is a warren this scene cut for itself, which is the only
+   * kind of mine the readout may call ours.  Asked of the list and not of `k`:
+   * a mine the client drew and a mine `digCave` made are both `k: 'mine'`.
+   */
+  const dugByUs = (b: Built | null): boolean =>
+    !!b && b.k === 'mine' && caves.some((c) => c === b && !c.fromModel)
   /** What `digCave` would have made of a warren the client had a model for. */
   const wouldDig = new Map<number, { cells: number[]; dug: number }>()
   type Built = (typeof buildings)[number]
@@ -11055,12 +11062,17 @@ async function main() {
     // — `주인공 (x, y)` — and on a phone the plate is 118 pixels wide, which
     // 노스샤이어 계곡 -8950, -132 wraps onto three lines of.  So the phone
     // gets the place and the weather, which is what that game's plate says.
-    // And a mine says it is ours.  The client drew the mouth; what is behind
-    // it — the chambers and the passages between them — is derived from where
-    // the server stands its creatures, and this repository lost a round once
-    // to drawing something without a client and not saying so.
+    // And a mine this scene dug says it is ours — **only** that one.  Issue
+    // 133 wrote this line when every mine was `digCave`'s: the client drew
+    // the mouth and the chambers behind it came out of where the server
+    // stands its creatures.  Since 3111160 the galleries come out of the
+    // client's own models and `viewcheck` holds `derived === 0`, and the line
+    // went on asking `k === 'mine'` — so every gallery the client drew was
+    // labelled as one we made up, which is the same lie the other way round
+    // from the one this label was written to stop.  What is ours is
+    // `fromModel === false`, and that is the question now.
     ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}`
-      + `${indoors?.k === 'mine' ? ' · 우리가 판 굴' : ''}`
+      + `${dugByUs(indoors) ? ' · 우리가 판 굴' : ''}`
       + `${overhead ? ` · ${overhead}` : ''}`
       + (pad.on ? '' : `  ${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`),
       // The same clock the sky reads.  This was `new Date()` and the sky was
@@ -11925,6 +11937,25 @@ async function main() {
       return null
     }
 
+  /**
+   * Walk into a mine, for the check on what the readout says down one.
+   *
+   * `__enter` walks `buildings` and a mine is in `caves`, so it could never
+   * have answered this.  Returns which mine and what `dugByUs` says of it;
+   * the words themselves are read off the glass by the check, because the
+   * failure is a label, and a label is what reaches the screen.
+   */
+  ;(window as unknown as { __enterMine: (i?: number) => unknown })
+    .__enterMine = (i = 0) => {
+      const c = caves[i]
+      if (!c || !c.doors.length) return null
+      indoors = null
+      const door = c.doors[0]!
+      placeHero(door[0], door[1])
+      throughTheDoor()
+      return { mines: caves.length, fromModel: c.fromModel, inside: indoors === c,
+        ours: dugByUs(indoors) }
+    }
   /**
    * Stand on another storey.
    *

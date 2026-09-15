@@ -1849,6 +1849,27 @@ check('the mines are the client\'s and not this scene\'s',
   mines.fromModel >= 3 && mines.derived === 0,
   `${mines.fromModel} of ${mines.mines.length} out of a model, `
   + `${mines.derived} derived, of ${mines.modelled} the client stands here`)
+// And the screen says so, which it did not.  Issue 133 put ` · 우리가 판 굴`
+// on the readout for every `k === 'mine'`, which was honest the day every mine
+// was `digCave`'s and false the day they became the client's: the readout went
+// on telling a player standing in a gallery the client drew that we had made
+// it up.  So walk into one the client drew and read the plate — the words on
+// the glass, not the flag, because a flag can be right while the line that
+// prints it asks something else.
+{
+  const into = mines.mines.findIndex((m) => m.fromModel)
+  const went = await p.evaluate((i) => window.__enterMine(i), into)
+  await p.waitForTimeout(500)
+  const plate = await p.evaluate(() =>
+    document.querySelector('.where')?.textContent ?? '')
+  check('and a mine the client drew does not say we dug it',
+    !!went?.inside && went.fromModel && !went.ours && plate.length > 0
+      && !plate.includes('우리가 판 굴'),
+    went ? `mine ${into} (${went.fromModel ? 'a model' : 'dug'}), inside `
+      + `${went.inside}, the plate reads "${plate}"` : 'could not walk into one')
+  await p.evaluate(() => window.__put(-9055, -298))
+  await p.waitForTimeout(300)
+}
 // And the difference is measured rather than asserted.  `digCave` is still
 // there — it is what a warren of kobolds under a hillside with no model
 // anywhere near it still gets — so for every mine that has both, the two
