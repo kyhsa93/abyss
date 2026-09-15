@@ -597,21 +597,44 @@ const gaps = await p.evaluate(() => {
   const wide = holes.mouth
   const mouth = (x, y) => holes.mines.some((m) =>
     Math.hypot(m.mouth[0] - x, m.mouth[1] - y) <= wide)
-  let refused = 0, beside = 0, ways = 0
+  // **Each kind is asked the question it answers**, which is what the count
+  // below did not do: a mouth went `ways++; refused++; continue` without a
+  // probe, and a floored cell counted as refused while the comment beside it
+  // said it takes a step — so "every hole refuses" was true of both by
+  // construction.  Four kinds, four claims:
+  //
+  //   * an ordinary hole is an open hole and refuses a step;
+  //   * a mine's mouth is not an open hole, and in this game's own zone every
+  //     cell of one takes a step (the one mouth on the Burning Steppes' side
+  //     of the line is on a slope past the climb, measured: 2.7 against 0.9);
+  //   * a floored chunk is ground handed to a building that brings its own
+  //     floor, so the hole is not what stops you — it is Stormwind, and the
+  //     zone line stops you there, which "no walkable ground belongs to
+  //     another zone" holds on its own;
+  //   * a building's own floor over part of a chunk — the Lion's Pride — is
+  //     not an open hole and is floor on its plan, which is what you stand on
+  //     once through the door; from outside most of it is shut for the reason
+  //     every room is.
+  const home = new Set(window.__areas()
+    .filter((a) => a.id === 12 || a.inside === 12).map((a) => a.id))
+  const kinds = { hole: [0, 0], mouth: [0, 0], homeMouth: [0, 0], floored: [0, 0],
+    floor: [0, 0] }
+  let beside = 0
   for (const [x, y] of g) {
-    if (mouth(x, y)) { ways++; refused++; continue }
-    // A chunk that loses all sixteen bits is ground handed to a building that
-    // brings its own floor — Stormwind, here — and the server walks its own
-    // creatures over it.  Drawn as a hole, not refused.  `__holeAt` still says
-    // yes there; `__probe` is what knows the difference.
-    // Three ways a cut in the terrain is accounted for.  A step refused is
-    // the mine mouth; `__floored` is a whole chunk handed to a building that
-    // brings its own floor, which here is Stormwind; and a building's own
-    // floor laid over part of a chunk is the Lion's Pride, which you can walk
-    // into and stand in.  The third was missing, so the inn's floor read as
-    // an unaccounted hole the moment the ground stopped painting it black.
     const q = window.__probe(x, y)
-    if (q.blocked || window.__floored(x, y) || q.floor) refused++
+    const kind = mouth(x, y) ? 'mouth' : window.__floored(x, y) ? 'floored'
+      : q.floor ? 'floor' : 'hole'
+    const plot = kind === 'floor' ? window.__plotAt(x, y) : null
+    const keeps = kind === 'hole' ? q.hole && q.blocked
+      : kind === 'mouth' ? !q.hole
+      : kind === 'floored' ? !q.hole
+      : !q.hole && !!plot?.floor && !plot.wall
+    kinds[kind][0]++
+    if (keeps) kinds[kind][1]++
+    if (kind === 'mouth' && home.has(q.area)) {
+      kinds.homeMouth[0]++
+      if (window.__canWalk(x, y)) kinds.homeMouth[1]++
+    }
     // Floor again a few yards off, so the mask is a mouth and not a blanket
     // over the hillside.  Asked of the hole mask itself and not of whether a
     // step is refused: a good half of these are Stormwind's own ground and
@@ -619,14 +642,19 @@ const gaps = await p.evaluate(() => {
     for (const [dx, dy] of [[12, 0], [-12, 0], [0, 12], [0, -12]])
       if (!window.__holeAt(x + dx, y + dy)) { beside++; break }
   }
-  return { n: g.length, refused, beside, ways }
+  return { n: g.length, kinds, beside }
 })
 if (gaps.n) {
-  check('the mouth of a mine is a hole and not ground', gaps.refused === gaps.n,
-    `${gaps.refused} of ${gaps.n} cells with no floor refuse a step; `
-    + `${gaps.beside} have floor again within `
-    + `twelve yards, ${gaps.ways} are a mine's mouth and take a step on `
-    + 'purpose, and the rest are the city standing on its own')
+  const k = gaps.kinds
+  check('the mouth of a mine is a hole and not ground',
+    k.hole[0] > 0 && k.mouth[0] > 0 && k.homeMouth[0] > 0
+    && Object.values(k).every(([n, kept]) => n === kept),
+    `of ${gaps.n} cells with no floor: ${k.hole[1]} of ${k.hole[0]} ordinary `
+    + `holes refuse a step; ${k.mouth[1]} of ${k.mouth[0]} mouth cells are not an `
+    + `open hole and ${k.homeMouth[1]} of the ${k.homeMouth[0]} in this zone take `
+    + `a step; ${k.floored[1]} of ${k.floored[0]} floored cells are not refused `
+    + `by the hole; ${k.floor[1]} of ${k.floor[0]} under a building are its `
+    + `floor; ${gaps.beside} have floor again within twelve yards`)
 }
 check('and nobody is standing inside one', inwall.stuck === 0,
   `${inwall.stuck} of ${inwall.n.toLocaleString()} spawns in a wall, ${inwall.indoors} indoors`)
