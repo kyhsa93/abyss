@@ -4152,7 +4152,9 @@ if (refused) {
     }, [i, widest])
     if (!went) continue
     const laid = await settle()
-    rooms.push({ at: `${went.k} ${i}`, floor: Object.keys(laid.floor) })
+    rooms.push({ at: `${went.k} ${i}`, floor: Object.keys(laid.floor),
+      regions: laid.regions.length,
+      mixed: laid.regions.filter((g) => g.pictures.length > 1).length })
   }
   for (let i = 0; ; i++) {
     const went = await p.evaluate(([i, z]) => {
@@ -4166,7 +4168,9 @@ if (refused) {
     if (!went) break
     if (!went.inside) continue
     const laid = await settle()
-    rooms.push({ at: `mine ${i}`, floor: Object.keys(laid.floor) })
+    rooms.push({ at: `mine ${i}`, floor: Object.keys(laid.floor),
+      regions: laid.regions.length,
+      mixed: laid.regions.filter((g) => g.pictures.length > 1).length })
   }
   await p.evaluate(() => { const s = window.__start(); window.__put(s.x, s.y) })
   const over = rooms.filter((r) => r.floor.length > 3)
@@ -4178,6 +4182,161 @@ if (refused) {
   console.log(`      (${rooms.length} rooms, the most pictures in one being `
     + `${Math.max(0, ...rooms.map((r) => r.floor.length))}: `
     + `${[...new Set(rooms.flatMap((r) => r.floor))].join(', ')})`)
+  // **And one picture a room region**, which is what keeps the three from being
+  // a shimmer.  Two pictures were tossed on every cell, so a floor had seams
+  // running through it that read as walls that were not there, and three at
+  // most was true of it the whole time.  A region is standing room under a roof
+  // joined four ways; each keeps its own record of what was laid on it.
+  const mixed = rooms.filter((r) => r.mixed > 0)
+  const regions = rooms.reduce((n, r) => n + r.regions, 0)
+  check('and each room region is laid with one floor picture',
+    regions > 0 && mixed.length === 0,
+    mixed.length ? mixed.map((r) => `${r.at}: ${r.mixed} regions with more than one`).join('; ')
+      : `${regions} regions in ${rooms.length} rooms`)
+}
+
+// 26b. A room is drawn in the building's own axes, shows its walls, and costs
+// no more than a frame has.
+//
+// Asked at the abbey, which stands at 158.5 degrees to the world's grid.
+{
+  const went = await p.evaluate(() => {
+    const r = window.__enterAt(-8904, -185)
+    if (r) window.__cam({ x: r.x, y: r.y, zoom: 0 })
+    return r
+  })
+  const settle = async () => {
+    await p.waitForFunction(() => !!window.__room().inside
+      && Object.keys(window.__roomPaint().floor).length > 0, null, { timeout: 8000 })
+      .catch(() => null)
+    await p.evaluate(() => new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  }
+  await settle()
+  // (a) **A wall is a straight line on the glass.**  The room was laid one
+  // plan cell to one tile of the world, so every wall of a turned building was
+  // a staircase — a step a tile, 27 pixels at the zoom a room opens on — and
+  // no check could see it, because every tile was in the right place.  This
+  // reads the glass across the longest straight run of the outline where the
+  // wall meets the outside, at sixty points along it, takes where the
+  // brightness changes fastest within twelve pixels of the line, and fits a
+  // line to those: nine in ten must be within two pixels of it.  A side with no
+  // stroke on it, on purpose — the edge lines are vector paths and would come
+  // out straight over a staircase of a picture.
+  const wall = await p.evaluate(async () => {
+    const w0 = window.__roomWall()
+    if (!w0) return null
+    window.__cam({ x: w0.world.x, y: w0.world.y })
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+    const w = window.__roomWall()
+    const c = document.querySelector('canvas')
+    const img = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    const lum = (x, y) => {
+      const X = Math.round(x), Y = Math.round(y)
+      if (X < 0 || Y < 0 || X >= c.width || Y >= c.height) return null
+      const o = (Y * c.width + X) * 4
+      return img[o] * 0.3 + img[o + 1] * 0.6 + img[o + 2] * 0.1
+    }
+    const dx = w.to.x - w.from.x, dy = w.to.y - w.from.y
+    const len = Math.hypot(dx, dy)
+    const nx = -dy / len, ny = dx / len
+    const found = []
+    for (let k = 0; k <= 60; k++) {
+      const s = 0.05 + (0.9 * k) / 60
+      const x = w.from.x + dx * s, y = w.from.y + dy * s
+      if (x < 24 || y < 24 || x > c.width - 24 || y > c.height - 24) continue
+      let best = 0, at = 0
+      for (let t = -12; t <= 12; t += 0.5) {
+        const u = lum(x + nx * (t - 1), y + ny * (t - 1))
+        const v = lum(x + nx * (t + 1), y + ny * (t + 1))
+        if (u === null || v === null) continue
+        if (Math.abs(v - u) > best) { best = Math.abs(v - u); at = t }
+      }
+      if (best >= 8) found.push([s * len, at])
+    }
+    return { found, len, cells: w.cells, turn: w.turn }
+  })
+  let off = []
+  if (wall && wall.found.length >= 2) {
+    const n = wall.found.length
+    const mu = wall.found.reduce((a, q) => a + q[0], 0) / n
+    const mt = wall.found.reduce((a, q) => a + q[1], 0) / n
+    const sxx = wall.found.reduce((a, q) => a + (q[0] - mu) ** 2, 0)
+    const sxy = wall.found.reduce((a, q) => a + (q[0] - mu) * (q[1] - mt), 0)
+    const slope = sxx ? sxy / sxx : 0
+    off = wall.found.map((q) => Math.abs(q[1] - (mt + slope * (q[0] - mu)))).sort((a, q) => a - q)
+  }
+  const worst = off.length ? off[Math.floor(off.length * 0.9) - 1] ?? off.at(-1) : Infinity
+  check('a turned building\'s wall is a straight line on the glass',
+    !!went && !!wall && off.length >= 20 && worst <= 2,
+    wall ? `${off.length} edge points along ${wall.cells} cells of outline at ${wall.turn.toFixed(1)}°, `
+      + `nine in ten within ${worst.toFixed(2)} px of a line` : 'no outline to read')
+  console.log(`      (${off.length} points, 90th percentile ${Number(worst).toFixed(2)} px, `
+    + `worst ${off.length ? off.at(-1).toFixed(2) : '-'} px)`)
+
+  // (b) **The inside has rooms in it.**  The abbey read as one flagstone field,
+  // because the perimeter was the only wall the scene drew.  From what the
+  // room was composed of: the ground floor has wall running through it, and
+  // its standing room falls into more than one region at least the speck cut
+  // in size.  And off the glass: the wall's own tone, read back out of the
+  // composed canvas rather than worked out again, covers part of the screen.
+  await p.evaluate(() => {
+    const r = window.__enterAt(-8904, -185)
+    if (r) window.__cam({ x: r.x, y: r.y, zoom: 0 })
+  })
+  await settle()
+  const inside = await p.evaluate(() => {
+    const r = window.__roomPaint()
+    const c = document.querySelector('canvas')
+    const img = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    let toned = 0
+    if (r.wallTone) {
+      const [tr, tg, tb] = r.wallTone
+      for (let i = 0; i < img.length; i += 4) {
+        if (Math.abs(img[i] - tr) <= 3 && Math.abs(img[i + 1] - tg) <= 3
+          && Math.abs(img[i + 2] - tb) <= 3) toned++
+      }
+    }
+    return { storey: r.storey, interior: r.edges?.interior ?? 0,
+      rooms: r.regions.filter((g) => g.cells >= (r.cut?.cells ?? Infinity)).length,
+      cut: r.cut?.cells, toned: toned / (c.width * c.height) }
+  })
+  check('the abbey\'s ground floor has walls and rooms inside it',
+    inside.storey === -1 && inside.interior > 0 && inside.rooms > 1 && inside.toned > 0.01,
+    `${inside.interior} cell sides of interior wall, ${inside.rooms} room regions of `
+    + `${inside.cut} cells or more, wall tone on ${(inside.toned * 100).toFixed(1)}% of the glass`)
+  console.log(`      (${inside.interior} interior wall sides, ${inside.rooms} rooms, `
+    + `wall tone ${(inside.toned * 100).toFixed(1)}% of the glass)`)
+
+  // (d) **And it costs what a frame has.**  One turned blit and two strokes a
+  // frame, where the first cut of the roofs' kit was fifteen frames a second.
+  // Measured the way 11 measures the ground — the median frame against the
+  // page's own refresh — at the zoom a room opens on and at the widest.
+  const beat = () => p.evaluate(() => new Promise((done) => {
+    const gaps = []
+    let last = 0
+    const tick = (now) => {
+      if (last) gaps.push(now - last)
+      last = now
+      if (gaps.length < 90) requestAnimationFrame(tick)
+      else done(gaps.sort((a, q) => a - q))
+    }
+    requestAnimationFrame(tick)
+  }))
+  for (const wide of [false, true]) {
+    await p.evaluate((w) => window.__cam({ zoom: w ? window.__zooms().floor : 0 }), wide)
+    await settle()
+    await p.waitForTimeout(300)
+    const gaps = await beat()
+    const refresh = gaps[Math.floor(gaps.length * 0.1)]
+    const median = gaps[gaps.length >> 1]
+    const z = await p.evaluate(() => window.__zooms().zoom)
+    check(`a room runs at the refresh rate${wide ? ' at the widest zoom' : ''}`,
+      median <= refresh * 1.1 && refresh <= 20,
+      `median frame ${median.toFixed(1)} ms against a refresh of ${refresh.toFixed(1)} ms at zoom ${z.toFixed(2)}`)
+    console.log(`      (abbey, zoom ${z.toFixed(2)}: median ${median.toFixed(1)} ms, refresh ${refresh.toFixed(1)} ms)`)
+  }
+  await p.evaluate(() => { window.__cam({ zoom: 0 }); const s = window.__start(); window.__put(s.x, s.y) })
 }
 
 // 27. A character saved indoors wakes up indoors, on the floor he was on.

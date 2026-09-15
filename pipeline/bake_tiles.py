@@ -256,10 +256,11 @@ GROUND = [
     # every `steps` cell, and a storey that is mostly stairwell came out a
     # purple carpet: the abbey's gallery floor was 738 cells of rug to 77 of
     # stone.
-    # Both sheets draw a flight side-on for a three-quarter view, which is not
-    # this camera; what does hold from above is the one column of each that is
-    # treads seen face-on, four to a 32-pixel square and repeating every eight
-    # rows, so a square tiles along the flight.  Stone for a hall and a tower,
+    # Both sheets draw a flight side-on, in perspective, for a camera tilted
+    # towards the horizon, which is not this one; what does hold from straight
+    # above is the one column of each that is treads seen face-on, four to a
+    # 32-pixel square and repeating every eight rows, so a square tiles along
+    # the flight.  Stone for a hall and a tower,
     # timber for a house.  Rows 32 to 56 of the stone column are a landing and
     # rows 96 on are its shadowed foot: neither tiles, so neither is cut.
     ('in_stair',      'cementstair.png',       0,  64, 32, 32, 'sharm_base'),

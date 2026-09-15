@@ -9224,6 +9224,21 @@ async function main() {
     regions: { cells: number; pictures: string[] }[]
     /** Each flight: how many cells, and whether its treads were turned. */
     flights: { cells: number; turned: boolean }[]
+    /**
+     * The longest straight run of the outline where the room's wall or
+     * nothing meets the outside, in cells — a side with no stroke on it, so a
+     * check reading it off the glass is reading the picture — and one cell of
+     * stone, so the wall's tone can be read back out of the canvas.
+     */
+    outline: { across: number; a: number; q0: number; q1: number } | null
+    wallCell: [number, number] | null
+    /**
+     * Where each cell laid as outdoor ground is, in the world, x then y — the
+     * yard under the sky.  A count cannot say whether a patch of grass is under
+     * a storey of the same building, which is what a stairwell read as open sky
+     * looks like; a position can.
+     */
+    ground: Float32Array
   }
   const roomCache = new Map<Plan, Room>()
   let roomBytes = 0
@@ -9491,6 +9506,8 @@ async function main() {
     const g = c.getContext('2d')!
     g.imageSmoothingEnabled = false
     const tones = roomTones(b.k)
+    let wallCell: [number, number] | null = null
+    const grounds: number[] = []
     const tally = new Map<string, number>()
     const add = (key: string) => tally.set(key, (tally.get(key) ?? 0) + 1)
     // 0 standing room, 1 a speck, 2 wall or nothing inside the outline,
@@ -9599,6 +9616,7 @@ async function main() {
           const stone = bitAt(p.solid, n)
           g.fillStyle = stone ? tones.wall : tones.void
           g.fillRect(i * S, j * S, S, S)
+          if (stone && !wallCell) wallCell = [i, j]
           // Named for the picture the tone is the colour of, so a count says
           // what the wall is made of and cannot be read as a mine's floor.
           add(stone ? `wall:${tones.from}` : `void:${tones.from}`)
@@ -9625,6 +9643,7 @@ async function main() {
           id = paintAt(wx, wy) === 'paved' && PAVED_TILES.length
             ? PAVED_TILES[Math.floor(hash(i, j) * PAVED_TILES.length)]!
             : GROUND_TILES[Math.floor(hash(i, j) * GROUND_TILES.length)]!
+          grounds.push(wx, wy)
         }
         const pic = tilesMeta[id]
         if (!pic) continue
@@ -9651,6 +9670,7 @@ async function main() {
       i < 0 || j < 0 || i >= W || j >= H ? 3 : kind[i * H + j]!
     const walls = new Path2D(), specks = new Path2D()
     const edges = { interior: 0, outline: 0, speck: 0, runs: 0 }
+    let outline: { across: number; a: number; q0: number; q1: number } | null = null
     const sideOf = (u: number, v: number) =>
       (u === 0) === (v === 0) ? 0 : u === 0 ? v : u
     const count = (t: number) => {
@@ -9661,8 +9681,19 @@ async function main() {
     for (let across = 0; across < 2; across++) {
       const outer = across ? W : H, inner = across ? H : W
       for (let a = 0; a <= outer; a++) {
-        let run = 0, was = 0
+        let run = 0, was = 0, shell = -1
         for (let q = 0; q <= inner; q++) {
+          // Wall or nothing (2) on one side and the outside (3) on the other.
+          const u = q < inner ? (across ? at(a - 1, q) : at(q, a - 1)) : 0
+          const v = q < inner ? (across ? at(a, q) : at(q, a)) : 0
+          const onShell = u + v === 5 && u * v === 6
+          if (onShell && shell < 0) shell = q
+          if (!onShell && shell >= 0) {
+            if (!outline || q - shell > outline.q1 - outline.q0) {
+              outline = { across, a, q0: shell, q1: q }
+            }
+            shell = -1
+          }
           let t = 0
           if (q < inner) {
             t = across ? sideOf(at(a - 1, q), at(a, q)) : sideOf(at(q, a - 1), at(q, a))
@@ -9683,7 +9714,8 @@ async function main() {
     }
     return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0,
       walls, specks, edges,
-      regions: regionsOut.map((x) => ({ cells: x.cells, pictures: [...x.pictures] })), flights }
+      regions: regionsOut.map((x) => ({ cells: x.cells, pictures: [...x.pictures] })), flights,
+      outline, wallCell, ground: Float32Array.from(grounds) }
   }
 
   /**
@@ -9719,6 +9751,7 @@ async function main() {
     ctx.lineCap = 'butt'
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     roomLaid = room
+    roomPlan = p
     roomXform = [a, bb, c, d, e, f]
     // What was laid, and on which part of the room — see `roomPaint`.  The
     // whole room and not the part on the glass: it is one picture now, and a
@@ -9728,6 +9761,7 @@ async function main() {
   }
   /** The room the last frame drew, and the transform it drew it under. */
   let roomLaid: Room | null = null
+  let roomPlan: Plan | null = null
   let roomXform: number[] = []
 
   /**
@@ -13297,7 +13331,42 @@ async function main() {
       regions: roomLaid?.regions ?? [], flights: roomLaid?.flights ?? [],
       // And the transform the frame drew it under, cell units to the glass, so
       // a check can say where a wall of the plan should be on the screen.
-      xform: roomXform.length ? roomXform : null }
+      xform: roomXform.length ? roomXform : null,
+      // The wall's tone as it came out of the composition, wash and all, read
+      // back off the room's own canvas rather than worked out again.
+      wallTone: roomLaid?.wallCell ? [...roomLaid.c.getContext('2d')!.getImageData(
+        roomLaid.wallCell[0] * roomLaid.S + (roomLaid.S >> 1),
+        roomLaid.wallCell[1] * roomLaid.S + (roomLaid.S >> 1), 1, 1).data].slice(0, 3) : null }
+  }
+  /**
+   * Where the room the last frame drew laid outdoor ground, as world points —
+   * see `Room.ground`.
+   */
+  ;(window as unknown as { __roomGround: () => unknown }).__roomGround = () => {
+    const g = roomLaid?.ground
+    if (!g) return []
+    const out: [number, number][] = []
+    for (let i = 0; i + 1 < g.length; i += 2) out.push([g[i]!, g[i + 1]!])
+    return out
+  }
+  /**
+   * Where the longest straight run of the room's outline is on the glass, and
+   * a point in the world beside it to stand at.
+   *
+   * Put through the transform the last frame drew the room under, so what a
+   * check reads off the glass there is where the picture's wall edge is if the
+   * room was drawn as one shape — and a staircase beside the line if it was not.
+   */
+  ;(window as unknown as { __roomWall: () => unknown }).__roomWall = () => {
+    const r = roomLaid, p = roomPlan, b = indoors
+    if (!r || !p || !b || !r.outline || roomXform.length < 6) return null
+    const [a, bb, c, d, e, f] = roomXform as [number, number, number, number, number, number]
+    const o = r.outline
+    const [i0, j0, i1, j1] = o.across ? [o.a, o.q0, o.a, o.q1] : [o.q0, o.a, o.q1, o.a]
+    const glass = (i: number, j: number) => ({ x: a * i + c * j + e, y: bb * i + d * j + f })
+    const [wx, wy] = fromPlan(p, b, p.x0 + ((i0 + i1) / 2) * p.s, p.y0 + ((j0 + j1) / 2) * p.s)
+    return { from: glass(i0, j0), to: glass(i1, j1), cells: o.q1 - o.q0,
+      world: { x: wx, y: wy }, turn: (Math.atan2(p.sn, p.c) * 180) / Math.PI }
   }
   /**
    * Stand on another storey.

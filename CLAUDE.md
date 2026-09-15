@@ -540,6 +540,40 @@ away where a building brings a floor and a hole with nothing over it is painted
 black. That is the bug that made the middle of Goldshire a thirty-yard black
 square, and passing `null` for the cover would have brought it back.
 
+**And a room is drawn the same way, from inside.** The inside of a building was
+still laid one plan cell to one tile of the world, so every wall of a room
+was the staircase the roofs had lost, and the room's only wall was its
+perimeter: `solid` stamped as wall tiles had once made the nave rubble, so
+the abbey read as one flagstone field with no rooms or corridors in it. A
+storey is composed once now, in the model's axes, into a canvas of its own,
+and the frame turns it under the roofs' transform. In those axes the rubble
+stops being the choice. Every cell is standing room (the rule `roomOpen`
+holds a step to), stone, or nothing, and the line between standing room and
+the rest is the plan of the building: it is drawn as a dark edge, a cached
+path stroked every frame so it stays one width on the glass.
+
+Three things about it were measured rather than picked. **Wall or speck** is a
+cut on the size of the pieces nobody can stand on, and it comes out of the
+pieces: every partition in the slice is joined to its building's shell, the
+free-standing pieces are a crowd of ones and twos with a tail, and Otsu's
+split of their log size over every walkable storey and mine is 8 cells. A
+building alone is too few pieces to divide. **A floor is one picture a room
+region**, because two pictures tossed per cell put seams through a floor that
+read as walls. And **the stairs are the found tread picture on `steps` cells
+with standing room over them** — a `steps` cell is a face *between* floors, the
+abbey's gallery has 1,299 of them, and a rug on all of them was a purple
+carpet. The picture is Sharm's, the one column of `cementstair.png` and
+`stairs.png` that is treads face-on.
+
+It is composed **from the sheet and not the tinted atlas**, which is rebuilt
+whenever the zoom moves, and **kept per storey**, up to every storey of the
+heaviest building, so climbing composes nothing: 0.7 ms for a cottage and 20
+for a mine, once. `viewcheck` reads the glass across the longest run of a
+turned building's outline where the wall meets the outside and fits a line —
+nine in ten points within 0.68 px; stamped per tile, 4.05. It reads a side with
+**no stroke** on it on purpose: the edges are vector paths and would come out
+straight over a staircase of a picture.
+
 **A door was a disc in the middle of a wall, and 24 of 25 buildings could not
 be walked into.** Closing the buildings made the whole roofed footprint shut
 you out from outside and left the doorstep, a disc of 1.6 yards round the
