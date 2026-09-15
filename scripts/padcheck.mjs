@@ -50,6 +50,9 @@ await ctx.addInitScript(() => {
   window.requestAnimationFrame = (f) => raf((t) => { frames++; f(t) })
   window.__canvasHeld = () => ({
     MB: made.reduce((a, c) => a + (c.width && c.height ? c.width * c.height * 4 : 0), 0) / 1048576,
+    // And how many are holding anything: a small canvas left unreleased once a
+    // room is a few kilobytes, which a megabyte's tolerance never sees.
+    n: made.filter((c) => c.width && c.height).length,
     frames,
     longest,
   })
@@ -234,6 +237,79 @@ await p.waitForTimeout(200)
     + `${later.frames - last.frames} frames in the half second after`)
   await p.evaluate(() => window.__cam({ zoom: 0 }))
   await p.waitForTimeout(300)
+}
+// **And walking in and out of buildings, up and down their storeys, does not
+// pile it up either.**  A room is a canvas of up to eight megabytes, its wall
+// shade a small canvas made and released while the room is composed, and the
+// minimap's plan is bytes and no canvas at all — and all three are made again
+// whenever the room cache has had to let a storey go.  Round the abbey's four
+// storeys, the inn's two, the western garrison's four, a cottage and a mine,
+// four times: what is held after the last round is no more than after the
+// first, in megabytes and in canvases holding anything, and frames still come.
+{
+  const two = () => p.evaluate(() => new Promise((r) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  const outside = async () => {
+    await p.evaluate(() => { window.__floor(-1); const s = window.__start(); window.__put(s.x, s.y) })
+    await p.waitForFunction(() => window.__roomFrame().inside === null, null, { timeout: 8000 }).catch(() => null)
+  }
+  const tour = async () => {
+    for (const [how, floors] of [[['at', -8904, -185], [-1, 0, 1, 2]], [['at', -9463, 16], [-1, 0]],
+      [['one', 20], [-1, 0, 1, 2]], [['one', 8], [-1]], [['mine', 0], [-1]]]) {
+      await outside()
+      await p.evaluate((how) => how[0] === 'at' ? window.__enterAt(how[1], how[2])
+        : how[0] === 'one' ? window.__enterOne(how[1]) : window.__enterMine(how[1]), how)
+      for (const f of floors) {
+        await p.evaluate((f) => { window.__floor(f); window.__minimap() }, f)
+        await p.waitForFunction((f) => window.__roomFrame().storey === f && !!window.__roomShade(),
+          f, { timeout: 10000 }).catch(() => null)
+        await two()
+      }
+    }
+    await outside()
+    // The ground round the start composed into plates again, then held.
+    await p.waitForFunction(() => { const e = window.__edges(); return e.plates > 0 && e.tiles === 0 },
+      null, { timeout: 10000 }).catch(() => null)
+    await two()
+    return p.evaluate(() => window.__canvasHeld())
+  }
+  const first = await tour()
+  await tour(); await tour()
+  const last = await tour()
+  await two()
+  const later = await p.evaluate(() => window.__canvasHeld())
+  check('going in and out and up and down storeys does not pile up canvas memory',
+    last.MB <= first.MB + 1 && last.n <= first.n + 2 && later.frames > last.frames,
+    `${first.MB.toFixed(1)} MB in ${first.n} canvases after one round, `
+    + `${last.MB.toFixed(1)} MB in ${last.n} after four`)
+  console.log(`      (${first.MB.toFixed(1)} MB in ${first.n} canvases after one round, `
+    + `${last.MB.toFixed(1)} MB in ${last.n} after four)`)
+
+  // **And which storey he is on is written beside the circle**, in Korean, at
+  // the type floor, inside the minimap's own box so nothing laid out round the
+  // box is covered by it — and not written at all outside.
+  await p.evaluate(() => { window.__enterAt(-8904, -185); window.__floor(0) })
+  await p.waitForFunction(() => {
+    const e = document.querySelector('#map .storey')
+    return !!e && !e.hidden && e.textContent === '2/4층'
+  }, null, { timeout: 8000 }).catch(() => null)
+  const plate = await p.evaluate(() => {
+    const e = document.querySelector('#map .storey')
+    const r = e.getBoundingClientRect(), box = document.getElementById('map').getBoundingClientRect()
+    return { text: e.hidden ? null : e.textContent, px: parseFloat(getComputedStyle(e).fontSize),
+      inBox: r.left >= box.left - 0.5 && r.right <= box.right + 0.5 && r.top >= box.top - 0.5
+        && r.bottom <= box.bottom + 0.5,
+      onGlass: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight }
+  })
+  await outside()
+  await p.waitForFunction(() => document.querySelector('#map .storey')?.hidden === true, null,
+    { timeout: 8000 }).catch(() => null)
+  const gone = await p.evaluate(() => document.querySelector('#map .storey')?.hidden)
+  check('the storey is written beside the minimap indoors, and not outside',
+    plate.text === '2/4층' && plate.px >= 11 && plate.inBox && plate.onGlass && gone === true,
+    `${plate.text ?? 'nothing'} at ${plate.px}px, ${plate.inBox ? 'inside' : 'outside'} the map's box, `
+    + `${plate.onGlass ? 'on' : 'off'} the glass; outside it is ${gone ? 'hidden' : 'still shown'}`)
+  await p.evaluate(() => window.__cam({ zoom: 0 }))
 }
 const L = await pad()
 console.log(`viewport ${p.viewportSize().width}x${p.viewportSize().height}  ` +

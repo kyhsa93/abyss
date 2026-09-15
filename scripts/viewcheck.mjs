@@ -4826,6 +4826,196 @@ if (refused) {
   }
 }
 
+// 26f. Indoors the minimap is a plan of the storey you stand on, with the
+// other storeys faint under it.
+//
+// The circle drew the plan's masks for itself — `steps` straight off the bake,
+// stone wherever `solid` said — while the glass beside it drew the room's own
+// sort, so the two disagreed about every stairwell and every pew end.  It draws
+// the room's cells now.  Read off the circle's own pixels and held against the
+// bake's masks through `__planAt`, not against the sort the painter used: where
+// the masks say roofed floor a cell each way round the ink is floor, and where
+// they say stone a cell each way round it is wall (or a speck's, which is stone
+// the room draws as floor with something on it).  Asked on two storeys, with the
+// same grid of pixels, so that climbing has to change which storey is solid; a
+// spot that is floor on the ground and outside the storey above has to be floor
+// ink from below and faint from above.  And the player is the dot in the middle,
+// with its wedge on the side he faces.
+{
+  const went = await p.evaluate(() => window.__enterAt(-8904, -185))
+  const readMap = (s) => p.evaluate((s) => {
+    window.__floor(s)
+    const m = window.__minimap()
+    const c = document.querySelector('#map canvas')
+    const n = c.width, yd = m.span / n, mid = n / 2
+    const d = c.getContext('2d').getImageData(0, 0, n, n).data
+    const hex = (i, j) => {
+      const o = (j * n + i) * 4
+      return '#' + [d[o], d[o + 1], d[o + 2]].map((v) => v.toString(16).padStart(2, '0')).join('')
+    }
+    const sort = (a) => !a || !a.inside ? 'none'
+      : a.floor && a.roofed && !a.steps && !a.below ? 'floor'
+        : a.solid && !a.floor && !a.steps && !a.below ? 'solid'
+          : !a.floor && !a.solid && !a.steps && !a.below ? 'none' : 'other'
+    const pts = []
+    for (let j = 3; j < n - 3; j += 2) {
+      for (let i = 3; i < n - 3; i += 2) {
+        if (Math.hypot(i + 0.5 - mid, j + 0.5 - mid) < m.mark * 2.5) continue
+        // The middle of the pixel, north up the circle and west left.
+        const x = m.hero.x + (mid - j - 0.5) * yd, y = m.hero.y + (mid - i - 0.5) * yd
+        const here = window.__planAt(x, y, s)
+        const k = sort(here)
+        if (k === 'other') continue
+        // Half a cell each way round: a wall is one to three cells thick, and a
+        // whole cell each way left two spots of stone in the abbey's ground floor.
+        const r = (here?.cell ?? 1.33) * 0.55
+        let same = true
+        for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, -r], [r, -r], [-r, r]]) {
+          if (sort(window.__planAt(x + dx, y + dy, s)) !== k) { same = false; break }
+        }
+        if (same) pts.push({ i, j, k, ink: hex(i, j) })
+      }
+    }
+    return { storey: m.storey, palette: m.palette, pts }
+  }, s)
+  if (went) {
+    const ground = await readMap(-1)
+    const first = await readMap(0)
+    const P = ground.palette
+    const judge = (m) => {
+      const floor = m.pts.filter((q) => q.k === 'floor'), solid = m.pts.filter((q) => q.k === 'solid')
+      return { storey: m.storey, floor: floor.length, solid: solid.length,
+        fOk: floor.filter((q) => q.ink === P.floor).length,
+        sOk: solid.filter((q) => q.ink === P.wall || q.ink === P.speck).length,
+        wrong: [...floor.filter((q) => q.ink !== P.floor), ...solid.filter((q) => q.ink !== P.wall && q.ink !== P.speck)]
+          .slice(0, 3).map((q) => `${q.k} at ${q.i},${q.j} reads ${q.ink}`) }
+    }
+    const said = [judge(ground), judge(first)]
+    const fine = (r) => r.floor >= 20 && r.solid >= 10 && r.fOk >= r.floor * 0.95 && r.sOk >= r.solid * 0.95
+    check('indoors the minimap draws the walls and the floor where the storey\'s plan has them',
+      said.every(fine),
+      said.map((r) => `storey ${r.storey}: ${r.fOk} of ${r.floor} floor spots floor ink, `
+        + `${r.sOk} of ${r.solid} stone spots wall ink${r.wrong.length ? ` (${r.wrong.join('; ')})` : ''}`).join(' / '))
+    console.log(`      (${said.map((r) => `storey ${r.storey}: ${r.fOk}/${r.floor} floor, ${r.sOk}/${r.solid} stone`).join(', ')})`)
+
+    // Whichever storey above leaves the most of the ground's floor with
+    // nothing of its own over it: the gallery covers most of the nave.
+    const key = (q) => `${q.i},${q.j}`
+    let up = null, upInk = null, pairs = []
+    for (const s of [0, 1, 2]) {
+      const m = s === 0 ? first : await readMap(s)
+      const none = new Set(m.pts.filter((q) => q.k === 'none').map(key))
+      const got = ground.pts.filter((q) => q.k === 'floor' && none.has(key(q)))
+      if (got.length > pairs.length) { up = m; pairs = got; upInk = new Map(m.pts.map((q) => [key(q), q.ink])) }
+    }
+    upInk ??= new Map()
+    const lum = (h) => { const v = h.match(/[0-9a-f]{2}/g).map((x) => parseInt(x, 16)); return 0.3 * v[0] + 0.6 * v[1] + 0.1 * v[2] }
+    const solidBelow = pairs.filter((q) => q.ink === P.floor).length
+    const faintAbove = pairs.filter((q) => [P.ghost, P.ghostSteps].includes(upInk.get(key(q)))).length
+    const mean = (xs) => xs.reduce((a, v) => a + v, 0) / Math.max(1, xs.length)
+    const below = mean(pairs.map((q) => lum(q.ink))), above = mean(pairs.map((q) => lum(upInk.get(key(q)))))
+    check('and climbing changes which storey is solid and leaves the one below faint under it',
+      pairs.length >= 10 && solidBelow >= pairs.length * 0.95 && faintAbove >= pairs.length * 0.95
+      && above < below * 0.5,
+      `${pairs.length} spots that are floor on the ground and nothing on storey ${up?.storey}: `
+      + `${solidBelow} floor ink from the ground, ${faintAbove} faint from above, `
+      + `brightness ${below.toFixed(0)} against ${above.toFixed(0)}`)
+    console.log(`      (${pairs.length} spots floor on the ground and nothing on storey ${up?.storey}: `
+      + `${solidBelow} floor ink below, ${faintAbove} faint above, brightness ${below.toFixed(0)} against ${above.toFixed(0)})`)
+
+    const dot = await p.evaluate(() => {
+      const out = {}
+      for (const [name, dir] of [['right', 3], ['left', 1]]) {
+        window.__cam({ dir })
+        const m = window.__minimap()
+        const c = document.querySelector('#map canvas')
+        const n = c.width, mid = n / 2
+        const d = c.getContext('2d').getImageData(0, 0, n, n).data
+        const white = (i, j) => { const o = (j * n + i) * 4; return d[o] === 255 && d[o + 1] === 255 && d[o + 2] === 255 }
+        // The wedge is a few pixels and its edges are blended with its rim,
+        // so it is weighed by how white it is rather than counted as white —
+        // and only a grey is a blend of white and a dark rim: the stair ink
+        // beside him is as bright and is gold, which read as a wedge the wrong
+        // way round the first time.
+        const bright = (i, j) => {
+          const o = (j * n + i) * 4
+          const lo = Math.min(d[o], d[o + 1], d[o + 2]), hi = Math.max(d[o], d[o + 1], d[o + 2])
+          return hi - lo < 12 && lo > 120 ? (lo - 120) / 135 : 0
+        }
+        let l = 0, r = 0
+        const R = Math.ceil(m.mark * 2)
+        for (let j = Math.floor(mid - R); j <= mid + R; j++) {
+          for (let i = Math.floor(mid - R); i <= mid + R; i++) {
+            if (i + 0.5 > mid + 2.5) r += bright(i, j)
+            if (i + 0.5 < mid - 2.5) l += bright(i, j)
+          }
+        }
+        const c0 = Math.floor(mid)
+        out[name] = { centre: white(c0, c0) && white(c0 - 1, c0 - 1), l, r }
+      }
+      return out
+    })
+    check('and the player is the dot in its middle, pointing the way he faces',
+      dot.right.centre && dot.left.centre && dot.right.r > dot.right.l && dot.left.l > dot.left.r,
+      `facing right: ${dot.right.centre ? 'dot' : 'no dot'} in the middle, ${dot.right.l.toFixed(1)} of white left `
+      + `of it and ${dot.right.r.toFixed(1)} right; facing left: ${dot.left.l.toFixed(1)} left and ${dot.left.r.toFixed(1)} right`)
+    console.log(`      (white beside the dot, left against right: facing right ${dot.right.l.toFixed(1)} / `
+      + `${dot.right.r.toFixed(1)}, facing left ${dot.left.l.toFixed(1)} / ${dot.left.r.toFixed(1)})`)
+  } else check('indoors the minimap draws the walls and the floor where the storey\'s plan has them', false,
+    'the abbey could not be walked into')
+  await p.evaluate(() => { window.__floor(-1); const s = window.__start(); window.__put(s.x, s.y) })
+}
+
+// 26g. A wall stands: the floor beside it is darker than the same floor in the
+// middle of the room, and that is composed with the room, not laid a frame at a
+// time.
+//
+// Read back off the room's own canvas by `__roomShade`: every cell of a region
+// is one picture, so without the shade its cells beside a wall and its cells
+// well clear of every wall come to the same brightness, and with it they must
+// not.  Then sixty frames are drawn standing in the room, and the room cache's
+// counters must say every one of them found the room kept, and nothing was
+// composed or shaded again.
+{
+  const two = () => p.evaluate(() => new Promise((r) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  const rows = []
+  for (const [name, how] of [['the abbey', ['at', -8904, -185]], ['the Goldshire inn', ['at', -9463, 16]],
+    ['a cottage', ['one', 8]], ['a mine', ['mine', 0]]]) {
+    await p.evaluate(() => { window.__floor(-1); const s = window.__start(); window.__put(s.x, s.y) })
+    await p.waitForFunction(() => window.__roomFrame().inside === null, null, { timeout: 8000 }).catch(() => null)
+    const went = await p.evaluate((how) => how[0] === 'at' ? window.__enterAt(how[1], how[2])
+      : how[0] === 'one' ? window.__enterOne(how[1]) : window.__enterMine(how[1]), how)
+    await p.waitForFunction(() => !!window.__roomShade(), null, { timeout: 10000 }).catch(() => null)
+    await two()
+    rows.push({ name, went: !!went, got: await p.evaluate(() => window.__roomShade()) })
+  }
+  const regs = rows.flatMap((r) => (r.got?.regions ?? []).map((g) => ({ ...g, at: r.name })))
+  const flat = regs.filter((g) => !(g.near < g.mid - 4))
+  check('the floor beside a wall is darker than the same floor mid-room',
+    rows.every((r) => r.went && r.got) && regs.length >= 4 && flat.length === 0,
+    flat.length ? flat.map((g) => `${g.at} region ${g.region}: ${g.near.toFixed(0)} beside a wall, `
+      + `${g.mid.toFixed(0)} mid-room`).join('; ')
+      : `${regs.length} regions over ${rows.filter((r) => r.got).length} rooms; `
+        + rows.filter((r) => !r.went || !r.got).map((r) => `${r.name} not read`).join(', '))
+  console.log(`      (${regs.map((g) => `${g.at} ${g.near.toFixed(0)}/${g.mid.toFixed(0)}`).join(', ')}; `
+    + `shade ${rows.map((r) => r.got ? `${r.got.shade.ms.toFixed(1)} ms over ${r.got.shade.band} edge cells` : '-').join(', ')})`)
+  const before = await p.evaluate(() => window.__roomPaint().room)
+  await p.evaluate(() => new Promise((done) => {
+    let k = 0
+    const tick = () => (++k < 60 ? requestAnimationFrame(tick) : done())
+    requestAnimationFrame(tick)
+  }))
+  const after = await p.evaluate(() => window.__roomPaint().room)
+  check('and it is composed with the room, not laid every frame',
+    !!before && !!after && after.hits - before.hits >= 50 && after.composed === before.composed
+    && after.shades === before.shades && after.shades >= 1,
+    before && after ? `over sixty frames: ${after.hits - before.hits} found the room kept, `
+      + `${after.composed - before.composed} composed it, ${after.shades - before.shades} shaded it`
+      : 'no room drawn')
+  await p.evaluate(() => { window.__floor(-1); window.__cam({ zoom: 0 }); const s = window.__start(); window.__put(s.x, s.y) })
+}
+
 // 27. A character saved indoors wakes up indoors, on the floor he was on.
 //
 // The save wrote a position and nothing else, and a position is not a place

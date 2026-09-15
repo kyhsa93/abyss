@@ -1925,6 +1925,48 @@ courtyard's green is **not** the meadow's green, because the check counts ink
 to tell one palette from the other and that is the question it exists to
 answer.
 
+**And the circle is a plan of the storey you stand on, out of the room's own
+cells.** It drew the bake's masks for itself — `steps` straight off the plan,
+stone wherever `solid` said — while the glass beside it drew the room's sort,
+so the two disagreed about every stairwell and every pew end. Both read one
+sort now, `roomCells`, which is what the room canvas is composed from; a storey
+the room has not been composed for is sorted without being composed, because
+the sort is a byte a cell and the picture is megabytes. Where this storey has
+nothing — outside its outline, or a stairwell — the nearest other storey shows
+through in a cool slate and its flights in a dim gold, so the circle says where
+a flight comes out before you climb it; a dim *floor* colour came out the
+wall's brown and read as wall. The ways out and the flights' marks are the ones
+`drawRoom` puts on the glass, taken from the same kept room, five pixels on the
+glass whatever size the circle is drawn at — seven made the abbey's tower
+storey a field of triangles — and the player is a dot with a wedge the way he
+faces. The storey is written in the corner of the box the circle leaves empty,
+2/4층, and not on a third plate: `placePhone` stacks the tracker under the
+box's height, measured when the page is laid out and not when somebody climbs.
+It costs what the forest's circle does, a millisecond and a half a paint four
+times a second, and holds no canvas. `viewcheck` reads the circle's pixels
+against the bake's masks with the sort left out, on two storeys, and holds
+that climbing turns the same pixels from floor to faint.
+
+**And a wall stands, because the floor beside it is in its lee.** Seen from
+above a room was a floor and a flat fill of wall tone, and a flat fill reads as
+paint on the floor. Standing room is shaded by its distance to the nearest cell
+nobody can stand on, and every number in that was already in this file: how
+far is `BODY_YARDS`, because a wall a man cannot fit through is at least a man
+tall, and how dark at its foot is row 0's wash, `SHADOW`. The falloff between
+them — the square of what is left of the reach — is the one choice, and a
+straight ramp drew a line where it met the floor. **A layer and not a
+picture**: sampled at every half-cell corner, blown up with smoothing the way
+the hillside's light is, clipped to standing room so a wall keeps its tone, and
+multiplied over the floor after the floor's tones are read and before the ways
+out are laid, so a porch in daylight is not in a wall's lee. So a region is
+still one floor picture, and a room is still lit flat — *lit* is the terrain's
+light, the strip rows `indoorRows` counts, and none of them is used — and that
+check's wording did not have to change. It is composed with the room and kept
+with it: sixty frames standing in the abbey compose and shade nothing, and off
+the room's canvas the cells beside a wall against the same picture mid-room
+come to 77 against 103 in the nave, 135 against 178 in the inn and 51 against
+68 in the gold mine.
+
 **`quest_poi` stays out, and the count is why.** All 51 of this game's errands
 have a row in it — shipping them puts a marker on every one, which is the
 difference between a game you read and a game you follow. It is a WotLK table;
