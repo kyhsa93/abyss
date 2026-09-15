@@ -68,13 +68,18 @@ export function weightOf(armour: number): string {
  * A slot in `BY_KIND` takes the kind instead and falls back to nothing.
  */
 export function layerFor(meta: DollMeta, who: string, slot: string,
-  armour: number, kind?: string | null): string | null {
+  armour: number, kind?: string | null, weight?: string | null): string | null {
   const have = meta.who[who]?.layers ?? {}
   if (BY_KIND.has(slot)) {
     const name = kind ? `${who}_${slot}_${kind}` : null
     return name && have[name] ? name : null
   }
-  const want = weightOf(armour)
+  // `weight` is the material's when the caller knows it — `outfit.ts`'s
+  // `WEIGHT`, off `subclass` — and the armour value is only the fallback.
+  // The header above said material "is not a column", which was never true
+  // of armour: it is `subclass`, and reading the armour instead drew a
+  // leather jerkin at 70 as the heavy layer while the world drew it leather.
+  const want = weight ?? weightOf(armour)
   for (const weight of [want, 'medium', 'light', 'bare']) {
     const name = `${who}_${slot}_${weight}`
     if (have[name]) return name

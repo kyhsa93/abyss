@@ -22,6 +22,7 @@
 
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, maxMana, manaPerSecond, rollMelee, BASE_MANA, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, ENERGY_PER_SECOND, FIVE_SECOND_RULE, GLANCING, HIT, healPerTick, MAX_ENERGY, MAX_RAGE, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, RAGE_LOST_PER_TICK, REGEN_TICK, type Roster, type Stats, type Who } from './sim/stats.ts'
 import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
+import { outfitFor, outfitOf, WEIGHT } from './sim/outfit.ts'
 import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
@@ -3869,6 +3870,35 @@ async function main() {
   const wornItems = (): Item[] =>
     Object.entries(gear).filter(([slot]) => !brokenAt(slot))
       .map(([, id]) => itemOf(id)).filter((x): x is Item => !!x)
+  /**
+   * The outfit sheets for a set of items, keyed the way the bake names them.
+   *
+   * A word the bake has no sheet for is dropped rather than drawn as
+   * something else, the same bargain a weapon with no picture makes.
+   */
+  const outfitKeys = (worn: (Item | null)[]): string[] =>
+    outfitFor(worn).map((w) => `outfit-${w}`)
+      .filter((k) => !!heroMeta.looks?.[k])
+  /**
+   * What he is wearing now, as sheets.
+   *
+   * Everything in a slot and not `wornItems`, which leaves out what is broken
+   * because a broken thing gives nothing: a robe worn to nought is still the
+   * robe he has on, and drawing him without it is a second rule for the same
+   * slot.
+   */
+  const wearingNow = (): string[] =>
+    outfitKeys(Object.values(gear).map(itemOf))
+  /**
+   * What a class walks out in, before anybody is made — for the preview.
+   *
+   * The same filter `becomeClass` dresses him with, so the picture on the
+   * screen that makes a character is the man who then appears in the world.
+   */
+  const kitOf = (cls: number): Item[] =>
+    (roster?.classes?.[String(cls)]?.kit ?? [])
+      .map((k) => itemOf(k[K_ID] as number))
+      .filter((it): it is Item => !!it && canWear(it, 1, cls))
   const statsAt = (lv: number): Stats => {
     const base = who?.stats?.[String(Math.max(1, lv))]
       ?? [23, 20, 22, 20, 20, 20, 0]
@@ -6505,7 +6535,7 @@ async function main() {
    */
   const sheetCanvas = document.createElement('canvas')
   const paintMe = (into = meCanvas, hair = makeHair, beard = makeBeard,
-    k = 3) => {
+    k = 3, wearing: string[] = wearingNow()) => {
     const c = heroMeta.cell, rowH = heroMeta.row ?? c, lid = heroMeta.body?.top ?? 0
     into.width = c * k
     into.height = c * k
@@ -6529,6 +6559,8 @@ async function main() {
     if (heroImg.complete && heroImg.naturalWidth) {
       g.drawImage(heroImg, sx, sy, c, rowH, 0, lid * k, c * k, rowH * k)
     }
+    // What he has on over the body, under the face — see `sim/outfit.ts`.
+    for (const key of wearing) put(key)
     put(beard ? `beard-${beard}` : null)
     put(`hair-${hair}`)
     return into
@@ -6632,7 +6664,9 @@ async function main() {
         if (!makeName.trim()) makeName = NAMES[Math.floor(roll() * NAMES.length)]!
         drawCreate()
       },
-      face: paintMe(),
+      // Wearing what this class walks out in, so the picture changes with
+      // the class row — the kit, through the same rule the world uses.
+      face: paintMe(meCanvas, makeHair, makeBeard, 3, outfitKeys(kitOf(makeClass))),
       size: size as Record<string, [number, number]>,
       list: (size['list'] ?? [220, 220]) as [number, number],
       racePitch: (size['racePitch'] ?? [0, 21]) as [number, number],
@@ -7826,9 +7860,11 @@ async function main() {
     const who = 'male'
     const meta = dollArt.who[who]
     if (!meta) return null
-    // Which layer for each slot, from what is worn there — the item's own
-    // armour value decides light, medium or heavy, because "is this leather
-    // or plate" is not a column anywhere.
+    // Which layer for each slot, from what is worn there.  This said the
+    // armour value decides light, medium or heavy "because is this leather or
+    // plate is not a column anywhere" — and it is: `subclass`.  The chest now
+    // takes its weight from the same rule the world sprite is drawn by, so the
+    // sheet and the world cannot put two different materials on one man.
     const want: string[] = []
     for (const slot of ORDER) {
       const from = slot === 'body' ? null
@@ -7838,7 +7874,8 @@ async function main() {
       const name = slot === 'body' ? `${who}_body_bare`
         : slot === 'hair' ? `${who}_hair_1`
           : from ? layerFor(dollArt, who, slot, armour,
-            slot === 'weapon' ? armFor(gear[slot]) : null) : null
+            slot === 'weapon' ? armFor(gear[slot]) : null,
+            slot === 'chest' ? WEIGHT[outfitOf(from) ?? ''] ?? null : null) : null
       // Something worn that the sheets cannot draw.  There is no `legs` layer
       // in the set at all — 32 files and not one of them is trousers — so the
       // starting outfit's are worn, counted and invisible.  Named rather than
@@ -10912,6 +10949,12 @@ async function main() {
       drawArm(arm, armClip, 'behind', armAt, X, Y, w / c)
       ctx.drawImage(heroImg, sxp, syp, c, rowH,
         X, Math.round(Y + lid * zoom), Math.ceil(w), Math.ceil(rowH * zoom))
+      // What he is wearing over his chest, on the **body's** clip and frame
+      // rather than the weapon's: a hairstyle borrows the walk's first frame
+      // while standing because a weapon has no idle, and a cuirass drawn that
+      // way would sit a breath out of step with the chest under it.
+      // `drawLook` records each one that lands in `heroSheets` itself.
+      for (const key of wearingNow()) drawLook(key, want, f, X, Y, w / c)
       // What he chose to look like, over the body and under what he is
       // holding: a beard is on the face and hair is over the head, and a
       // sword swings in front of both.
@@ -13778,6 +13821,8 @@ async function main() {
       held: armFor(gear['weapon']),
       layers: heroLayers,
       sheets: [...heroSheets],
+      // What the rule says he is wearing, as the keys `sheets` should hold.
+      outfit: wearingNow(),
       wearing: dollKey.split('|').filter(Boolean),
     }
   }

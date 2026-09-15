@@ -181,6 +181,13 @@ let inHand = 0, inHandName = ''
  * what this pays is the heaviest of each kind.  All sixty-three of LPC's
  * styles would be nineteen megabytes against a budget of twenty-four for the
  * whole game, which is why there are twelve.
+ *
+ * And what he is wearing over his chest, which lives beside them for the
+ * same reason and is two kinds rather than one: a `shirt`, and the `chest`
+ * piece over it.  Both are worn at once, so both are paid — the heaviest of
+ * each.  The breastplate that used to be composited into `hero.png` cost
+ * nothing extra because it was in every frame; as an overlay it costs a sheet,
+ * and this is the line that says how much.
  */
 const worn = {}
 try {
@@ -221,7 +228,7 @@ console.log(`      (of which ${(inHand / MB).toFixed(2)} MB is whatever is in `
   + `his hand — five sheets, one held, the heaviest being ${inHandName}; and `
   + `${(onHim / MB).toFixed(2)} MB is what he looks like — `
   + Object.entries(worn).map(([k, v]) =>
-    `${k} ${v.key.replace(k + '-', '')} ${(v.px / MB).toFixed(2)}`).join(', ')
+    `${k} ${v.key.replace(/^[a-z]+-/, '')} ${(v.px / MB).toFixed(2)}`).join(', ')
   + ')')
 check('the sheets fit in memory once decoded',
   budget('and against the desktop ceiling', pixels * 4, 64 * MB, 'MB',
