@@ -8797,12 +8797,14 @@ async function main() {
    * The old mapping reached its cap two thirds of the way down and flattened
    * everything below it, which put a second black on top of the first.
    */
+  /** The colour the darkest row is washed towards, and how far: row 0's wash. */
+  const SHADOW = [8, 14, 26, 0.46] as const
   const washOf = (row: number) => {
     const sl = SHADE_LO + (row / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
     if (Math.abs(sl) <= 0.02) return null
     return sl > 0
       ? `rgba(255,247,224,${(sl / SHADE_HI) * 0.34})`
-      : `rgba(8,14,26,${(sl / SHADE_LO) * 0.46})`
+      : `rgba(${SHADOW[0]},${SHADOW[1]},${SHADOW[2]},${(sl / SHADE_LO) * SHADOW[3]})`
   }
   /**
    * Which rows of the tinted strip an indoor scene actually used last frame.
@@ -9214,6 +9216,10 @@ async function main() {
     c: HTMLCanvasElement; S: number; bytes: number; ms: number
     /** What was laid, as `part:tile` cells — what `roomPaint` is filled from. */
     tally: Map<string, number>
+    /** The line where standing room meets wall or nothing, and meets a speck. */
+    walls: Path2D; specks: Path2D
+    /** Cell sides on each kind of edge, and the segments they were merged into. */
+    edges: { interior: number; outline: number; speck: number; runs: number }
   }
   const roomCache = new Map<Plan, Room>()
   let roomBytes = 0
@@ -9268,51 +9274,237 @@ async function main() {
   }
 
   /**
-   * The room itself, cell by cell, into its own canvas.
+   * A storey's cells sorted by what a man can do with them, and the pieces of
+   * what he cannot.
    *
-   * No terrain at all: a floor bit is a flagstone, a wall bit is slate, and
-   * everything else is the dark.  The plan was rasterised at `PLAN_CELL` —
-   * 32/24 of a yard, which is exactly one ground tile — so a cell is one
-   * picture, and here the picture lands on the cell in the model's axes.
+   * `walk` is the rule a step indoors is held to — `roomOpen`'s: the floor,
+   * this storey's steps, and the steps of the storey below, which are the way
+   * back down and are under his feet.  `stair` is the part of that a man
+   * stands on *on this storey*: a steps cell with standing room over it.
+   * Everything else inside the outline is one of two things and the bake says
+   * which: stone (`solid`), or nothing at all — no surface a body fits on at
+   * this storey, which is a stairwell, the eaves round a wall, or the air over
+   * a lower roof.
+   *
+   * The pieces of what he cannot stand on are labelled four-connected, with
+   * their size and whether they reach the edge of the outline, because that is
+   * what tells a wall from a speck: every partition in the abbey is joined to
+   * its shell, and what stands free inside a room is a pillar or a pew end.
    */
-  function composeRoom(b: Built, p: Plan, under: Plan | null): Room {
-    const t0 = performance.now()
-    void under
-    const S = roomScale(p)
-    const c = document.createElement('canvas')
-    c.width = p.w * S
-    c.height = p.h * S
-    const g = c.getContext('2d')!
-    g.imageSmoothingEnabled = false
-    const tally = new Map<string, number>()
-    for (let i = 0; i < p.w; i++) {
-      for (let j = 0; j < p.h; j++) {
-        const n = i * p.h + j
+  const roomPieces = (p: Plan, under: Plan | null) => {
+    const W = p.w, H = p.h, N = W * H
+    const inside = new Uint8Array(N)
+    const walk = new Uint8Array(N)
+    const stair = new Uint8Array(N)
+    for (let i = 0; i < W; i++) {
+      for (let j = 0; j < H; j++) {
+        const n = i * H + j
         // A cell the silhouette missed but its neighbours did not is a hole
         // in the flood fill and not a hole in the floor.  Left as it was, the
         // nave came out speckled with black.
-        const inside = bitAt(p.bits, n)
-          || (i > 0 && j > 0 && i < p.w - 1 && j < p.h - 1
-            && bitAt(p.bits, n - p.h) && bitAt(p.bits, n + p.h)
-            && bitAt(p.bits, n - 1) && bitAt(p.bits, n + 1))
-        if (!inside) continue
-        // A room's wall is its **perimeter**, and neither of the two masks
-        // says that.  `floor` is where a man can stand, which inside a
-        // cathedral is patchy by nature — pews, steps, the pillars down the
-        // nave — so a floor drawn from it came out as scattered flagstones
-        // with holes between them.  `solid` is everything he cannot stand on,
-        // which inside the same cathedral is most of it, so a wall drawn from
-        // it came out as rubble.
-        //
-        // Seen from inside, the wall is where the building stops: an outline
-        // cell with a neighbour outside the outline.  Everything else is
-        // floor, and what is standing on it is furniture, which is drawn as
-        // furniture.
-        const out = (m: number) => !bitAt(p.bits, m)
-        const isWall = i === 0 || j === 0 || i === p.w - 1 || j === p.h - 1
-          || ((out(n - p.h) || out(n + p.h) || out(n - 1) || out(n + 1))
-            && !(out(n - p.h) && out(n + p.h))
-            && !(out(n - 1) && out(n + 1)))
+        if (!(bitAt(p.bits, n)
+          || (i > 0 && j > 0 && i < W - 1 && j < H - 1
+            && bitAt(p.bits, n - H) && bitAt(p.bits, n + H)
+            && bitAt(p.bits, n - 1) && bitAt(p.bits, n + 1)))) continue
+        inside[n] = 1
+        let steps = bitAt(p.steps, n)
+        if (!steps && under) {
+          // The storey below has its own grid; the model's space is shared.
+          const ui = Math.floor((p.x0 + (i + 0.5) * p.s - under.x0) / under.s)
+          const uj = Math.floor((p.y0 + (j + 0.5) * p.s - under.y0) / under.s)
+          steps = ui >= 0 && uj >= 0 && ui < under.w && uj < under.h
+            && bitAt(under.steps, ui * under.h + uj)
+        }
+        const floor = bitAt(p.floor, n)
+        if (floor || steps) walk[n] = 1
+        if (floor && steps) stair[n] = 1
+      }
+    }
+    const piece = new Int32Array(N).fill(-1)
+    const sizes: number[] = []
+    const edge: boolean[] = []
+    const stack: number[] = []
+    for (let n0 = 0; n0 < N; n0++) {
+      if (!inside[n0] || walk[n0] || piece[n0] >= 0) continue
+      const id = sizes.length
+      let size = 0, touches = false
+      piece[n0] = id
+      stack.push(n0)
+      while (stack.length) {
+        const m = stack.pop()!
+        size++
+        const i = (m / H) | 0, j = m % H
+        for (let q = 0; q < 4; q++) {
+          const a = q === 0 ? i - 1 : q === 1 ? i + 1 : i
+          const c = q === 2 ? j - 1 : q === 3 ? j + 1 : j
+          if (a < 0 || c < 0 || a >= W || c >= H) { touches = true; continue }
+          const o = a * H + c
+          if (!inside[o]) { touches = true; continue }
+          if (walk[o] || piece[o] >= 0) continue
+          piece[o] = id
+          stack.push(o)
+        }
+      }
+      sizes.push(size)
+      edge.push(touches)
+    }
+    return { W, H, inside, walk, stair, piece, sizes, edge }
+  }
+
+  /**
+   * How big a piece of what nobody can stand on has to be to be drawn as wall.
+   *
+   * **Drawing `solid` as wall once turned the nave into rubble**, and the
+   * answer then was to draw no inside at all — the perimeter and one flagstone
+   * field, so the abbey had no rooms and no corridors.  The rubble was every
+   * pillar, pew end and rail stamped as a whole tile of wall on the world's
+   * grid.  What separates rooms is not that: every partition in this slice is
+   * joined to the building's shell, and the pieces that stand free are small.
+   *
+   * So the line is taken from the pieces themselves.  Every free-standing
+   * piece on every storey of every building that can be walked into, and
+   * every mine, has a size; the sizes are a crowd of ones and twos with a
+   * tail, and the cut is where that distribution divides best in two on a log
+   * scale (Otsu's criterion, between-class variance of log size).  A piece
+   * that reaches the outline is wall whatever its size; one that stands free
+   * is wall from the cut up, and below it gets the floor with an edge round
+   * it — the footprint of something the props already draw, or a pillar,
+   * which says *you cannot stand here* without saying *this is a wall*.
+   *
+   * Worked out once, over the whole slice, because a building alone is too
+   * few pieces to divide: the cottages have one to four, and the split moves
+   * from two to eight between buildings for no reason but the count.
+   */
+  let speckStats: { cells: number; pieces: number; below: number; above: number;
+    belowCells: number; aboveCells: number; ms: number } | null = null
+  const speckCut = () => {
+    if (speckStats) return speckStats.cells
+    const t0 = performance.now()
+    const sizes: number[] = []
+    for (const one of [...buildings, ...caves]) {
+      if (!one.plan || !one.doors.length) continue
+      const all = [one.plan, ...(one.floors ?? [])]
+      all.forEach((q, s) => {
+        const r = roomPieces(q, s ? all[s - 1]! : null)
+        r.sizes.forEach((n, x) => { if (!r.edge[x]) sizes.push(n) })
+      })
+    }
+    sizes.sort((u, v) => u - v)
+    const logs = sizes.map((n) => Math.log2(n))
+    const total = logs.reduce((u, v) => u + v, 0)
+    let best = -1, cells = Infinity, sum = 0
+    for (let x = 1; x < sizes.length; x++) {
+      sum += logs[x - 1]!
+      if (sizes[x] === sizes[x - 1]) continue
+      const lo = x / sizes.length
+      const between = lo * (1 - lo) * (sum / x - (total - sum) / (sizes.length - x)) ** 2
+      if (between > best) { best = between; cells = sizes[x]! }
+    }
+    const below = sizes.filter((n) => n < cells)
+    speckStats = {
+      cells, pieces: sizes.length, below: below.length, above: sizes.length - below.length,
+      belowCells: below.reduce((u, v) => u + v, 0),
+      aboveCells: sizes.filter((n) => n >= cells).reduce((u, v) => u + v, 0),
+      ms: performance.now() - t0,
+    }
+    return cells
+  }
+
+  /** A picture's own average colour, off the sheet — see `roomTones`. */
+  const picInks = new Map<string, [number, number, number]>()
+  const inkOfPicture = (id: string): [number, number, number] => {
+    const had = picInks.get(id)
+    if (had) return had
+    const pic = tilesMeta[id]
+    let ink: [number, number, number] = [60, 60, 60]
+    if (pic) {
+      const c = document.createElement('canvas')
+      c.width = pic.w; c.height = pic.h
+      const g = c.getContext('2d')!
+      g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h, 0, 0, pic.w, pic.h)
+      const d = g.getImageData(0, 0, pic.w, pic.h).data
+      let r = 0, gr = 0, bl = 0, n = 0
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3]! < 128) continue
+        r += d[i]!; gr += d[i + 1]!; bl += d[i + 2]!; n++
+      }
+      if (n) ink = [r / n, gr / n, bl / n]
+      releaseCanvas(c)
+    }
+    picInks.set(id, ink)
+    return ink
+  }
+  /**
+   * The two tones of what a man cannot stand on: stone, and nothing.
+   *
+   * Both out of pictures this repository already cuts and its own wash, not
+   * picked.  Stone is the wall picture's own average colour — slate in a
+   * building, and in a mine the unlit cut of the rock, which `bake_tiles.py`
+   * says `rock_floor` is: the same rock as `stone`, dark.  Nothing is the same
+   * colour under the darkest wash the atlas has, row 0, because a stairwell
+   * or the eaves is somewhere with no floor at all and has to read as further
+   * down than a wall.  The room's own wash goes over both afterwards, the same
+   * as over its floor.
+   */
+  const roomTones = (k: string) => {
+    const [r, g, bl] = inkOfPicture(k === 'mine' ? 'rock_floor' : 'in_wall')
+    const [sr, sg, sb, deep] = SHADOW
+    const rgb = (u: number, v: number, w: number) =>
+      `rgb(${Math.round(u)},${Math.round(v)},${Math.round(w)})`
+    return {
+      wall: rgb(r, g, bl),
+      void: rgb(r * (1 - deep) + sr * deep, g * (1 - deep) + sg * deep, bl * (1 - deep) + sb * deep),
+    }
+  }
+
+  /**
+   * The room itself, into its own canvas: floor where a man can stand, stone
+   * and nothing where he cannot, and the line between the two as a path.
+   *
+   * **The line is the structure.**  Before, a room was its perimeter and one
+   * floor inside it, and the abbey read as one blue flagstone field with no
+   * rooms or corridors in it: the perimeter was the only wall the scene knew,
+   * because `floor` inside a cathedral is patchy by nature and `solid` drawn
+   * as wall tiles was rubble.  The boundary between where a man can stand and
+   * where he cannot is what a plan of a building *is*, and it is drawn as a
+   * dark edge — two paths, one where the floor meets wall, the outline or
+   * nothing, and a lighter one round a speck — composed once in cell units
+   * and stroked each frame under the same transform, so the line stays one
+   * width on the glass at every zoom instead of being resampled with the
+   * picture.
+   */
+  function composeRoom(b: Built, p: Plan, under: Plan | null): Room {
+    const t0 = performance.now()
+    const cut = speckCut()
+    const r = roomPieces(p, under)
+    const { W, H } = r
+    const S = roomScale(p)
+    const c = document.createElement('canvas')
+    c.width = W * S
+    c.height = H * S
+    const g = c.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    const tones = roomTones(b.k)
+    const tally = new Map<string, number>()
+    const add = (key: string) => tally.set(key, (tally.get(key) ?? 0) + 1)
+    // 0 standing room, 1 a speck, 2 wall or nothing inside the outline,
+    // 3 outside it.
+    const kind = new Uint8Array(W * H)
+    for (let n = 0; n < W * H; n++) {
+      kind[n] = !r.inside[n] ? 3 : r.walk[n] ? 0
+        : r.edge[r.piece[n]!] || r.sizes[r.piece[n]!]! >= cut ? 2 : 1
+    }
+    for (let i = 0; i < W; i++) {
+      for (let j = 0; j < H; j++) {
+        const n = i * H + j
+        if (kind[n] === 3) continue
+        if (kind[n] === 2) {
+          const stone = bitAt(p.solid, n)
+          g.fillStyle = stone ? tones.wall : tones.void
+          g.fillRect(i * S, j * S, S, S)
+          add(stone ? 'wall:stone' : 'void:nothing')
+          continue
+        }
         const [wx, wy] = fromPlan(p, b, p.x0 + (i + 0.5) * p.s, p.y0 + (j + 0.5) * p.s)
         // Open to the sky, which inside an outline is a courtyard.
         //
@@ -9332,15 +9524,9 @@ async function main() {
         // The way up, drawn as what it is.  A landing is not flat floor and
         // the one thing a player needs to see about it is that it is the seam.
         const rung = bitAt(p.steps, n)
-        // The wall is where the building stops and it is a wall whether the
-        // sky is over the next cell or not.  A mine is rock and a hall is
-        // flagstone: one word decides it, because a cave is a building here in
-        // every way but where its shape came from.
-        const id = rung && !isWall
+        const id = rung
           ? 'in_rug'
-          : isWall
-            ? (b.k === 'mine' ? ROCK_TILE : 'in_wall')
-            : !roofed || b.k === 'tent'
+          : !roofed || b.k === 'tent'
             ? (paintAt(wx, wy) === 'paved' && PAVED_TILES.length
               ? PAVED_TILES[Math.floor(hash(i, j) * PAVED_TILES.length)]!
               : GROUND_TILES[Math.floor(hash(i, j) * GROUND_TILES.length)]!)
@@ -9349,8 +9535,7 @@ async function main() {
               : (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall']!)(hash(i, j))
         const pic = tilesMeta[id]
         if (!pic) continue
-        const part = isWall ? 'wall' : roofed ? 'floor' : 'open'
-        tally.set(`${part}:${id}`, (tally.get(`${part}:${id}`) ?? 0) + 1)
+        add(`${kind[n] === 1 ? 'speck' : roofed ? 'floor' : 'open'}:${id}`)
         g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h, i * S, j * S, S, S)
       }
     }
@@ -9364,12 +9549,51 @@ async function main() {
       g.fillRect(0, 0, c.width, c.height)
       g.globalCompositeOperation = 'source-over'
     }
-    return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0 }
+    // The edges, as runs: a cell side is on an edge when standing room is on
+    // exactly one side of it, and consecutive sides of the same kind are one
+    // segment — the abbey's ground floor is a few hundred segments, not the
+    // thousands of cell sides they cover.
+    const at = (i: number, j: number) =>
+      i < 0 || j < 0 || i >= W || j >= H ? 3 : kind[i * H + j]!
+    const walls = new Path2D(), specks = new Path2D()
+    const edges = { interior: 0, outline: 0, speck: 0, runs: 0 }
+    const sideOf = (u: number, v: number) =>
+      (u === 0) === (v === 0) ? 0 : u === 0 ? v : u
+    const count = (t: number) => {
+      if (t === 1) edges.speck++
+      else if (t === 2) edges.interior++
+      else if (t === 3) edges.outline++
+    }
+    for (let across = 0; across < 2; across++) {
+      const outer = across ? W : H, inner = across ? H : W
+      for (let a = 0; a <= outer; a++) {
+        let run = 0, was = 0
+        for (let q = 0; q <= inner; q++) {
+          let t = 0
+          if (q < inner) {
+            t = across ? sideOf(at(a - 1, q), at(a, q)) : sideOf(at(q, a - 1), at(q, a))
+            count(t)
+          }
+          const path = t === 1 ? 1 : t ? 2 : 0
+          if (path === was) continue
+          if (was) {
+            const into = was === 1 ? specks : walls
+            if (across) { into.moveTo(a, run); into.lineTo(a, q) }
+            else { into.moveTo(run, a); into.lineTo(q, a) }
+            edges.runs++
+          }
+          run = q
+          was = path
+        }
+      }
+    }
+    return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0,
+      walls, specks, edges }
   }
 
   /**
    * The room you are in, on the glass: one turned blit of the room composed
-   * for this storey.
+   * for this storey, and its edges stroked over it.
    *
    * The transform is the roofs' — `planCell` read backwards, with a negative
    * determinant, so it is a `setTransform` and not a `rotate` — scaled by the
@@ -9387,16 +9611,29 @@ async function main() {
     const e = Ox + a * i0 + c * j0, f = Oy + bb * i0 + d * j0
     ctx.setTransform(a / room.S, bb / room.S, c / room.S, d / room.S, e, f)
     ctx.drawImage(room.c, 0, 0)
+    // In cell units, because the paths are: a pixel on the glass is `1 / q`
+    // of a cell.  Square caps, so two runs meeting at a corner close it.
+    ctx.setTransform(a, bb, c, d, e, f)
+    ctx.lineCap = 'square'
+    ctx.strokeStyle = 'rgba(22, 18, 14, 0.85)'
+    ctx.lineWidth = Math.max(1.5, 2 * zoom) / q
+    ctx.stroke(room.walls)
+    ctx.strokeStyle = 'rgba(22, 18, 14, 0.45)'
+    ctx.lineWidth = Math.max(1, zoom) / q
+    ctx.stroke(room.specks)
+    ctx.lineCap = 'butt'
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     roomLaid = room
+    roomXform = [a, bb, c, d, e, f]
     // What was laid, and on which part of the room — see `roomPaint`.  The
     // whole room and not the part on the glass: it is one picture now, and a
     // count of what happens to be in view was a count of the camera.
     for (const [key, n] of room.tally) roomPaint.set(key, (roomPaint.get(key) ?? 0) + n)
     indoorRows.add(ROOM_ROW)
   }
-  /** The room the last frame drew, for the checks. */
+  /** The room the last frame drew, and the transform it drew it under. */
   let roomLaid: Room | null = null
+  let roomXform: number[] = []
 
   /**
    * And back again, which the tile loop needs.
@@ -12950,16 +13187,21 @@ async function main() {
    * `roomPaint`.
    */
   ;(window as unknown as { __roomPaint: () => unknown }).__roomPaint = () => {
-    const out: Record<string, Record<string, number>> = { floor: {}, open: {}, wall: {} }
+    const out: Record<string, Record<string, number>> = { floor: {}, open: {}, wall: {},
+      void: {}, speck: {}, stairs: {} }
     for (const [key, n] of roomPaint) {
       const [part, id] = key.split(':') as [string, string]
-      out[part]![id] = n
+      ;(out[part] ??= {})[id] = n
     }
     // And the room itself: what a cell was composed at, what it weighs, what
     // composing it cost, and how many rooms the budget is holding.
     const room = roomLaid ? { scale: roomLaid.S, bytes: roomLaid.bytes,
       ms: roomLaid.ms, kept: roomCache.size, keptBytes: roomBytes, budget: roomBudget } : null
-    return { inside: indoors ? indoors.k : null, storey, ...out, room }
+    return { inside: indoors ? indoors.k : null, storey, ...out, room,
+      edges: roomLaid?.edges ?? null, cut: speckStats,
+      // And the transform the frame drew it under, cell units to the glass, so
+      // a check can say where a wall of the plan should be on the screen.
+      xform: roomXform.length ? roomXform : null }
   }
   /**
    * Stand on another storey.
