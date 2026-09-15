@@ -15,6 +15,7 @@
  *   npm run viewcheck  # in another
  */
 import { chromium } from 'playwright'
+import { readFileSync } from 'node:fs'
 
 const HOST = process.env.ABYSS_URL ?? 'http://localhost:5173'
 const b = await chromium.launch()
@@ -27,6 +28,12 @@ await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
 // A character first: the game opens on the screen that makes one.
 await p.evaluate(() => window.__makeOne?.('가온'))
 await p.waitForTimeout(150)
+// Where he stands the moment he is made, kept for the check in 9f: by then
+// half this file has teleported him about, so the only honest time to ask is
+// now.  Held against `player.json` read off the disk rather than against the
+// scene's own copy, because the bug being guarded is two copies disagreeing.
+const born = await p.evaluate(() => window.__me())
+const rosterStart = JSON.parse(readFileSync('public/world/player.json', 'utf8')).start
 
 let bad = 0
 function check(label, ok, detail = '') {
@@ -747,8 +754,16 @@ check('and a shared slot stands up only as many as the world says',
 // stamina through the server's own curve, armour is agility, damage is his
 // weapon plus attack power, and crit is the client's interpolation table.
 const me = await p.evaluate(() => window.__me())
-check('the player starts where a character starts', me.level === 1,
-  `level ${me.level} of ${me.ceiling}, ${me.hp} health, ${me.armour} armour, `
+// **Where**, not only at what level.  This line said "where a character
+// starts" and asserted `level === 1`, so the position it names was typed into
+// `main.ts` and nothing compared it with the table it was copied from (issues
+// 78 and 97).  A hundredth of a yard, which is `player.py`'s rounding.
+const bornOff = Math.hypot(born.at[0] - rosterStart[0], born.at[1] - rosterStart[1])
+check('the player starts where a character starts',
+  me.level === 1 && born.level === 1 && bornOff < 0.01,
+  `born at (${born.at.map((v) => v.toFixed(2)).join(', ')}), playercreateinfo `
+  + `says (${rosterStart.slice(0, 2).join(', ')}), ${bornOff.toFixed(3)} yd apart; `
+  + `level ${me.level} of ${me.ceiling}, ${me.hp} health, ${me.armour} armour, `
   + `${me.damage[0]}-${me.damage[1]} on ${(me.swing / 1000).toFixed(1)}s`)
 check('and he is made of the numbers the server makes him of',
   me.hp === 60 && me.armour === 42 && Math.abs(me.crit - 8.4) < 0.2,

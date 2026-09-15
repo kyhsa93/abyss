@@ -448,5 +448,47 @@ check('and they run in Node with no browser at all',
     || `${inside.length} indoors, ${outside.length} outdoors, none shared`)
 }
 
+/**
+ * Where a character starts is a row, and nobody may type it again.
+ *
+ * Issues 78 and 97.  `playercreateinfo`'s human was `[-8949.95, -132.493]` in
+ * `src/main.ts`, `tx, ty, tz = -8949.95, -132.493, 83.5312` in
+ * `synth_terrain.py` and `tz = 83.5312` in `bake_terrain.py`, while
+ * `player.py` had baked the same row into `player.json` the whole time.
+ * Three copies agree until the table changes, and then two of them are wrong
+ * and nothing says which.
+ *
+ * So the digits are read out of the baked roster rather than written here —
+ * which is also why this block may say them in its comment — and any line of
+ * *code* in `src/` or `pipeline/` carrying a number within a yard of the
+ * start's x beside one within a yard of its y fails.  A yard, so `-8950` does
+ * not get past it either.  Comments are prose and may name a place.
+ */
+{
+  const start = JSON.parse(readFileSync(join('public', 'world', 'player.json'), 'utf8')).start
+  const near = (line) => {
+    const ns = [...line.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number(m[0]))
+    return ns.some((n) => Math.abs(n - start[0]) < 1)
+      && ns.some((n) => Math.abs(n - start[1]) < 1)
+  }
+  const typed = []
+  for (const f of readdirSync('src', { recursive: true })) {
+    if (!String(f).endsWith('.ts')) continue
+    code(readFileSync(join('src', String(f)), 'utf8')).split('\n')
+      .forEach((line, i) => { if (near(line)) typed.push(`src/${f}:${i + 1}`) })
+  }
+  for (const f of readdirSync('pipeline')) {
+    if (!f.endsWith('.py')) continue
+    readFileSync(join('pipeline', f), 'utf8').split('\n').forEach((line, i) => {
+      const bare = line.replace(/#.*$/, '')
+      if (near(bare)) typed.push(`pipeline/${f}:${i + 1}`)
+    })
+  }
+  check('where a character starts is read from playercreateinfo, not typed',
+    Array.isArray(start) && start.length >= 3 && typed.length === 0,
+    typed.length ? `typed at ${typed.join(', ')}`
+      : `(${start.slice(0, 2).join(', ')}) appears in no line of code`)
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

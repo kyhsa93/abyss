@@ -26,7 +26,7 @@ from collections import Counter
 from mpyq import MPQArchive
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from slice import (BOUNDS, DEPTH_UNIT, START,  # noqa: E402
+from slice import (BOUNDS, DEPTH_UNIT,  # noqa: E402
                    AREA as SLICE_AREA)
 
 TILE = 533.33333          # SIZE_OF_GRIDS
@@ -2615,15 +2615,20 @@ def check_water(grid, wetmask, levels):
         'against the height grid' % (share * 100))
 
 
-def check(client, meta, out):
+def check(client, meta, out, acore):
     """The one check that matters: does this terrain agree with the server's?
 
     `playercreateinfo` puts a human warrior at a spot the world database knows
     the ground height of.  If the two disagree the whole chain is wrong
     somewhere, and every other number here is decoration.
+
+    Both halves of the spot come out of the table through `player.start_of`.
+    The x and y were `slice.json`'s copy and the height was `tz = 83.5312`
+    typed on this line, so the check compared the terrain with a number
+    somebody had once read off the row — issues 78 and 97.
     """
-    tx, ty = START
-    tz = 83.5312
+    from player import start_of
+    tx, ty, tz = start_of(os.path.join(acore, 'data/sql/base/db_world'))[:3]
     w, h, u = meta['width'], meta['height'], meta['unit']
     I = int((meta['x0'] - tx) / u)
     J = int((meta['y0'] - ty) / u)
@@ -2650,4 +2655,4 @@ if __name__ == '__main__':
     acore = os.path.expanduser(sys.argv[3] if len(sys.argv) > 3
                                else '~/src/azerothcore-wotlk')
     m = bake(c, BOUNDS, out, acore)
-    check(c, m, out)
+    check(c, m, out, acore)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """What this game is a slice of, in one file.
 
-  from slice import BOUNDS, MAP, LEVELS, START
+  from slice import BOUNDS, MAP, LEVELS
 
 The wiki's most important requirement for the pipeline is that **widening the
 slice must not be a code change** — and until this file existed it was three
@@ -91,8 +91,11 @@ REACH_OVER = 2
 #: reads whichever it is handed with one divisor.  Two copies of a divisor is
 #: how a lake comes out four times as deep as it is.
 DEPTH_UNIT = 0.25
-#: Where a new character stands, out of `playercreateinfo`.
-START = tuple(_SLICE.get('start', (0.0, 0.0)))
+# **Where a new character stands is not here**, and it was.  `slice.json`
+# carried `"start": [-8949.95, -132.493]` beside a note saying it was
+# `playercreateinfo`'s — so it was a copy, and so were the ones in `main.ts`
+# and both terrain checks (issues 78 and 97).  The start is a function of the
+# races and classes this file names, and `player.start_of` is the one reader.
 RACES = _SLICE.get('races', [])
 CLASSES = _SLICE.get('classes', [])
 

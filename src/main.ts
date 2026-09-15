@@ -3502,7 +3502,19 @@ async function main() {
   }
 
   // --- the player -------------------------------------------------------
-  const START: [number, number] = [-8949.95, -132.493]
+  // Where a new character stands, out of `playercreateinfo` through
+  // `pipeline/player.py`.  Issues 78 and 97: this was `[-8949.95, -132.493]`
+  // typed here while `player.json` had baked the same row since the day it
+  // was written and `synth_terrain.py` typed it a third time — three copies
+  // that agreed because nobody had changed the table.  `bordercheck` fails if
+  // those digits are typed into `src/` again.
+  //
+  // No fallback, on purpose.  A world with no roster has no classes, no
+  // levels and no stats either, and a made-up square to stand on would be the
+  // one part of that failure that looked fine.
+  if (!roster?.start || roster.start.length < 2)
+    throw new Error('player.json has no start: there is nowhere to stand')
+  const START: [number, number] = [roster.start[0]!, roster.start[1]!]
   const hero = {
     x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false,
     /** Where he was at the start of this step, so the drawing can interpolate. */
@@ -12917,6 +12929,7 @@ async function main() {
    */
   ;(window as unknown as { __me: () => unknown }).__me = () => ({
     level: you.level, hp: you.max, armour: you.line[ARMOUR],
+    at: [hero.x, hero.y],
     damage: [you.line[LO], you.line[HI]], swing: you.line[SWING],
     stats: statsAt(you.level),
     crit: who ? critChance(you.level, statsAt(you.level), who) : 0,

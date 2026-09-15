@@ -1731,7 +1731,10 @@ have been the same invention again.
 ## Finishing a change
 
 **Where this game is, is one file.** `slice.json` at the top of the tree: the
-map, the area, the four bounds, the level range, the start. Every stage reads
+map, the area, the four bounds, the level range, the race and the classes. The
+start is not in it any more: it was a copy of `playercreateinfo`, and so were
+the ones typed into `main.ts` and both terrain checks, so `player.start_of`
+reads the row and `bordercheck` fails on the digits in code. Every stage reads
 it through `pipeline/slice.py` and nothing hard-codes any of it — those four
 numbers used to be typed into three scripts, which is not a constant but three
 constants that happen to agree. Widening the slice is an edit there and a

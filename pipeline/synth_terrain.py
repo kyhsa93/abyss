@@ -389,18 +389,24 @@ def main(acore, out):
     print(f'{len(doodads):,} placed   water {int(wet.sum()):,} cells below {level:.1f} yd')
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin")) / 1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json")) / 1024:.0f} KiB')
-    check(grid, x0, y0, W, H)
+    check(grid, x0, y0, W, H, acore)
 
 
-def check(grid, x0, y0, W, H):
+def check(grid, x0, y0, W, H, acore):
     """The world database's own answer for one point it is certain about.
 
     `playercreateinfo` puts a human warrior at a spot whose ground height the
     server knows.  This field is interpolated from three thousand neighbours, so
     it will not land on it exactly — but it has to land near it, or the
     interpolation is not describing the same hill.
+
+    The spot is asked of `player.start_of`, which reads the table.  It was
+    three literals typed here — the third copy of a row that `player.py` bakes
+    and the scene reads (issues 78 and 97) — and a check against a typed copy
+    of its own source checks the typing.
     """
-    tx, ty, tz = -8949.95, -132.493, 83.5312
+    from player import start_of
+    tx, ty, tz = start_of(os.path.join(acore, 'data/sql/base/db_world'))[:3]
     i = int(round((x0 - tx) / UNIT)); j = int(round((y0 - ty) / UNIT))
     z = float(grid[min(max(i, 0), W - 1), min(max(j, 0), H - 1)])
     print(f'check: human start  synth {z:.1f}  vs world DB {tz:.1f}  delta {abs(z - tz):.1f} yd')

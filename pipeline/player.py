@@ -46,6 +46,42 @@ def table(base, name, key=None):
         yield col, split(line)
 
 
+def start_of(base):
+    """Where a new character of this slice stands: `[x, y, z, o, map, zone]`.
+
+    Out of `playercreateinfo`, and **the only reader of it**.  Issues 78 and
+    97: the same row was typed into `src/main.ts`, `synth_terrain.py` and
+    `bake_terrain.py` as well as being baked here, and `slice.json` carried a
+    fourth copy under `start` — four spellings of one row that agreed only
+    because nobody had changed the table.  The scene reads `player.json` and
+    both terrain checks call this.
+
+    **One place, not six.**  Every human class in this game is created on the
+    same square of Northshire, and asserting that is cheaper than shipping the
+    same three numbers six times: a start that differs by class is a fact this
+    would rather fail on than quietly average.
+    """
+    places = {}
+    for col, f in table(base, 'playercreateinfo'):
+        if int(f[col['race']]) != HUMAN:
+            continue
+        cls = int(f[col['class']])
+        places[cls] = [float(f[col['position_x']]), float(f[col['position_y']]),
+                       float(f[col['position_z']]), float(f[col['orientation']]),
+                       int(f[col['map']]), int(f[col['zone']])]
+    mine = {CLASS_ID[w] for w in CLASSES}
+    missing = sorted(mine - set(places))
+    if missing:
+        sys.exit('playercreateinfo has no human for class %s' % missing)
+    spots = {tuple(places[c][:3]) for c in mine}
+    if len(spots) != 1:
+        sys.exit('this slice\'s classes do not start together: %s' % spots)
+    start = places[sorted(mine)[0]]
+    if start[4] != MAP:
+        sys.exit('playercreateinfo starts a human off this map')
+    return start
+
+
 def gt(base, name):
     """One of the interpolation tables, as a list indexed by its own id."""
     out = {}
@@ -85,29 +121,8 @@ def main(acore, client, out):
     # table because it is one everywhere — a new character is level one, and
     # the game this reproduces has no other answer.  What *was* here instead
     # was `HERO_LEVEL = 5`, chosen because the forest's wolves are five.
-    #
-    # **One place, not six.**  Every human class in this game is created on the
-    # same square of Northshire, and asserting that is cheaper than shipping
-    # the same three numbers six times: a start that differs by class is a
-    # fact this would rather fail on than quietly average.
-    start, places = None, {}
-    for col, f in table(base, 'playercreateinfo'):
-        if int(f[col['race']]) != HUMAN:
-            continue
-        cls = int(f[col['class']])
-        places[cls] = [float(f[col['position_x']]), float(f[col['position_y']]),
-                       float(f[col['position_z']]), float(f[col['orientation']]),
-                       int(f[col['map']]), int(f[col['zone']])]
+    start = start_of(base)
     mine = {CLASS_ID[w] for w in CLASSES}
-    missing = sorted(mine - set(places))
-    if missing:
-        sys.exit('playercreateinfo has no human for class %s' % missing)
-    spots = {tuple(places[c][:3]) for c in mine}
-    if len(spots) != 1:
-        sys.exit('this slice\'s classes do not start together: %s' % spots)
-    start = places[sorted(mine)[0]]
-    if start[4] != MAP:
-        sys.exit('playercreateinfo starts a human off this map')
 
     race = {}
     for col, f in table(base, 'player_race_stats'):
