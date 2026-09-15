@@ -574,6 +574,58 @@ nine in ten points within 0.68 px; stamped per tile, 4.05. It reads a side with
 **no stroke** on it on purpose: the edges are vector paths and would come out
 straight over a staircase of a picture.
 
+**And a room shows its ways out, from the doors the bake names and not from
+the plan.** Standing room runs through a doorway the same as through the middle
+of a room — that is how the doorways fall out of the bake — so a plan read for
+its gaps finds every gap, and the gap between two pillars is not a door. The
+doors are the ground storey's, because that is the only storey the bake ships
+doors for. A doorway between rooms carries no width and no facing, so both
+come from the plan at the door: the standing room through it runs short one
+way, bounded by stone, and long the other. It is measured on the door's cell
+and the cells either side of it through the wall, and **capped at the widest
+front door the slice states**, 7 yards — uncapped, two doorways under the
+abbey's crossing came out as twenty-yard thresholds crossed in an X, because
+with no wall either side which way the gap runs is not in the plan. 27 of 34
+get a threshold, two treads of the found tread picture; the 7 with no wall
+within the cap get none and are counted. A front door gets the threshold, the
+porch carried out through the wall floored with the ground outside in daylight,
+and **an arrow on the glass pointing out** — drawn a frame at a time under the
+room's transform so it stays upright, one line of the help's type tall, in the
+interface's ink because it is a mark for the player and not a thing in the
+room.
+
+**A flight says up or down; only eight say which end is the top.** A cell of
+this storey's `steps` takes you up and a cell of the storey below's takes you
+down — `upOrDown`'s own rule — so each flight a body fits on carries a triangle
+up the glass on its up cells and down the glass on its down cells. Up and down
+the glass, not along the stairs, because a triangle along them claims which end
+is the top, and **that was measured before it was declined**: 8 of the slice's
+255 flights have cells leading both ways and say it outright, and for the rest
+the two readings available — where the ramp carries on past what can be stood
+on, and which side the plain floor you step on from lies — agreed 24 times in
+37. A coin is not a derivation. A height per steps cell from the bake would
+settle it.
+
+**Going in frames the room, and coming out gives the zoom back.** The box is
+every piece of standing room on the storey at least the speck cut in size, and
+not the patch under his feet: joined to where he stood, a setter put him on
+three stray cells of the abbey's gallery and framed them at zoom 3, and on a
+strip of house 20's first floor at 2.46 — a wardrobe filling the glass — while
+the single cells along the abbey's roof edge stretch a box round nothing if
+the specks are kept. **The margin is the interface,
+measured**: the box is centred and grows until it meets the glass's edge or a
+panel that is always over the world (frame, map, the two bars, the action bars,
+and on a phone the stick and the buttons); the log and the help line are words
+read through, and held clear of them a desktop cottage was 197 by 173 pixels.
+Then `clampZoom`'s rules, never past the far end, a phone's ladder step it still
+fits at. **A storey that does not fit at the far limit is shown at the far
+limit** with the camera following the player and held inside the room — fitting
+his room region instead gives the same answer, because a region is joined
+through its doorways. It is asked of the state once a frame and first by the
+wheel and `__cam`, not hooked on the nine places that change a room or a
+storey; the zoom outside is kept with its own "the player chose this", and a
+wheel indoors is his until he leaves or climbs.
+
 **A door was a disc in the middle of a wall, and 24 of 25 buildings could not
 be walked into.** Closing the buildings made the whole roofed footprint shut
 you out from outside and left the doorstep, a disc of 1.6 yards round the

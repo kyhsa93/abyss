@@ -4397,10 +4397,18 @@ if (refused) {
 // no more than a frame has.
 //
 // Asked at the abbey, which stands at 158.5 degrees to the world's grid.
+//
+// **At the zoom the forest opens on, and not the zoom the room does.**  This
+// read the wall at "the zoom a room opens on" while that was the forest's own,
+// 0.79 here; since a room is framed the abbey opens at the far limit, 0.40,
+// where a cell is thirteen pixels and the twelve-pixel search either side of
+// the line reaches the next stroke — the same straight wall read 7.42 px off a
+// line.  The staircase this is for is a step a tile, largest at the closer
+// zoom, so that is where it is asked.
 {
   const went = await p.evaluate(() => {
     const r = window.__enterAt(-8904, -185)
-    if (r) window.__cam({ x: r.x, y: r.y, zoom: 0 })
+    if (r) window.__cam({ x: r.x, y: r.y, zoom: window.__zooms().fit })
     return r
   })
   const settle = async () => {
@@ -4535,6 +4543,283 @@ if (refused) {
     console.log(`      (abbey, zoom ${z.toFixed(2)}: median ${median.toFixed(1)} ms, refresh ${refresh.toFixed(1)} ms)`)
   }
   await p.evaluate(() => { window.__cam({ zoom: 0 }); const s = window.__start(); window.__put(s.x, s.y) })
+}
+
+// 26c. Every front door is marked on the glass, where the door is.
+//
+// From inside, standing room runs through a doorway the same as through the
+// middle of a room, so nothing said which opening was the way out.  Asked of
+// every front door in the slice from inside its own building: walked in
+// through that door, stood a few yards in from it so the hero is not on the
+// mark, and the glass read at the door's own screen position — put through
+// `__screen` here, not taken from the hook.  The mark has to be there in the
+// interface's ink, which no plain wall or floor tone of the room is near, and
+// the hook's own idea of where it drew it has to be the door.
+{
+  const two = () => p.evaluate(() => new Promise((r) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  const all = await p.evaluate(() => window.__buildings().map((b, i) => ({ i, k: b.k,
+    fronts: b.doors.map((d, j) => [d, j]).filter(([d]) => d.length === 5) })))
+  const rows = []
+  for (const b of all) {
+    if (b.k === 'mine' || !b.fronts.length) continue
+    for (const [d, j] of b.fronts) {
+      const at = `${b.k} ${b.i} door ${j}`
+      const went = await p.evaluate(([i, j, d]) => {
+        const r = window.__enterOne(i, j)
+        if (!r) return false
+        const n = Math.hypot(d[2], d[3]) || 1
+        let spot = [r.x, r.y]
+        for (const k of [5, 4, 6, 3, 7]) {
+          const x = d[0] - (d[2] / n) * k, y = d[1] - (d[3] / n) * k
+          if (window.__canWalk(x, y)) { spot = [x, y]; break }
+        }
+        window.__cam({ x: spot[0], y: spot[1] })
+        return true
+      }, [b.i, j, d])
+      if (!went) { rows.push({ at, why: 'could not be walked into' }); continue }
+      await p.waitForFunction(() => window.__roomFrame().settled
+        && (window.__roomExits()?.exits.length ?? 0) > 0, null, { timeout: 8000 }).catch(() => null)
+      await two()
+      const read = await p.evaluate(([dx, dy]) => {
+        const ex = window.__roomExits()
+        if (!ex) return { why: 'no room drawn' }
+        const at = window.__screen(dx, dy)
+        const c = document.querySelector('canvas')
+        if (at.x < 0 || at.y < 0 || at.x >= c.width || at.y >= c.height) {
+          return { why: `the door is off the glass at ${Math.round(at.x)}, ${Math.round(at.y)}` }
+        }
+        const mine = ex.exits.find((x) => x.kind === 'front' && Math.hypot(x.x - dx, x.y - dy) < 0.01)
+        const ink = ex.ink.match(/[0-9a-f]{2}/gi).map((h) => parseInt(h, 16))
+        const R = Math.ceil(ex.mark / 2)
+        const px = c.getContext('2d').getImageData(Math.round(at.x) - R, Math.round(at.y) - R, 2 * R, 2 * R).data
+        let inked = 0
+        for (let q = 0; q < px.length; q += 4) {
+          if (Math.abs(px[q] - ink[0]) <= 12 && Math.abs(px[q + 1] - ink[1]) <= 12
+            && Math.abs(px[q + 2] - ink[2]) <= 12) inked++
+        }
+        const plain = Math.min(...ex.tones.map((t) => Math.hypot(t[0] - ink[0], t[1] - ink[1], t[2] - ink[2])))
+        return { inked: inked / (px.length / 4), plain,
+          off: mine ? Math.hypot(mine.glass.x - at.x, mine.glass.y - at.y) : null }
+      }, [d[0], d[1]])
+      rows.push({ at, ...read })
+    }
+  }
+  await p.evaluate(() => { const s = window.__start(); window.__put(s.x, s.y) })
+  const bad = rows.filter((r) => r.why || r.off === null || r.off > 1.5 || r.inked < 0.08 || r.plain < 20)
+  check('every front door is marked on the glass, where the door is',
+    rows.length >= 26 && bad.length === 0,
+    bad.length ? bad.map((r) => `${r.at}: ${r.why ?? (r.off === null ? 'no mark for this door'
+      : `mark ${r.off.toFixed(1)} px from the door, ${(r.inked * 100).toFixed(0)}% ink, `
+        + `${r.plain.toFixed(0)} from the nearest plain tone`)}`).join('; ')
+      : `${rows.length} front doors`)
+  const inks = rows.filter((r) => !r.why).map((r) => r.inked).sort((a, q) => a - q)
+  console.log(`      (${rows.length} front doors; the least ink over a door ${((inks[0] ?? 0) * 100).toFixed(0)}%, `
+    + `the mark at most ${Math.max(0, ...rows.filter((r) => r.off != null).map((r) => r.off)).toFixed(2)} px from it)`)
+}
+
+// 26d. A flight's mark says the way its cells go, and points that way.
+//
+// `__stairs` names every cell of both masks a storey reads, `1` up, `-1` down
+// and `0` both — `upOrDown`'s own rule.  On each of the abbey's four storeys,
+// every mark the frame drew is asked two things: whether the cell it stands
+// on says the same way (an up mark on a `1` or `0`, a down mark on a `-1` or
+// `0`), and whether the triangle on the glass has its point that way — its
+// ink heavier in the bottom half for up, the top half for down.  A flight
+// whose cells lead both ways has its up mark on its up end by the first
+// question alone.
+{
+  const two = () => p.evaluate(() => new Promise((r) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+  const went = await p.evaluate(() => window.__enterAt(-8904, -185))
+  const rows = []
+  for (const s of [-1, 0, 1, 2]) {
+    if (!went) break
+    await p.evaluate((s) => { window.__floor(s); window.__cam({ zoom: window.__zooms().floor }) }, s)
+    await p.waitForFunction((s) => window.__roomFrame().settled && window.__roomFlights()?.storey === s,
+      s, { timeout: 8000 }).catch(() => null)
+    await two()
+    const got = await p.evaluate(() => {
+      const fl = window.__roomFlights()
+      const st = window.__stairs()
+      const hero = window.__heroScreen()
+      const c = document.querySelector('canvas')
+      const g = c.getContext('2d')
+      const ink = [0xc9, 0xa8, 0x6a]
+      return fl.marks.map((m) => {
+        let says = null, bd = Infinity
+        for (const q of st) {
+          const dd = Math.hypot(q[0] - m.world.x, q[1] - m.world.y)
+          if (dd < bd) { bd = dd; says = q[2] }
+        }
+        if (bd > fl.cell * 0.75) says = null
+        const R = Math.floor(fl.mark * 0.45)
+        const X = Math.round(m.glass.x), Y = Math.round(m.glass.y)
+        let top = null, bottom = null
+        if (X - R >= 0 && Y - R >= 0 && X + R < c.width && Y + R < c.height
+          && Math.hypot(hero.x - X, hero.y - Y) > fl.mark * 2) {
+          top = 0; bottom = 0
+          const d = g.getImageData(X - R, Y - R, 2 * R, 2 * R).data
+          for (let y = 0; y < 2 * R; y++) {
+            for (let x = 0; x < 2 * R; x++) {
+              const o = (y * 2 * R + x) * 4
+              if (Math.abs(d[o] - ink[0]) <= 14 && Math.abs(d[o + 1] - ink[1]) <= 14
+                && Math.abs(d[o + 2] - ink[2]) <= 14) { if (y < R) top++; else bottom++ }
+            }
+          }
+        }
+        return { storey: fl.storey, what: m.what, says, top, bottom }
+      })
+    })
+    rows.push(...got)
+  }
+  await p.evaluate(() => { window.__cam({ zoom: 0 }); const s = window.__start(); window.__put(s.x, s.y) })
+  const wrongWay = rows.filter((r) => r.says === null
+    || (r.what === 'up' ? r.says === -1 : r.says === 1))
+  // A mark partly under somebody — people and furniture are drawn after the
+  // room — says nothing about its point: one read 44 ink above its middle and
+  // 34 below with a head over its base.  Every clean mark is the same triangle
+  // at the same size, so a mark is judged only when its ink comes to most of
+  // what the median mark's does; the reference is the marks', not a number.
+  const totals = rows.filter((r) => r.top !== null).map((r) => r.top + r.bottom)
+    .sort((a, q) => a - q)
+  const whole = totals.length ? totals[totals.length >> 1] : Infinity
+  const shaped = rows.filter((r) => r.top !== null && r.top + r.bottom >= whole * 0.9)
+  const wrongPoint = shaped.filter((r) => (r.what === 'up'
+    ? !(r.bottom > r.top * 1.3) : !(r.top > r.bottom * 1.3)))
+  const count = (w) => rows.filter((r) => r.what === w).length
+  check('a flight\'s mark says the way the cells under it go',
+    !!went && rows.length >= 4 && count('up') > 0 && count('down') > 0 && wrongWay.length === 0,
+    wrongWay.length ? wrongWay.map((r) => `a ${r.what} mark on storey ${r.storey} on a cell that says `
+      + `${r.says === null ? 'nothing' : r.says}`).join('; ')
+      : `${rows.length} marks over the abbey's four storeys, ${count('up')} up and ${count('down')} down`)
+  check('and the mark points that way on the glass',
+    shaped.length >= 4 && wrongPoint.length === 0,
+    wrongPoint.length ? wrongPoint.map((r) => `${r.what} on storey ${r.storey}: `
+      + `${r.top} ink above the middle, ${r.bottom} below`).join('; ')
+      : `${shaped.length} marks read off the glass`)
+}
+
+// 26e. Going in frames the room, coming out gives the zoom back, and a zoom
+// chosen inside is kept.
+//
+// A room kept the forest's zoom: a cottage a box in a corner of the glass,
+// the nave running off it.  At a desktop's 1280 by 800 and a phone's 390 by
+// 844, in through the doors of the abbey, the Goldshire inn and a cottage:
+// once the camera has settled, the box where a man can stand is put through
+// `__screen` here and has to be on the glass and clear of the interface that
+// is always there — read off the page here, not taken from the hook.  When
+// the hook says it could not fit, the check works out for itself whether a
+// centred box at the far limit would have, and holds the zoom to that limit
+// with the camera on the room.  Out again, the zoom must be the one outside;
+// and a wheel turned inside must survive frames and a resize, and be given
+// back at the door.
+{
+  const shapes = [
+    ['desktop', { viewport: { width: 1280, height: 800 } }],
+    ['phone', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }],
+  ]
+  for (const [dev, opts] of shapes) {
+    const ctx = await b.newContext(opts)
+    const q = await ctx.newPage()
+    q.on('pageerror', (e) => errs.push(String(e)))
+    await q.goto(HOST)
+    await q.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+    await q.evaluate(() => window.__makeOne?.('가온'))
+    const two = () => q.evaluate(() => new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r()))))
+    const out = async () => {
+      await q.evaluate(() => { const s = window.__start(); window.__put(s.x, s.y) })
+      await q.waitForFunction(() => window.__roomFrame().inside === null, null, { timeout: 8000 })
+        .catch(() => null)
+      await two()
+      return q.evaluate(() => window.__zooms().zoom)
+    }
+    const into = async (how) => {
+      const went = await q.evaluate((how) => how[0] === 'at'
+        ? window.__enterAt(how[1], how[2]) : window.__enterOne(how[1]), how)
+      await q.waitForFunction(() => {
+        const f = window.__roomFrame()
+        return !!f.inside && !!f.view && f.settled
+      }, null, { timeout: 10000 }).catch(() => null)
+      await two()
+      return went
+    }
+    const outside = await out()
+    for (const [name, how] of [['the abbey', ['at', -8904, -185]], ['the Goldshire inn', ['at', -9463, 16]],
+      ['a cottage', ['one', 8]]]) {
+      const went = await into(how)
+      const r = await q.evaluate(() => {
+        const f = window.__roomFrame()
+        const v = f.view
+        if (!v) return null
+        const pts = [[v.x0, v.y0], [v.x0, v.y1], [v.x1, v.y0], [v.x1, v.y1]]
+          .map(([x, y]) => window.__screen(x, y))
+        const box = { l: Math.min(...pts.map((t) => t.x)), r: Math.max(...pts.map((t) => t.x)),
+          t: Math.min(...pts.map((t) => t.y)), b: Math.max(...pts.map((t) => t.y)) }
+        const w = innerWidth, h = innerHeight
+        const chrome = ['units', 'map', 'xp', 'swing', 'deck'].map((id) => document.getElementById(id))
+          .filter((e) => e && !e.hidden).map((e) => e.getBoundingClientRect())
+          .filter((e) => e.width > 0 && e.height > 0)
+          .map((e) => ({ l: e.left, r: e.right, t: e.top, b: e.bottom }))
+        const pad = window.__pad()
+        if (pad.on) {
+          const disc = (c, rr) => chrome.push({ l: c.x - rr, r: c.x + rr, t: c.y - rr, b: c.y + rr })
+          disc(pad.home, pad.base)
+          for (const s of pad.slots) disc(s, pad.hit)
+          disc(pad.autoAt, pad.autoR)
+          disc(pad.pageAt, pad.pageR)
+        }
+        const hits = (L, R, T, B) => chrome.filter((c) => L < c.r - 1 && R > c.l + 1 && T < c.b - 1 && B > c.t + 1)
+        const ppy = Math.abs(window.__screen(v.x0, v.y0 + 1).x - window.__screen(v.x0, v.y0).x) / f.zoom
+        const hw = ((v.y1 - v.y0) * ppy) / 2, hh = ((v.x1 - v.x0) * ppy) / 2
+        const fitsAt = (z) => {
+          const L = w / 2 - hw * z, R = w / 2 + hw * z, T = h / 2 - hh * z, B = h / 2 + hh * z
+          return L >= -1 && T >= -1 && R <= w + 1 && B <= h + 1 && hits(L, R, T, B).length === 0
+        }
+        return { zoom: f.zoom, far: f.far, fits: v.fits, ladder: f.ladder, box,
+          onGlass: box.l >= -1 && box.t >= -1 && box.r <= w + 1 && box.b <= h + 1,
+          over: hits(box.l, box.r, box.t, box.b).length, farFits: fitsAt(f.far),
+          centred: w / 2 > box.l && w / 2 < box.r && h / 2 > box.t && h / 2 < box.b }
+      })
+      const box = r ? `${Math.round(r.box.l)}..${Math.round(r.box.r)} by ${Math.round(r.box.t)}..${Math.round(r.box.b)}` : ''
+      const ok = !!went && !!r && (r.fits
+        ? r.onGlass && r.over === 0 && (!r.ladder || r.ladder.includes(r.zoom))
+        : !r.farFits && Math.abs(r.zoom - r.far) < 1e-9 && r.centred)
+      check(`${dev}: going into ${name}, the room is framed on the glass beside the interface`, ok,
+        !went ? 'could not walk in' : !r ? 'nothing framed' : r.fits
+          ? `fits at zoom ${r.zoom.toFixed(2)}: the room ${box}, ${r.onGlass ? 'on' : 'off'} the glass, under ${r.over} panels`
+          : `does not fit at the far limit ${r.far.toFixed(2)} (${r.farFits ? 'but a centred box would have' : 'nor would a centred box'}), `
+            + `zoom ${r.zoom.toFixed(2)}, the room ${box}${r.centred ? ' round the middle' : ', not round the middle'}`)
+      const back = await out()
+      check(`${dev}: and coming out of ${name} gives back the zoom outside`,
+        Math.abs(back - outside) < 1e-9, `${outside.toFixed(3)} before, ${back.toFixed(3)} after`)
+    }
+    // A zoom the player chose outside, then one he chose inside.
+    const w = opts.viewport.width, h = opts.viewport.height
+    await q.mouse.move(w / 2, h / 2)
+    await q.mouse.wheel(0, 120)
+    await two()
+    const chosenOut = await q.evaluate(() => window.__zooms().zoom)
+    await into(['one', 8])
+    const fitted = await q.evaluate(() => window.__zooms().zoom)
+    await q.mouse.wheel(0, -120)
+    await q.waitForFunction((z) => window.__zooms().zoom !== z, fitted, { timeout: 3000 }).catch(() => null)
+    const chosenIn = await q.evaluate(() => window.__zooms().zoom)
+    for (let k = 0; k < 10; k++) await two()
+    await q.setViewportSize({ width: w - 10, height: h })
+    await two()
+    await q.setViewportSize({ width: w, height: h })
+    await two()
+    const kept = await q.evaluate(() => ({ zoom: window.__zooms().zoom, inside: window.__roomFrame().inside }))
+    const back = await out()
+    check(`${dev}: a zoom chosen indoors is kept until he leaves, and the one outside comes back`,
+      chosenIn !== fitted && kept.inside !== null && Math.abs(kept.zoom - chosenIn) < 1e-9
+      && Math.abs(back - chosenOut) < 1e-9,
+      `outside ${chosenOut.toFixed(3)}, framed ${fitted.toFixed(3)}, wheeled to ${chosenIn.toFixed(3)}, `
+      + `${kept.zoom.toFixed(3)} after frames and a resize, ${back.toFixed(3)} out again`)
+    await ctx.close()
+  }
 }
 
 // 27. A character saved indoors wakes up indoors, on the floor he was on.
