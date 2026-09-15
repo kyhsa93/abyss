@@ -1763,6 +1763,9 @@ they cost on the wire: a transparent pixel is free in a PNG and full price in
 memory. `npm run bordercheck` reads the source for the rules the structure page
 states, and then does the one thing reading cannot: **loads `fight.ts`,
 `stats.ts` and `roll.ts` in Node with no browser and asks them for an answer.**
+Every other file in `src/sim/` is loaded too, by reading the directory, and
+may import nothing from outside it — `sky.ts`, `doll.ts` and `quest.ts` had
+been called rules that run in Node while nothing had ever loaded them there.
 
 **It installs, and the second visit needs no network.** The worker precaches the
 shell, the script, the sheets and *one* world — precaching both would ask every

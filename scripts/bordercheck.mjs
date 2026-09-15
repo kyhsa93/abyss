@@ -94,6 +94,59 @@ check('and they run in Node with no browser at all',
   ran.error ?? `a level 1 kill is ${ran.xp} xp, 22 stamina is ${ran.health} health, `
     + `${ran.outcomes} different outcomes in 5,000 swings`)
 
+/**
+ * The rules import only the rules.
+ *
+ * Issue 107's table had a graph line — the import direction — and what got
+ * built was the DOM grep above and a check that pipeline and scene do not
+ * import each other.  Neither sees a file in `src/sim/` importing
+ * `../main.ts`, `../hud.ts` or `../talk.ts`.  A value import of one of those
+ * would at least fail to load below; an `import type` is erased before it
+ * runs, so it would pass both and still tie the rules to the screen's shapes.
+ * So the graph is read as written: every specifier in a `src/sim/` file —
+ * `import … from`, `export … from`, a bare `import '…'` or an `import(…)` —
+ * has to be `./<a file that is in src/sim/>`.
+ */
+{
+  const SIM = join('src', 'sim')
+  const files = readdirSync(SIM).filter((f) => f.endsWith('.ts'))
+  const out = []
+  for (const f of files) {
+    const body = code(readFileSync(join(SIM, f), 'utf8'))
+    const specs = [
+      ...body.matchAll(/\b(?:import|export)\s[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/g),
+      ...body.matchAll(/\bimport\s*['"]([^'"]+)['"]/g),
+      ...body.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g),
+    ].map((m) => m[1])
+    for (const s of specs) {
+      const m = s.match(/^\.\/([\w.-]+\.ts)$/)
+      if (!m || !files.includes(m[1])) out.push(`${f} -> ${s}`)
+    }
+  }
+  check('and a file in src/sim imports nothing from outside src/sim',
+    out.length === 0,
+    out.length ? out.join(', ') : `${files.length} files, every import inside`)
+
+  // And every one of them runs.  The block above loads three by name, which
+  // is how `sky.ts`, `doll.ts` and `quest.ts` went on being "rules that run in
+  // Node" without Node ever having opened them.  The directory is the list
+  // here too, so a file added to `src/sim/` is loaded by being there.
+  const failed = []
+  let exported = 0
+  for (const f of files) {
+    try {
+      const mod = await import(`../src/sim/${f}`)
+      if (Object.keys(mod).length === 0) failed.push(`${f} exports nothing`)
+      exported += Object.keys(mod).length
+    } catch (e) {
+      failed.push(`${f}: ${String(e).slice(0, 120)}`)
+    }
+  }
+  check('and every file in src/sim loads in Node', failed.length === 0,
+    failed.length ? failed.join('; ')
+      : `${files.length} files, ${exported} exports, no browser`)
+}
+
 // --- a place is what the world says it is ----------------------------------
 //
 // The words in `src/talk.ts` are ours and always will be.  Which place each
