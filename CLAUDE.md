@@ -1310,6 +1310,16 @@ enforces it by reading the *directory* rather than a list: a file put in
 `main.ts` calls the same `duel()` the terminal does, so there is one fight in
 this repository rather than two that are supposed to agree.
 
+**A render directory and a ui directory are a rule before they exist.** Issue 102's third
+condition — what draws and what answers a press only reads `src/sim/` — was left
+without anywhere to be true, and `main.ts` is one closure of about fourteen
+thousand lines that other work edits daily, so the owner chose on 2026-09-15 to
+put the boundary in first and move code later. `bordercheck` reads a render and
+a ui directory under src when they exist: a file there may import the rules in
+`src/sim/` or its own
+directory, never the modules that own state (`main.ts`, `save.ts`, `hud.ts` and
+the like), and until the first file is moved out the check says it is waiting.
+
 **The world moves in steps of fifty milliseconds and the screen draws between
 them.** `requestAnimationFrame`'s own delta used to go straight into the
 simulation, so the frame rate changed the game — and a fight that runs

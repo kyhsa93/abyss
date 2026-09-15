@@ -95,6 +95,54 @@ check('and they run in Node with no browser at all',
     + `${ran.outcomes} different outcomes in 5,000 swings`)
 
 /**
+ * And what draws and what answers a press reads the rules and nothing else.
+ *
+ * Issue 102 asked for three things and closed on two: `src/sim/` runs in Node,
+ * and a whole fight runs with no browser.  The third — *`render/` and `ui/`
+ * only read `sim/`* — had no directories to be true of, and `main.ts` is still
+ * one closure of fourteen thousand lines that other work is editing every day,
+ * so moving it is not done here (the owner's decision, 2026-09-15).  What is
+ * done is the rule, so the first file that is moved out lands under it: a file
+ * in `src/render/` or `src/ui/` may import `../sim/<a file there>` or a file in
+ * its own directory, and nothing that owns the game's state — not `main.ts`,
+ * `save.ts`, `hud.ts`, `touch.ts` or `sound.ts`.  The other half, `src/sim/`
+ * never reaching back into either, is the block below.  The directories are
+ * read rather than listed, and where neither exists yet the check says so.
+ */
+{
+  const { existsSync } = await import('node:fs')
+  const simFiles = readdirSync(join('src', 'sim')).filter((f) => f.endsWith('.ts'))
+  const out = []
+  let seen = 0
+  for (const dir of ['render', 'ui']) {
+    const at = join('src', dir)
+    if (!existsSync(at)) continue
+    const files = readdirSync(at).filter((f) => f.endsWith('.ts'))
+    seen += files.length
+    for (const f of files) {
+      const body = code(readFileSync(join(at, f), 'utf8'))
+      const specs = [
+        ...body.matchAll(/\b(?:import|export)\s[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/g),
+        ...body.matchAll(/\bimport\s*['"]([^'"]+)['"]/g),
+        ...body.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g),
+      ].map((m) => m[1])
+      for (const s of specs) {
+        const own = s.match(/^\.\/([\w.-]+\.ts)$/)
+        const sim = s.match(/^\.\.\/sim\/([\w.-]+\.ts)$/)
+        if (own ? !files.includes(own[1]) : !(sim && simFiles.includes(sim[1]))) {
+          out.push(`${dir}/${f} -> ${s}`)
+        }
+      }
+    }
+  }
+  check('and what is drawn and pressed reads src/sim and nothing that owns state',
+    out.length === 0,
+    out.length ? out.join(', ')
+      : seen ? `${seen} files in src/render and src/ui, every import is the rules or their own`
+        : 'no src/render or src/ui yet — the rule is waiting for the first file moved out of main.ts')
+}
+
+/**
  * The rules import only the rules.
  *
  * Issue 107's table had a graph line — the import direction — and what got
