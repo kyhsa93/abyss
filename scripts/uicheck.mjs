@@ -1134,6 +1134,76 @@ for (const [W, H] of SIZES) {
           + `${both.three} and ${both.four}`
           : 'this character has fewer than two abilities that are not stances')
       await p.evaluate(() => window.__setAuto(false))
+      // **And it casts nothing at something out of reach.**  Asked last in
+      // this block, because it teaches Battle Shout: learned before the check
+      // above, the first two abilities that are not stances became Heroic
+      // Strike and the shout, and that check is about order, not reach.
+      //
+      // An ability with no reach of its own — a shout — passed `why` at any
+      // distance, and a target is kept as far off as the longest reach he has,
+      // so with a rabbit twelve yards away, out of every swing's reach, the
+      // automatic hand called Battle Shout every time the global cooldown let
+      // it.  **The bar is the shout and nothing else, and the target is calm**:
+      // with Taunt on the bar the first run pulled a bandit, the bandit walked
+      // into a swing's reach inside two seconds, and the shout that followed
+      // was right.  What is asked is how far off the target was *when* it went
+      // off — never further than a swing — and that walked up to it, it does
+      // go off, or a rule that never casts would pass.
+      const reach = await p.evaluate(async () => {
+        const MELEE = 5
+        window.__learn(6673)
+        window.__setAuto(false)
+        window.__unaim()
+        for (let i = 0; i < 16; i++) window.__place(i, null)
+        window.__place(0, 6673)
+        const h0 = window.__hero()
+        const q = window.__all()
+          .filter((n) => !n.dead && !n.angry && n.stance === 'quarry')
+          .map((n) => ({ n, d: Math.hypot(n.x - h0.x, n.y - h0.y) }))
+          .sort((a2, b2) => a2.d - b2.d)[0]
+        if (!q) return null
+        const kind = q.n.kind
+        // The target's own distance, the one the rule asks — the nearest thing
+        // of the same kind was a rabbit that had run off, and read 28.7 for a
+        // shout that went off at arm's length.
+        const gap = () => window.__targetGap() ?? Infinity
+        const watch = async (ms) => {
+          const got = []
+          let last = window.__bar().fired.n
+          for (let t = 0; t < ms; t += 50) {
+            window.__fuel()
+            window.__aimAtNearest()
+            await new Promise((r) => setTimeout(r, 50))
+            const f = window.__bar().fired
+            if (f.n !== last) { got.push([f.id, +Number(gap()).toFixed(1)]); last = f.n }
+          }
+          return got
+        }
+        window.__cool(6673, 0)
+        window.__put(q.n.x - 12, q.n.y)
+        window.__aimAtNearest()
+        window.__setAuto(true)
+        const off = await watch(2500)
+        window.__setAuto(false)
+        window.__put(q.n.x - 1.2, q.n.y)
+        window.__unaim()
+        window.__aimAtNearest()
+        window.__cool(6673, 0)
+        window.__setAuto(true)
+        const near = await watch(2500)
+        window.__setAuto(false)
+        window.__unaim()
+        // And back beside something, for whatever is asked after this.
+        window.__foe(3)
+        return { kind, off, near, MELEE }
+      })
+      const wrong = (reach?.off ?? []).filter(([, d]) => d > reach.MELEE + 0.5)
+      check('and it casts nothing at something out of reach of what it casts',
+        !!reach && wrong.length === 0 && reach.near.some(([id]) => id === 6673),
+        reach ? `a calm ${reach.kind} twelve yards off: fired `
+          + `${reach.off.map(([id, d]) => `${id} at ${d}`).join(', ') || 'nothing'}; `
+          + `walked up to it: ${reach.near.map(([id, d]) => `${id} at ${d}`).join(', ') || 'nothing'}`
+          : 'nothing calm to stand off from')
     }
   }
   await p.close()

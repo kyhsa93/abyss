@@ -6253,10 +6253,23 @@ async function main() {
     if (!you.target) you.target = inSwing()
     if (!you.target) return
     if (you.casting || you.gcd > clock) return
+    const t = you.target
+    const away = Math.hypot(t.x - hero.x, t.y - hero.y)
     for (const id of bar) {
       if (id === null) continue
       const sp = spells.find((x) => x.id === id)
       if (!sp || why(sp) !== null) continue
+      // **Only at something in reach of what it casts.**  `why` already holds
+      // an ability with a reach to it; one with none — a shout, an armour, a
+      // shield — passed at any distance, and a target is taken and kept as far
+      // off as the longest reach he has.  So a warrior with a rabbit twelve
+      // yards off, out of every swing's reach, called Battle Shout every time
+      // the global cooldown let him, and a mage's thirty yards is off the edge
+      // of a phone that shows sixteen: the bar went off at nothing anybody
+      // could see.  With no reach of its own an ability waits for the target
+      // to be in `MELEE` — `SpellRange.dbc`'s combat range, which is where a
+      // fight is.
+      if (!(sp.reach[1] > 0) && away > MELEE) continue
       // **Not a stance.**  A stance is a decision — it is the one lever this
       // stretch of the game has that is not "which button" — and an automatic
       // hand that changes it has taken that decision away.  It is also free
@@ -16971,6 +16984,13 @@ async function main() {
       best.angry = true
       return { kind: best.kind, away: Math.sqrt(bd), x: best.x, y: best.y }
     }
+  /**
+   * How far the target is, in yards, or `null` with none — the distance the
+   * automatic hand asks, and not the nearest thing of the same kind.
+   */
+  ;(window as unknown as { __targetGap: () => unknown }).__targetGap = () =>
+    you.target && !you.target.dead
+      ? Math.hypot(you.target.x - hero.x, you.target.y - hero.y) : null
   /** Let go of whatever is aimed at, for the check that aim comes back. */
   ;(window as unknown as { __unaim: () => unknown }).__unaim = () => {
     you.target = null

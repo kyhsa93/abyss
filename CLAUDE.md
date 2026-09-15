@@ -2208,6 +2208,18 @@ cooldown happens to be running, and leaving the automatic hand on left a fight
 running that changed the rage and the stance under the *next* check, which is
 about which square fires and has nothing to do with either.
 
+**And then it cast at nothing in reach.** An ability with no reach of its
+own — a shout, an armour, a shield — passes `why` at any distance, and a target
+is taken and kept as far off as the longest reach he has. So a warrior with a
+rabbit twelve yards away, out of every swing's reach, called Battle Shout every
+time the global cooldown let him, and a mage's thirty yards is off the edge of
+a phone that shows sixteen: the bar went off at nothing anybody could see. The
+automatic hand now casts only at something in reach of what it casts; an
+ability with a reach is held to it as before, and one without waits for the
+target to be in `MELEE`, the client's combat range. Where it aims from is
+unchanged. `uicheck` stands twelve yards off something aimed at and asks that
+everything that goes off reaches twelve yards.
+
 **A check that waits on the weather fails for reasons that are not the rule.**
 Four of the screen checks for this did: the nearest thing to click was a rabbit
 that died before it could be angry at anybody; the screen point was worked out
