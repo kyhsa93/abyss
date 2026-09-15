@@ -2472,11 +2472,32 @@ async function main() {
   const byHouse = new Map<number, (typeof buildings)[number]>()
   for (const b of buildings) if (b.house) byHouse.set(b.house, b)
   const BLOCK = 100
+  /**
+   * Where a building's plan lies in the world, which is not round its
+   * placement.
+   *
+   * A placement's `x, y` is the model's **origin**, and `bl`/`bw` are the half
+   * sizes of the box its record states — so a box centred on the origin is the
+   * building only when the model was built round its own middle.  The city
+   * wall's piece was built from one end: 48 yards long with its origin at
+   * nought, so 26 yards either side of that point left the far half of every
+   * wall piece outside every building, and a man walked straight through the
+   * wall on the lines where its plan was never asked (issue 168).  The plan is
+   * in the model's space and says where it is, so the index is built round
+   * the plan's own rectangle — `planCell` read backwards, which is its own
+   * inverse.
+   */
+  const reachOf = (b: (typeof buildings)[number]) => {
+    const p = b.plan
+    if (!p) return { x: b.x, y: b.y, r: Math.max(b.l, b.w) + 2 }
+    const [x, y] = fromPlan(p, b, p.x0 + (p.w * p.s) / 2, p.y0 + (p.h * p.s) / 2)
+    return { x, y, r: Math.hypot(p.w * p.s, p.h * p.s) / 2 + 2 }
+  }
   const blocksOf = new Map<number, typeof buildings>()
   for (const b of buildings) {
-    const reach = Math.max(b.l, b.w) + 2
-    for (let i = Math.floor((b.x - reach) / BLOCK); i <= Math.floor((b.x + reach) / BLOCK); i++)
-      for (let j = Math.floor((b.y - reach) / BLOCK); j <= Math.floor((b.y + reach) / BLOCK); j++) {
+    const { x: bx, y: by, r: reach } = reachOf(b)
+    for (let i = Math.floor((bx - reach) / BLOCK); i <= Math.floor((bx + reach) / BLOCK); i++)
+      for (let j = Math.floor((by - reach) / BLOCK); j <= Math.floor((by + reach) / BLOCK); j++) {
         const k = i * 100000 + j
         const got = blocksOf.get(k)
         if (got) got.push(b)
@@ -2488,17 +2509,22 @@ async function main() {
     const near = blocksOf.get(Math.floor(wx / BLOCK) * 100000 + Math.floor(wy / BLOCK))
     if (!near) return null
     for (const b of near) {
-      // The whole box first, so a point outside costs one test and not
-      // fourteen.
-      const dx = wx - b.x, dy = wy - b.y
-      if (Math.abs(dx * b.c + dy * b.s) > b.l + 2) continue
-      if (Math.abs(-dx * b.s + dy * b.c) > b.w + 2) continue
       // The footprint if the model gave one, and its boxes if it did not.
+      //
+      // A plan is its own first test: outside its rectangle `planCell` is -1
+      // after four multiplications.  The box round the placement used to come
+      // first, and for a model not built round its middle that box is the
+      // wrong half of the building — see `reachOf`.
       const p = b.plan
       if (p) {
         if (bitAt(p.bits, planCell(p, b, wx, wy))) return b
         continue
       }
+      // The whole box first, so a point outside costs one test and not
+      // fourteen.
+      const dx = wx - b.x, dy = wy - b.y
+      if (Math.abs(dx * b.c + dy * b.s) > b.l + 2) continue
+      if (Math.abs(-dx * b.s + dy * b.c) > b.w + 2) continue
       for (const r of b.rooms) {
         const ex = wx - r.x, ey = wy - r.y
         if (Math.abs(ex * r.c + ey * r.s) <= r.l
@@ -12974,7 +13000,7 @@ async function main() {
    */
   ;(window as unknown as {
     __plotAt: (x: number, y: number) =>
-    { wall: boolean; floor: boolean; roofed: boolean } | null
+    { wall: boolean; floor: boolean; roofed: boolean; of: number } | null
   }).__plotAt = (x, y) => {
     const got = inBuilding(x, y, 0)
     if (!got) return null
@@ -12983,7 +13009,9 @@ async function main() {
     const p = got.b.plan
     const roofed = !p || !p.over.length
       || bitAt(p.over, planCell(p, got.b, x, y))
-    return { wall: got.wall, floor: got.floor, roofed }
+    // Whose plan answered, in `__buildings()` order: a stable beside a wall
+    // piece is two plans, and a check about one must not count the other's.
+    return { wall: got.wall, floor: got.floor, roofed, of: buildings.indexOf(got.b) }
   }
   /** What the readout says at a spot, for the check that indoors is a place. */
   /**
@@ -13764,6 +13792,37 @@ async function main() {
   /** How many of the placed pieces stand inside a building. */
   ;(window as unknown as { __indoors: () => number }).__indoors = () =>
     placed.filter((o) => o.in).length
+  /**
+   * How much of each building's plan the scene actually answers for.
+   *
+   * Every set bit of every outline, taken back out to the world with
+   * `fromPlan` and asked of `inRoom`.  A bit nobody claims is a piece of a
+   * building a man walks through as if it were not there — which is what half
+   * of every city wall piece was while the first test was a box round the
+   * model's origin.
+   */
+  ;(window as unknown as { __planCover: () => unknown }).__planCover = () => {
+    let bits = 0, missed = 0, plans = 0
+    const lost: string[] = []
+    for (const b of buildings) {
+      const p = b.plan
+      if (!p) continue
+      plans++
+      let on = 0, off = 0
+      for (let i = 0; i < p.w; i++) {
+        for (let j = 0; j < p.h; j++) {
+          if (!bitAt(p.bits, i * p.h + j)) continue
+          on++
+          const [x, y] = fromPlan(p, b, p.x0 + (i + 0.5) * p.s, p.y0 + (j + 0.5) * p.s)
+          if (!inRoom(x, y)) off++
+        }
+      }
+      bits += on
+      missed += off
+      if (off) lost.push(`${b.k} at ${Math.round(b.x)},${Math.round(b.y)}: ${off} of ${on}`)
+    }
+    return { plans, bits, missed, lost }
+  }
   /**
    * From where the player stands indoors, the cells of this floor he can walk
    * to and which of the building's doorways they reach.

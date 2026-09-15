@@ -590,6 +590,30 @@ doorway of that storey is reached: the abbey's eight all are. The flood was
 first written against the floor mask and reached one of them, which is why the
 check calls the rule rather than copying it.
 
+**A building's first test was a box round the wrong point.** `inRoom` asked a
+box of the record's half sizes centred on the placement before it asked the
+plan, and a placement is the model's **origin** — the middle of the building
+only when the model was built round its middle. The city wall's piece was built
+from one end, 48 yards long with its origin at nought, so half of every wall
+piece was nobody's and a man walked through it (issue 168); the same box had
+been hiding 42% of the barracks, a third of the mage tower and 8% of the abbey.
+The index and the first test ask the plan's own rectangle now, and `viewcheck`
+takes every set bit of every plan back out to the world and asks whose it is.
+
+**What that did not fix is written down rather than tuned.** The one wall piece
+a player can reach is still crossed where its walkway stands a few yards over a
+hillside. A model with no portal has no sill to say which storey is the ground,
+so `wmo_plan` takes the height most of its standing room is at — the floor of a
+stable, and the top of a wall or of the gatehouse over the stream — and a plan
+has one storey. Two derivations were measured and each breaks a building that is
+right today: the storey against the terrain under it shuts the lumber mill's
+raised floor, and the storey nearest the model's origin misses the burnt
+farmhouse's, which is four yards up like its intact twin's front-door sill. The
+stables and smithies are what issue 168 asked about, and they are right: both
+stables are one outdoor group with no portal and are walked in under their roofs
+on foot; Goldshire's smithy has two front doors; the orc smithy stands where
+nothing within reach can be stood on, and nobody was put inside it.
+
 **A deck is floor to placement as well as to walking.** Placement asked the
 water mask alone, and the mask runs on under a bridge because the river does,
 so creatures put on a deck were carried up to twenty-four yards off it (issue

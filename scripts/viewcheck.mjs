@@ -2306,7 +2306,8 @@ check('and the front doors are drawn on the roofs', fronts.drawn > 0,
 // is the question for the first kind and the wrong one for the second, which is
 // reached by going in; the rule that answered it for a while ("clear ground in
 // some direction within eight yards") filed a cottage's only door as an inner
-// one.  So the promise is kept in the shape the client gives it:
+// one, and once every building's whole plan was answered for it found no outer
+// doors at all.  So the promise is kept in the shape the client gives it:
 //
 //   * **every** front door is walked through from outside with the game's own
 //     step — 10j2 stops at the first way in that works, and the smithy at
@@ -2377,6 +2378,159 @@ check('and every doorway on the floor behind it is reached from it',
   `${doorsIn.reached} of ${doorsIn.doorways} doorways reached; cut off: ${doorsIn.cut.join('; ')}`)
 console.log(`      (the abbey's doorways reached from its front door: ${doorsIn.abbey}; `
   + `front doors with no ground outside: ${doorsIn.exempt.join(', ') || 'none'})`)
+
+// 10j5. A building is all of its plan, wherever its origin is.
+//
+// `inRoom` asked a box round the placement before it asked the plan, and a
+// placement's point is the model's origin, which is the middle of the building
+// only when the model was built round its middle.  The city wall's piece was
+// built from one end — 48 yards long, origin at nought — so the box held its
+// first 26 yards and the rest of it was nobody's: a man walked straight through
+// the wall wherever the plan was never asked (issue 168).  The same box had been
+// hiding 42% of the barracks and a third of the mage tower.  Every set bit of
+// every plan, taken back out to the world, must now be somebody's.
+const cover = await p.evaluate(() => window.__planCover())
+check('every cell of every building\'s plan belongs to a building',
+  cover.plans > 0 && cover.missed === 0,
+  `${cover.missed} of ${cover.bits} plan cells answered by nobody: ${cover.lost.join('; ')}`)
+
+// 10j6. And a building with no door is walked into under its roof.
+//
+// Issue 168's other half: the stable and the smithy can be walked into.  The
+// client says what that can mean.  Both stables and the orc smithy are one
+// `MOGI` group flagged outdoors (0x8), with no room group (0x2000) and no
+// `MOPT` portal at all, so there is no door to walk through and no indoors to
+// change to: being in one is standing under its roof.  Goldshire's smithy is a
+// room and the outdoors with two front doors, and 10j4 walks through both.
+//
+// Walked, not flooded: a route to the roofed floor is found with the game's own
+// footing and then walked with the game's own step.  A straight line would not
+// do — a stable is open on one side, and from most of the ground round it a
+// straight line meets its back wall, which is a stable being a stable.  And a
+// building with nowhere to stand beside it is not held to this; what is asked
+// of it instead is that nobody was put inside something nobody can reach.
+//
+// Two things the first version of this got wrong, and both are the harness and
+// not the game.  The route was found with footing alone, and footing is not the
+// legs: to gate two the flood went up a slope the step slides back down, and
+// the walk stopped two yards short — so the route asks the step question too,
+// `climb` against `CLIFF`, the way the `leg` yardstick does.  And success was
+// the one lattice point the route ended on: that point is the edge of the
+// roofed floor by construction, and a man stopping a fifth of a yard short of
+// it stood on the next cell and read as outside.  A man is a body wide, so the
+// question is whether his body is on the roofed floor: within half the client's
+// own collision box of it.
+const underRoof = await p.evaluate(() => {
+  const home = window.__start()
+  const all = window.__buildings()
+  const homes = window.__npcs().homes
+  const cliff = window.__rules().cliff
+  const reach = window.__caves().body / 2
+  const S = 0.66
+  const snap = (v) => Math.round(v / S) * S
+  const key = (x, y) => `${Math.round(x / S)},${Math.round(y / S)}`
+  const open = [], walked = [], failed = [], shut = []
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i]
+    if (b.k === 'mine' || b.doors?.length) continue
+    const at = `${b.k} at ${Math.round(b.x)},${Math.round(b.y)}`
+    // This building's own plan, on the lattice the route is found on, so a
+    // point called roofed is the point walked to and not one a third of a
+    // yard beside it.
+    const R = Math.hypot(b.l, b.w) * 2 + 4
+    const roofed = new Set()
+    let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity]
+    for (let x = snap(b.x - R); x <= b.x + R; x += S) {
+      for (let y = snap(b.y - R); y <= b.y + R; y += S) {
+        const g = window.__plotAt(x, y)
+        if (!g || g.of !== i) continue
+        lo = [Math.min(lo[0], x), Math.min(lo[1], y)]
+        hi = [Math.max(hi[0], x), Math.max(hi[1], y)]
+        if (g.floor && g.roofed && !g.wall) roofed.add(key(x, y))
+      }
+    }
+    if (!roofed.size) continue
+    const inside = homes.filter(([, , , hx, hy]) => window.__plotAt(hx, hy)?.of === i).length
+    window.__aim(null)
+    window.__put(home.x, home.y)
+    const M = 6
+    const inBox = (x, y) => x >= lo[0] - M && x <= hi[0] + M && y >= lo[1] - M && y <= hi[1] + M
+    const prev = new Map(), queue = []
+    // Snapped before it is asked: a ring point asked where it is and walked
+    // from where it rounds to is a start nobody can stand on, and `__put`
+    // slides the man somewhere else before the walk begins.
+    const seed = (x0, y0) => {
+      const x = snap(x0), y = snap(y0), k = key(x, y)
+      if (prev.has(k) || !window.__canWalk(x, y)) return
+      prev.set(k, null)
+      queue.push([x, y])
+    }
+    for (let x = lo[0] - M; x <= hi[0] + M; x += S) { seed(x, lo[1] - M); seed(x, hi[1] + M) }
+    for (let y = lo[1] - M; y <= hi[1] + M; y += S) { seed(lo[0] - M, y); seed(hi[0] + M, y) }
+    // And on foot.  Water is not a wall here and wading has checks of its own
+    // (10d5); what this asks is whether a man walks in.  The one building whose
+    // only route went through water is the gate over the stream west of the
+    // abbey, and what its plan calls roofed floor is the top of its gatehouse:
+    // a model with no portal has no sill to say which storey is the ground, so
+    // the bake takes the height most of its standing room is at, which for a
+    // gate is its roof.  The walk stalled two yards short of it, in the water.
+    const ground = new Map()
+    const groundOf = (x, y) => {
+      const k = key(x, y)
+      if (!ground.has(k)) {
+        const q = window.__probe(x, y)
+        ground.set(k, { z: q.z, wet: q.wet })
+      }
+      return ground.get(k)
+    }
+    let goal = null
+    for (let q = 0; q < queue.length && !goal; q++) {
+      const [x, y] = queue[q]
+      if (roofed.has(key(x, y))) { goal = [x, y]; break }
+      for (const [ax, ay] of [[S, 0], [-S, 0], [0, S], [0, -S]]) {
+        const px = x + ax, py = y + ay, k = key(px, py)
+        if (prev.has(k) || !inBox(px, py) || !window.__canWalk(px, py)) continue
+        const next = groundOf(px, py)
+        if (next.wet || Math.abs(next.z - groundOf(x, y).z) / S > cliff) continue
+        prev.set(k, [x, y])
+        queue.push([px, py])
+      }
+    }
+    if (!goal) { shut.push({ at, inside, ground: prev.size }); continue }
+    open.push(at)
+    const trail = []
+    for (let q = goal; q; q = prev.get(key(q[0], q[1]))) trail.unshift(q)
+    window.__put(trail[0][0], trail[0][1])
+    const onRoofed = (h) => [...roofed].some((k) => {
+      const [a, c] = k.split(',').map(Number)
+      return Math.hypot(a * S - h.x, c * S - h.y) <= reach
+    })
+    let under = false
+    for (const [tx, ty] of trail) {
+      for (let n = 0; n < 40; n++) {
+        const h = window.__hero()
+        if (Math.hypot(h.x - tx, h.y - ty) < 0.4) break
+        window.__aim(tx, ty)
+        window.__steps(1)
+      }
+      if (onRoofed(window.__hero())) { under = true; break }
+    }
+    window.__aim(null)
+    ;(under ? walked : failed).push(at)
+  }
+  window.__aim(null)
+  window.__put(home.x, home.y)
+  return { open, walked, failed, shut }
+})
+check('a building with no door is walked in under its roof wherever there is a way to it',
+  underRoof.open.length > 0 && underRoof.failed.length === 0,
+  `${underRoof.walked.length} of ${underRoof.open.length} walked under; `
+  + `not: ${underRoof.failed.join('; ')}`)
+check('and one with no way to it has nobody standing inside it',
+  underRoof.shut.every((s) => s.inside === 0),
+  underRoof.shut.map((s) => `${s.at}: ${s.inside} inside`).join('; '))
+console.log(`      (walked under: ${underRoof.walked.join('; ')}; no way to: `
+  + `${underRoof.shut.map((s) => s.at).join('; ') || 'none'})`)
 
 // 10k. A mine comes from a model, and the ones that do not say so.
 //
@@ -2986,7 +3140,8 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     }
     // Which doors are a building's outside ones used to be decided here, by
     // whether some ray eight yards long from a door met no plan — and that
-    // filed a cottage's only door as an inner one.  The client says which
+    // filed a cottage's only door as an inner one, and found none at all the
+    // day every building's whole plan was answered for.  The client says which
     // is which (`MOPR` and `MOGI`), so walking to and through them is 10j4's.
     return {
       cells: seen.size, doors: doors.length, reached: got.size,
