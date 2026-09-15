@@ -99,6 +99,32 @@ STAGES = [
 ]
 
 
+def stage_argv(script, args, where):
+    """What one stage is handed, for the first bake and for `--twice` alike.
+
+    This was written out twice, once in `main` and once in `again`, and the
+    two drifted the way two copies do.  `trades.py` joined the first list and
+    not the second, so the check bake handed it `[acore, scratch]`: the scratch
+    directory read as a client with no `Spell.dbc`, no `trades.json` was made,
+    `items.py` ran without one — and `--twice` reported `items.json` as not
+    reproducible, which was true of the check and not of the bake.  And
+    `bake_ui.py` was handed the AzerothCore checkout as its output directory,
+    so every `--twice` wrote `ui.json` and a `ui/` of pictures into
+    `~/src/azerothcore-wotlk`.
+    """
+    if script == 'bake_ui.py':
+        return [where]
+    if script == 'layout.py':
+        return [args.client, where]
+    if script == 'spells.py':
+        return [args.client, args.acore, where]
+    if script == 'bake_terrain.py':
+        return [args.client, where, args.acore]
+    if script in ('objects.py', 'player.py', 'items.py', 'trades.py', 'quests.py'):
+        return [args.acore, args.client, where]
+    return [args.acore, where]
+
+
 def run(script, args, out):
     """One stage.  Returns (ok, seconds, last line of its output)."""
     started = time.time()
@@ -232,13 +258,7 @@ def main():
             skipped.append((name, what))
             print(f'  --   {name:<9} skipped, needs the client   ({what})')
             continue
-        argv = ([where] if script == 'bake_ui.py'
-                else [args.client, where] if script == 'layout.py'
-                else [args.client, args.acore, where] if script == 'spells.py'
-                else [args.client, where, args.acore] if script == 'bake_terrain.py'
-                else [args.acore, args.client, where] if script in ('objects.py', 'player.py', 'items.py', 'trades.py')
-                else [args.acore, args.client, where] if script == 'quests.py'
-                else [args.acore, where])
+        argv = stage_argv(script, args, where)
         ok, took, line, got = run(script, argv, where)
         total += took
         if not ok:
@@ -290,11 +310,7 @@ def again(args):
                 continue
             into = os.path.join(scratch, where)
             os.makedirs(into, exist_ok=True)
-            argv = ([args.client, into] if script == 'layout.py'
-                    else [args.client, args.acore, into] if script == 'spells.py'
-                    else [args.client, into, args.acore] if script == 'bake_terrain.py'
-                    else [args.acore, args.client, into] if script in ('objects.py', 'quests.py', 'player.py', 'items.py')
-                    else [args.acore, into])
+            argv = stage_argv(script, args, into)
             run(script, argv, into)
         second = {}
         for where in ('public/world', 'public/data'):
