@@ -10284,57 +10284,51 @@ async function main() {
   }
 
   /**
-   * Where a man can stand on this storey, as a box in the world: the
-   * standing room `roomOpen` allows, joined four ways to where he is.
+   * Where a man can stand on this storey, as a box in the world: every piece
+   * of the standing room `roomOpen` allows, joined four ways, that is at least
+   * the speck cut in size.
    *
-   * **Joined to him and not all of it**, because a storey's plan carries
-   * standing room nobody can reach from the floor he is on — the abbey's
-   * first floor has single cells along its roof's edge — and a box stretched
-   * to take those in is a box framed round nothing.  A spot with no standing
-   * room under it (a setter put him there) takes the whole storey.  The box
-   * is the cells' corners, so a turned building's box is the one the glass
-   * sees.
+   * **The storey and not the patch under his feet**, and the patch was tried
+   * first.  Joined to where he stood, `__floor` put the harness one floor up
+   * the abbey on three stray cells of the gallery and framed them at zoom 3,
+   * and with a floor under that — a patch had to reach the cut — it put him
+   * on a strip of house 20's first floor and framed that at 2.46: a wardrobe
+   * filling the glass.  A player arriving by a flight lands somewhere just as
+   * arbitrary.  So the box does not depend on where he is.  **And not every
+   * cell of it either**, because a storey's plan carries standing room nobody
+   * reaches — the abbey's first floor has single cells along its roof's edge
+   * — and a box stretched to take those in is framed round nothing.  The cut
+   * is the one the walls are drawn with (`speckCut`): what is too small to be
+   * drawn as a wall is too small to be framed as a room.  The box is the
+   * cells' corners, so a turned building's box is the one the glass sees.
    */
   const standingExtent = (b: Built, p: Plan, under: Plan | null) => {
     const r = roomPieces(p, under)
     const { W, H } = r
-    let start = -1
-    const at = planCell(p, b, hero.x, hero.y)
-    if (at >= 0 && r.walk[at]) start = at
-    else if (at >= 0) {
-      const i0 = (at / H) | 0, j0 = at % H
-      let best = Infinity
-      for (let di = -2; di <= 2; di++) {
-        for (let dj = -2; dj <= 2; dj++) {
-          const i = i0 + di, j = j0 + dj
-          if (i < 0 || j < 0 || i >= W || j >= H || !r.walk[i * H + j]) continue
-          if (di * di + dj * dj < best) { best = di * di + dj * dj; start = i * H + j }
-        }
-      }
-    }
+    const cut = speckCut()
+    const seen = new Uint8Array(W * H)
     const take = new Uint8Array(W * H)
-    if (start >= 0) {
-      const stack = [start]
-      take[start] = 1
+    const stack: number[] = []
+    let taken = 0
+    for (let n0 = 0; n0 < W * H; n0++) {
+      if (!r.walk[n0] || seen[n0]) continue
+      const piece = [n0]
+      seen[n0] = 1
+      stack.push(n0)
       while (stack.length) {
         const m = stack.pop()!
         const i = (m / H) | 0, j = m % H
         for (const o of [i > 0 ? m - H : -1, i < W - 1 ? m + H : -1,
           j > 0 ? m - 1 : -1, j < H - 1 ? m + 1 : -1]) {
-          if (o >= 0 && !take[o] && r.walk[o]) { take[o] = 1; stack.push(o) }
+          if (o >= 0 && !seen[o] && r.walk[o]) { seen[o] = 1; stack.push(o); piece.push(o) }
         }
       }
+      if (piece.length < cut) continue
+      for (const m of piece) take[m] = 1
+      taken += piece.length
     }
-    // **And a patch smaller than a speck is not a floor.**  `__floor` put the
-    // harness one floor up the abbey on three stray cells of the gallery, and
-    // a room framed round three cells is zoom 3 on a strip of steps.  The cut
-    // is the one the walls are drawn with (`speckCut`), so what is too small
-    // to be drawn as a wall is too small to be framed as a room.
-    let joined = 0
-    for (let n = 0; n < W * H; n++) joined += take[n]!
-    if (joined < speckCut()) {
-      for (let n = 0; n < W * H; n++) take[n] = r.walk[n]!
-    }
+    // A storey that is all specks is still somewhere to stand.
+    if (!taken) for (let n = 0; n < W * H; n++) take[n] = r.walk[n]!
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, cells = 0
     for (let n = 0; n < W * H; n++) {
       if (!take[n]) continue
