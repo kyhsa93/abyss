@@ -270,6 +270,42 @@ check('the sheets fit in memory once decoded',
     + `${(sheets / MB).toFixed(0)} MB for one sheet a model`)
 }
 
+// --- and a save, which the document had no row for ------------------------
+//
+// Issues 106 and 206.  The save's budget — four kilobytes a character, forty
+// for every slot — lived in the wiki and in `uicheck`, which weighs the save a
+// live session writes, and not here, so the one document a check writes said
+// nothing about it.  What is weighed is the largest realistic save: the newest
+// sample in `scripts/fixtures/saves/`, a finished character built out of the
+// world's own ids (`simcheck` holds it to what `restore` reads), with every
+// errand in the world marked done — the same thing `uicheck` does to the save
+// it gets, and the one part of a save that grows with the world rather than
+// with the character.  JSON in UTF-8, because that is a thing a script can
+// count; what IndexedDB's own clone costs on disk is not a number a page can
+// ask for.
+{
+  const DIR = 'scripts/fixtures/saves'
+  const newest = readdirSync(DIR).filter((f) => /^v\d+\.json$/.test(f))
+    .sort((a, b) => Number(a.slice(1, -5)) - Number(b.slice(1, -5))).at(-1)
+  const save = JSON.parse(readFileSync(join(DIR, newest), 'utf8'))
+  const errands = JSON.parse(readFileSync(join(dist, 'world', 'quests.json'),
+    'utf8')).quests ?? []
+  save.quests = { held: [], done: errands.map((q) => q.id) }
+  const bytes = Buffer.byteLength(JSON.stringify(save))
+  // `MAX_CHARACTERS_PER_REALM`, as `layout.py` reads it out of the client.
+  const slots = JSON.parse(readFileSync(join(dist, 'world', 'layout.json'),
+    'utf8')).spec?.pick?.slots ?? 1
+  check('a finished character is a save of four kilobytes or less',
+    budget('a save, a character who has finished this game', bytes, 4 * KB,
+      'KB', `JSON in UTF-8 — the newest sample in \`${DIR}/\`, level `
+      + `${save.you.level}, with all ${errands.length} of the world's errands done`),
+    `${bytes} bytes of 4,096 (${newest}, ${errands.length} errands done)`)
+  check('and all the slots there are in forty',
+    budget('and every slot holding one', bytes * slots, 40 * KB, 'KB',
+      `${slots} slots, the client's \`MAX_CHARACTERS_PER_REALM\``),
+    `${slots} x ${bytes} = ${bytes * slots} of 40,960`)
+}
+
 /**
  * And the document, written from the rows above rather than beside them.
  *
