@@ -1240,6 +1240,23 @@ if (bare) {
   check('and what he is wearing changes the picture',
     dressed.layers.join('|') !== bare.layers.join('|'),
     `${bare.layers.join(', ')} → ${dressed.layers.join(', ')}`)
+  // **And it keeps a frame of each layer, not the sheet.**  The portrait and
+  // the sheet draw the standing frame and nothing else, and the sheets are
+  // every clip: the five a new character wears were 14.6 MB decoded, held for
+  // the life of the page to paint a 64-pixel face.
+  //
+  // Read once the new layers have arrived: a frame is cut when its sheet loads,
+  // and asked the moment he is dressed the three new ones are still on the
+  // wire — 5 frames for 7 layers then, 8 three hundred milliseconds later.
+  let kept = dressed
+  for (let i = 0; i < 30 && kept.stills < kept.layers.length; i++) {
+    await p.waitForTimeout(100)
+    kept = await p.evaluate(() => window.__doll())
+  }
+  check('and the paperdoll keeps one frame a layer rather than the sheets',
+    kept.stills >= kept.layers.length && kept.stillBytes < 256 * 1024,
+    `${kept.stills} frames for ${kept.layers.length} layers, `
+    + `${(kept.stillBytes / 1024).toFixed(1)} KB`)
 }
 
 // 9s2. And the composed paperdoll is not on the character sheet, by the
@@ -3076,6 +3093,24 @@ for (const z of [3, 2, 1.2, 1, 0.7, 0.5, 0.35]
 }
 for (const s of sweep) {
   console.log(`      (zoom ${s.zoom.toFixed(3)}: ${s.tiles} tiles, ${s.fps} fps)`)
+}
+// **And the ground atlas is no bigger at zoom 3 than at zoom 1.**  It was
+// built at the tile's size on the glass, so zoom 3 stored every 32-pixel
+// picture three times over: 4,074 by 12,222, 137 MB, two kept.  Above zoom 1 it
+// is zoom 1's atlas and the scaling happens at the draw.
+{
+  const at = async (zoom) => {
+    await p.evaluate((z) => window.__cam({ x: -8983, y: -316, zoom: z }), zoom)
+    await p.waitForTimeout(200)
+    return p.evaluate(() => window.__shading())
+  }
+  const one = await at(1)
+  const three = await at(3)
+  check('the ground atlas at zoom 3 is the size it is at zoom 1',
+    three.tile === one.tile && three.high === one.high && three.wide === one.wide
+    && three.drawn > three.tile * 2,
+    `${three.wide} x ${three.high} at 3 against ${one.wide} x ${one.high} at 1, `
+    + `tiles stored at ${three.tile} px and drawn at ${three.drawn}`)
 }
 const worst = sweep.reduce((a, b) => (b.fps < a.fps ? b : a))
 check('no zoom drops the ground below the floor', worst.fps >= 45,

@@ -12,6 +12,7 @@
  */
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { chromium } from 'playwright'
 
 /**
@@ -45,10 +46,30 @@ if (!existsSync('dist/index.html')) {
   process.exit(1)
 }
 const PORT = 4173
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT)],
-  { stdio: 'ignore' })
+// Asked before starting rather than after: a busy port answers the first
+// request at once, before `vite` has even tried to bind and given up.
+const free = await new Promise((res) => {
+  const probe = createServer()
+  probe.once('error', () => res(false))
+  probe.once('listening', () => probe.close(() => res(true)))
+  probe.listen(PORT, '127.0.0.1')
+})
+if (!free) {
+  console.log(`FAIL  there is a preview of this build to check   -> port ${PORT} `
+    + 'is taken by something else; stop it and run again')
+  process.exit(1)
+}
+// **Its own server, or none.**  Without `--strictPort` a busy 4173 moves the
+// preview to 4174 in silence while this goes on asking 4173 — somebody else's
+// server — and five checks fail about a manifest this build has.  And the
+// server is a group: `npx` starts `vite`, and killing `npx` alone left the
+// preview running after every run, which is exactly what then held 4173.
+const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'],
+  { stdio: 'ignore', detached: true })
 const HOST = `http://localhost:${PORT}${base}`
-process.on('exit', () => server.kill())
+process.on('exit', () => {
+  try { process.kill(-server.pid) } catch { /* already gone */ }
+})
 let bad = 0
 const check = (what, ok, detail = '') => {
   console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}${detail ? `   -> ${detail}` : ''}`)

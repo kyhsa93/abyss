@@ -235,6 +235,22 @@ await p.waitForTimeout(200)
     last.MB <= first.MB + 1 && later.frames > last.frames + 10,
     `${first.MB.toFixed(1)} MB after one round, ${last.MB.toFixed(1)} after four, `
     + `${later.frames - last.frames} frames in the half second after`)
+  // **And a phone that has stopped pinching holds one atlas, not two.**  The
+  // one before is kept so a pinch that comes back rebuilds nothing, and a
+  // phone standing at one step was holding it for nothing: 30 MB of the 71 MB
+  // of canvas it held.  It goes once the zoom has stood still for three
+  // seconds.  1 and 1.25 share an atlas now, so the other step is 0.8.
+  await p.evaluate(() => window.__cam({ zoom: 0.8 }))
+  await p.waitForTimeout(400)
+  await p.evaluate(() => window.__cam({ zoom: 1.25 }))
+  await p.waitForTimeout(400)
+  const moving = await p.evaluate(() => window.__shading())
+  await p.waitForTimeout(3600)
+  const still = await p.evaluate(() => window.__shading())
+  check('a phone that has stopped pinching lets the spare ground atlas go',
+    moving.spare > 0 && still.spare === 0,
+    `${(moving.spare / 1048576).toFixed(1)} MB spare just after the pinch, `
+    + `${(still.spare / 1048576).toFixed(1)} MB after standing still`)
   await p.evaluate(() => window.__cam({ zoom: 0 }))
   await p.waitForTimeout(300)
 }

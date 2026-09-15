@@ -461,6 +461,29 @@ flame came out yellow-green; only the ring in the school's colour is added.
 are drawn while it runs and that the target's health is the same while the bolt
 is in the air and lower once it lands.
 
+**And the canvas the game held was mostly one atlas it did not need.**
+Measured scene by scene with every canvas and image counted, the ground atlas
+was 275 of the 295 MB of canvas at a desktop's zoom 3 and 62 of the 72 MB on a
+phone standing still. Two things made it so. It was built at the tile's size on
+the glass, so zoom 3 stored every 32-pixel picture three times over — 4,074 by
+12,222 — with not a pixel of detail the picture does not have; **above zoom 1
+the atlas is zoom 1's now** and the scaling happens at the draw, smoothing off,
+which is the same picture either way: against the old build 0.00% of the glass
+differs at zoom 1, 0.01% at 2, 0.12% at 3 and 0.21% at a phone's 1.25, and all
+of it on edges. And the atlas before this one was kept for a pinch that comes
+back, and held for nothing by a phone that is not being pinched: **it goes
+once the zoom has stood still for three seconds**. Canvas went 295 → 42 MB at
+zoom 3, 60 → 43 at zoom 1, and 72 → 32 on a phone.
+
+The third was not the ground at all. The paperdoll's layer sheets are every
+frame of every clip — the sword's is 1,248 by 1,349, 6.4 MB decoded — and the
+portrait and the character sheet draw the standing frame and nothing else, so
+five sheets, 14.6 MB, were held for the life of the page to paint a 64-pixel
+face. **Each layer keeps the frame it draws**, cut when the sheet arrives, and
+the sheet is let go: decoded images 36.4 → 21.8 MB in every scene. None of the
+three was in `budgetcheck`, which counts the sheets whose paths are written out
+and not ones built from a name, and says nothing about canvases.
+
 ## Why the world kept coming out different
 
 Both sources are complete and both are on this machine, and for several rounds
