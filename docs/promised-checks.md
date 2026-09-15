@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **199 promises across 22 pages, 181 of them kept.**
+Counted: **199 promises across 22 pages, 179 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -88,8 +88,8 @@ keeps it honest.
 | 막힌 칸에서 출발해도 열린 칸으로만 나갈 수 있다 | `scripts/viewcheck.mjs: "and every way out of it ends somewhere you can stand"` |
 | 쫓아오는 NPC가 플레이어가 못 지나는 곳을 못 지난다 | `scripts/viewcheck.mjs: "and it does not walk through the wall to get at you"` |
 | 층이 둘 이상인 건물에서 위층에 올라갈 수 있다 | `scripts/viewcheck.mjs: "walking on to a landing puts you on the floor above"` |
-| **위층이 있는 건물의 모든 층에 무언가가 있다** | `scripts/viewcheck.mjs: "a building with an upstairs has something on every floor of it"` |
-| **층을 바꾸면 그려지는 것이 바뀐다** | `scripts/viewcheck.mjs: "and changing floor changes what is drawn"` |
+| **위층이 있는 건물의 모든 층에 무언가가 있다** | — 거둬들인 약속이다. 소유자의 결정(2026-09-15)으로 건물 안에는 NPC 말고 아무것도 두지 않기 때문이다: 이 약속이 센 "무언가"는 건물 모델의 가구였고, 층마다 사람이 서 있다는 보장은 데이터에 없다. 층 필터가 옳다는 것은 아래 줄 `"and everything drawn on a floor belongs to that floor"` 가 사람으로 계속 지키고, 기물이 없다는 것은 `"and nothing but its people stands inside a building"` 이 지킨다 |
+| **층을 바꾸면 그려지는 것이 바뀐다** | — 거둬들인 약속이다. 위와 같은 결정 때문이다: 층마다 달랐던 것은 가구 목록이었고, 가구가 없으니 사람이 없는 두 층은 같은 빈 목록이 맞다 |
 | **어느 층에서 그려지는 것이든 그 층의 것이다** | `scripts/viewcheck.mjs: "and everything drawn on a floor belongs to that floor"` |
 | **층이 n개인 건물에서 꼭대기까지 올라간다** | `scripts/viewcheck.mjs: "and it keeps going to the top of the building"` |
 | **위층이 있는 모든 건물을 꼭대기까지 걸어 올라갔다가 지상까지 내려온다** | `scripts/viewcheck.mjs: "and every building with an upstairs can be walked to the top of it"` |
@@ -161,7 +161,7 @@ keeps it honest.
 | 굴 하나와 다음 굴 사이의 간격이 굴 안 통로보다 훨씬 길다 | `scripts/viewcheck.mjs: "and the cut between one warren and the next is not a close call"` |
 | 땅 밑의 모두가 굴에 있거나 세어져 있다 | `scripts/viewcheck.mjs: "and everybody under the surface is in a mine or counted out"` |
 | 실내에서 저장하고 불러오면 실내다 | `scripts/viewcheck.mjs: "a character saved indoors wakes up indoors, on the floor he was on"` |
-| `shotcheck` 에 실내 자리 둘 (여관·수도원) | `scripts/shotcheck.mjs: "the inn at Goldshire from inside, among its tables"` |
+| `shotcheck` 에 실내 자리 둘 (여관·수도원) | `scripts/shotcheck.mjs: "the inn at Goldshire from inside, with nothing standing in it but its people"` |
 
 ## [아이콘](https://github.com/kyhsa93/abyss/wiki/아이콘)
 

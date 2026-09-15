@@ -561,9 +561,17 @@ pitch from the floor it is painted on dots at one size and quadruples at the
 next; a coarse tile takes the majority of the cells it covers, not any of them.
 
 A building also carries **what is inside it** — `MODS`/`MODN`/`MODD`, 150 pieces
-in the abbey — and they go through the same `classify` and the same audit as
-everything the terrain places. What stands under a roof is not drawn while you
-are outside it, people included: they were standing on the tiles.
+in the abbey — and **none of it is shipped**, by the owner's decision on
+2026-09-15: a building holds its people and nothing else. It was read, sent
+through the same `classify` as everything the terrain places and drawn, 2,220
+pieces over the slice; `audit.py` still reads it for its census. The scene
+leaves out the other two ways a thing could be standing inside — a terrain
+piece that lands under a roof, and a world object (188, most of them `prop`) —
+and keeps three kinds that are not furniture: what grows, because an outline
+takes in a courtyard; a fence, because it is a wall a man walks against; and an
+object with a use, a node a trade gathers or a chest a quest opens. People
+under a roof are still not drawn while you are outside it: they were standing
+on the tiles.
 
 **A building is drawn once, in the axes it was built in.** The roof used to be
 stamped on every 1.33 yard square of the *world* a footprint covered, and the
@@ -862,11 +870,12 @@ A building's sills come out of its own portals and stay in the **model's**
 space, which is why the placement's own `z` had to start travelling with it —
 without that number nothing could say which storey a barrel is on. Both
 answers are worked out once rather than per frame, the same as `o.in` already
-was. Three checks read `__shown`, which is what actually got through the
-filter: a building with an upstairs has something on every floor, changing
-floor changes what is drawn — by *content*, because two floors of a barracks
-could hold the same number of barrels and be different barrels — and
-everything drawn on a floor belongs to it.
+was. `__shown` is what actually got through the filter, and everything drawn
+on a floor has to belong to it. Two more checks read it — a building with an
+upstairs has something on every floor, and changing floor changes what is
+drawn — and **both were withdrawn** with the furniture on 2026-09-15: the
+something was the barrels, and two floors with nobody on them are rightly the
+same empty list.
 
 **The stairs went all the way up the whole time; the check stopped at the
 first landing.** Issue 220 was written as *there is no check, so nobody knows*,

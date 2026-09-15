@@ -1359,6 +1359,8 @@ async function main() {
     node?: { up: boolean }
   }
   const placed: Placed[] = []
+  /** How many pieces were left out for standing inside a building — see `keepsIndoors`. */
+  let furnitureLeft = 0
 
   /**
    * What a building stands on, in world yards.
@@ -3416,6 +3418,43 @@ async function main() {
     // of and now says so, which leaves nothing to get wrong.
     const b = (o.house ? byHouse.get(o.house) : undefined) ?? inRoom(o.x, o.y)
     if (b) { o.in = b; o.storey = storeyOf(b, o.z ?? b.z) }
+  }
+
+  /**
+   * **Nothing stands inside a building but its people**, by the owner's
+   * decision on 2026-09-15.
+   *
+   * What stood there came three ways and all three go: the building's own
+   * doodads, which the bake no longer ships; the terrain's pieces that land
+   * under a roof — a barrel, a cart; and the world's objects that stand inside,
+   * 188 of them, a hundred and thirty of them `prop`.  Three kinds stay, and
+   * each for a reason that is not decoration.  **What grows** — a tree, a bush,
+   * grass, a rock — is in a courtyard, because an outline takes in the yard.
+   * **A fence** is a wall a man walks against (`solids`), and taking the picture
+   * would leave the wall.  And **an object with a use** — a node a trade
+   * gathers, a chest a quest takes something out of — is not furniture.
+   */
+  const GROWS = new Set(['tree', 'bush', 'grass', 'flower', 'water_plant',
+    'rock', 'crop', 'mushroom', 'fence', 'post'])
+  const keepsIndoors = (o: Placed) => {
+    if (!o.in) return true
+    if (o.node) { const n = o.node as Node; return !!n.trade || n.haul.length > 0 }
+    if (KIND[o.kind ?? '']?.solid === 'building') return true
+    return !o.house && GROWS.has(o.kind ?? '')
+  }
+  {
+    let kept = 0
+    for (const o of placed) {
+      if (keepsIndoors(o)) { placed[kept++] = o; continue }
+      furnitureLeft++
+      const n = o.node as Node | undefined
+      if (!n) continue
+      lostThings['indoors'] = (lostThings['indoors'] ?? 0) + 1
+      nodes.splice(nodes.indexOf(n), 1)
+      const pool = n.pool ? byPool.get(n.pool) : undefined
+      if (pool) pool.splice(pool.indexOf(n), 1)
+    }
+    placed.length = kept
   }
 
   /**
@@ -14803,6 +14842,19 @@ async function main() {
   ;(window as unknown as { __motes: () => unknown }).__motes = () => ({
     n: motes.length, lit: sparks,
   })
+  ;(window as unknown as { __left: () => unknown }).__left = () => {
+    // What still stands inside a building, by kind — leaving out the objects
+    // with a use, which stay on purpose and are counted apart.
+    const inside: Record<string, number> = {}
+    let useful = 0
+    for (const o of placed) {
+      if (!o.in) continue
+      const n = o.node as Node | undefined
+      if (n && (n.trade || n.haul.length)) { useful++; continue }
+      inside[o.kind ?? '?'] = (inside[o.kind ?? '?'] ?? 0) + 1
+    }
+    return { furniture: furnitureLeft, inside, useful }
+  }
   ;(window as unknown as { __scenery: () => unknown }).__scenery = () => {
     const out: Record<string, [number, number]> = {}
     for (const o of placed) {

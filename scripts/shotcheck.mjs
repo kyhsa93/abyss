@@ -80,7 +80,7 @@ const SPOTS = [
   // stairwell from a yard — the storeys above have the same hole in them —
   // so the fix is in `bake_terrain.py` and not here.  A reference with the
   // grass in it would be a promise that the grass is right.
-  ['inn', -9464.3, 24.2, 1.4, 'the inn at Goldshire from inside, among its tables',
+  ['inn', -9464.3, 24.2, 1.4, 'the inn at Goldshire from inside, with nothing standing in it but its people',
     'inside', [-9463, 16]],
   ['nave', -8915.5, -209.4, 2, 'Northshire abbey from inside, in the nave',
     'inside', [-8904, -185]],

@@ -2173,21 +2173,23 @@ def read_tile(client, tx, ty):
             # exactly which building each piece came out of; it was throwing
             # the answer away and making the scene guess it back.
             house += 1
-            # What is standing inside it.  These are the building's own
-            # doodads, in the building's own space, so they turn with it.
+            # What is standing inside it — read, and **not shipped**, by the
+            # owner's decision on 2026-09-15: a building holds its people and
+            # nothing else.  `doors` is `None` on these, which is what the
+            # tile loop below reads to keep them out of `doodads` and
+            # `variety`.  They are still read because what a place *is* counts
+            # them: `zone_kinds` says a building's contents are part of the
+            # place it stands in, and dropped from that too they took three
+            # farms to a town, a camp to a wood and the graves to a wood.
             for f_kind, lx, ly, lz, yaw, sc, f_path in \
                     wmo_furniture(client, name, dset):
                 if not f_kind:
                     skipped += 1
                     continue
                 fx, fy = to_world(pos, ry, lx, ly)
-                f_tall, f_wide = model_size(client, f_path)
-                placed.append((f_kind, fx, fy, pos[1] + lz,
-                               round((ry + 270 + yaw) % 360, 1), sc,
-                               0.0, 0.0, 0.0,
-                               zlib.crc32(f_path.upper().encode()) & 0xffff,
-                               round(f_tall * sc, 2), round(f_wide * sc, 2),
-                               [], 0, 0.0, f_in, house, []))
+                placed.append((f_kind, fx, fy, pos[1] + lz, 0.0, sc,
+                               0.0, 0.0, 0.0, 0, 0.0, 0.0,
+                               [], 0, 0.0, f_in, house, None))
             # An opaque number for "the same model", so an instance that could
             # not be solved can borrow from one that could.  A number and not
             # the path: nothing from a client's file table is allowed out of
@@ -2230,6 +2232,9 @@ def bake(client, bounds, out, acore=None):
     solid_seen = set()
     shapes = {}
     variety = {}
+    # What stands inside the buildings, which the place is judged by and the
+    # scene is not given — see the furniture read in the building loop.
+    contents = []
     closed = []
     seams = []
     gaps = []
@@ -2299,6 +2304,10 @@ def bake(client, bounds, out, acore=None):
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
                     tall, wide, rooms, plan, mr, inside, house, doors in dd:
                 if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
+                    continue
+                # A building's own contents: counted for the place, not shipped.
+                if doors is None:
+                    contents.append([kind, wx, wy, wz])
                     continue
                 # A building that straddles a tile border is listed by both
                 # tiles, so Elwynn's wide bridge arrived twice and every hit
@@ -2441,7 +2450,7 @@ def bake(client, bounds, out, acore=None):
         if 0 <= i < w and 0 <= j < h and grid[i * h + j] is not None:
             return grid[i * h + j]
         return -1e9
-    area_kind = zone_kinds(areamask, area_ids, wetmask, doodads,
+    area_kind = zone_kinds(areamask, area_ids, wetmask, doodads + contents,
                            cw, ch, w, h, ORIGIN - i_lo * UNIT,
                            ORIGIN - j_lo * UNIT, UNIT, ground_at)
 

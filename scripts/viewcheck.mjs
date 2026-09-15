@@ -201,13 +201,11 @@ const THIN_OK = {
   post: 'a post is a post',
   hay: 'the farm sheet drew one haystack',
   grave: 'two headstones on the sheet, and the rest of its graves are in MISSING:',
-  cart: 'three carts on the sheet',
-  bed: 'no bed is cut: what stands in for one is sacking, and the beds on the interior sheet are four-posters for a hall',
+  // `cart`, `bed`, `cabinet`, `lamp`, `barrel` and `prop` were short too, and
+  // are not now: most of their models were the furniture inside buildings,
+  // which is not shipped since 2026-09-15, and the pictures reach half of what
+  // is left.
   bones: 'one skull and two kinds of rubble',
-  cabinet: 'five of the interior sheet, which is what it has that is not a wall fitting',
-  lamp: 'four lamps and two lanterns, which is the whole of that sheet',
-  barrel: 'seven, counting the stacks',
-  prop: 'a catch-all for 49 models of yard furniture: 24 pictures over a word that means anything',
   // Buildings are their own problem and their own issues: the scene stamps
   // them on the ground grid, and issues 216-218 are about drawing one as a
   // picture instead.
@@ -408,8 +406,25 @@ check('a building has walls you cannot pass', walls.shut > 0 && walls.wall > 0,
   `${walls.wall.toLocaleString()} square yards of stone, ${walls.shut.toLocaleString()} of it refuses a step`)
 check('and a floor you can stand on inside them', walls.floor > 0 && walls.open > 0,
   `${walls.floor.toLocaleString()} square yards of floor, ${walls.open.toLocaleString()} of it lets you in`)
-check('and what it holds is drawn indoors', walls.indoors > 0,
-  `${walls.indoors.toLocaleString()} pieces stand under somebody's roof`)
+// **And nothing stands inside it but its people**, by the owner's decision on
+// 2026-09-15.  This line said the opposite — *what it holds is drawn
+// indoors*, 2,231 pieces under somebody's roof — and the building's own
+// doodads, the terrain's pieces that land under a roof and the world's objects
+// standing inside all go.  What may still be inside is what is not
+// furniture: what grows in a courtyard, a fence that is a wall, and an object
+// with a use.
+{
+  const left = await p.evaluate(() => window.__left())
+  const STAYS = new Set(['tree', 'bush', 'grass', 'flower', 'water_plant', 'rock',
+    'crop', 'mushroom', 'fence', 'post'])
+  const stray = Object.entries(left.inside).filter(([k]) => !STAYS.has(k))
+  check('and nothing but its people stands inside a building',
+    stray.length === 0 && left.furniture > 0,
+    `${left.furniture.toLocaleString()} pieces left out; `
+    + `${stray.length ? 'still inside: ' + stray.map(([k, n]) => `${k} ${n}`).join(', ')
+      : 'inside now: ' + Object.entries(left.inside).map(([k, n]) => `${k} ${n}`).join(', ')}`
+    + `, and ${left.useful} objects with a use`)
+}
 const inwall = await p.evaluate(() => {
   const all = window.__all()
   return { n: all.length, stuck: all.filter((x) => window.__wallAt(x.x, x.y)).length,
@@ -1945,27 +1960,9 @@ check('and there is a way back out of it',
   swum.out.depth === 0 && !swum.out.swimming,
   `back on dry ground at ${swum.out.x.toFixed(0)}, ${swum.out.y.toFixed(0)}`)
 
-// 10e. A building's furniture belongs to the building.
-//
-// `npm run audit` counted 3,759 things standing inside the slice's buildings
-// and two thirds of them took the skip default, so the roof came off the
-// abbey and what was under it was a tiled floor with nothing on it.  Mapping
-// them is the easy half.  The hard half is that a building's contents are
-// only hidden from outside when the scene knows whose they are — and it used
-// to work that out by asking whether a piece stood inside the footprint,
-// which a shelf *against a wall* fails, because the wall is the edge of the
-// mask.  With a hundred and fifty pieces that was a curiosity.  With three
-// thousand it put bookcases in the road.
-const rooms = await p.evaluate(() => window.__scenery())
-const INDOORS = ['shelf', 'cabinet', 'keg', 'bed', 'crockery']
-const homeless = INDOORS.map((k) => [k, (rooms[k] ?? [0, 0])[0] - (rooms[k] ?? [0, 0])[1]])
-  .filter(([, n]) => n > 0)
-const loose = homeless.reduce((a, [, n]) => a + n, 0)
-const furniture = INDOORS.reduce((a, k) => a + (rooms[k] ?? [0, 0])[0], 0)
-check('a building\'s furniture knows which building it is in',
-  loose < furniture * 0.1,
-  `${loose} of ${furniture} do not: ${homeless.map(([k, n]) => `${k} ${n}`).join(', ')}`)
-console.log(`      (${furniture} pieces of furniture, ${loose} of them loose)`)
+// 10e. A building's furniture belonged to the building — until there was
+// none.  Every piece inside came out by the owner's decision on 2026-09-15; see
+// "and nothing but its people stands inside a building" above.
 
 // 10f. The forest has waterfalls, and after dark it has fireflies.
 //
@@ -4103,16 +4100,10 @@ for (const still of [false, true]) {
     console.log(`      (${h.k}: `
       + rows.map((r) => `${r.storey}:${r.props}+${r.folk}`).join(' ') + ')')
   }
-  check('a building with an upstairs has something on every floor of it',
-    seen.length > 0 && seen.every((b) => b.rows.every((r) => r.props > 0)),
-    seen.map((b) => `${b.k} ${b.rows.map((r) => r.props).join('/')}`).join('; '))
-  // **The lists differ**, which is the thing that was not true.  By content
-  // and not by count: two floors of a barracks could hold the same number of
-  // barrels and be different barrels.
-  check('and changing floor changes what is drawn',
-    seen.every((b) => new Set(b.rows.map((r) => r.key)).size === b.rows.length),
-    seen.map((b) => `${b.k}: ${new Set(b.rows.map((r) => r.key)).size} distinct `
-      + `of ${b.rows.length}`).join('; '))
+  // *Something on every floor* and *changing floor changes what is drawn*
+  // were checks about the furniture, and there is none by the owner's
+  // decision on 2026-09-15 — `docs/promised-checks.md` says both promises were
+  // withdrawn.  What the filter promises is still true of the people.
   check('and everything drawn on a floor belongs to that floor',
     seen.every((b) => b.rows.every((r) => r.off === 0)),
     seen.flatMap((b) => b.rows.filter((r) => r.off)
