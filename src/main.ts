@@ -46,8 +46,7 @@ import type { ProjectileKind } from './render/bolt.ts'
 import { hud as makeHud, type BookRow, type Layout, type ShopRow, type Slot, type Worn } from './hud.ts'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
-  short, take, walked, wants, type Errand,
-} from './sim/quest.ts'
+  short, take, walked, wants, type Errand, abandon } from './sim/quest.ts'
 import {
   mitigate, noticeAt, rageFrom, seenYards, swing, xpFor, E_DAMAGE, E_TRIGGER, E_ATTACK_ME,
   A_THREAT_PCT, A_DAMAGE_PCT_DONE, A_DAMAGE_PCT_TAKEN, A_BASE_RESISTANCE_PCT,
@@ -5044,7 +5043,19 @@ async function main() {
       })
       if (!lines.length) lines.push(['전하는 말을 가져가기', false])
       return { lines, done: errandDone(log, h) }
-    }))
+    }), (i) => {
+      // The tracker is this game's quest log, so the log's abandon button
+      // lives on it — `QuestLogFrameAbandonButton`, behind the original's
+      // yes-or-no.  What goes is the record and the counts on it; the giver
+      // has it on offer again from nought the next time he is spoken to.
+      const h = log.held[i]
+      if (!h) return
+      const q = log.all.get(h.id)
+      abandon(log, h)
+      const name = q ? (told(q.id, 'title')[0] || errand(shapeOf(q)).join(', ')) : String(h.id)
+      ui.log(`포기 — ${name}`, 'note')
+      showErrands()
+    })
   }
 
   /**
@@ -6655,7 +6666,9 @@ async function main() {
     if (k === 'escape') endTalk()
     else if (chat && k >= '1' && k <= '9') {
       const i = Number(k) - 1
-      if (i < chat.speech.options.length) choose(i)
+      const open = chat.open >= 0 ? chat.speech.options[chat.open] : undefined
+      if (open?.ask?.length) { if (i < open.ask.length) answer(chat.open, i) }
+      else if (i < chat.speech.options.length) choose(i)
     }
   })
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
@@ -7687,6 +7700,28 @@ async function main() {
     }
     drawTalk()
   }
+  /**
+   * Answer the row that is open — one of its `ask`.
+   *
+   * An answer that says something (accepting) is kept under the row and the
+   * question is over; one that says nothing (declining) folds the row and
+   * leaves the question where it was, so the errand is still there to be
+   * read and taken next time, which is what the original's decline does.
+   */
+  function answer(i: number, j: number) {
+    if (!chat || chat.open !== i) return
+    const o = chat.speech.options[i]
+    const a = o?.ask?.[j]
+    if (!o || !a) return
+    const said = a.act ? a.act() : []
+    if (said.length) {
+      o.lines = [...o.lines, ...said]
+      delete o.ask
+    } else {
+      chat.open = -1
+    }
+    drawTalk()
+  }
 
   function drawTalk() {
     if (!chat) { talkEl.hidden = true; talkEl.textContent = ''; ui.seat(); return }
@@ -7730,6 +7765,21 @@ async function main() {
           d.textContent = o.lines.join('\n')
           d.style.whiteSpace = 'pre-line'
           ol.appendChild(d)
+          // The answers, numbered from one again: while a row is open its
+          // digits are its answers', so `1` takes and `2` declines.
+          if (o.ask?.length) {
+            const ask = document.createElement('ol')
+            ask.className = 'ask'
+            o.ask.forEach((a, j) => {
+              const row = document.createElement('li')
+              const k = document.createElement('b')
+              k.textContent = String(j + 1)
+              row.append(k, a.label)
+              row.onclick = (ev) => { ev.stopPropagation(); answer(i, j) }
+              ask.appendChild(row)
+            })
+            ol.appendChild(ask)
+          }
         }
       })
       talkEl.appendChild(ol)
@@ -8655,12 +8705,20 @@ async function main() {
           // reward pane, and a reward you are not told about is not one you
           // can choose on.
           `사례: ${payFor(q.xp, q.coin)}${repLine(q.rep)}`],
-        act: () => {
-          take(log, q)
-          ui.log(`맡음 — ${name || errand(shapeOf(q)).join(', ')}`, 'note')
-          showErrands()
-          return ['맡았습니다.']
-        },
+        // **Hearing it out is not taking it.**  Opening this row used to be
+        // the taking, so an errand could not be read and turned down; the
+        // original ends the detail in accept and decline, and so does this.
+        // Declining leaves it on offer, as the original does — the button
+        // shuts the window and tells the server nothing.
+        ask: [{
+          label: '맡는다', lines: [],
+          act: () => {
+            take(log, q)
+            ui.log(`맡음 — ${name || errand(shapeOf(q)).join(', ')}`, 'note')
+            showErrands()
+            return ['맡았습니다.']
+          },
+        }, { label: '사양한다', lines: [] }],
       })
     }
     // A shopkeeper buys as well as sells, and what you have to sell is not

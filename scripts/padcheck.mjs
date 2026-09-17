@@ -1408,6 +1408,58 @@ for (const [w, h] of [[390, 844], [844, 390], [MIN_SCREEN.width, MIN_SCREEN.heig
 }
 await p.setViewportSize({ width: 390, height: 844 })
 
+// 12b. An errand taken and given up, with a finger.
+//
+// The offer opens to accept and decline — the original's two buttons at the
+// foot of the quest detail — and the tracker carries the quest log's give-up
+// behind a yes-or-no.  All four are pressed with real touch input and each
+// is held to a thumb: forty-four, the floor the screen that makes a
+// character keeps, because a button a thumb cannot land on is a button a
+// phone has not got.
+{
+  const willem = await p.evaluate(() => window.__goto(823))
+  await p.waitForTimeout(300)
+  const before = await p.evaluate(() => window.__quests().held.length)
+  await tapWorld(willem.x, willem.y)
+  const row = await p.locator('#talk li').first().boundingBox()
+  await touch('touchStart', [[row.x + row.width / 2, row.y + row.height / 2]])
+  await touch('touchEnd', [])
+  await p.waitForTimeout(250)
+  const yes = await p.locator('#talk .ask li').first().boundingBox()
+  check('an offer opens to accept and decline, each a thumb high',
+    !!yes && yes.height >= 44 && (await p.locator('#talk .ask li').count()) === 2,
+    JSON.stringify(yes))
+  if (yes) {
+    await touch('touchStart', [[yes.x + yes.width / 2, yes.y + yes.height / 2]])
+    await touch('touchEnd', [])
+    await p.waitForTimeout(250)
+  }
+  const taken = await p.evaluate(() => window.__quests().held.length)
+  check('and a finger takes it', taken === before + 1, `${before} -> ${taken}`)
+  // The tracker is reached with the conversation still open — it is not
+  // under the panel, which the check that no two panels share a place holds.
+  // A tap "beside the panel" to shut it first landed on this very button,
+  // which is the point of the button being the one thing there a tap reaches.
+  const drop = await p.locator('#track .job .drop').first().boundingBox({ timeout: 3000 })
+  check('the tracker\'s give-up button is a thumb wide and high',
+    !!drop && drop.width >= 44 && drop.height >= 44, JSON.stringify(drop))
+  if (drop) {
+    await touch('touchStart', [[drop.x + drop.width / 2, drop.y + drop.height / 2]])
+    await touch('touchEnd', [])
+    await p.waitForTimeout(250)
+  }
+  const really = await p.locator('#track .job .really').first().boundingBox()
+  check('and so is the yes behind it',
+    !!really && really.width >= 44 && really.height >= 44, JSON.stringify(really))
+  if (really) {
+    await touch('touchStart', [[really.x + really.width / 2, really.y + really.height / 2]])
+    await touch('touchEnd', [])
+    await p.waitForTimeout(250)
+  }
+  const left = await p.evaluate(() => window.__quests().held.length)
+  check('and a finger gives it up', left === before, `${taken} -> ${left}`)
+}
+
 // 13. A keyboard puts it all away again.
 await p.setViewportSize({ width: 390, height: 844 })
 await p.keyboard.press('w')

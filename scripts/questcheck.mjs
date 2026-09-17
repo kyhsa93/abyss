@@ -65,9 +65,13 @@ const takeQuest = async (id) => {
   const list = (await state()).offering
   const at = list.indexOf(id)
   if (at < 0) return false
+  // Its number opens it — reading is not taking any more — and `1` under an
+  // open row is the original's accept button.
   await answer(at + 1)
+  await answer(1)
   return true
 }
+const asking = () => p.evaluate(() => document.querySelectorAll('#talk .ask li').length)
 
 const start = await state()
 // Against the file rather than against a number typed here.  This said
@@ -85,6 +89,21 @@ check('and somebody is marked as having work', start.marks.length > 0,
 await talkTo(WILLEM)
 const first = await labels()
 check('the first of the chain is on offer', first.length > 0, first.join(' | '))
+// **Hearing it out is not taking it.**  For a year opening the offer was the
+// taking, so an errand could not be read and turned down.  The original's
+// detail ends in accept and decline; opening the row now shows the two, and
+// decline folds the row and leaves the errand on offer, which is what the
+// original's button does — it shuts the window and tells the server nothing.
+await answer(1)
+check('opening the offer shows accept and decline and takes nothing',
+  (await asking()) === 2 && !(await state()).held.some((h) => h.id === CARRY),
+  `${await asking()} answers`)
+await answer(2)
+check('declining folds it and leaves it on offer',
+  (await asking()) === 0 && !(await state()).held.some((h) => h.id === CARRY)
+  && (await state()).offering.includes(CARRY),
+  JSON.stringify((await state()).offering))
+await answer(1)
 await answer(1)
 check('taking it puts it in the book',
   (await state()).held.some((h) => h.id === CARRY))
@@ -113,6 +132,36 @@ await p.evaluate((e) => window.__slay(e), WORKER)
 const wrong = (await state()).held.find((h) => h.id === CAMP)
 check('a different creature of the same kind does not count', wrong?.short === 8,
   `${wrong?.short} left after killing a worker instead of a vermin`)
+
+// **Giving one up.**  Two of the eight, then the tracker's own button — the
+// quest log's abandon behind the original's yes-or-no — pressed through the
+// pointer, because a click from script passes whether or not a finger could.
+// `Player::AbandonQuest` destroys what the errand had you carrying and the
+// status goes with it, so the giver has it on offer again from nought.
+for (let i = 0; i < 2; i++) await p.evaluate((e) => window.__slay(e), VERMIN)
+await p.waitForTimeout(200)
+check('two kills are counted before it is given up',
+  (await state()).held.find((h) => h.id === CAMP)?.short === 6,
+  JSON.stringify((await state()).held))
+await p.keyboard.press('Escape')
+await p.locator('#track .job .drop').first().click()
+await p.locator('#track .job .no').click()
+check('no is no', (await state()).held.some((h) => h.id === CAMP)
+  && (await p.locator('#track .job .drop').count()) > 0)
+await p.locator('#track .job .drop').first().click()
+await p.locator('#track .job .really').click()
+await p.waitForTimeout(150)
+check('giving it up takes it out of the book, its count with it',
+  !(await state()).held.some((h) => h.id === CAMP)
+  && /포기/.test(await p.evaluate(() => document.getElementById('log')?.innerText ?? '')),
+  JSON.stringify((await state()).held))
+await talkTo(MCBRIDE)
+check('and he has it on offer again', (await state()).offering.includes(CAMP),
+  JSON.stringify((await state()).offering))
+await takeQuest(CAMP)
+check('and it starts again from nought',
+  (await state()).held.find((h) => h.id === CAMP)?.short === 8,
+  JSON.stringify((await state()).held))
 for (let i = 0; i < 8; i++) await p.evaluate((e) => window.__slay(e), VERMIN)
 await p.waitForTimeout(200)
 const full = (await state()).held.find((h) => h.id === CAMP)

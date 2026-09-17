@@ -1883,6 +1883,31 @@ carry one: all three of Northshire's kobolds are `kobold` and the chain wants
 eight of each in turn. `npm run questcheck` walks that chain end to end against
 the table's own numbers.
 
+**An errand is heard out, then taken or turned down, and a held one can be
+given up.** For a year opening an offer in the conversation *was* the taking,
+so a job could not be read and refused, and nothing anywhere let go of one
+already held. The original's quest detail ends in two buttons — accept on
+the left, decline on the right (`QuestFrameAcceptButton` 77 by 22 and
+`QuestFrameDeclineButton` 78 by 22, at the bottom corners of `QuestFrame`)
+— and its log has `QuestLogFrameAbandonButton` behind a yes-or-no
+(`ABANDON_QUEST` in `StaticPopup.lua`). So a conversation row may carry
+`ask`, the answers it puts under itself while it is open, and an offer's are
+맡는다 and 사양한다: while a row is open its digits are its answers', `1`
+takes and `2` declines, and declining folds the row and leaves the errand on
+offer, which is what the original's button does — it shuts the window and
+tells the server nothing. The tracker is this game's quest log, so giving up
+lives on it: a 포기 button a job, then 정말 포기? with 예 on the left and
+아니오 on the right, the one thing on that panel a pointer reaches — the
+panel is words read through, and a tap beside the button lands on the world.
+What `abandon` in `sim/quest.ts` does is `Player::AbandonQuest`
+(PlayerQuest.cpp:971) and `RemoveActiveQuest` (:1569) at once: the record
+goes and the counts on it, because here a fetch is a tally on the held
+record and not a thing in the bag, and the giver has it on offer again from
+nought. `questcheck` reads the offer, declines, takes, gives up two kills in,
+presses 아니오 and 예 through the pointer, and takes it again empty;
+`padcheck` does the taking and the giving up with a finger and holds both
+buttons to a thumb.
+
 **A constant in this repository is a bug that has not been found yet.** Every
 one of these was a number chosen here, and every one of them is a column
 somebody else already filled in:

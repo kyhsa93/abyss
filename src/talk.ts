@@ -127,6 +127,18 @@ export type Option = {
   /** And the quality, as a colour — see `QUALITY` in `sim/gear.ts`. */
   tint?: string
   /**
+   * What a row asks once it is open: the answers, each an option of its own.
+   *
+   * The original's quest detail ends in two buttons, accept on the left and
+   * decline on the right — `QuestFrameAcceptButton` and
+   * `QuestFrameDeclineButton`, 77 and 78 by 22 at the bottom corners of
+   * `QuestFrame` — and reading the errand is what happens *before* either.
+   * A row that carries these runs no `act` of its own, because opening it is
+   * reading, and reading is not taking: for a year the offer was taken the
+   * moment it was opened, so there was no way to hear a job out and say no.
+   */
+  ask?: Option[]
+  /**
    * An option that *does* something, rather than one that says something.
    *
    * Called once, the first time it is opened, and what it returns becomes its

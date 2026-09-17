@@ -216,6 +216,23 @@ export function take(b: Book, q: Errand): Held {
 }
 
 /**
+ * Give one up.
+ *
+ * `Player::AbandonQuest` (PlayerQuest.cpp:971) destroys what the errand had
+ * you carrying — the quest-bound things it asked for and the ones it handed
+ * you at the start — and the handler then erases the quest's status
+ * (`RemoveActiveQuest`, :1569), so it is neither held nor done and its giver
+ * offers it again from nought.  Here the carrying *is* the count on the held
+ * record — a fetch is a tally and not a thing in the bag — so dropping the
+ * record is the destroying.  Nothing else has to move: an exclusive sibling
+ * is unshut because `shut` reads `held`, and a signpost comes back because
+ * `spent` does, the moment this one is gone.
+ */
+export function abandon(b: Book, h: Held): void {
+  b.held = b.held.filter((x) => x !== h)
+}
+
+/**
  * Credit a kill against everything held, and say what moved.
  *
  * Both halves at once, because one dead kobold can be both: the quest that

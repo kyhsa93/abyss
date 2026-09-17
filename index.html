@@ -243,6 +243,24 @@
       #track .job.done .line { color: #8fd08a; }
       #track .line::before { content: '· '; color: #6f8ea6; }
       #track .line.got { color: #8fd08a; }
+      /* Giving up: the one thing on the tracker a pointer reaches.  The panel
+         is `pointer-events: none` so a press beside the words lands on the
+         world; the button says otherwise for itself alone.  Small type is
+         the panel's, never under the floor a Hangul glyph reads at. */
+      #track .foot, #track .confirm {
+        display: flex; justify-content: flex-end; align-items: center; gap: 6px;
+        margin-top: 1px;
+      }
+      #track .confirm .ask { color: #e8e4d8; font: var(--font-small)/1.4 var(--body); }
+      #track button {
+        pointer-events: auto; cursor: pointer;
+        font: var(--font-small)/1.4 var(--mono); color: #9aa6ae;
+        background: rgba(0,0,0,.35); border: 1px solid #4a4433; border-radius: 3px;
+        padding: 0 7px; height: 20px;
+      }
+      #track button:hover { color: #e8e4d8; border-color: var(--gold-dark); }
+      #track button.really { color: #e08a7a; }
+      #track button.really:hover { color: #ffb0a0; }
 
       #ui .auras { display: flex; gap: 3px; margin: 4px 0 0; }
       #ui .auras .aura {
@@ -937,6 +955,10 @@
       }
       #bag li .pic, #sheet .pic { margin-right: 8px; }
       #talk .lines { color: #e8e4d8; padding: 2px 0 6px 26px; }
+      /* The answers under an open row — accept then decline, the way the
+         original's quest detail ends. */
+      #talk .ask { display: flex; gap: 22px; margin: 0 0 6px 26px; padding: 0; list-style: none; }
+      #talk .ask li { padding: 2px 0; }
       #talk .foot { margin-top: 8px; color: #6b6658; font: var(--font-tiny)/1.5 var(--mono); }
 
       /*
@@ -1013,6 +1035,9 @@
       body.touch #map .where, body.touch #map .clock { margin: 0; }
       body.touch #log { font-size: var(--font-tiny); }
       body.touch #track { font-size: var(--font-tiny); }
+      /* A thumb's floor, the same forty-four the screen that makes a
+         character keeps. */
+      body.touch #track button { min-height: 44px; min-width: 44px; padding: 0 12px; }
       body.touch #tip { display: none; }
       body.touch .frame { grid-template-columns: 30px 1fr; padding: 4px; }
       body.touch .frame .face { width: 30px; height: 30px; }
@@ -1062,6 +1087,7 @@
       body.touch #talk li { padding: 11px 0; }
       body.touch #talk li b { font-size: var(--font-med); }
       body.touch #talk .lines { padding: 0 0 10px 26px; }
+      body.touch #talk .ask li { padding: 11px 0; min-width: 44px; }
     </style>
     <!-- Installable, because closing the tab is how a session ends here: the
          save lives in IndexedDB and the world is a file, so there is nothing

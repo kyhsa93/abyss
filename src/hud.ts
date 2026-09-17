@@ -577,6 +577,8 @@ export function hud(layout?: Layout) {
   const track = el('div', '', ui)
   track.id = 'track'
   track.hidden = true
+  /** Which job on the tracker is being asked *really?* about, or -1. */
+  let asked = -1
 
   // One tooltip, moved about.  Two would be two things to keep in step.
   const tip = el('div', '', ui)
@@ -1254,19 +1256,47 @@ export function hud(layout?: Layout) {
      * No ids and no prose — `talk.ts` has already turned the shape into
      * sentences and this only lays them out.
      */
-    setErrands(jobs: { lines: [string, boolean][]; done: boolean }[]) {
+    setErrands(jobs: { lines: [string, boolean][]; done: boolean }[],
+      drop?: (i: number) => void) {
       track.hidden = jobs.length === 0
       const want = JSON.stringify(jobs)
       if (track.dataset['now'] === want) return
       track.dataset['now'] = want
-      track.textContent = ''
-      el('div', 'title', track).textContent = '할 일'
-      for (const j of jobs) {
-        const box = el('div', j.done ? 'job done' : 'job', track)
-        for (const [text, got] of j.lines) {
-          el('div', got ? 'line got' : 'line', box).textContent = text
-        }
+      // A different list is a different question; whichever job was being
+      // asked about is not the same row any more.
+      if (asked >= jobs.length) asked = -1
+      const paint = () => {
+        track.textContent = ''
+        el('div', 'title', track).textContent = '할 일'
+        jobs.forEach((j, i) => {
+          const box = el('div', j.done ? 'job done' : 'job', track)
+          for (const [text, got] of j.lines) {
+            el('div', got ? 'line got' : 'line', box).textContent = text
+          }
+          if (!drop) return
+          // Giving up is a button and then a question, which is the original's
+          // shape: `QuestLogFrameAbandonButton` opens `ABANDON_QUEST`, yes on
+          // the left and no on the right, and Escape is no.  The button is the
+          // one thing on this panel a pointer reaches — the panel is words
+          // read through — and a tap that lands beside it lands on the world.
+          if (asked === i) {
+            const ask = el('div', 'confirm', box)
+            el('span', 'ask', ask).textContent = '정말 포기?'
+            const yes = el('button', 'really', ask) as HTMLButtonElement
+            yes.textContent = '예'
+            yes.onclick = () => { asked = -1; drop(i) }
+            const no = el('button', 'no', ask) as HTMLButtonElement
+            no.textContent = '아니오'
+            no.onclick = () => { asked = -1; paint() }
+          } else {
+            const foot = el('div', 'foot', box)
+            const b = el('button', 'drop', foot) as HTMLButtonElement
+            b.textContent = '포기'
+            b.onclick = () => { asked = i; paint() }
+          }
+        })
       }
+      paint()
     },
 
     /** The tooltip, at a point on the screen, or nothing. */
