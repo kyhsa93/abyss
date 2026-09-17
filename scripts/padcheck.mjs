@@ -1421,11 +1421,21 @@ await p.setViewportSize({ width: 390, height: 844 })
   await p.waitForTimeout(300)
   const before = await p.evaluate(() => window.__quests().held.length)
   await tapWorld(willem.x, willem.y)
-  const row = await p.locator('#talk li').first().boundingBox()
+  // The panel scrolls — `max-height: min(58vh, 420px)` — so a row can stand
+  // below its visible edge, and a bounding box says where the row is, not
+  // whether the glass shows it.  On the CI runner, whose fonts are not this
+  // desk's, the answers sat under the fold: the tap landed beside the panel,
+  // which is how you leave a conversation, and nothing was taken.  A thumb
+  // scrolls to what it wants to press, so this does too.
+  const offer = p.locator('#talk li').first()
+  await offer.scrollIntoViewIfNeeded()
+  const row = await offer.boundingBox()
   await touch('touchStart', [[row.x + row.width / 2, row.y + row.height / 2]])
   await touch('touchEnd', [])
   await p.waitForTimeout(250)
-  const yes = await p.locator('#talk .ask li').first().boundingBox()
+  const take = p.locator('#talk .ask li').first()
+  await take.scrollIntoViewIfNeeded().catch(() => null)
+  const yes = await take.boundingBox()
   check('an offer opens to accept and decline, each a thumb high',
     !!yes && yes.height >= 44 && (await p.locator('#talk .ask li').count()) === 2,
     JSON.stringify(yes))
