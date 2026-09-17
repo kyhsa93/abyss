@@ -4561,7 +4561,39 @@ if (refused) {
     offFaces.length ? offFaces.map((r) => `${r.at}: ${r.wallsLaid} walls laid for ${r.faces.segs} lines`).join('; ')
       : `${drawn.length} storeys drawn from ${drawn.reduce((n, r) => n + r.faces.segs, 0)} wall lines `
         + `and ${drawn.reduce((n, r) => n + r.faces.tris, 0)} floor triangles`)
-  const laidOn = rooms.filter((r) => r.laidOn > 0)
+  // **Every point the picture paints as floor can be stood on** (issue 255).
+  // The room is drawn from its faces and a step was still held to the grid
+  // the faces were rasterised on, so a cell the coarse mask called stone with
+  // no wall drawn on it was an invisible obstacle on ground the eye reads as
+  // floor.  On every storey of every building that ships faces, the floor
+  // triangles are sampled and each point asked of the step rule; none may be
+  // refused.
+  const reach = await p.evaluate(async () => {
+    const frames = (n) => new Promise((d) => { const t = () => (n-- <= 0 ? d() : requestAnimationFrame(t)); requestAnimationFrame(t) })
+    const out = []
+    const all = window.__buildings()
+    for (let i = 0; i < all.length; i++) {
+      if (all[i].k === 'mine' || !all[i].doors?.length) continue
+      window.__put(window.__start().x, window.__start().y)
+      const got = window.__enterOne(i)
+      if (!got) continue
+      for (let s = -1; s < (got.floors ?? 0); s++) {
+        window.__floor(s)
+        await frames(2)
+        const r = window.__floorStand()
+        if (r && r.asked > 0) out.push({ at: `${all[i].k} ${i} storey ${s}`, ...r })
+      }
+      window.__floor(-1)
+    }
+    window.__put(window.__start().x, window.__start().y)
+    return out
+  })
+  const blocked = reach.filter((r) => r.stuck > 0)
+  check('every point the picture paints as floor can be stood on',
+    reach.length > 0 && blocked.length === 0,
+    blocked.length ? blocked.map((r) => `${r.at}: ${r.stuck}/${r.asked} refused at ${r.bad.map((c) => c.join(',')).join(' ')}`).slice(0, 4).join('; ')
+      : `${reach.reduce((n, r) => n + r.asked, 0)} floor points over ${reach.length} storeys, all reachable`)
+    const laidOn = rooms.filter((r) => r.laidOn > 0)
   check('and nothing is laid on a floor but its tone',
     rooms.length > 0 && laidOn.length === 0,
     laidOn.length ? laidOn.map((r) => `${r.at}: ${r.laidOn} pictures`).join('; ')
@@ -4607,14 +4639,25 @@ if (refused) {
   await settle()
   // (a) **A wall is a straight line on the glass.**  The room was laid one
   // plan cell to one tile of the world, so every wall of a turned building was
-  // a staircase — a step a tile, 27 pixels at the zoom a room opens on — and
-  // no check could see it, because every tile was in the right place.  This
-  // reads the glass across the longest straight run of the outline where the
-  // wall meets the outside, at sixty points along it, takes where the
-  // brightness changes fastest within twelve pixels of the line, and fits a
-  // line to those: nine in ten must be within two pixels of it.  A side with no
-  // stroke on it, on purpose — the edge lines are vector paths and would come
-  // out straight over a staircase of a picture.
+  // a staircase — a step a tile — and no check could see it, because every
+  // tile was in the right place.  This reads the glass across the longest wall
+  // of the storey at sixty points and fits a line to where the wall is on
+  // each.
+  //
+  // **Where the wall is is its darkest ridge, not its fastest edge.**  It read
+  // the fastest brightness change either side of the line, which was right
+  // while a wall was the boundary between a light floor and a dark cell of
+  // wall tone.  Since the wall is drawn from the model's own line as a dark
+  // band with a light casing (issues 254, 255) and the floor beside it is
+  // shaded towards the wall (its lee), there are two brightness ramps within
+  // twelve pixels — the casing's and the lee's — and which is fastest flips
+  // point to point, a two-pixel wobble on a wall that is dead straight.  The
+  // band itself is the one unambiguous mark: the darkest point along the
+  // normal, which the lee (always lighter than the band) cannot move.  So
+  // that is read, within six pixels of the line — a wall this thick is two
+  // parallel bands, its own faces, a cell apart, and a wider search jumps
+  // between them — and only where a band is actually there, a normal whose
+  // darkest point is clearly below the lightest floor it crosses.
   const wall = await p.evaluate(async () => {
     const w0 = window.__roomWall()
     if (!w0) return null
@@ -4637,14 +4680,17 @@ if (refused) {
       const s = 0.05 + (0.9 * k) / 60
       const x = w.from.x + dx * s, y = w.from.y + dy * s
       if (x < 24 || y < 24 || x > c.width - 24 || y > c.height - 24) continue
-      let best = 0, at = 0
+      let dark = Infinity, at = 0, light = 0, seen = 0
       for (let t = -12; t <= 12; t += 0.5) {
-        const u = lum(x + nx * (t - 1), y + ny * (t - 1))
-        const v = lum(x + nx * (t + 1), y + ny * (t + 1))
-        if (u === null || v === null) continue
-        if (Math.abs(v - u) > best) { best = Math.abs(v - u); at = t }
+        const l = lum(x + nx * t, y + ny * t)
+        if (l === null) continue
+        seen++
+        if (l > light) light = l
+        if (Math.abs(t) <= 6 && l < dark) { dark = l; at = t }
       }
-      if (best >= 8) found.push([s * len, at])
+      // A band is there when its darkest point is clearly below the lightest
+      // floor the normal crosses — otherwise the normal is all floor and lee.
+      if (seen > 20 && light - dark >= 12) found.push([s * len, at])
     }
     return { found, len, cells: w.cells, turn: w.turn }
   })

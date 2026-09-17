@@ -2800,6 +2800,21 @@ async function main() {
     const under = planUnder()
     const climbable = bitAt(p.steps, n)
       || (!!under && bitAt(under.steps, planCell(under, indoors, wx, wy)))
+    // On a storey drawn from its faces the faces decide: standing room is
+    // a floor triangle underfoot and no wall line within its band.  The
+    // stairs keep their masks — the way down is the storey below's treads,
+    // which this storey's faces do not carry — and a door its doorstep.
+    // On a storey drawn from its faces (issue 255) a floor triangle underfoot
+    // is standing room even where the coarse mask called the cell stone — the
+    // invisible obstacles were mask-solid cells with no wall drawn on them —
+    // and the mask's own floor still counts, for the doorway thresholds and
+    // the seams between triangles that carry no face.  The union, because
+    // either is a real floor and a wall face lies on neither.
+    if (p.tris.length) {
+      const u = wx - indoors.x, v = -(wy - indoors.y)
+      const lx = u * p.sn + v * p.c, ly = u * p.c - v * p.sn
+      return openAt(p, lx, ly) || bitAt(p.floor, n) || climbable || atDoor(indoors, wx, wy)
+    }
     return bitAt(p.floor, n) || climbable || atDoor(indoors, wx, wy)
   }
   /**
@@ -10371,7 +10386,19 @@ async function main() {
     // Standing room only: a speck is stone and shades like the rest (issue 253).
     const stands = (i: number, j: number) => i >= 0 && j >= 0 && i < W && j < H && kind[i * H + j]! === 0
     let band = 0
-    for (let i = -1; i <= W; i++) {
+    // On a storey drawn from its faces the lee is the lines' (issue 255):
+    // every sample asks how far the nearest wall line is, so the shade
+    // follows the wall and not the grid it was rasterised on — the grid's
+    // stairs under a straight wall were the "tile-shaped walls" reported.
+    if (p.tris.length) {
+      for (let a = 0; a < sw; a++) {
+        for (let c = 0; c < sh; c++) {
+          const d = wallDistance(p, p.x0 + (a / SUB) * p.s, p.y0 + (c / SUB) * p.s, BODY_YARDS)
+          near[a * sh + c] = (d / p.s) * (d / p.s)
+        }
+      }
+      band = p.segs.length / 4
+    } else for (let i = -1; i <= W; i++) {
       for (let j = -1; j <= H; j++) {
         if (stands(i, j)) continue
         let edge = false
@@ -10413,7 +10440,19 @@ async function main() {
     }
     sg.putImageData(img, 0, 0)
     const clip = new Path2D()
-    for (let i = 0; i < W; i++) {
+    if (p.tris.length) {
+      const px = S / p.s
+      for (let t = 0; t + 5 < p.tris.length; t += 6) {
+        const ax = (p.tris[t]! / 10 - p.x0) * px, ay = (p.tris[t + 1]! / 10 - p.y0) * px
+        const bx = (p.tris[t + 2]! / 10 - p.x0) * px, by = (p.tris[t + 3]! / 10 - p.y0) * px
+        const cx = (p.tris[t + 4]! / 10 - p.x0) * px, cy = (p.tris[t + 5]! / 10 - p.y0) * px
+        const twice = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+        if (twice === 0) continue
+        clip.moveTo(ax, ay)
+        if (twice > 0) { clip.lineTo(bx, by); clip.lineTo(cx, cy) } else { clip.lineTo(cx, cy); clip.lineTo(bx, by) }
+        clip.closePath()
+      }
+    } else for (let i = 0; i < W; i++) {
       let from = -1
       for (let j = 0; j <= H; j++) {
         const on = j < H && stands(i, j)
@@ -11046,6 +11085,96 @@ async function main() {
   const cellsOf = (p: Plan, b: Built, wx: number, wy: number): [number, number] => {
     const u = wx - b.x, v = -(wy - b.y)
     return [(u * p.sn + v * p.c - p.x0) / p.s, (u * p.c - v * p.sn - p.y0) / p.s]
+  }
+  /**
+   * **A step indoors is held to the lines the room draws** (issue 255).
+   *
+   * The room is drawn from the model's own faces since issue 254, and a step
+   * went on being held to the 1.33-yard grid the faces were rasterised on —
+   * so a man walked into stone nobody had drawn and the wall's lee fell on
+   * the grid's stairs, which is what the report called invisible obstacles
+   * and tile-shaped walls.  On a storey that ships its faces the question is
+   * asked of the faces: he may stand where a floor triangle is under him and
+   * no wall line is within the band the scene draws it as, half a cell wide.
+   *
+   * The lines and triangles are filed by the cell they touch, once a storey,
+   * so a step asks a handful of them and not the abbey's thousand.  The grid
+   * is an index here and not the rule.
+   */
+  type Geo = { at: Map<number, { segs: number[]; tris: number[] }>; half: number }
+  const geos = new WeakMap<Plan, Geo>()
+  const geoOf = (p: Plan): Geo => {
+    const had = geos.get(p)
+    if (had) return had
+    const at = new Map<number, { segs: number[]; tris: number[] }>()
+    const half = p.s / 4
+    const file = (x0: number, y0: number, x1: number, y1: number, what: 'segs' | 'tris', k: number) => {
+      const i0 = Math.max(0, Math.floor((Math.min(x0, x1) - half - p.x0) / p.s))
+      const i1 = Math.min(p.w - 1, Math.floor((Math.max(x0, x1) + half - p.x0) / p.s))
+      const j0 = Math.max(0, Math.floor((Math.min(y0, y1) - half - p.y0) / p.s))
+      const j1 = Math.min(p.h - 1, Math.floor((Math.max(y0, y1) + half - p.y0) / p.s))
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const n = i * p.h + j
+        let got = at.get(n)
+        if (!got) { got = { segs: [], tris: [] }; at.set(n, got) }
+        got[what].push(k)
+      }
+    }
+    for (let t = 0; t + 3 < p.segs.length; t += 4) {
+      file(p.segs[t]! / 10, p.segs[t + 1]! / 10, p.segs[t + 2]! / 10, p.segs[t + 3]! / 10, 'segs', t)
+    }
+    for (let t = 0; t + 5 < p.tris.length; t += 6) {
+      const xs = [p.tris[t]!, p.tris[t + 2]!, p.tris[t + 4]!].map((v) => v / 10)
+      const ys = [p.tris[t + 1]!, p.tris[t + 3]!, p.tris[t + 5]!].map((v) => v / 10)
+      file(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys), 'tris', t)
+    }
+    const geo = { at, half }
+    geos.set(p, geo)
+    return geo
+  }
+  /** Whether a point of the model's space is on a floor face of this storey. */
+  const openAt = (p: Plan, lx: number, ly: number) => {
+    const geo = geoOf(p)
+    const i = Math.floor((lx - p.x0) / p.s), j = Math.floor((ly - p.y0) / p.s)
+    if (i < 0 || j < 0 || i >= p.w || j >= p.h) return false
+    const got = geo.at.get(i * p.h + j)
+    if (!got) return false
+    let onFloor = false
+    for (const t of got.tris) {
+      const ax = p.tris[t]! / 10, ay = p.tris[t + 1]! / 10
+      const bx = p.tris[t + 2]! / 10, by = p.tris[t + 3]! / 10
+      const cx = p.tris[t + 4]! / 10, cy = p.tris[t + 5]! / 10
+      const d1 = (lx - bx) * (ay - by) - (ax - bx) * (ly - by)
+      const d2 = (lx - cx) * (by - cy) - (bx - cx) * (ly - cy)
+      const d3 = (lx - ax) * (cy - ay) - (cx - ax) * (ly - ay)
+      const neg = d1 < -1e-6 || d2 < -1e-6 || d3 < -1e-6
+      const pos = d1 > 1e-6 || d2 > 1e-6 || d3 > 1e-6
+      if (!(neg && pos)) { onFloor = true; break }
+    }
+    return onFloor
+  }
+  /** And how far a point is from the nearest wall line, in yards, up to `reach`. */
+  const wallDistance = (p: Plan, lx: number, ly: number, reach: number) => {
+    const geo = geoOf(p)
+    const rc = Math.ceil(reach / p.s)
+    const ci = Math.floor((lx - p.x0) / p.s), cj = Math.floor((ly - p.y0) / p.s)
+    let best = reach * reach
+    for (let i = ci - rc; i <= ci + rc; i++) for (let j = cj - rc; j <= cj + rc; j++) {
+      if (i < 0 || j < 0 || i >= p.w || j >= p.h) continue
+      const got = geo.at.get(i * p.h + j)
+      if (!got) continue
+      for (const t of got.segs) {
+        const ax = p.segs[t]! / 10, ay = p.segs[t + 1]! / 10
+        const bx = p.segs[t + 2]! / 10, by = p.segs[t + 3]! / 10
+        const vx = bx - ax, vy = by - ay
+        const len2 = vx * vx + vy * vy || 1
+        const u = Math.max(0, Math.min(1, ((lx - ax) * vx + (ly - ay) * vy) / len2))
+        const dx = lx - (ax + vx * u), dy = ly - (ay + vy * u)
+        const d = dx * dx + dy * dy
+        if (d < best) best = d
+      }
+    }
+    return Math.sqrt(best)
   }
   /** And a direction on the map, which turns the same way and does not move. */
   const turnOf = (p: Plan, ux: number, uy: number): [number, number] => {
@@ -11904,8 +12033,16 @@ async function main() {
           hero.y += stuck.y * Math.hypot(dx, dy)
           continue
         }
+        const wasX = hero.x, wasY = hero.y
         if (!footing(hero.x + dx, hero.y)) hero.x += dx
         if (!footing(hero.x, hero.y + dy)) hero.y += dy
+        // **A notch is not a wall.**  Each axis alone can be refused while
+        // the diagonal is open — a doorway walked into at an angle, where
+        // one jamb's band stops the x and the other's the y — and a player
+        // pressing into an open gap stood still (issue 255).  If neither
+        // axis moved, the step itself is tried.
+        if (hero.x === wasX && hero.y === wasY && dx !== 0 && dy !== 0
+          && !footing(wasX + dx, wasY + dy)) { hero.x = wasX + dx; hero.y = wasY + dy }
       }
       hero.dir = facing(mx, my)
       throughTheDoor()
@@ -15567,7 +15704,35 @@ async function main() {
    * check reads off the glass there is where the picture's wall edge is if the
    * room was drawn as one shape — and a staircase beside the line if it was not.
    */
-  /** The faces the storey you stand on ships: how many wall lines and floor triangles. */
+  /**
+   * **Every point the picture paints as floor can be stood on** — the check
+   * for issue 255's invisible obstacles.  Walks the storey's floor triangles,
+   * takes a few points inside each (the centroid and the mid-points towards
+   * the corners, so a long thin triangle is sampled along its length), turns
+   * each back out to the world and asks `roomOpen`.  Returns how many were
+   * refused, which is a spot the man cannot reach on ground the eye sees as
+   * floor.
+   */
+  ;(window as unknown as { __floorStand: () => unknown }).__floorStand = () => {
+    const p = planNow(), b = indoors
+    if (!p || !b || !p.tris.length) return null
+    let asked = 0, stuck = 0
+    const bad: number[][] = []
+    for (let t = 0; t + 5 < p.tris.length; t += 6) {
+      const ax = p.tris[t]! / 10, ay = p.tris[t + 1]! / 10
+      const bx = p.tris[t + 2]! / 10, by = p.tris[t + 3]! / 10
+      const cx = p.tris[t + 4]! / 10, cy = p.tris[t + 5]! / 10
+      const gx = (ax + bx + cx) / 3, gy = (ay + by + cy) / 3
+      for (const [lx, ly] of [[gx, gy], [(gx + ax) / 2, (gy + ay) / 2],
+        [(gx + bx) / 2, (gy + by) / 2], [(gx + cx) / 2, (gy + cy) / 2]] as const) {
+        const wx = b.x + lx * p.sn + ly * p.c, wy = b.y - (lx * p.c - ly * p.sn)
+        asked++
+        if (!roomOpen(wx, wy)) { stuck++; if (bad.length < 6) bad.push([Math.round(wx), Math.round(wy)]) }
+      }
+    }
+    return { asked, stuck, bad }
+  }
+  /** The faces the storey you stand on ships: how many wall lines and floor triangles. */  /** The faces the storey you stand on ships: how many wall lines and floor triangles. */
   ;(window as unknown as { __roomFaces: () => unknown }).__roomFaces = () => {
     const p = planNow()
     return p ? { segs: p.segs.length / 4, tris: p.tris.length / 6 } : null

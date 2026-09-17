@@ -701,6 +701,28 @@ that ships faces to *drawn from them and nothing else* — the bands laid
 count the lines sent — and reads the straight-wall promise off the longest
 line rather than a cell run.
 
+**And a step is held to the lines the room draws, and the lee falls from
+them** (issue 255). The room was drawn from its faces and a step went on
+being held to the 1.33-yard grid the faces were rasterised on, so a man
+walked into stone nobody had drawn — the first cut of the lines kept only
+those whose middle fell on a stone cell, and threw away the faces of walls
+whose cells the doorsteps had cleared — and the wall's lee, measured to
+stone cells, fell on the grid's stairs under a straight wall, which is what
+the report called tile-shaped walls. A wall line is kept now by the question
+the grid asks of a wall face, asked per face: its bottom below a man's head
+on this storey's floor and its top above his feet, the same clearance
+`floor` is cut with; the abbey's ground floor went 925 lines to 1,802. On a
+storey that ships its faces `roomOpen` asks the faces — a floor triangle
+underfoot and no wall line within the half-cell band the scene draws it as
+— through an index of lines and triangles by the cell they touch, so a step
+asks a handful and not the abbey's thousand; the grid is an index there and
+not the rule. The stairs keep their masks, because the way down is the
+storey below's treads, which this storey's faces do not carry. `shadeRoom`
+measures to the nearest line on such a storey and clips to the triangles.
+`viewcheck` samples the floor triangles of every storey of every building
+that ships faces and asks that a step is refused at none of them — no
+invisible obstacle on ground the eye reads as floor.
+
 **A floor stands out from its walls, three to one.** Reported from a phone:
 no way to find the way inside a building, and no making out what the inside
 looks like. Every building's wall was one tone, `in_wall`'s, and the floors are

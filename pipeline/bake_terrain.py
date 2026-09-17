@@ -540,7 +540,7 @@ def wmo_plan(client, path, only=None, nxt=None):
     #: model's faces themselves — every wall face of this storey as the line
     #: it stands on, and every floor face as the triangle it is — in tenths of
     #: a yard of the model's own space, absolute so `crop` need not touch them.
-    segs, flo = set(), []
+    segs, flo = {}, []
     for t in tris:
         wall, zlo, zhi = steepness(t)
         (ax, ay, _), (bx, by, _), (cx, cy, _) = t
@@ -603,7 +603,9 @@ def wmo_plan(client, path, only=None, nxt=None):
                 span = math.hypot(pb - pa, qb - qa)
                 if span >= 0.2 and abs(det) <= 0.15 * span * span:
                     a_, b_ = (round(pa * 10), round(qa * 10)), (round(pb * 10), round(qb * 10))
-                    segs.add((a_, b_) if a_ <= b_ else (b_, a_))
+                    line = (a_, b_) if a_ <= b_ else (b_, a_)
+                    lo_, hi_ = segs.get(line, (1e9, -1e9))
+                    segs[line] = (min(lo_, zlo), max(hi_, zhi))
             else:
                 flo.append((round(ax * 10), round(ay * 10), round(bx * 10), round(by * 10),
                             round(cx * 10), round(cy * 10)))
@@ -789,20 +791,22 @@ def wmo_plan(client, path, only=None, nxt=None):
             cells[n] = 0 if seen[n] else 1
             if not cells[n]:
                 solid[n] = floor[n] = over_head[n] = steps[n] = 0
-    # **A wall line is kept only where the walkable grid says stone.**  Every
-    # steep face near the storey stands on a line — a window frame, a door
-    # jamb, a roof brace across the room — and drawn as walls the braces
-    # crossed the floor of a cottage corner to corner.  What the scene draws
-    # has to be what stops a man, so a face whose middle is over a cell he
-    # can be in is not a wall of this storey.
-    def stone_under(a_, b_):
-        mi = int(((a_[0] + b_[0]) / 20 - x0) / S)
-        mj = int(((a_[1] + b_[1]) / 20 - y0) / S)
-        return 0 <= mi < w and 0 <= mj < h and solid[mi * h + mj]
+    # **A wall line is kept by the question the grid asks of a wall face**:
+    # does it stand in the way of a man on this storey's floor — its bottom
+    # below his head and its top above his feet, the clearance test `floor`
+    # is cut with.  Every steep face near the storey stands on a line — a
+    # window frame, a door jamb, a roof brace across the room — and kept by
+    # where its middle fell on the grid (the first cut) the braces went and
+    # so did the faces of walls whose cells the doorsteps had cleared, and a
+    # man walked into stone nobody had drawn (issue 255).  Asked per face the
+    # way the grid is asked per cell, the two agree, and the scene can hold
+    # a step to the lines it draws.
+    def in_the_way(lo_, hi_):
+        return lo_ < base + BODY and hi_ > base + 0.15
     _PLANS[(path, only, nxt)] = (cells, w, h, x0, y0, solid, floor,
                                  over_head, steps,
-                                 [v for a_, b_ in sorted(segs) if stone_under(a_, b_)
-                                  for v in (*a_, *b_)],
+                                 [v for line, (lo_, hi_) in sorted(segs.items())
+                                  if in_the_way(lo_, hi_) for v in (*line[0], *line[1])],
                                  [v for tri in flo for v in tri])
     _PLAN_Z[(path, only, nxt)] = (floor_z, peak, every)
     return _PLANS[(path, only, nxt)]
