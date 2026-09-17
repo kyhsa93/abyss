@@ -535,6 +535,12 @@ def wmo_plan(client, path, only=None, nxt=None):
     #: storey it is near: `ground_doorless` may have to cut it again at the
     #: ground a particular placement stands on.
     every = {} if not doors and only is None and not is_mouth(path) else None
+    #: **The storey's own coordinates, for drawing** (issue 254).  The masks
+    #: above are the walkable grid and stay so; what the scene draws is the
+    #: model's faces themselves — every wall face of this storey as the line
+    #: it stands on, and every floor face as the triangle it is — in tenths of
+    #: a yard of the model's own space, absolute so `crop` need not touch them.
+    segs, flo = set(), []
     for t in tris:
         wall, zlo, zhi = steepness(t)
         (ax, ay, _), (bx, by, _), (cx, cy, _) = t
@@ -582,6 +588,25 @@ def wmo_plan(client, path, only=None, nxt=None):
         # floor, and below head height on the next.
         rung = (nxt is not None and not wall
                 and high < zhi < nxt - BODY + 0.01)
+        # And a flight's treads, which are near neither storey and are the one
+        # part of a floor that is not flat: drawn in the floor's tone, under
+        # the up and down marks, or a staircase is a hole in the room.
+        if near or rung:
+            if wall:
+                # A wall face stands on its edge, so dropped on the floor it is
+                # its longest edge; a pitched roof is steep too and is not —
+                # it has area from above — so only a face whose footprint is
+                # a line is a wall's.
+                pts = ((ax, ay), (bx, by), (cx, cy))
+                (pa, qa), (pb, qb) = max(((pts[i], pts[j]) for i in range(3) for j in range(i + 1, 3)),
+                                         key=lambda e: (e[0][0] - e[1][0]) ** 2 + (e[0][1] - e[1][1]) ** 2)
+                span = math.hypot(pb - pa, qb - qa)
+                if span >= 0.2 and abs(det) <= 0.15 * span * span:
+                    a_, b_ = (round(pa * 10), round(qa * 10)), (round(pb * 10), round(qb * 10))
+                    segs.add((a_, b_) if a_ <= b_ else (b_, a_))
+            else:
+                flo.append((round(ax * 10), round(ay * 10), round(bx * 10), round(by * 10),
+                            round(cx * 10), round(cy * 10)))
         # **A wall face covers no cell centre.**  It stands on its edge, so
         # dropped on the floor it is a line with no area, and the test below
         # finds a cell centre inside it only by accident — which is why the
@@ -764,8 +789,21 @@ def wmo_plan(client, path, only=None, nxt=None):
             cells[n] = 0 if seen[n] else 1
             if not cells[n]:
                 solid[n] = floor[n] = over_head[n] = steps[n] = 0
+    # **A wall line is kept only where the walkable grid says stone.**  Every
+    # steep face near the storey stands on a line — a window frame, a door
+    # jamb, a roof brace across the room — and drawn as walls the braces
+    # crossed the floor of a cottage corner to corner.  What the scene draws
+    # has to be what stops a man, so a face whose middle is over a cell he
+    # can be in is not a wall of this storey.
+    def stone_under(a_, b_):
+        mi = int(((a_[0] + b_[0]) / 20 - x0) / S)
+        mj = int(((a_[1] + b_[1]) / 20 - y0) / S)
+        return 0 <= mi < w and 0 <= mj < h and solid[mi * h + mj]
     _PLANS[(path, only, nxt)] = (cells, w, h, x0, y0, solid, floor,
-                                 over_head, steps)
+                                 over_head, steps,
+                                 [v for a_, b_ in sorted(segs) if stone_under(a_, b_)
+                                  for v in (*a_, *b_)],
+                                 [v for tri in flo for v in tri])
     _PLAN_Z[(path, only, nxt)] = (floor_z, peak, every)
     return _PLANS[(path, only, nxt)]
 
@@ -864,7 +902,7 @@ def check_doors(client, path):
                         None if abs(floor - base) <= BODY else floor)
         if not plan:
             continue
-        _cells, w, h, x0, y0, solid, _floor, _over, _steps = plan
+        _cells, w, h, x0, y0, solid, _floor, _over, _steps = plan[:9]
         i, j = int((lx - x0) / PLAN_CELL), int((ly - y0) / PLAN_CELL)
         open_ = not (0 <= i < w and 0 <= j < h) or not solid[i * h + j]
         _DOORS.append(1 if open_ else 0)
@@ -962,7 +1000,7 @@ def ceilinged(plan, uppers):
     """
     if not uppers:
         return plan
-    cells, w, h, x0, y0, solid, floor, over, steps = plan
+    cells, w, h, x0, y0, solid, floor, over, steps = plan[:9]
     over = bytearray(over)
     for i in range(w):
         px = x0 + (i + 0.5) * PLAN_CELL
@@ -977,7 +1015,7 @@ def ceilinged(plan, uppers):
                 if 0 <= ui < up[1] and 0 <= uj < up[2] and up[0][ui * up[2] + uj]:
                     over[n] = 1
                     break
-    return (cells, w, h, x0, y0, solid, floor, over, steps)
+    return (cells, w, h, x0, y0, solid, floor, over, steps, *plan[9:])
 
 
 #: Every doorless placement, as `(kind, x, y, share at the ground, storey z,
@@ -998,7 +1036,7 @@ def recut(plan, faces, wz, ground):
     of the building is more than a body under that ground is not the building:
     it is the hill over it.
     """
-    cells, w, h, x0, y0, solid, floor, over, steps = plan
+    cells, w, h, x0, y0, solid, floor, over, steps = plan[:9]
     cells, solid, floor, over = (bytearray(m) for m in (cells, solid, floor, over))
     for n, g in ground.items():
         here = faces.get(n)
@@ -1061,7 +1099,7 @@ def ground_doorless(doodads, height):
         floor_z, peak, faces = _PLAN_Z[(path, None, None)]
         if faces is None:
             continue
-        cells, w, h, x0, y0, _solid, floor, _over, _steps = plan
+        cells, w, h, x0, y0, _solid, floor, _over, _steps = plan[:9]
         pos, ry = (ORIGIN - wy, wz, ORIGIN - wx), mr - 270
         ground, stand, at, zs = {}, 0, 0, []
         for n in range(w * h):
@@ -1118,7 +1156,7 @@ def check_ceilings():
         tris = wmo_triangles(_CLIENT[0], path)
         here = 0
         for sill, plan in [(min(d[0] for d in ways), ground)] + list(PLAN_FLOORS.get(key, [])):
-            cells, w, h, x0, y0, solid, _floor, over, steps = plan
+            cells, w, h, x0, y0, solid, _floor, over, steps = plan[:9]
             high = sill + BODY
             sky = set(n for n in range(w * h)
                       if cells[n] and not solid[n] and not over[n] and not steps[n])
@@ -2512,6 +2550,7 @@ def bake(client, bounds, out, acore=None):
     with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
         for _name, blob in planes:
             f.write(blob)
+    PLANS_STOOD.update(d[13] for d in doodads if d[13])
     meta = {
         'width': w, 'height': h, 'unit': UNIT,
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
@@ -2565,7 +2604,7 @@ def bake(client, bounds, out, acore=None):
         'areaLevel': {str(k): v for k, v in area_level.items() if v},
         # The footprints, one per model rather than one per placement:
         # `[width, height, cell yards, model x0, y0, base64 of one bit a cell]`.
-        'plans': {str(k): plan_out(v) for k, v in PLANS_BY_KEY.items() if v},
+        'plans': {str(k): plan_out(v, walked_into(k)) for k, v in PLANS_BY_KEY.items() if v},
         # How many yards a step of a tread's height is and which byte is the
         # sill — see `rises` — so the scene multiplies by the number the bake
         # divided by.
@@ -2574,7 +2613,7 @@ def bake(client, bounds, out, acore=None):
         # separate table and not a fifth field on the plan, because a building
         # with one floor is most of them and a key nobody reads is cheaper
         # absent than empty.
-        'floors': {str(k): [[z] + plan_out(pl) for z, pl in v]
+        'floors': {str(k): [[z] + plan_out(pl, walked_into(k)) for z, pl in v]
                    for k, v in PLAN_FLOORS.items() if v},
         # The chunks the client marks impassable, as `[i, j]` on the same
         # 33-yard grid the zones use.
@@ -2809,7 +2848,7 @@ def crop(plan):
     nothing downstream — `planCell` reads `x0`, `y0`, `w` and `h` and does not
     care how big they are.
     """
-    cells, w, h, x0, y0, solid, floor, over, steps = plan
+    cells, w, h, x0, y0, solid, floor, over, steps = plan[:9]
     lo_i, hi_i, lo_j, hi_j = w, -1, h, -1
     for i in range(w):
         for j in range(h):
@@ -2828,10 +2867,31 @@ def crop(plan):
             out[i * nh:(i + 1) * nh] = src[base:base + nh]
         return out
     return (cut(cells), nw, nh, x0 + lo_i * PLAN_CELL, y0 + lo_j * PLAN_CELL,
-            cut(solid), cut(floor), cut(over), cut(steps))
+            cut(solid), cut(floor), cut(over), cut(steps), *plan[9:])
 
 
-def plan_out(plan):
+#: The plan keys the doodads written out actually carry — set by the writer
+#: before the plans are, so a plan of a model the slice never stands (the
+#: keep, a gate piece) ships no geometry.
+PLANS_STOOD = set()
+
+
+def walked_into(key):
+    """Whether a plan is one the scene draws from its own coordinates: a
+    building the slice stands, with a doorway (issue 254).
+
+    **Not a mine.**  A mine's window is the whole model — it is a ramp, not a
+    stack of storeys — so its faces are the whole gallery: the three big ones
+    are 19,000 wall lines and 32,000 floor triangles between them, 600 KB
+    gzipped, on a first visit with 630 to spare.  A mine keeps the cell
+    drawing and the rule page names it as the exception it is."""
+    path = PLAN_PATH.get(key)
+    if not path or _CLIENT[0] is None or key not in PLANS_STOOD:
+        return False
+    return not is_mouth(path) and bool(doorways(_CLIENT[0], path))
+
+
+def plan_out(plan, drawn=True):
     """One storey's five masks — outline, walls, floor, what is roofed, and the
     way up — and how high each tread of the way up is (`rises`).
 
@@ -2850,10 +2910,17 @@ def plan_out(plan):
     every one of them fell out and the two floors came out with nothing
     between them.
     """
-    cells, w, h, x0, y0, solid, floor, over, steps = plan
+    cells, w, h, x0, y0, solid, floor, over, steps = plan[:9]
+    # The seventh and eighth fields — the model's own wall lines and floor
+    # triangles (issue 254) — only for a building a man can go into.  Shipped
+    # for all sixty-four plans they were 870 KB gzipped on a first visit that
+    # has 630 to spare; a gate, a wall piece and Stormwind's keep are never
+    # drawn from inside, and without them it is 420.
+    segs = plan[9] if len(plan) > 9 and drawn else []
+    flo = plan[10] if len(plan) > 10 and drawn else []
     return [w, h, PLAN_CELL, x0, y0,
             packed(cells), packed(solid), packed(floor), packed(over),
-            packed(steps), rises(steps)]
+            packed(steps), rises(steps), segs, flo]
 
 
 def rises(steps):
@@ -3128,7 +3195,7 @@ def check_plans():
     for plan in PLANS_BY_KEY.values():
         if not plan:
             continue
-        cells, w, h, _x0, _y0, solid, floor, over, _steps = plan
+        cells, w, h, _x0, _y0, solid, floor, over, _steps = plan[:9]
         for n in range(w * h):
             if not cells[n]:
                 continue
@@ -3161,7 +3228,7 @@ def check_plans():
     for plan in PLANS_BY_KEY.values():
         if not plan:
             continue
-        _cells, w, h, _x0, _y0, solid, _floor, _over, _steps = plan
+        _cells, w, h, _x0, _y0, solid, _floor, _over, _steps = plan[:9]
         seen = bytearray(w * h)
         for start in range(w * h):
             if not solid[start] or seen[start]:

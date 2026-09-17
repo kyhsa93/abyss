@@ -352,6 +352,7 @@ keeps it honest.
 
 | 약속 | 지키는 검사 |
 | --- | --- |
+| 면을 실은 층은 실은 벽 선을 전부 긋고 바닥 삼각형을 전부 채운다 | `scripts/viewcheck.mjs: "a building is drawn from the model's own wall lines and floor triangles"` |
 | 층마다 바닥이 한 톤이고 그 위에 아무 그림도 안 깔린다 | `scripts/viewcheck.mjs: "and nothing is laid on a floor but its tone"` |
 | 건물 안에 선 것은 사람과 선언된 예외뿐이다 | `scripts/viewcheck.mjs: "and nothing but its people stands inside a building"` |
 | 벽과 바닥이 3:1 이상이다 | `scripts/viewcheck.mjs: "and every room's floor stands out from its walls by three to one"` |

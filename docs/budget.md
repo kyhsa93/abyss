@@ -15,9 +15,9 @@ going red on four of them for rounds.
 
 | what | measured | budget | on a phone |
 | --- | ---: | ---: | ---: |
-| the script a browser is handed | 102 KB | 500 KB | the same |
-| the world a first visit downloads | 3.37 MB | 4.00 MB | the same |
-| everything the deploy carries | 31.22 MB | 200.00 MB | not paid |
+| the script a browser is handed | 104 KB | 500 KB | the same |
+| the world a first visit downloads | 3.62 MB | 4.00 MB | the same |
+| everything the deploy carries | 32.55 MB | 200.00 MB | not paid |
 | the sounds | 135 KB | 2048 KB | the same |
 | the sheets the scene opens, decoded | 23.24 MB | 24.00 MB | 24.00 MB |
 | and against the desktop ceiling | 23.24 MB | 64.00 MB | 24.00 MB |

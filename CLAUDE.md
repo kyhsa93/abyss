@@ -675,6 +675,32 @@ lines about floor pictures now say tones. What the rule does not settle is
 whether a flight's width still reads with the treads gone, which is a
 question for eyes.
 
+**And it is drawn from the model's own coordinates, not from cells** — the
+owner's second word on it, 2026-09-17 (issue 254): *no tiles, coordinates
+only*. The one-tone floor of issue 253 was still painted a 1.33-yard cell at
+a time, so every wall's edge was the grid's staircase, and a mask painted is
+a tile whatever is painted in it. The bake ships each storey's faces now —
+every wall face as the line it stands on, in tenths of a yard of the model's
+space, and every floor face and stair tread as the triangle it is — and the
+scene fills the triangles in the one tone and strokes the lines as bands
+half a cell wide, half a cell being the finest thing the walkable grid
+resolves: a band thinner than that is a wall drawn where nobody is stopped.
+**A wall line is kept only where the grid says stone**, because every steep
+face stands on a line — a window frame, a door jamb, a roof brace — and drawn
+as walls the braces crossed a cottage corner to corner. The bands and their
+light-under-dark casing are stroked every frame, not baked, so the casing
+holds one width on the glass at every zoom; the floor-against-wall contrast
+is solved on the inks (`legibleTones`) because there is no cell to read a
+wall's tone back from. The masks stay what they were, the walkable grid,
+and a step is still held to them. **A mine keeps the cell drawing**, named
+as the exception: its window is the whole model, so the three big mines are
+19,000 wall lines and 32,000 triangles, 600 KB gzipped, on a first visit with
+630 to spare; buildings the slice never stands ship no faces either.
+`terrain.json` went 409 to 639 KB gzipped. `viewcheck` holds every storey
+that ships faces to *drawn from them and nothing else* — the bands laid
+count the lines sent — and reads the straight-wall promise off the longest
+line rather than a cell run.
+
 **A floor stands out from its walls, three to one.** Reported from a phone:
 no way to find the way inside a building, and no making out what the inside
 looks like. Every building's wall was one tone, `in_wall`'s, and the floors are

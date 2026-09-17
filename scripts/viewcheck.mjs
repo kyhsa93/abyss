@@ -3894,8 +3894,10 @@ for (const still of [false, true]) {
     const orphan = Object.keys(floors).filter((k) => !plans[k])
     // Twelve: a sill and the plan's own eleven.  It was ten until the stairs
     // became a fifth mask, and eleven until their treads carried a height.
-    const shapes = Object.values(floors).flat().filter((f) => f.length !== 12)
-      .concat(Object.values(plans).filter((f) => f.length !== 11))
+    // Thirteen fields a plan and fourteen a floor since issue 254: the two
+    // on the end are the storey's own wall lines and floor triangles.
+    const shapes = Object.values(floors).flat().filter((f) => f.length !== 14)
+      .concat(Object.values(plans).filter((f) => f.length !== 13))
     return {
       buildings: Object.keys(plans).length,
       withUpstairs: Object.keys(floors).length,
@@ -4511,7 +4513,9 @@ if (refused) {
     rooms.push({ at: `${went.k} ${i}`, floor: Object.keys(laid.floor),
       regions: laid.regions.length,
       mixed: laid.regions.filter((g) => g.pictures.length > 1).length,
-      laidOn: Object.keys(laid.stairs).length + Object.keys(laid.speck).length })
+      laidOn: Object.keys(laid.stairs).length + Object.keys(laid.speck).length,
+      faces: await p.evaluate(() => window.__roomFaces()),
+      wallsLaid: Object.values(laid.wall).reduce((n, v) => n + v, 0) })
   }
   for (let i = 0; ; i++) {
     const went = await p.evaluate(([i, z]) => {
@@ -4545,6 +4549,18 @@ if (refused) {
   // is one colour.  The tread picture on a flight and the floor picture
   // under a speck were the two things the room still laid besides the tone,
   // and `__roomPaint` counts what was laid, so both have to read nought.
+  // **And a building's walls are the model's own lines** (issue 254): a
+  // storey that ships its faces is drawn from them and from nothing else —
+  // every wall line the bake sent is stroked, every floor triangle filled,
+  // and the cells lay no wall and no floor.  A mine ships no faces and keeps
+  // the cell drawing, which the rule page names as the exception it is.
+  const drawn = rooms.filter((r) => r.faces && r.faces.segs > 0)
+  const offFaces = drawn.filter((r) => r.wallsLaid !== r.faces.segs)
+  check('a building is drawn from the model\'s own wall lines and floor triangles',
+    drawn.length >= 8 && offFaces.length === 0,
+    offFaces.length ? offFaces.map((r) => `${r.at}: ${r.wallsLaid} walls laid for ${r.faces.segs} lines`).join('; ')
+      : `${drawn.length} storeys drawn from ${drawn.reduce((n, r) => n + r.faces.segs, 0)} wall lines `
+        + `and ${drawn.reduce((n, r) => n + r.faces.tris, 0)} floor triangles`)
   const laidOn = rooms.filter((r) => r.laidOn > 0)
   check('and nothing is laid on a floor but its tone',
     rooms.length > 0 && laidOn.length === 0,

@@ -148,7 +148,7 @@ type Meta = {
    * **167,238 roofed and 25,433 open to the sky**.
    */
   plans?: Record<string, [number, number, number, number, number,
-    string, string, string, string, string, string?]>
+    string, string, string, string, string, string?, number[]?, number[]?]>
   /**
    * And the floors above the ground one, `[sill, …the same nine]` a storey.
    *
@@ -163,7 +163,7 @@ type Meta = {
    * than empty.
    */
   floors?: Record<string, [number, number, number, number, number, number,
-    string, string, string, string, string, string?][]>
+    string, string, string, string, string, string?, number[]?, number[]?][]>
   /**
    * Yards a step of a tread's height is, and which byte is the sill, for the
    * sixth field of a plan: a byte a steps cell, how far from its storey's
@@ -2115,6 +2115,13 @@ async function main() {
         // `steps`, in cell order, eighths of a yard above this storey's sill
         // — see `rises` in the bake.  Which end of a flight is the top.
         rise: bytesOf(raw[10] ?? ''),
+        // **And the storey's own coordinates** (issue 254): every wall face
+        // as the line it stands on and every floor face as the triangle it
+        // is, in tenths of a yard of the model's space.  The masks above are
+        // the walkable grid; these are what the room is drawn from.  A mine
+        // ships none and keeps the cell drawing — see `walked_into` in the
+        // bake for why.
+        segs: (raw[11] ?? []) as number[], tris: (raw[12] ?? []) as number[],
         // The turn that takes the model's space to the map, in radians.
         c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
         sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
@@ -2129,6 +2136,7 @@ async function main() {
           w: f[1], h: f[2], s: f[3], x0: f[4], y0: f[5],
           bits: bytesOf(f[6]), solid: bytesOf(f[7]), floor: bytesOf(f[8]),
           over: bytesOf(f[9]), steps: bytesOf(f[10] ?? ''), rise: bytesOf(f[11] ?? ''),
+          segs: (f[12] ?? []) as number[], tris: (f[13] ?? []) as number[],
           c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
           sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
         }))
@@ -3705,6 +3713,8 @@ async function main() {
       plan: {
         w: dug.w, h: dug.h, s: dug.cell, x0: dug.x0, y0: dug.y0,
         bits: dug.bits, solid: new Uint8Array(dug.bits.length), floor: dug.bits,
+        // No faces: a dug cave has no model, so it keeps the cell drawing.
+        segs: [], tris: [],
         // A cave is roofed everywhere it exists — that is what makes it a
         // cave rather than a quarry — and it has one floor, so no stairs.
         over: dug.bits, steps: new Uint8Array(0), rise: new Uint8Array(0),
@@ -9811,6 +9821,10 @@ async function main() {
     tally: Map<string, number>
     /** The line where standing room meets wall or nothing, and meets a speck. */
     walls: Path2D; specks: Path2D
+    /** On a storey drawn from its faces, the longest wall line, in cell units. */
+    seg: [number, number, number, number] | null
+    /** And every wall line, in cell units, with the tone the band is drawn in. */
+    faces: Path2D | null; faceTone: string
     /** Cell sides on each kind of edge, and the segments they were merged into. */
     edges: { interior: number; outline: number; speck: number; runs: number }
     /** Each room region's size and every picture laid on it, for the checks. */
@@ -10119,6 +10133,97 @@ async function main() {
    * down than a wall.  The room's own wash goes over both afterwards, the same
    * as over its floor.
    */
+  /**
+   * WCAG's relative luminance of a colour, and the contrast of two.
+   */
+  const lumOf = (t: number[]) => {
+    const f = (v: number) => {
+      const u = v / 255
+      return u <= 0.03928 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * f(t[0]!) + 0.7152 * f(t[1]!) + 0.0722 * f(t[2]!)
+  }
+  const contrast = (a: number[], b2: number[]) => {
+    const x = lumOf(a), y = lumOf(b2)
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+  }
+  /**
+   * **A floor has to stand out from its walls, three to one** (issue 246),
+   * solved on the tones themselves.
+   *
+   * `from` is the wall as it is and `floors` the floor tones lighter than it;
+   * what comes back is the wall taken towards `SHADOW` by the least that
+   * reaches three to one against the darkest of them — and no further than a
+   * level above nothing, which stops a level above the backdrop — the tone
+   * nothing takes beside it, and the white film each floor still needs.
+   *
+   * **But a wall is a thing and not a hole, and nothing is not the outside.**
+   * Taken all the way to `SHADOW` the abbey's walls were the colour of
+   * nothing at all, and `shotcheck`'s test for a screen with a hole in it —
+   * the share in the darkest two of sixteen levels of `0.3 r + 0.6 g + 0.1 b`
+   * — read the nave at 11.2% against a bar of eight.  Stopped a hair above
+   * that band instead, at 34, the wall was one unit off the backdrop the
+   * glass is cleared to at a clear noon, 33, and the nothing beside it was
+   * held to the wall and so was the backdrop: the check that reads a wall as
+   * a straight line found six points of sixty.  So nothing stops one of
+   * `shotcheck`'s levels above the brighter of the hole band and the backdrop
+   * at its brightest hour, and the wall a level above nothing.
+   *
+   * It was worked out inside the room's composition on tones read back off
+   * the canvas; a room drawn from its own coordinates (issue 254) has no cell
+   * to read a wall's tone back from, so the arithmetic is on its own here and
+   * both drawings call it.
+   */
+  const legibleTones = (from: number[], floors: number[][]) => {
+    const LEGIBLE = 3.05
+    const darkest = floors.reduce((a2, t) => (lumOf(t) < lumOf(a2) ? t : a2))
+    const [sr, sgr, sb, deep] = SHADOW
+    const toward = (t: number) => [from[0]! + (sr - from[0]!) * t,
+      from[1]! + (sgr - from[1]!) * t, from[2]! + (sb - from[2]!) * t]
+    const glow = (t: number[]) => t[0]! * 0.3 + t[1]! * 0.6 + t[2]! * 0.1
+    const LEVEL = 16
+    const VOID_LEAST = Math.max(2 * LEVEL, glow([...BACKDROP_MOST])) + LEVEL
+    const WALL_LEAST = VOID_LEAST + LEVEL
+    // The furthest towards `SHADOW` a tone can go and still glow this much.
+    const deepest = (least: number) => {
+      if (glow(from) < least) return 0
+      if (glow(toward(1)) >= least) return 1
+      let m0 = 0, m1 = 1
+      for (let k = 0; k < 20; k++) {
+        const mid = (m0 + m1) / 2
+        if (glow(toward(mid)) >= least) m0 = mid; else m1 = mid
+      }
+      return m0
+    }
+    const most = deepest(WALL_LEAST)
+    let lo = 0, hi = most
+    if (contrast(toward(most), darkest) >= LEGIBLE) {
+      for (let k = 0; k < 20; k++) {
+        const mid = (lo + hi) / 2
+        if (contrast(toward(mid), darkest) >= LEGIBLE) hi = mid; else lo = mid
+      }
+    }
+    const wall = toward(hi).map((v) => Math.round(v))
+    // Nothing keeps `roomTones`' own share of the way to `SHADOW`, from where
+    // the wall now is, and stops at its own floor — unless the stone itself
+    // is under that floor, as a mine's unlit rock is, where there is no floor
+    // to stop at and the share is all there is.
+    const share = hi + (1 - hi) * deep
+    const voidTone = toward(glow(from) < VOID_LEAST ? share : Math.min(deepest(VOID_LEAST), share))
+    // And the white film each floor still needs against that wall, by the
+    // least alpha that reaches three to one.
+    const film = floors.map((t) => {
+      if (contrast(wall, t) >= LEGIBLE) return 0
+      let a0 = 0, a1 = 0.85
+      for (let k = 0; k < 20; k++) {
+        const mid = (a0 + a1) / 2
+        const up = t.map((v) => v + (255 - v) * mid)
+        if (contrast(wall, up) >= LEGIBLE) a1 = mid; else a0 = mid
+      }
+      return a1
+    })
+    return { wall, voidTone, film }
+  }
   /** A picture as the one colour a floor is laid in: its average ink. */
   const flatOf = (id: string) => {
     const [r, g, bl] = inkOfPicture(id)
@@ -10606,6 +10711,16 @@ async function main() {
     }
     aimFlights(p, under, r, flight, flights)
     const stairPic = stairId ? tilesMeta[stairId] : undefined
+    /**
+     * **Drawn from the model's own coordinates, not from the cells** (issue
+     * 254, the owner's rule: no tiles, coordinates only).  A storey that ships
+     * its faces — every building a man walks into; a mine does not, see
+     * `walked_into` in the bake — is painted below as its floor triangles in
+     * one tone and its wall faces as bands along the lines they stand on.
+     * The cell loop still runs for what it counts and for a courtyard's
+     * ground, which is outside; it lays no floor and no wall on such a storey.
+     */
+    const vec = p.tris.length > 0
     for (let i = 0; i < W; i++) {
       for (let j = 0; j < H; j++) {
         const n = i * H + j
@@ -10613,12 +10728,16 @@ async function main() {
         if (cc === CELL.off) continue
         if (cc === CELL.wall || cc === CELL.void) {
           const stone = cc === CELL.wall
-          g.fillStyle = stone ? tones.wall : tones.void
-          g.fillRect(i * S, j * S, S, S)
+          if (!vec) {
+            g.fillStyle = stone ? tones.wall : tones.void
+            g.fillRect(i * S, j * S, S, S)
+          }
           if (stone && !wallCell) wallCell = [i, j]
           // Named for the picture the tone is the colour of, so a count says
           // what the wall is made of and cannot be read as a mine's floor.
-          add(stone ? `wall:${tones.from}` : `void:${tones.from}`)
+          // On a storey drawn from its faces the cells lay nothing, and a
+          // count of what was laid is a count of the lines.
+          if (!vec) add(stone ? `wall:${tones.from}` : `void:${tones.from}`)
           continue
         }
         // **A building is its walls, its stairs and its people, and the
@@ -10629,21 +10748,25 @@ async function main() {
         // a stairs cell is laid in the floor's own tone, and a speck, which is
         // stone a man walks round, in the wall's.
         if (cc === CELL.stairs && stairPic) {
-          g.fillStyle = flatOf(floorOf(i, j))
-          g.fillRect(i * S, j * S, S, S)
+          if (!vec) {
+            g.fillStyle = flatOf(floorOf(i, j))
+            g.fillRect(i * S, j * S, S, S)
+          }
           continue
         }
         if (cc === CELL.speck) {
-          g.fillStyle = tones.wall
-          g.fillRect(i * S, j * S, S, S)
-          add(`wall:${tones.from}`)
+          if (!vec) {
+            g.fillStyle = tones.wall
+            g.fillRect(i * S, j * S, S, S)
+            add(`wall:${tones.from}`)
+          }
           continue
         }
         let id: string
         if (region[n]! >= 0) {
           const home = regionsOut[region[n]!]!
           id = home.id
-          home.pictures.add(id)
+          if (!vec) home.pictures.add(id)
         } else {
           // What an open cell gets is the ground the client painted there,
           // asked the short way: this is a yard and not a hillside, so the
@@ -10665,14 +10788,78 @@ async function main() {
           // picture itself is not laid: its grain and cracks came out on the
           // glass at the same weight as a wall's edge, and a storey read as a
           // maze (issue 250) until the only lines left on a floor were walls.
-          add(`floor:${id}`)
-          g.fillStyle = flatOf(id)
-          g.fillRect(i * S, j * S, S, S)
+          if (!vec) {
+            add(`floor:${id}`)
+            g.fillStyle = flatOf(id)
+            g.fillRect(i * S, j * S, S, S)
+          }
           continue
         }
         add(`open:${id}`)
         g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h, i * S, j * S, S, S)
       }
+    }
+    // The storey from its own faces.  The tones are solved first, on the
+    // inks themselves — there is no cell to read a wall's tone back from —
+    // and the floor is laid at the film it needs, the wall at the dark it
+    // needs, once.  A wall face is a line; it is drawn as a band half a cell
+    // wide, because half a cell is the finest thing the walkable grid
+    // resolves, and a wall drawn thinner than that would be drawn where
+    // nobody is stopped.
+    let vecTones: { wall: number[]; floor: number[] } | null = null
+    let vecWalls: Path2D | null = null
+    let faces: Path2D | null = null
+    let faceTone = ''
+    let longest: [number, number, number, number] | null = null
+    if (vec) {
+      const px = S / p.s
+      const X = (v: number) => (v / 10 - p.x0) * px
+      const Y = (v: number) => (v / 10 - p.y0) * px
+      // One tone a storey: the building kind's own floor picture, the first
+      // of its pair, as ink.
+      const id = b.k === 'mine' ? floorOf(0, 0)
+        : (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall']!)(0)
+      const wallInk = inkOfPicture(tones.from)
+      const floorInk = inkOfPicture(id)
+      const solved = lumOf(floorInk) > lumOf(wallInk) && contrast(wallInk, floorInk) < 3.05
+        ? legibleTones(wallInk, [floorInk]) : null
+      const wallRgb = (solved ? solved.wall : wallInk).map((v) => Math.round(v))
+      const alpha = solved ? solved.film[0]! : 0
+      const floorRgb = floorInk.map((v) => Math.round(v + (255 - v) * alpha))
+      vecTones = { wall: wallRgb, floor: floorRgb }
+      const rgb = (t: number[]) => `rgb(${t.join(',')})`
+      const floorPath = new Path2D()
+      for (let t = 0; t + 5 < p.tris.length; t += 6) {
+        floorPath.moveTo(X(p.tris[t]!), Y(p.tris[t + 1]!))
+        floorPath.lineTo(X(p.tris[t + 2]!), Y(p.tris[t + 3]!))
+        floorPath.lineTo(X(p.tris[t + 4]!), Y(p.tris[t + 5]!))
+        floorPath.closePath()
+      }
+      g.fillStyle = rgb(floorRgb)
+      g.fill(floorPath)
+      let best = 0
+      for (let t = 0; t + 3 < p.segs.length; t += 4) {
+        const len = Math.hypot(p.segs[t + 2]! - p.segs[t]!, p.segs[t + 3]! - p.segs[t + 1]!)
+        if (len > best) {
+          best = len
+          longest = [(p.segs[t]! / 10 - p.x0) / p.s, (p.segs[t + 1]! / 10 - p.y0) / p.s,
+            (p.segs[t + 2]! / 10 - p.x0) / p.s, (p.segs[t + 3]! / 10 - p.y0) / p.s]
+        }
+      }
+      // The wall bands are not baked: `drawRoom` strokes the faces every
+      // frame, a light casing under a dark band, so the casing holds one
+      // width on the glass at every zoom — the same reason the cell edges
+      // were never baked.  What is kept here is the path, in cell units.
+      faces = new Path2D()
+      for (let t = 0; t + 3 < p.segs.length; t += 4) {
+        faces.moveTo((p.segs[t]! / 10 - p.x0) / p.s, (p.segs[t + 1]! / 10 - p.y0) / p.s)
+        faces.lineTo((p.segs[t + 2]! / 10 - p.x0) / p.s, (p.segs[t + 3]! / 10 - p.y0) / p.s)
+      }
+      faceTone = rgb(wallRgb)
+      for (let t = 0; t + 5 < p.tris.length; t += 6) add(`floor:${id}`)
+      for (let t = 0; t + 3 < p.segs.length; t += 4) add(`wall:${tones.from}`)
+      for (const home of regionsOut) home.pictures.add(id)
+      vecWalls = new Path2D()
     }
     // Lit flat, at the row the tile pass used to take a room's pictures from,
     // with the same wash that row is given — over what was laid and nothing
@@ -10721,77 +10908,14 @@ async function main() {
      * where the dark cannot — a mine's floor is nearly as dark as its rock —
      * the floor takes a light film, again by the least that reaches it.
      */
-    const lumOf = (t: number[]) => {
-      const f = (v: number) => {
-        const u = v / 255
-        return u <= 0.03928 ? u / 12.92 : ((u + 0.055) / 1.055) ** 2.4
-      }
-      return 0.2126 * f(t[0]!) + 0.7152 * f(t[1]!) + 0.0722 * f(t[2]!)
-    }
-    const contrast = (a: number[], b2: number[]) => {
-      const x = lumOf(a), y = lumOf(b2)
-      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
-    }
-    // A hair over three, because what is painted is whole numbers of a
-    // colour and what is solved for is not.
     const LEGIBLE = 3.05
-    let seen = measure()
+    let seen = vec ? { wall: null as number[] | null, floors: [] as (number[] | null)[] } : measure()
     const lit = seen.floors.filter((t): t is number[] => !!t && !!seen.wall
       && lumOf(t) > lumOf(seen.wall))
     if (seen.wall && lit.some((t) => contrast(seen.wall!, t) < LEGIBLE)) {
-      const from = seen.wall
-      const darkest = lit.reduce((a2, t) => (lumOf(t) < lumOf(a2) ? t : a2))
-      const [sr, sgr, sb, deep] = SHADOW
-      const toward = (t: number) => [from[0]! + (sr - from[0]!) * t,
-        from[1]! + (sgr - from[1]!) * t, from[2]! + (sb - from[2]!) * t]
-      // **But a wall is a thing and not a hole, and nothing is not the
-      // outside.**  Taken all the way to `SHADOW` the abbey's walls were the
-      // colour of nothing at all, and `shotcheck`'s test for a screen with a
-      // hole in it — the share in the darkest two of sixteen levels of
-      // `0.3 r + 0.6 g + 0.1 b` — read the nave at 11.2% against a bar of
-      // eight.  Stopped a hair above that band instead, at 34, the wall was
-      // one unit off the backdrop the glass is cleared to at a clear noon,
-      // 33, and the nothing beside it — a stairwell, the eaves — was held to
-      // the wall and so was the backdrop exactly: the building's outline is a
-      // side with no stroke on it, the abbey's longest is mostly eaves, and
-      // the check that reads that outline as a line found six points of
-      // sixty.  Both tests are right.  So nothing stops one of `shotcheck`'s
-      // levels above the brighter of the hole band and the backdrop at its
-      // brightest hour — one level being the smallest difference that
-      // instrument counts as a different picture — and the wall stops a level
-      // above nothing, so that a stairwell still reads as further down than a
-      // wall.  What the floor still needs it gets from the film.
-      const glow = (t: number[]) => t[0]! * 0.3 + t[1]! * 0.6 + t[2]! * 0.1
-      const LEVEL = 16
-      const VOID_LEAST = Math.max(2 * LEVEL, glow([...BACKDROP_MOST])) + LEVEL
-      const WALL_LEAST = VOID_LEAST + LEVEL
-      // The furthest towards `SHADOW` a tone can go and still glow this much.
-      const deepest = (least: number) => {
-        if (glow(from) < least) return 0
-        if (glow(toward(1)) >= least) return 1
-        let m0 = 0, m1 = 1
-        for (let k = 0; k < 20; k++) {
-          const mid = (m0 + m1) / 2
-          if (glow(toward(mid)) >= least) m0 = mid; else m1 = mid
-        }
-        return m0
-      }
-      const most = deepest(WALL_LEAST)
-      let lo = 0, hi = most
-      if (contrast(toward(most), darkest) >= LEGIBLE) {
-        for (let k = 0; k < 20; k++) {
-          const mid = (lo + hi) / 2
-          if (contrast(toward(mid), darkest) >= LEGIBLE) hi = mid; else lo = mid
-        }
-      }
+      const solved = legibleTones(seen.wall, lit)
+      const { wall, voidTone } = solved
       const rgb = (t: number[]) => `rgb(${t.map((v) => Math.round(v)).join(',')})`
-      const wall = toward(hi).map((v) => Math.round(v))
-      // Nothing keeps `roomTones`' own share of the way to `SHADOW`, from
-      // where the wall now is, and stops at its own floor — unless the stone
-      // itself is under that floor, as a mine's unlit rock is, where there is
-      // no floor to stop at and the share is all there is.
-      const share = hi + (1 - hi) * deep
-      const voidTone = toward(glow(from) < VOID_LEAST ? share : Math.min(deepest(VOID_LEAST), share))
       for (let n = 0; n < W * H; n++) {
         const cc = code[n]
         if (cc !== CELL.wall && cc !== CELL.void && cc !== CELL.speck) continue
@@ -10839,6 +10963,7 @@ async function main() {
       }
     }
     const plain: number[][] = []
+    if (vecTones) plain.push(vecTones.wall, vecTones.floor)
     if (wallCell && seen.wall) plain.push(seen.wall.map((v) => Math.round(v)))
     for (const t of seen.floors) if (t) plain.push(t.map((v) => Math.round(v)))
     // After the tones, so they stay the floor where nothing is marked — the
@@ -10899,7 +11024,7 @@ async function main() {
       }
     }
     return { c, S, bytes: c.width * c.height * 4, tally, ms: performance.now() - t0,
-      walls, specks, edges, shade, region,
+      walls: vecWalls ?? walls, specks, edges, shade, region, seg: longest, faces, faceTone,
       regions: regionsOut.map((x) => ({ cells: x.cells, pictures: [...x.pictures] })), flights,
       outline, wallCell, ground: Float32Array.from(grounds), exits, tones: plain }
   }
@@ -11116,6 +11241,20 @@ async function main() {
     // is drawn here and not baked into the room canvas because it has to hold
     // one width on the glass at every zoom, the same reason the dark line is.
     const casing = Math.max(3.5, 3.5 * zoom) / q
+    // **A storey drawn from its faces** (issue 254): the walls are bands half
+    // a cell wide along the model's own lines — half a cell being the finest
+    // thing the walkable grid resolves — with the casing round the band.
+    if (room.faces) {
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = 'rgba(232, 236, 242, 0.6)'
+      ctx.lineWidth = 0.5 + 2 * casing
+      ctx.stroke(room.faces)
+      ctx.strokeStyle = room.faceTone
+      ctx.lineWidth = 0.5
+      ctx.stroke(room.faces)
+      ctx.lineCap = 'square'
+    }
     ctx.strokeStyle = 'rgba(232, 236, 242, 0.6)'
     ctx.lineWidth = casing
     ctx.stroke(room.walls)
@@ -15229,7 +15368,9 @@ async function main() {
       xform: roomXform.length ? roomXform : null,
       // The wall's tone as it came out of the composition, wash and all, read
       // back off the room's own canvas rather than worked out again.
-      wallTone: roomLaid?.wallCell ? [...roomLaid.c.getContext('2d')!.getImageData(
+      wallTone: roomLaid?.faces && roomLaid.faceTone
+        ? roomLaid.faceTone.match(/\d+/g)!.map(Number)
+        : roomLaid?.wallCell ? [...roomLaid.c.getContext('2d')!.getImageData(
         roomLaid.wallCell[0] * roomLaid.S + (roomLaid.S >> 1),
         roomLaid.wallCell[1] * roomLaid.S + (roomLaid.S >> 1), 1, 1).data].slice(0, 3) : null }
   }
@@ -15416,15 +15557,24 @@ async function main() {
    * check reads off the glass there is where the picture's wall edge is if the
    * room was drawn as one shape — and a staircase beside the line if it was not.
    */
+  /** The faces the storey you stand on ships: how many wall lines and floor triangles. */
+  ;(window as unknown as { __roomFaces: () => unknown }).__roomFaces = () => {
+    const p = planNow()
+    return p ? { segs: p.segs.length / 4, tris: p.tris.length / 6 } : null
+  }
   ;(window as unknown as { __roomWall: () => unknown }).__roomWall = () => {
     const r = roomLaid, p = roomPlan, b = indoors
-    if (!r || !p || !b || !r.outline || roomXform.length < 6) return null
+    if (!r || !p || !b || !(r.outline || r.seg) || roomXform.length < 6) return null
     const [a, bb, c, d, e, f] = roomXform as [number, number, number, number, number, number]
     const o = r.outline
-    const [i0, j0, i1, j1] = o.across ? [o.a, o.q0, o.a, o.q1] : [o.q0, o.a, o.q1, o.a]
+    // A storey drawn from its faces has no cell run to read; its longest wall
+    // line is the same promise, made of the model's own coordinates.
+    const [i0, j0, i1, j1] = r.seg ? r.seg
+      : !o ? [0, 0, 0, 0] : o.across ? [o.a, o.q0, o.a, o.q1] : [o.q0, o.a, o.q1, o.a]
     const glass = (i: number, j: number) => ({ x: a * i + c * j + e, y: bb * i + d * j + f })
     const [wx, wy] = fromPlan(p, b, p.x0 + ((i0 + i1) / 2) * p.s, p.y0 + ((j0 + j1) / 2) * p.s)
-    return { from: glass(i0, j0), to: glass(i1, j1), cells: o.q1 - o.q0,
+    return { from: glass(i0, j0), to: glass(i1, j1),
+      cells: r.seg ? Math.round(Math.hypot(i1 - i0, j1 - j0)) : o ? o.q1 - o.q0 : 0,
       world: { x: wx, y: wy }, turn: (Math.atan2(p.sn, p.c) * 180) / Math.PI }
   }
   /**
