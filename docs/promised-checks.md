@@ -138,7 +138,7 @@ keeps it honest.
 | 약속 | 지키는 검사 |
 | --- | --- |
 | **실내로 판정된 칸에 바깥 땅 그림이 한 장도 안 그려진다** | `scripts/viewcheck.mjs: "and no outdoor ground is drawn inside it"` |
-| 건물 하나의 실내에 쓰이는 바닥 그림이 세 종 이하다 | `scripts/viewcheck.mjs: "a building's inside is laid with three floor pictures at most"` |
+| 건물 하나의 실내에 쓰이는 바닥 그림이 세 종 이하다 | `scripts/viewcheck.mjs: "a building's inside is laid with three floor tones at most"` |
 | `solid` 중 4칸 이하 덩어리에 있는 칸이 20% 미만이다 | `pipeline/bake_terrain.py: "of them in lumps of"` |
 | 건물 테두리 중 벽으로 표시된 비율이 80% 이상이다 | `pipeline/bake_terrain.py: "cells of outline"` |
 | **건물 중심에서 걸어 나갈 수 있는 방향의 수가 문 개수와 맞는다** | `scripts/viewcheck.mjs: "and the ways out of a building are its front doors, as many as it has"` |
@@ -347,3 +347,11 @@ keeps it honest.
 | 구운 파일에 모델 경로·아카이브·테이블 이름이 없다 | `pipeline/bake.py: verify` |
 | 번역마다 원문의 해시가 있고 낡은 것을 말한다 | `pipeline/prose.py: "the English moved under these"` |
 | 커밋된 것 중 영어 퀘스트 원문이 없다 | — `prose.py` 가 영어를 안 쓰는 것은 규칙이지 검사가 아니다. 커밋된 파일에 영어 원문이 없는지 세는 곳이 없다 |
+
+## [건물-구현-규칙](https://github.com/kyhsa93/abyss/wiki/건물-구현-규칙)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 층마다 바닥이 한 톤이고 그 위에 아무 그림도 안 깔린다 | `scripts/viewcheck.mjs: "and nothing is laid on a floor but its tone"` |
+| 건물 안에 선 것은 사람과 선언된 예외뿐이다 | `scripts/viewcheck.mjs: "and nothing but its people stands inside a building"` |
+| 벽과 바닥이 3:1 이상이다 | `scripts/viewcheck.mjs: "and every room's floor stands out from its walls by three to one"` |

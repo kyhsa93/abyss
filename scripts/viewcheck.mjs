@@ -4479,7 +4479,7 @@ if (refused) {
     `${steps} steps over ${trace.length} half-seconds: ${trace.join(' ')}`)
 }
 
-// 26. A building's inside is laid with three floor pictures at most.
+// 26. A building's inside is laid with three floor tones at most, and nothing on them.
 //
 // Issue 159 made the inside of every building one uniform floor and left a
 // second promise in the wiki that nothing counted.  Counted off what `drawRoom`
@@ -4510,7 +4510,8 @@ if (refused) {
     const laid = await settle()
     rooms.push({ at: `${went.k} ${i}`, floor: Object.keys(laid.floor),
       regions: laid.regions.length,
-      mixed: laid.regions.filter((g) => g.pictures.length > 1).length })
+      mixed: laid.regions.filter((g) => g.pictures.length > 1).length,
+      laidOn: Object.keys(laid.stairs).length + Object.keys(laid.speck).length })
   }
   for (let i = 0; ; i++) {
     const went = await p.evaluate(([i, z]) => {
@@ -4526,18 +4527,29 @@ if (refused) {
     const laid = await settle()
     rooms.push({ at: `mine ${i}`, floor: Object.keys(laid.floor),
       regions: laid.regions.length,
-      mixed: laid.regions.filter((g) => g.pictures.length > 1).length })
+      mixed: laid.regions.filter((g) => g.pictures.length > 1).length,
+      laidOn: Object.keys(laid.stairs).length + Object.keys(laid.speck).length })
   }
   await p.evaluate(() => { const s = window.__start(); window.__put(s.x, s.y) })
   const over = rooms.filter((r) => r.floor.length > 3)
   const blank = rooms.filter((r) => r.floor.length === 0)
-  check('a building\'s inside is laid with three floor pictures at most',
+  check('a building\'s inside is laid with three floor tones at most',
     rooms.length > 0 && over.length === 0 && blank.length === 0,
     over.length ? over.map((r) => `${r.at}: ${r.floor.join(', ')}`).join('; ')
       : `${blank.length} rooms drew no floor at all: ${blank.map((r) => r.at).join(', ')}`)
-  console.log(`      (${rooms.length} rooms, the most pictures in one being `
+  console.log(`      (${rooms.length} rooms, the most tones in one being `
     + `${Math.max(0, ...rooms.map((r) => r.floor.length))}: `
     + `${[...new Set(rooms.flatMap((r) => r.floor))].join(', ')})`)
+  // **And nothing is laid on a floor but its tone** — the owner's rule (issue
+  // 253): a building is its walls, its stairs and its people, and the floor
+  // is one colour.  The tread picture on a flight and the floor picture
+  // under a speck were the two things the room still laid besides the tone,
+  // and `__roomPaint` counts what was laid, so both have to read nought.
+  const laidOn = rooms.filter((r) => r.laidOn > 0)
+  check('and nothing is laid on a floor but its tone',
+    rooms.length > 0 && laidOn.length === 0,
+    laidOn.length ? laidOn.map((r) => `${r.at}: ${r.laidOn} pictures`).join('; ')
+      : `no tread or speck picture on ${rooms.length} storeys`)
   // **And one picture a room region**, which is what keeps the three from being
   // a shimmer.  Two pictures were tossed on every cell, so a floor had seams
   // running through it that read as walls that were not there, and three at
@@ -4545,7 +4557,7 @@ if (refused) {
   // joined four ways; each keeps its own record of what was laid on it.
   const mixed = rooms.filter((r) => r.mixed > 0)
   const regions = rooms.reduce((n, r) => n + r.regions, 0)
-  check('and each room region is laid with one floor picture',
+  check('and each room region is laid with one floor tone',
     regions > 0 && mixed.length === 0,
     mixed.length ? mixed.map((r) => `${r.at}: ${r.mixed} regions with more than one`).join('; ')
       : `${regions} regions in ${rooms.length} rooms`)

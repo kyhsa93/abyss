@@ -633,9 +633,10 @@ cut on the size of the pieces nobody can stand on, and it comes out of the
 pieces: every partition in the slice is joined to its building's shell, the
 free-standing pieces are a crowd of ones and twos with a tail, and Otsu's
 split of their log size over every walkable storey and mine is 8 cells. A
-building alone is too few pieces to divide. **A floor is one picture a room
-region**, because two pictures tossed per cell put seams through a floor that
-read as walls. And **the stairs are the found tread picture on `steps` cells
+building alone is too few pieces to divide. **A floor is one tone a room
+region** — it was one picture, because two pictures tossed per cell put seams
+through a floor that read as walls, and since issue 253 the picture itself
+is not laid: see *A building is the original's geometry* below. And **the stairs are the found tread picture on `steps` cells
 with standing room over them** — a `steps` cell is a face *between* floors, the
 abbey's gallery has 1,299 of them, and a rug on all of them was a purple
 carpet. The picture is Sharm's, the one column of `cementstair.png` and
@@ -649,6 +650,30 @@ turned building's outline where the wall meets the outside and fits a line —
 nine in ten points within 0.68 px; stamped per tile, 4.05. It reads a side with
 **no stroke** on it on purpose: the edges are vector paths and would come out
 straight over a staircase of a picture.
+
+**A building is the original's geometry, its walls, its stairs and its
+people, and nothing else** — the owner's rule of 2026-09-17 (issue 253), six
+lines in the wiki page 건물 구현 규칙. The geometry is only ever the
+client's and the core's: placement from `MODF`, outline, stone, floor,
+storeys and steps from the model's own triangles, front doors from `MOPR`
+and `MOGI`. Inside there are three things: walls, the cells a man cannot
+stand on; stairs, the way between storeys; and the people the world database
+stands there. No furniture, no props (issue 243), and the three exceptions
+are named and counted — a fence, what grows in a courtyard, an object a
+quest or a trade needs. **And only the walls are drawn.** The floor is one
+colour a region, the average ink of the picture the building used to be laid
+in — found, not picked, so the inn keeps its boards' brown and the abbey its
+flagstones' grey — because a floor picture's grain and cracks came out on
+the glass at the weight of a wall's edge and a storey read as a maze (issue
+250) until the only lines left on a floor were walls. A flight is its up and
+down marks and no tread picture; a doorway is the two ends of the wall it is
+cut through and no threshold; a speck — a pillar, a pew end — is stone, so
+it is painted as wall, edged as wall and shades the floor beside it as a
+wall does. The porch stays, because it is the door. `viewcheck` holds every
+storey and mine to *nothing laid on a floor but its tone*, and the two older
+lines about floor pictures now say tones. What the rule does not settle is
+whether a flight's width still reads with the treads gone, which is a
+question for eyes.
 
 **A floor stands out from its walls, three to one.** Reported from a phone:
 no way to find the way inside a building, and no making out what the inside
@@ -2165,7 +2190,7 @@ picture**: sampled at every half-cell corner, blown up with smoothing the way
 the hillside's light is, clipped to standing room so a wall keeps its tone, and
 multiplied over the floor after the floor's tones are read and before the ways
 out are laid, so a porch in daylight is not in a wall's lee. So a region is
-still one floor picture, and a room is still lit flat — *lit* is the terrain's
+still one floor tone, and a room is still lit flat — *lit* is the terrain's
 light, the strip rows `indoorRows` counts, and none of them is used — and that
 check's wording did not have to change. It is composed with the room and kept
 with it: sixty frames standing in the abbey compose and shade nothing, and off

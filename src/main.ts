@@ -10119,6 +10119,11 @@ async function main() {
    * down than a wall.  The room's own wash goes over both afterwards, the same
    * as over its floor.
    */
+  /** A picture as the one colour a floor is laid in: its average ink. */
+  const flatOf = (id: string) => {
+    const [r, g, bl] = inkOfPicture(id)
+    return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(bl)})`
+  }
   const roomTones = (k: string) => {
     const from = k === 'mine' ? 'rock_floor' : 'in_wall'
     const [r, g, bl] = inkOfPicture(from)
@@ -10258,7 +10263,8 @@ async function main() {
     const rc = Math.ceil(reach)
     const sw = W * SUB + 1, sh = H * SUB + 1
     const near = new Float32Array(sw * sh).fill(Infinity)
-    const stands = (i: number, j: number) => i >= 0 && j >= 0 && i < W && j < H && kind[i * H + j]! <= 1
+    // Standing room only: a speck is stone and shades like the rest (issue 253).
+    const stands = (i: number, j: number) => i >= 0 && j >= 0 && i < W && j < H && kind[i * H + j]! === 0
     let band = 0
     for (let i = -1; i <= W; i++) {
       for (let j = -1; j <= H; j++) {
@@ -10530,7 +10536,7 @@ async function main() {
     const tally = new Map<string, number>()
     const add = (key: string) => tally.set(key, (tally.get(key) ?? 0) + 1)
     /**
-     * **One floor picture a room, not a coin tossed a cell.**  Two pictures
+     * **One floor tone a room, not a coin tossed a cell.**  Two pictures
      * were mixed by a hash on every cell, which is a floor that shimmers:
      * nothing in it lines up with a room, and the seams between the two
      * pictures read as structure where there is none.  A room region is
@@ -10599,18 +10605,7 @@ async function main() {
       }
     }
     aimFlights(p, under, r, flight, flights)
-    // The tread picture a quarter turned, once, for the flights that want it.
-    let turned: HTMLCanvasElement | null = null
     const stairPic = stairId ? tilesMeta[stairId] : undefined
-    if (stairPic && flights.some((f) => f.turned)) {
-      turned = document.createElement('canvas')
-      turned.width = stairPic.h; turned.height = stairPic.w
-      const tg = turned.getContext('2d')!
-      tg.imageSmoothingEnabled = false
-      tg.translate(stairPic.h, 0)
-      tg.rotate(Math.PI / 2)
-      tg.drawImage(tilesImg, stairPic.x, stairPic.y, stairPic.w, stairPic.h, 0, 0, stairPic.w, stairPic.h)
-    }
     for (let i = 0; i < W; i++) {
       for (let j = 0; j < H; j++) {
         const n = i * H + j
@@ -10626,10 +10621,22 @@ async function main() {
           add(stone ? `wall:${tones.from}` : `void:${tones.from}`)
           continue
         }
+        // **A building is its walls, its stairs and its people, and the
+        // floor is one colour** (issue 253, the owner's rule).  A flight is
+        // drawn as its up and down marks on the glass and not as a tread
+        // picture — the picture's rows were the one thing that said which
+        // way a flight ran, and `aimFlights` says it from the heights now — so
+        // a stairs cell is laid in the floor's own tone, and a speck, which is
+        // stone a man walks round, in the wall's.
         if (cc === CELL.stairs && stairPic) {
-          add(`stairs:${stairId}`)
-          if (turned && flights[flight[n]!]!.turned) g.drawImage(turned, i * S, j * S, S, S)
-          else g.drawImage(tilesImg, stairPic.x, stairPic.y, stairPic.w, stairPic.h, i * S, j * S, S, S)
+          g.fillStyle = flatOf(floorOf(i, j))
+          g.fillRect(i * S, j * S, S, S)
+          continue
+        }
+        if (cc === CELL.speck) {
+          g.fillStyle = tones.wall
+          g.fillRect(i * S, j * S, S, S)
+          add(`wall:${tones.from}`)
           continue
         }
         let id: string
@@ -10651,11 +10658,22 @@ async function main() {
         }
         const pic = tilesMeta[id]
         if (!pic) continue
-        add(`${cc === CELL.speck ? 'speck' : region[n]! >= 0 ? 'floor' : 'open'}:${id}`)
+        if (region[n]! >= 0) {
+          // The floor: one colour a region, the average ink of the picture
+          // the building used to be laid in — found, not picked — so the inn
+          // keeps its boards' brown and the abbey its flagstones' grey.  The
+          // picture itself is not laid: its grain and cracks came out on the
+          // glass at the same weight as a wall's edge, and a storey read as a
+          // maze (issue 250) until the only lines left on a floor were walls.
+          add(`floor:${id}`)
+          g.fillStyle = flatOf(id)
+          g.fillRect(i * S, j * S, S, S)
+          continue
+        }
+        add(`open:${id}`)
         g.drawImage(tilesImg, pic.x, pic.y, pic.w, pic.h, i * S, j * S, S, S)
       }
     }
-    releaseCanvas(turned)
     // Lit flat, at the row the tile pass used to take a room's pictures from,
     // with the same wash that row is given — over what was laid and nothing
     // else, so the dark round a room stays the dark.
@@ -10776,8 +10794,8 @@ async function main() {
       const voidTone = toward(glow(from) < VOID_LEAST ? share : Math.min(deepest(VOID_LEAST), share))
       for (let n = 0; n < W * H; n++) {
         const cc = code[n]
-        if (cc !== CELL.wall && cc !== CELL.void) continue
-        g.fillStyle = cc === CELL.wall ? rgb(wall) : rgb(voidTone)
+        if (cc !== CELL.wall && cc !== CELL.void && cc !== CELL.speck) continue
+        g.fillStyle = cc === CELL.void ? rgb(voidTone) : rgb(wall)
         g.fillRect(((n / H) | 0) * S, (n % H) * S, S, S)
       }
       // And the floors the dark could not carry, each by its own least film.
@@ -10868,7 +10886,9 @@ async function main() {
           const path = t === 1 ? 1 : t ? 2 : 0
           if (path === was) continue
           if (was) {
-            const into = was === 1 ? specks : walls
+            // A speck is stone (issue 253), so its edge is a wall's edge and
+            // drawn as one; `specks` stays a path for the counts and is empty.
+            const into = walls
             if (across) { into.moveTo(a, run); into.lineTo(a, q) }
             else { into.moveTo(run, a); into.lineTo(q, a) }
             edges.runs++
@@ -10946,22 +10966,12 @@ async function main() {
     if (!doors.length) { exitsUnmarked.set(p, 0); return out }
     const { W, H } = r
     const px = S / p.s
-    const tread = tilesMeta[b.k === 'house' && tilesMeta['in_stair_wood']
-      ? 'in_stair_wood' : 'in_stair']
     // A threshold, in a frame whose x is the way through and y the gap.
+    // A threshold is the two ends of the wall it is cut through and nothing
+    // laid between them: the tread picture went with the floor's (issue 253).
     const sill = (half: number) => {
       const depth = p.s / 2
       const across = 2 * half
-      if (tread) {
-        const n = Math.max(1, Math.round(across / YD_PER_TILE))
-        g.save()
-        g.rotate(Math.PI / 2)
-        for (let k = 0; k < n; k++) {
-          g.drawImage(tilesImg, tread.x, tread.y, tread.w, tread.h >> 1,
-            -half + (k * across) / n, -depth / 2, across / n, depth)
-        }
-        g.restore()
-      }
       g.fillStyle = 'rgba(22, 18, 14, 0.9)'
       const line = 0.08 * YD_PER_TILE
       g.fillRect(-depth / 2 - line, -half, line, across)
@@ -11517,7 +11527,7 @@ async function main() {
    *
    * `indoorPaint` is the outside's count of the same outline and cannot say
    * it: once you are through the door that pass does not run.  Issue 159 asked
-   * that a building's inside use three floor pictures at most, and nothing had
+   * that a building's inside use three floor tones at most, and nothing had
    * counted what `drawRoom` puts down, so the promise sat in the wiki with a
    * dash beside it.
    */
