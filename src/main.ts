@@ -10828,11 +10828,21 @@ async function main() {
       const floorRgb = floorInk.map((v) => Math.round(v + (255 - v) * alpha))
       vecTones = { wall: wallRgb, floor: floorRgb }
       const rgb = (t: number[]) => `rgb(${t.join(',')})`
+      // **Every triangle wound the same way.**  A floor in the model is a
+      // top and an underside, the same triangle twice with opposite winding,
+      // and filled as one path under the nonzero rule the two cancel: the
+      // inn's stairwell came out a hole in the floor.  Each is turned to one
+      // orientation by its signed area, so the fill is the union.
       const floorPath = new Path2D()
       for (let t = 0; t + 5 < p.tris.length; t += 6) {
-        floorPath.moveTo(X(p.tris[t]!), Y(p.tris[t + 1]!))
-        floorPath.lineTo(X(p.tris[t + 2]!), Y(p.tris[t + 3]!))
-        floorPath.lineTo(X(p.tris[t + 4]!), Y(p.tris[t + 5]!))
+        const ax = X(p.tris[t]!), ay = Y(p.tris[t + 1]!)
+        const bx = X(p.tris[t + 2]!), by = Y(p.tris[t + 3]!)
+        const cx = X(p.tris[t + 4]!), cy = Y(p.tris[t + 5]!)
+        const twice = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+        if (twice === 0) continue
+        floorPath.moveTo(ax, ay)
+        if (twice > 0) { floorPath.lineTo(bx, by); floorPath.lineTo(cx, cy) }
+        else { floorPath.lineTo(cx, cy); floorPath.lineTo(bx, by) }
         floorPath.closePath()
       }
       g.fillStyle = rgb(floorRgb)
