@@ -15,6 +15,13 @@ type Sheet = CanvasImageSource & { width: number; height: number }
 let sheet: Sheet | null = null
 let started = false
 
+/**
+ * Start the sheet loading now, so a projectile that lives less than a
+ * decode does not draw as the fallback (issue 256).  Called at boot; the
+ * lazy `begin` inside the draw path stays for the harness, which draws in
+ * Node where there is no `Image`.
+ */
+export function warm(): void { begin() }
 function begin(): void {
   if (started || typeof Image === 'undefined') return
   started = true

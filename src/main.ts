@@ -39,8 +39,8 @@ import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
 import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, wentInto, RANK_WORD, SIDE_WORD, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
-import { drawBolt } from './render/boltimage.ts'
-import { drawFx } from './render/fximage.ts'
+import { drawBolt, warm as warmBolts } from './render/boltimage.ts'
+import { drawFx, warm as warmFx } from './render/fximage.ts'
 import { flightKind, landingFx, schoolColour, tint as rgbaOf } from './render/school.ts'
 import type { ProjectileKind } from './render/bolt.ts'
 import { hud as makeHud, type BookRow, type Layout, type ShopRow, type Slot, type Worn } from './hud.ts'
@@ -356,6 +356,11 @@ const load = (src: string) =>
   })
 
 async function main() {
+  // The projectile and flash sheets start loading now, not on the first bolt:
+  // a frostbolt lives 0.7 seconds and a cold decode is longer, so the first
+  // one always drew as the fallback circle (issue 256).
+  warmBolts()
+  warmFx()
   // Two worlds, and the sharper one wins if it is there.
   //
   // `public/data` is what `bake_terrain.py` writes out of a WoW client, and it
@@ -4690,6 +4695,24 @@ async function main() {
     // just pressed.
     if (sp.gcd && you.gcd > clock) return '아직 준비되지 않았다'
     if ((you.cools[sp.id] ?? 0) > clock) return '아직 준비되지 않았다'
+    // **An attack needs something to hit, in the space you are in** (issue
+    // 256).  A spell that strikes what it is aimed at is refused with no live
+    // target and one across a wall or on another floor — `together` — so the
+    // bar does not fire at nothing, or through the abbey's wall at a wolf in
+    // the yard.  A spell that strikes everything around instead (a radius, a
+    // thunderclap) is refused when nothing it could hit is inside that radius.
+    if (strikes(sp)) {
+      const wide = Math.max(0, ...(sp.wide ?? []))
+      if (wide > 0) {
+        const anyone = active.some((n) => !n.dead && fightable(n.fight)
+          && together(n) && (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2 <= wide * wide)
+        if (!anyone) return '맞힐 것이 없다'
+      } else {
+        const t = you.target
+        if (!t || t.dead) return '대상이 없다'
+        if (!together(t)) return '대상이 닿지 않는다'
+      }
+    }
     const far = sp.reach[1]
     if (far > 0) {
       const t = you.target
@@ -6236,7 +6259,7 @@ async function main() {
     if (chat || you.died || you.target) return
     let best: Npc | null = null, bd = Infinity
     for (const n of active) {
-      if (n.dead || !n.angry || !fightable(n.fight)) continue
+      if (n.dead || !n.angry || !fightable(n.fight) || !together(n)) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       if (d < bd) { bd = d; best = n }
     }
@@ -6576,7 +6599,7 @@ async function main() {
     const far = aimRange()
     let best: Npc | null = null, bd = far * far
     for (const n of active) {
-      if (!fightable(n.fight) || n.dead) continue
+      if (!fightable(n.fight) || n.dead || !together(n)) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       if (d < bd) { bd = d; best = n }
     }
@@ -10867,6 +10890,24 @@ async function main() {
       const floorRgb = floorInk.map((v) => Math.round(v + (255 - v) * alpha))
       vecTones = { wall: wallRgb, floor: floorRgb }
       const rgb = (t: number[]) => `rgb(${t.join(',')})`
+      // **The thickness of a wall is wall.**  A wall is drawn as the bands its
+      // two faces stand on — the inside and the outside of the stone — and
+      // between them lies the wall's own body, cells nobody can stand in and
+      // no floor triangle covers, which came out the colour of nothing behind
+      // the room (issue 256).  Filled first, under the floor and the bands,
+      // with the wall's tone (and the void's where the storey has a hole),
+      // so the gap between the two bands reads as solid wall.  A cell fill,
+      // but every visible edge of it is a band drawn over it, so what shows
+      // is only the body between two lines.
+      const [svr, svg, svb, sdeep] = SHADOW
+      const voidRgb = wallRgb.map((v, i) => Math.round(v * (1 - sdeep) + [svr, svg, svb][i]! * sdeep))
+      for (let n = 0; n < W * H; n++) {
+        const cc = code[n]
+        if (cc === CELL.wall || cc === CELL.speck) g.fillStyle = rgb(wallRgb)
+        else if (cc === CELL.void) g.fillStyle = rgb(voidRgb)
+        else continue
+        g.fillRect(((n / H) | 0) * S, (n % H) * S, S, S)
+      }
       // **Every triangle wound the same way.**  A floor in the model is a
       // top and an underside, the same triangle twice with opposite winding,
       // and filled as one path under the nonzero rule the two cancel: the
@@ -11741,6 +11782,7 @@ async function main() {
   })
 
   let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
+  let boltArt = 0, boltFallback = 0
   /**
    * How many tiles of ground the buildings shadowed last frame, and how many
    * sides of a tile were drawn as a building's edge.
@@ -11854,6 +11896,16 @@ async function main() {
       : !roof ? null : mine ? 'mine' : !roof.plan ? 'sprite' : 'roof'
     return { roof, up, why }
   }
+  /**
+   * **Whether you can reach something to fight it: it is in the same space you
+   * are** (issue 256).  `sightOf` already says why a creature would be left
+   * off the glass — under a different roof, on a different floor, outside the
+   * room you are in — and that is exactly the reach a fight has: a frostbolt
+   * does not go through a wall, and a man inside a building is not fighting the
+   * wolves in the yard.  So the aim and the cast both ask it, and a target
+   * that walks out of the room stops being one.
+   */
+  const together = (n: Npc) => sightOf(n).why === null
   /** How many tiles this frame were an edge rather than a fill. */
   let edged = 0
   /** How many tiles the ground loop looked at, against how many it drew. */
@@ -14251,8 +14303,10 @@ async function main() {
         // it off the trail, which on the step it is thrown is one point and
         // says east; a bolt that homes is always pointing at its target.
         const angle = Math.atan2(screenY(tx, ty) - lands - y, screenX(tx, ty) - x)
-        if (!drawBolt(ctx, f.kind, x, y, Math.max(6, style.sprite * PPY * zoom),
-          angle, f.colour, at)) {
+        if (drawBolt(ctx, f.kind, x, y, Math.max(6, style.sprite * PPY * zoom),
+          angle, f.colour, at)) boltArt++
+        else {
+          boltFallback++
           ctx.beginPath()
           ctx.arc(x, y, r, 0, Math.PI * 2)
           ctx.fillStyle = f.colour
@@ -17771,7 +17825,7 @@ async function main() {
   // drawn — so a check can ask whether a bolt carries its damage rather than
   // whether something moved.
   ;(window as unknown as { __flights: () => unknown }).__flights = () => ({
-    clock,
+    clock, boltArt, boltFallback,
     flights: flights.map((f) => ({ id: f.id, kind: f.kind, colour: f.colour,
       x: f.x, y: f.y, speed: f.speed, trail: f.trail.length, lift: f.lift,
       from: f.from ? f.from.entry : 'you', to: f.to ? f.to.entry : 'you' })),
