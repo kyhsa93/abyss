@@ -219,7 +219,7 @@ keeps it honest.
 | 약속 | 지키는 검사 |
 | --- | --- |
 | **자동 공격이 바의 칸을 차지하지 않는다** | `scripts/uicheck.mjs: "no square on the bar is the attack"` |
-| 대상이 없고 닿는 곳에 적이 있으면 저절로 대상이 잡힌다 | `scripts/uicheck.mjs: "and it finds something to aim at without being handed one"` |
+| 자동이 켜져 있어도 화 안 난 것은 저절로 겨누지 않는다 | `scripts/uicheck.mjs: "and with it on it still will not reach for something that is not angry"` |
 | 자동이 꺼져 있으면 화 안 난 것은 안 겨눈다 | `scripts/uicheck.mjs: "and with it off it aims at nothing that is not already angry"` |
 | 전화기의 자동 단추를 손가락으로 켜고 끌 수 있다 | `scripts/padcheck.mjs: "and a finger turns it on and off again"` |
 | **자동 시전이 켜져 있으면 바에 올린 것이 실제로 시전된다** | `scripts/uicheck.mjs: "and with it on, the bar casts itself"` |

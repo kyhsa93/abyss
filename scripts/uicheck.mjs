@@ -1003,26 +1003,32 @@ for (const [W, H] of SIZES) {
         const offAngry = off === null || angryNow().has(off)
         window.__setAuto(true)
         let on = null
-        for (let i = 0; i < 60 && !on; i++) {
+        for (let i = 0; i < 30 && !on; i++) {
           await new Promise((r) => setTimeout(r, 100))
           on = window.__you().target
         }
+        // Whatever it took with the hand on has to be angry too — a rabbit in
+        // reach that no one has touched is not a fight to keep going, and auto
+        // throwing bolts at it for ever is what read as casting at nothing
+        // (issue 256).  `takeAim` sets an angry one whether the toggle is on
+        // or off; auto adds no target of its own.
+        const onAngry = on === null || angryNow().has(on)
         // Put the world back the way it was found.  Leaving the automatic hand
         // on and a fight running changed the rage and the stance under the
         // check after this one, which is about which *square* fires and has
         // nothing to do with either.
         window.__setAuto(false)
         window.__unaim()
-        return { kind: q.n.kind, off, offAngry, on }
+        return { kind: q.n.kind, off, offAngry, on, onAngry }
       })
       check('and with it off it aims at nothing that is not already angry',
         !!calm && calm.offAngry,
         calm ? `a calm ${calm.kind} in reach and the target is `
           + `${calm.off ?? 'nobody'}` : 'nothing calm to stand next to')
-      check('and it finds something to aim at without being handed one',
-        !!calm && !!calm.on,
-        calm ? `aimed at ${calm.on ?? 'nothing'} with nobody calling __aimAtNearest`
-          : '')
+      check('and with it on it still will not reach for something that is not angry',
+        !!calm && calm.onAngry,
+        calm ? `a calm ${calm.kind} in reach and the target is `
+          + `${calm.on ?? 'nobody'}` : 'nothing calm to stand next to')
       // And it is the leftmost thing it can use, which is the rule that makes
       // the arrangement the fighting order.
       // **Arranged rather than raced.**

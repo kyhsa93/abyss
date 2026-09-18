@@ -6304,12 +6304,15 @@ async function main() {
     // spawns with a fight row here none is `ENEMY`, so aiming at anything
     // fightable would kill every chicken you walked past.
     //
-    // A toggle is different.  Turning this on is the player saying *fight what
-    // I can fight*, so here — and only here — the reach is `inSwing`'s, which
-    // is what the line that used to live in the phone's own loop did before it
-    // was deleted.  Without it `autoCast` returned on `!you.target` and nothing
-    // anywhere took one: eleven places read `auto` and not one of them aimed.
-    if (!you.target) you.target = inSwing()
+    // A toggle keeps a fight going; it does not start one on something that
+    // was leaving you alone (issue 256).  It used to acquire through
+    // `inSwing`, whose reach is `fightable` — and `fightable` is `QUARRY` and
+    // up, which is every rabbit and deer: turning auto on in a meadow set the
+    // hand throwing fireballs at a rabbit thirty yards off that no one had
+    // touched, for ever, which reads as casting at nothing.  So auto takes no
+    // target of its own.  It fires at the one *you* picked — space, or a tap,
+    // both of which take the nearest thing that will fight — and at whatever
+    // is already angry, which `takeAim` sets each frame before this runs.
     if (!you.target) return
     if (you.casting || you.gcd > clock) return
     const t = you.target
@@ -10895,18 +10898,16 @@ async function main() {
       // between them lies the wall's own body, cells nobody can stand in and
       // no floor triangle covers, which came out the colour of nothing behind
       // the room (issue 256).  Filled first, under the floor and the bands,
-      // with the wall's tone (and the void's where the storey has a hole),
-      // so the gap between the two bands reads as solid wall.  A cell fill,
+      // with the wall's own tone — the same colour as the faces, so an
+      // unreachable cell reads as stone and not as a hole (issue 256).  A
+      // cell fill,
       // but every visible edge of it is a band drawn over it, so what shows
       // is only the body between two lines.
-      const [svr, svg, svb, sdeep] = SHADOW
-      const voidRgb = wallRgb.map((v, i) => Math.round(v * (1 - sdeep) + [svr, svg, svb][i]! * sdeep))
+      g.fillStyle = rgb(wallRgb)
       for (let n = 0; n < W * H; n++) {
         const cc = code[n]
-        if (cc === CELL.wall || cc === CELL.speck) g.fillStyle = rgb(wallRgb)
-        else if (cc === CELL.void) g.fillStyle = rgb(voidRgb)
-        else continue
-        g.fillRect(((n / H) | 0) * S, (n % H) * S, S, S)
+        if (cc === CELL.wall || cc === CELL.speck || cc === CELL.void)
+          g.fillRect(((n / H) | 0) * S, (n % H) * S, S, S)
       }
       // **Every triangle wound the same way.**  A floor in the model is a
       // top and an underside, the same triangle twice with opposite winding,
@@ -14278,15 +14279,26 @@ async function main() {
         const x = screenX(f.ix, f.iy), y = screenY(f.ix, f.iy) - lift
         f.lift = lift
         const r = Math.max(2, style.radius * PPY * zoom)
-        // The trail behind it, thinning and fading toward where it came from.
+        // The comet tail behind it, thinning and fading toward where it came
+        // from — a projectile reads as a thing that is *travelling* by its
+        // wake, not by the body alone, which is what left a tinted sprite
+        // looking like a coloured circle sat on the grass (issue 256).  Two
+        // passes a segment: the school's colour wide, and a hotter near-white
+        // core narrower over it, so the streak has a bright centre like the
+        // head it trails.
+        ctx.lineCap = 'round'
         for (let i = 1; i < f.trail.length; i++) {
           const [ax, ay] = f.trail[i - 1]!, [bx, by] = f.trail[i]!
           const fade = i / f.trail.length
-          ctx.beginPath()
-          ctx.moveTo(screenX(ax, ay), screenY(ax, ay) - lift)
-          ctx.lineTo(screenX(bx, by), screenY(bx, by) - lift)
-          ctx.strokeStyle = rgbaOf(f.colour, 0.35 * fade)
-          ctx.lineWidth = Math.max(1, r * 1.2 * fade)
+          const mx = screenX(ax, ay), my = screenY(ax, ay) - lift
+          const nx = screenX(bx, by), ny = screenY(bx, by) - lift
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(nx, ny)
+          ctx.strokeStyle = rgbaOf(f.colour, 0.5 * fade)
+          ctx.lineWidth = Math.max(1, r * 1.5 * fade)
+          ctx.stroke()
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(nx, ny)
+          ctx.strokeStyle = `rgba(255,255,255,${(0.28 * fade).toFixed(3)})`
+          ctx.lineWidth = Math.max(0.75, r * 0.55 * fade)
           ctx.stroke()
         }
         // A halo that falls off, under the body: it is what lifts a sixteen
@@ -14312,6 +14324,24 @@ async function main() {
           ctx.fillStyle = f.colour
           ctx.fill()
         }
+        // A hot core on the head, added not painted over: the sprite the
+        // packer ships is nearly flat in luminance, so a tint of it is one
+        // colour edge to edge and reads as a disc rather than a burning thing.
+        // A small near-white centre falling to the school's colour, blended
+        // as light, gives it the glow the greyscale does not carry — the same
+        // trick the flash uses, kept small so the body's shape still shows
+        // (issue 256).
+        ctx.save()
+        ctx.globalCompositeOperation = 'lighter'
+        const core = ctx.createRadialGradient(x, y, 0, x, y, r * 0.95)
+        core.addColorStop(0, 'rgba(255,255,255,0.85)')
+        core.addColorStop(0.5, rgbaOf(f.colour, 0.55))
+        core.addColorStop(1, rgbaOf(f.colour, 0))
+        ctx.beginPath()
+        ctx.arc(x, y, r * 0.95, 0, Math.PI * 2)
+        ctx.fillStyle = core
+        ctx.fill()
+        ctx.restore()
       }
       // And the flashes: the picture first, then the ring in the school's
       // colour on top of it, because the ring is the part that says which.
