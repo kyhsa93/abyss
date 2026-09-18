@@ -6304,15 +6304,18 @@ async function main() {
     // spawns with a fight row here none is `ENEMY`, so aiming at anything
     // fightable would kill every chicken you walked past.
     //
-    // A toggle keeps a fight going; it does not start one on something that
-    // was leaving you alone (issue 256).  It used to acquire through
-    // `inSwing`, whose reach is `fightable` — and `fightable` is `QUARRY` and
-    // up, which is every rabbit and deer: turning auto on in a meadow set the
-    // hand throwing fireballs at a rabbit thirty yards off that no one had
-    // touched, for ever, which reads as casting at nothing.  So auto takes no
-    // target of its own.  It fires at the one *you* picked — space, or a tap,
-    // both of which take the nearest thing that will fight — and at whatever
-    // is already angry, which `takeAim` sets each frame before this runs.
+    // **A toggle starts a fight with what you walked up to, and with nothing
+    // across the meadow** (issues 256, 257).  Two wrongs bracket this.  It
+    // acquired through `inSwing` at `aimRange`, which is the longest spell —
+    // thirty yards for a mage — over `fightable`, which is `QUARRY` and up,
+    // which is every rabbit: auto threw bolts at a rabbit nobody had touched
+    // until one of them died, and that reads as casting at nothing.  Taking
+    // no target at all was worse: the toggle then did nothing whatever unless
+    // you had aimed by hand, which is not what turning it on means.  So it
+    // acquires, but at a fight's own distance rather than a caster's: close
+    // enough that standing there was a choice.  Anything already angry is
+    // `takeAim`'s, at any range, and that runs each frame before this.
+    if (!you.target) you.target = inSwing(ENGAGE)
     if (!you.target) return
     if (you.casting || you.gcd > clock) return
     const t = you.target
@@ -6590,6 +6593,19 @@ async function main() {
     Math.max(MELEE, ...spells.map((sp) => sp.reach[1] ?? 0))
 
   /**
+   * How near a thing has to be before the automatic hand will pick a fight
+   * with it of its own accord (issue 257).
+   *
+   * Twice a swing.  `aimRange` is the wrong measure here — it is the longest
+   * thing you *can* cast, so on a mage it reached a third of the way across
+   * the meadow — and `MELEE` alone is so tight that a caster would have to
+   * stand in the thing's face to open on it.  Twice a swing is the distance
+   * at which you have plainly walked up to something; beyond it, a creature
+   * that has not touched you is left alone until you take it yourself.
+   */
+  const ENGAGE = MELEE * 2
+
+  /**
    * The nearest thing worth swinging at, or nothing.
    *
    * Hostiles only.  One key that means "hit whatever is closest" and a village
@@ -6598,8 +6614,8 @@ async function main() {
    * and hits back.  Attacking somebody who was not going to attack you should
    * take more than a keystroke.
    */
-  const inSwing = (): Npc | null => {
-    const far = aimRange()
+  const inSwing = (reach?: number): Npc | null => {
+    const far = reach ?? aimRange()
     let best: Npc | null = null, bd = far * far
     for (const n of active) {
       if (!fightable(n.fight) || n.dead || !together(n)) continue
@@ -18272,5 +18288,50 @@ function offline() {
   })
 }
 offline()
+
+/**
+ * **If the scene never comes up, throw the offline copy away and try once
+ * more** (issue 258).
+ *
+ * A worker that has cached a shell is a worker that can serve one after the
+ * script it names has been replaced by a deploy, and what that looks like is
+ * a black page with nothing on it and nothing in the console to say why — the
+ * page loaded, the script did not.  It cannot be reasoned about from here
+ * because the wreck is in somebody's phone, so this does not try: if the
+ * scene has not started twenty-five seconds after load, the worker and
+ * every cache it holds are dropped and the page is reloaded from the network.
+ *
+ * Once, and only once — `sessionStorage` carries the flag, so a page that is
+ * broken for some *other* reason cannot put the browser in a reload loop; the
+ * second failure is left on the glass where it can be read.  Wrapped, because
+ * a browser with storage turned off should still get its one retry.
+ */
+function watchdog() {
+  if (!import.meta.env.PROD) return
+  if (!('serviceWorker' in navigator)) return
+  const KEY = 'abyss-healed'
+  setTimeout(() => {
+    if ((window as unknown as { __ready?: boolean }).__ready) return
+    // **Only a page a worker is serving.**  A first visit fetches everything
+    // from the network, and on a phone out of town the world is a slow three
+    // and a half megabytes: that page is not broken, it is loading, and
+    // throwing its caches away would make the next try slower still.  A
+    // worker in charge is the only state this can actually repair.
+    if (!navigator.serviceWorker.controller) return
+    let healed = null
+    try { healed = sessionStorage.getItem(KEY) } catch { /* no storage, one try */ }
+    if (healed) return
+    try { sessionStorage.setItem(KEY, '1') } catch { /* still worth the retry */ }
+    const done = () => location.reload()
+    Promise.all([
+      navigator.serviceWorker.getRegistrations()
+        .then((rs) => Promise.all(rs.map((r) => r.unregister()))).catch(() => null),
+      (typeof caches !== 'undefined'
+        ? caches.keys().then((ks) => Promise.all(ks.map((k) => caches.delete(k))))
+        : Promise.resolve()).catch(() => null),
+    ]).then(done, done)
+  }, 25000)
+}
+watchdog()
 
 main().catch((e) => { hud.textContent = String(e); throw e })

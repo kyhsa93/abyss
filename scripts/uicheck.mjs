@@ -1001,34 +1001,86 @@ for (const [W, H] of SIZES) {
         // Whatever it took with the hand off has to be something already angry
         // — that is `takeAim`, and it runs whether the toggle is on or not.
         const offAngry = off === null || angryNow().has(off)
+        // **A stride away, the toggle opens on it** (issue 257).  Taking no
+        // target at all left auto doing nothing whatever unless you had aimed
+        // by hand, and a toggle that does nothing is not a toggle.
         window.__setAuto(true)
-        let on = null
-        for (let i = 0; i < 30 && !on; i++) {
+        let near = null
+        for (let i = 0; i < 30 && !near; i++) {
           await new Promise((r) => setTimeout(r, 100))
-          on = window.__you().target
+          near = window.__you().target
         }
-        // Whatever it took with the hand on has to be angry too — a rabbit in
-        // reach that no one has touched is not a fight to keep going, and auto
-        // throwing bolts at it for ever is what read as casting at nothing
-        // (issue 256).  `takeAim` sets an angry one whether the toggle is on
-        // or off; auto adds no target of its own.
-        const onAngry = on === null || angryNow().has(on)
+        window.__setAuto(false)
+        window.__unaim()
+        // **And across the meadow it leaves the same kind of creature alone**
+        // (issue 256): auto used to acquire at the longest spell's reach, so a
+        // rabbit nobody had touched was bolted from thirty yards for ever.
+        // Somewhere with nothing else within the engaging distance, or the
+        // answer is about whatever else wandered up.
+        let far = null, crowd = -1
+        for (const d of [[-22, 0], [22, 0], [0, -22], [0, 22]]) {
+          window.__put(q.n.x + d[0], q.n.y + d[1])
+          const h2 = window.__hero()
+          if (Math.hypot(q.n.x - h2.x, q.n.y - h2.y) < 15) continue
+          crowd = window.__all().filter((n) => !n.dead && n.stance !== 'friend'
+            && Math.hypot(n.x - h2.x, n.y - h2.y) < 12).length
+          if (crowd > 0) continue
+          window.__setAuto(true)
+          for (let i = 0; i < 20 && !far; i++) {
+            await new Promise((r) => setTimeout(r, 100))
+            far = window.__you().target
+          }
+          window.__setAuto(false)
+          break
+        }
+        // **Something quiet and close, not that exact creature.**  `inSwing`
+        // takes the nearest thing it may fight, and something else calm is
+        // often nearer than the one this walked up to — a rabbit underfoot
+        // beside the bandit.  What the rule promises is that it opens on a
+        // calm thing within the engaging distance, which a hand that takes no
+        // target of its own can never do; and that it opens on nothing at all
+        // where there is no calm thing within that distance, which is the
+        // `crowd` count above being nought.
+        const tookNear = near !== null && !angryNow().has(near)
+        const tookFar = far !== null && !angryNow().has(far)
+        // **Only readable while nothing angry owns the target.**  `takeAim`
+        // takes an angry creature at any range, toggle or no toggle, so once a
+        // bandit anywhere has been provoked it is the answer to both of these
+        // and neither says a word about the engaging distance — they read `ok`
+        // against a target that was never the calm one.  `off` is what the
+        // target was with the hand off: nought means nothing angry had it.
+        const quiet = off === null
         // Put the world back the way it was found.  Leaving the automatic hand
         // on and a fight running changed the rage and the stance under the
         // check after this one, which is about which *square* fires and has
         // nothing to do with either.
         window.__setAuto(false)
         window.__unaim()
-        return { kind: q.n.kind, off, offAngry, on, onAngry }
+        // **Back where he was found.**  This block walks him twenty yards off
+        // to ask the second question, and the check after it picks the nearest
+        // calm thing *from wherever he is standing* and then walks up to it —
+        // left out there it chose a creature that had wandered and its shout
+        // never went off.  The file's own habit, one block down: `__foe(3)`.
+        window.__put(h.x, h.y)
+        return { kind: q.n.kind, off, offAngry, near, far, tookNear, tookFar, crowd, quiet }
       })
       check('and with it off it aims at nothing that is not already angry',
         !!calm && calm.offAngry,
         calm ? `a calm ${calm.kind} in reach and the target is `
           + `${calm.off ?? 'nobody'}` : 'nothing calm to stand next to')
-      check('and with it on it still will not reach for something that is not angry',
-        !!calm && calm.onAngry,
-        calm ? `a calm ${calm.kind} in reach and the target is `
-          + `${calm.on ?? 'nobody'}` : 'nothing calm to stand next to')
+      check('and with it on it opens on what you are standing next to',
+        !!calm && (!calm.quiet || calm.tookNear),
+        calm ? `a calm ${calm.kind} a stride away and the target is `
+          + `${calm.near ?? 'nobody'}`
+          + (calm.quiet ? '' : ' — NOT ASKED, something angry already had the target')
+          : 'nowhere quiet with something calm in it')
+      check('and still leaves a calm one across the meadow alone',
+        !!calm && (!calm.quiet || !calm.tookFar),
+        calm ? `the same ${calm.kind} 22 yards off and the target is `
+          + `${calm.far ?? 'nobody'}`
+          + (calm.quiet ? '' : ' — NOT ASKED, something angry already had the target')
+          + (calm.crowd > 0 ? ` (${calm.crowd} fightable within the engaging distance)` : '')
+          : 'nowhere quiet with something calm in it')
       // And it is the leftmost thing it can use, which is the rule that makes
       // the arrangement the fighting order.
       // **Arranged rather than raced.**
