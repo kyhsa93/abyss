@@ -289,8 +289,15 @@ await p.waitForTimeout(200)
     await two()
     return p.evaluate(() => window.__canvasHeld())
   }
+  // One tour to warm the room cache to its steady state before measuring, so
+  // `first` and `last` are both taken after the cache is full (issue 252).
+  // Comparing a still-warming first round (29-33 canvases as the cache fills,
+  // a count the garbage collector's timing moves on a loaded CI runner) to a
+  // settled fourth (a stable 33) read the warm-up as a leak and failed at the
+  // edge; a real leak still grows tour on tour and still trips this.
+  await tour()
   const first = await tour()
-  await tour(); await tour()
+  await tour()
   const last = await tour()
   await two()
   const later = await p.evaluate(() => window.__canvasHeld())
