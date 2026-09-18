@@ -406,6 +406,220 @@ def wmo_triangles(client, path):
     return tris
 
 
+#: One building's outline, worked out once a model and kept.
+_OUTLINES = {}
+
+
+def wmo_outline(client, path):
+    """**The building's own silhouette, as coordinates** (issue 259).
+
+    The scene drew a footprint by stamping the 1.33-yard plan mask cell by
+    cell, so every wall of a turned building came out a staircase — the same
+    fault issue 254 fixed *inside* a building and left standing outside it.
+    What is shipped instead is the outline itself: rings of points in tenths
+    of a yard of the model's own space, which the glass can stroke at any zoom
+    without a grid in it.
+
+    Three things make it the same silhouette the masks already mean, rather
+    than a second opinion:
+
+      * **The faces the server keeps.**  `MOPY` states each triangle's
+        material, and AzerothCore's own extractor takes a face only if it is
+        collidable, rendered-and-not-detail, or the collision-only material —
+        half of the abbey's 18,817 are interior detail that never reaches a
+        silhouette.  Dropping them changes the abbey's bounding box by
+        nothing at all and halves the work.
+      * **The fill this file already uses.**  Triangles are a shell and the
+        mask they leave is full of holes, so the outline is what the *outside*
+        cannot reach: flooded from the border, exactly as `wmo_plan` does.
+      * **A finer grid than the plan's, traced and then straightened.**  The
+        mask is a yard and a third; this rasterises at a quarter yard and
+        simplifies the traced ring to a third of a yard, so a diagonal wall
+        comes back as one long edge instead of a flight of steps.  The abbey
+        is 1,654 traced points and 87 kept, and the polygon is within 1% of
+        the area the fill states.
+
+    Every piece of the model above two square yards gets its own ring — a gate
+    is 27 separate pieces and taking only the biggest threw its posts away.
+    """
+    if path in _OUTLINES:
+        return _OUTLINES[path]
+    import numpy as np
+    step, tol, least = PLAN_CELL / 4, PLAN_CELL / 4, 2.0
+    tris = []
+    n = 0
+    while True:
+        data, _src = client.read(path[:-4] + '_%03d.wmo' % n)
+        if not data:
+            break
+        n += 1
+        vt = vi = mopy = None
+        i = 0
+        while i < len(data) - 8:
+            m = data[i:i + 4][::-1].decode('ascii', 'replace')
+            size, = struct.unpack_from('<I', data, i + 4)
+            o = i + 8
+            if m == 'MOGP':
+                i = o + 68
+                continue
+            if m == 'MOVT':
+                vt = struct.unpack_from('<%df' % (size // 4), data, o)
+            elif m == 'MOVI':
+                vi = struct.unpack_from('<%dH' % (size // 2), data, o)
+            elif m == 'MOPY':
+                mopy = data[o:o + size]
+            i = o + size
+        if not vt or not vi:
+            continue
+        for t in range(len(vi) // 3):
+            if mopy and 2 * t + 1 < len(mopy):
+                flags, mat = mopy[2 * t], mopy[2 * t + 1]
+                if not ((flags & 0x08) or ((flags & 0x20) and not (flags & 0x04))
+                        or mat == 0xFF):
+                    continue
+            a, b, c = vi[3 * t], vi[3 * t + 1], vi[3 * t + 2]
+            tris.append(((vt[3 * a], vt[3 * a + 1]), (vt[3 * b], vt[3 * b + 1]),
+                         (vt[3 * c], vt[3 * c + 1])))
+    if not tris:
+        _OUTLINES[path] = []
+        return []
+    xs = [q[0] for t in tris for q in t]
+    ys = [q[1] for t in tris for q in t]
+    x0, y0 = min(xs), min(ys)
+    w = int(math.ceil((max(xs) - x0) / step)) + 2
+    h = int(math.ceil((max(ys) - y0) / step)) + 2
+    if w * h > 6_000_000:
+        _OUTLINES[path] = []
+        return []
+    grid = np.zeros((w, h), bool)
+    for (ax, ay), (bx, by), (cx, cy) in tris:
+        i0 = max(0, int((min(ax, bx, cx) - x0) / step))
+        i1 = min(w - 1, int((max(ax, bx, cx) - x0) / step) + 1)
+        j0 = max(0, int((min(ay, by, cy) - y0) / step))
+        j1 = min(h - 1, int((max(ay, by, cy) - y0) / step) + 1)
+        if i1 < i0 or j1 < j0:
+            continue
+        det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+        if abs(det) < 1e-12:
+            continue
+        px = x0 + (np.arange(i0, i1 + 1)[:, None] + 0.5) * step
+        py = y0 + (np.arange(j0, j1 + 1)[None, :] + 0.5) * step
+        l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det
+        l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det
+        grid[i0:i1 + 1, j0:j1 + 1] |= (l1 >= -0.02) & (l2 >= -0.02) & (l1 + l2 <= 1.02)
+    # The fill, the way this file always fills: what the outside cannot reach.
+    seen = np.zeros((w, h), bool)
+    stack = [(i, j) for i in range(w) for j in (0, h - 1) if not grid[i, j]]
+    stack += [(i, j) for j in range(h) for i in (0, w - 1) if not grid[i, j]]
+    for i, j in stack:
+        seen[i, j] = True
+    while stack:
+        i, j = stack.pop()
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = i + di, j + dj
+            if 0 <= a < w and 0 <= b < h and not seen[a, b] and not grid[a, b]:
+                seen[a, b] = True
+                stack.append((a, b))
+    solid = ~seen
+    rings = []
+    left = solid.copy()
+    while True:
+        spots = np.argwhere(left)
+        if not len(spots):
+            break
+        # One piece, by the same flood.
+        s0 = tuple(spots[np.lexsort((spots[:, 0], spots[:, 1]))][0])
+        piece = np.zeros((w, h), bool)
+        piece[s0] = True
+        run = [s0]
+        while run:
+            i, j = run.pop()
+            for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                a, b = i + di, j + dj
+                if 0 <= a < w and 0 <= b < h and left[a, b] and not piece[a, b]:
+                    piece[a, b] = True
+                    run.append((a, b))
+        left &= ~piece
+        if piece.sum() * step * step < least:
+            continue
+        rings.append(_ring(piece, x0, y0, step, tol))
+    _OUTLINES[path] = [r for r in rings if len(r) >= 6]
+    return _OUTLINES[path]
+
+
+def _ring(piece, x0, y0, step, tol):
+    """One piece's boundary, walked and then straightened."""
+    import numpy as np
+    spots = np.argwhere(piece)
+    start = tuple(spots[np.lexsort((spots[:, 0], spots[:, 1]))][0])
+    near = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
+    walk = [start]
+    at, came = start, 4
+    w, h = piece.shape
+    for _ in range(8 * int(piece.sum()) + 50):
+        moved = False
+        for t in range(8):
+            d = (came + 1 + t) % 8
+            q = (at[0] + near[d][0], at[1] + near[d][1])
+            if 0 <= q[0] < w and 0 <= q[1] < h and piece[q]:
+                came = (d + 5) % 8
+                at = q
+                walk.append(q)
+                moved = True
+                break
+        if not moved:
+            break
+        if at == start and len(walk) > 2:
+            break
+    pts = [(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step) for i, j in walk]
+    return [v for x, y in _straighten(pts, tol) for v in (round(x * 10), round(y * 10))]
+
+
+def _straighten(pts, tol):
+    """Douglas-Peucker on a closed ring, split at its two farthest points.
+
+    Run on the ring as one chain it collapses: the first and last point are the
+    same, so the baseline has no length and every point measures nought from
+    it — which came back as a two-point polygon of no area.
+    """
+    def chain(seq):
+        if len(seq) < 3:
+            return list(seq)
+        keep = [False] * len(seq)
+        keep[0] = keep[-1] = True
+        stack = [(0, len(seq) - 1)]
+        while stack:
+            a, b = stack.pop()
+            if b <= a + 1:
+                continue
+            ax, ay = seq[a]
+            bx, by = seq[b]
+            dx, dy = bx - ax, by - ay
+            far = math.hypot(dx, dy)
+            worst, at = -1.0, -1
+            for i in range(a + 1, b):
+                px, py = seq[i]
+                d = (abs(dx * (ay - py) - dy * (ax - px)) / far if far > 1e-12
+                     else math.hypot(px - ax, py - ay))
+                if d > worst:
+                    worst, at = d, i
+            if worst > tol:
+                keep[at] = True
+                stack.append((a, at))
+                stack.append((at, b))
+        return [q for q, k in zip(seq, keep) if k]
+
+    if len(pts) > 1 and pts[0] == pts[-1]:
+        pts = pts[:-1]
+    if len(pts) < 4:
+        return list(pts)
+    far = max(range(len(pts)),
+              key=lambda i: (pts[i][0] - pts[0][0]) ** 2 + (pts[i][1] - pts[0][1]) ** 2)
+    head = chain(pts[0:far + 1])
+    tail = chain(pts[far:] + [pts[0]])
+    return head[:-1] + tail[:-1]
+
+
 def steepness(t):
     """`(is it a wall, lowest z, highest z)` for one triangle.
 
@@ -807,7 +1021,11 @@ def wmo_plan(client, path, only=None, nxt=None):
                                  over_head, steps,
                                  [v for line, (lo_, hi_) in sorted(segs.items())
                                   if in_the_way(lo_, hi_) for v in (*line[0], *line[1])],
-                                 [v for tri in flo for v in tri])
+                                 [v for tri in flo for v in tri],
+                                 # And the whole building's own silhouette, on
+                                 # the ground plan, which is what the scene
+                                 # draws a footprint from (issue 259).
+                                 wmo_outline(client, path) if only is None else [])
     _PLAN_Z[(path, only, nxt)] = (floor_z, peak, every)
     return _PLANS[(path, only, nxt)]
 
@@ -2922,9 +3140,14 @@ def plan_out(plan, drawn=True):
     # drawn from inside, and without them it is 420.
     segs = plan[9] if len(plan) > 9 and drawn else []
     flo = plan[10] if len(plan) > 10 and drawn else []
+    # The ninth field is the building's outline, and unlike the two above it
+    # is **not** gated on being walked into: a footprint is drawn for every
+    # building from the outside, and the whole slice's rings are 5.6 KB
+    # gzipped where the walls and floors were 870 (issue 259).
+    outline = plan[11] if len(plan) > 11 else []
     return [w, h, PLAN_CELL, x0, y0,
             packed(cells), packed(solid), packed(floor), packed(over),
-            packed(steps), rises(steps), segs, flo]
+            packed(steps), rises(steps), segs, flo, outline]
 
 
 def rises(steps):

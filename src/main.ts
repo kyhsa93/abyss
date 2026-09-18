@@ -148,7 +148,8 @@ type Meta = {
    * **167,238 roofed and 25,433 open to the sky**.
    */
   plans?: Record<string, [number, number, number, number, number,
-    string, string, string, string, string, string?, number[]?, number[]?]>
+    string, string, string, string, string, string?, number[]?, number[]?,
+    number[][]?]>
   /**
    * And the floors above the ground one, `[sill, …the same nine]` a storey.
    *
@@ -163,7 +164,8 @@ type Meta = {
    * than empty.
    */
   floors?: Record<string, [number, number, number, number, number, number,
-    string, string, string, string, string, string?, number[]?, number[]?][]>
+    string, string, string, string, string, string?, number[]?, number[]?,
+    number[][]?][]>
   /**
    * Yards a step of a tread's height is, and which byte is the sill, for the
    * sixth field of a plan: a byte a steps cell, how far from its storey's
@@ -2127,6 +2129,11 @@ async function main() {
         // ships none and keeps the cell drawing — see `walked_into` in the
         // bake for why.
         segs: (raw[11] ?? []) as number[], tris: (raw[12] ?? []) as number[],
+        // **And the building's own silhouette** (issue 259): rings of points
+        // in tenths of a yard of the model's space, one per piece of it.  The
+        // masks above are the walkable grid; this is what a footprint is drawn
+        // from, and unlike the two fields before it every building ships one.
+        outline: (raw[13] ?? []) as number[][],
         // The turn that takes the model's space to the map, in radians.
         c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
         sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
@@ -2142,6 +2149,9 @@ async function main() {
           bits: bytesOf(f[6]), solid: bytesOf(f[7]), floor: bytesOf(f[8]),
           over: bytesOf(f[9]), steps: bytesOf(f[10] ?? ''), rise: bytesOf(f[11] ?? ''),
           segs: (f[12] ?? []) as number[], tris: (f[13] ?? []) as number[],
+          // A footprint is drawn from the ground, so only the ground plan
+          // carries the building's outline — see `wmo_outline` in the bake.
+          outline: [] as number[][],
           c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
           sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
         }))
@@ -2511,8 +2521,44 @@ async function main() {
         const on = i < p.w && bitAt(p.bits, i * p.h + j)
         if (on) cells++
         if (on && run < 0) run = i
-        else if (!on && run >= 0) {
-          path.rect(run, j, i - run, 1); runs++; run = -1
+        else if (!on && run >= 0) { runs++; run = -1 }
+      }
+    }
+    /**
+     * **A footprint is the model's own outline, not the mask's staircase**
+     * (issue 259).
+     *
+     * This built the shape out of the plan mask, a row of 1.33-yard rectangles
+     * at a time, and 41 of this world's 43 buildings stand at an angle the
+     * world's grid does not: the abbey is turned 158.5 degrees, so every wall
+     * of it came out as a flight of steps.  That is the fault issue 254 fixed
+     * *inside* a building — by drawing from the model's own coordinates — left
+     * standing on the outside of it.  The bake now ships the silhouette as
+     * rings of points, so the same shape is one closed path with long straight
+     * edges: the abbey is 87 of them against 2,506 cells.
+     *
+     * The tally above is left counting cells, because it is what the checks
+     * weigh a plan by and what it has always meant: how much mask there is,
+     * not how the mask is drawn.  A model with no rings — nothing shipped one
+     * before this — keeps the cells it always had.
+     */
+    if (p.outline.length) {
+      for (const ring of p.outline) {
+        for (let k = 0; k + 1 < ring.length; k += 2) {
+          const x = (ring[k]! / 10 - p.x0) / p.s
+          const y = (ring[k + 1]! / 10 - p.y0) / p.s
+          if (k === 0) path.moveTo(x, y)
+          else path.lineTo(x, y)
+        }
+        path.closePath()
+      }
+    } else {
+      for (let j = 0; j < p.h; j++) {
+        let run = -1
+        for (let i = 0; i <= p.w; i++) {
+          const on = i < p.w && bitAt(p.bits, i * p.h + j)
+          if (on && run < 0) run = i
+          else if (!on && run >= 0) { path.rect(run, j, i - run, 1); run = -1 }
         }
       }
     }
@@ -3733,8 +3779,10 @@ async function main() {
       plan: {
         w: dug.w, h: dug.h, s: dug.cell, x0: dug.x0, y0: dug.y0,
         bits: dug.bits, solid: new Uint8Array(dug.bits.length), floor: dug.bits,
-        // No faces: a dug cave has no model, so it keeps the cell drawing.
-        segs: [], tris: [],
+        // No faces: a dug cave has no model, so it keeps the cell drawing,
+        // and no outline either — there is no silhouette to read off a hole
+        // this scene cut out of the height grid itself.
+        segs: [], tris: [], outline: [],
         // A cave is roofed everywhere it exists — that is what makes it a
         // cave rather than a quarry — and it has one floor, so no stairs.
         over: dug.bits, steps: new Uint8Array(0), rise: new Uint8Array(0),

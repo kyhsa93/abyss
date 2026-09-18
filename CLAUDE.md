@@ -547,12 +547,30 @@ box, and for Northshire's abbey that box is 91 yards square — the grounds, not
 the abbey. The model says more at every level: `MOGI` gives each of its groups
 a box, and the group files give the geometry itself. `bake_terrain.py` drops
 all 18,817 of the abbey's triangles onto the floor, fills what they enclose,
-and ships one bit a square yard; the scene reads that bitmap and draws its
-outline. **A WMO has z up where the map has y up**, so the horizontal pair is
+and ships one bit a square yard, which is what a step is held to; **what the
+footprint is drawn from is the outline itself** — see below. **A WMO has z up where the map has y up**, so the horizontal pair is
 the model's first two components — read it the other way and the plan lands
 seventy yards out, which is what two attempts did. The turn is `ry + 270`, and
 the guard is the measurement that found it: every model's box has to land on
 the box its own placement states, to a median of nought yards.
+
+**A mask is the right answer for walking and the wrong one for drawing**
+(issue 259). The footprint was stamped from that one-bit-a-yard mask, a row of
+1.33-yard rectangles at a time, and 41 of this world's 43 buildings stand at an
+angle the world's grid does not: the abbey is turned 158.5 degrees, so every
+wall of it came out as a flight of steps. That is the fault issue 254 fixed
+*inside* a building — by drawing from the model's own coordinates — left
+standing on the outside of it, and it took a second report to see, because the
+mask was never wrong about where a man may stand. So the bake ships the
+silhouette as **rings of points in tenths of a yard**: the faces AzerothCore's
+own extractor keeps (`MOPY` — collidable, or rendered and not detail, which is
+half of the abbey's triangles and changes its bounding box by nothing),
+rasterised four times finer than the plan, filled the way this file always
+fills — what the outside cannot reach — and then straightened, so a diagonal
+wall is one long edge instead of a staircase. The abbey is 87 points against
+2,506 cells. The whole slice is 5.6 KB gzipped, which is why this one ships for
+**every** building where the storey's wall lines and floor triangles are gated
+on being walked into: 870 KB was the reason for that gate, and this is not.
 
 **A wall is where a man cannot stand, and that is the whole definition.** The
 plan ships three masks over one grid — the outline, the stone, and the floor —

@@ -3894,10 +3894,13 @@ for (const still of [false, true]) {
     const orphan = Object.keys(floors).filter((k) => !plans[k])
     // Twelve: a sill and the plan's own eleven.  It was ten until the stairs
     // became a fifth mask, and eleven until their treads carried a height.
-    // Thirteen fields a plan and fourteen a floor since issue 254: the two
-    // on the end are the storey's own wall lines and floor triangles.
-    const shapes = Object.values(floors).flat().filter((f) => f.length !== 14)
-      .concat(Object.values(plans).filter((f) => f.length !== 13))
+    // Thirteen fields a plan and fourteen a floor since issue 254: two of them
+    // are the storey's own wall lines and floor triangles.  **Fourteen and
+    // fifteen since issue 259**, whose last field is the building's own
+    // outline — the rings a footprint is drawn from, so that a turned building
+    // stops being a staircase of 1.33-yard cells.
+    const shapes = Object.values(floors).flat().filter((f) => f.length !== 15)
+      .concat(Object.values(plans).filter((f) => f.length !== 14))
     return {
       buildings: Object.keys(plans).length,
       withUpstairs: Object.keys(floors).length,
