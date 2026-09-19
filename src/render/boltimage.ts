@@ -8,20 +8,14 @@
  * `rendercheck` asserts on that bolt and can keep doing so.
  */
 
-import { BOLT_CELL, BOLT_FRAMES, BOLT_ROW, BOLT_SRC, type ProjectileKind } from './bolt.ts'
+import type { ProjectileKind } from '../sim/types'
+import { BOLT_CELL, BOLT_FRAMES, BOLT_ROW, BOLT_SRC } from './bolt'
 
 type Sheet = CanvasImageSource & { width: number; height: number }
 
 let sheet: Sheet | null = null
 let started = false
 
-/**
- * Start the sheet loading now, so a projectile that lives less than a
- * decode does not draw as the fallback (issue 256).  Called at boot; the
- * lazy `begin` inside the draw path stays for the harness, which draws in
- * Node where there is no `Image`.
- */
-export function warm(): void { begin() }
 function begin(): void {
   if (started || typeof Image === 'undefined') return
   started = true
@@ -102,15 +96,7 @@ function sheetFor(colour: string): Sheet | null {
   ctx.drawImage(sheet, 0, 0)
 
   const made = canvas as unknown as Sheet
-  // An evicted sheet is sized to nought before it is let go: iOS Safari caps
-  // what canvases may hold all together and collects them late, which is the
-  // freeze issue 238 found in the ground's plates.
-  if (tinted.size >= CACHE) {
-    const oldest = tinted.keys().next().value as string
-    const gone = tinted.get(oldest) as unknown as HTMLCanvasElement
-    gone.width = gone.height = 0
-    tinted.delete(oldest)
-  }
+  if (tinted.size >= CACHE) tinted.delete(tinted.keys().next().value as string)
   tinted.set(colour, made)
   return made
 }

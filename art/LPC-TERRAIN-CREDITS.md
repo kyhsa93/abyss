@@ -1,50 +1,20 @@
-# Tileset credits
+# Terrain credits
 
-Cut by `pipeline/bake_tiles.py` from the Liberated Pixel Cup tilesets.
-Generated from the same table the pieces come from, so it cannot fall
-behind what was actually used.
+The props standing around the arena are cut from [Liberated Pixel
+Cup](https://lpc.opengameart.org/) tilesets by `npm run tiles`. They are
+variously licensed CC-BY 3.0, CC-BY-SA 3.0, GPL 3.0, GPL 2.0 and OGA-BY 3.0;
+attribution is a condition of all of them, so this list is generated from the
+same table the pieces are cut with and cannot fall behind a change to it.
 
-Attribution is a licence condition here, not a courtesy. Nothing is cut
-from the sheets' `MISSING:` section — a CC-BY tile whose author nobody
-recorded cannot be complied with.
+The tilesets ship one attribution document between them, and it has a section
+listing tiles whose author nobody recorded. Nothing from that section is used
+here: a CC-BY tile with no known author is a tile whose licence cannot be
+complied with. The packer refuses a piece that names no author.
 
-- **Casper Nilsson** — CC-BY-SA 3.0 / GPL 3.0  
-  <https://opengameart.org/content/tiled-terrains>  
-  `tent`, `cart`, `haycart`, `cart2`, `grave`, `stump`, `bloom`, `bloom_r1`, `bloom_r2`, `bloom_r3`, `bloom_m`, `bloom_m1`, `bloom_m2`, `bloom_m3`, `bloom2`, `bloom2_r1`, `bloom2_r2`, `bloom2_r3`, `bloom2_m`, `bloom2_m1`, `bloom2_m2`, `bloom2_m3`, `bloom3`, `bloom3_r1`, `bloom3_r2`, `bloom3_r3`, `bloom3_m`, `bloom3_m1`, `bloom3_m2`, `bloom3_m3`, `lily`, `lily2`, `grave2`, `lily3`
+- **Casper Nilsson** — CC-BY-SA 3.0 / GPL 3.0
+  <https://opengameart.org/content/lpc-adjusted-tilesets>
+  cross, cross-wood, grave-pair, grave-rip, grave-round, tomb
 
-- **Daniel Eddeland** — CC-BY-SA 3.0 / GPL 3.0  
-  <https://opengameart.org/content/lpc-farming-tilesets-magic-animations-and-ui-elements>  
-  `reeds`, `reeds2`, `hay`, `stall`, `carrots`, `sacks`, `corn`, `corn2`, `woodpile`, `baskets`, `baskets2`, `tomatoes`, `sprout`, `crop`, `firewood`, `firewood2`, `sack`, `anvil`, `sprout2`, `fence_post`, `fence2`, `basket`, `basket2`, `crate`, `pumpkin`, `fence`
-
-- **Daniel Armstrong (AKA HughSpectrum)** — CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0  
-  <https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles>  
-  `cobble`, `cobble2`
-
-- **Kenney (Fantasy Town Kit, Nature Kit, Mini Forest, Mini Characters), rendered by pipeline/render_kit.py and pipeline/render_actor.py** — CC0 1.0  
-  <https://kenney.nl/assets>  
-  `kit_house_stone`, `kit_hall`, `kit_windmill`, `kit_house`, `kit_watermill`, `kit_tree4`, `kit_stall`, `kit_stall2`, `kit_rock4`, `kit_lantern`, `kit_pine`, `kit_pine2`, `kit_tent`, `kit_tree2`, `kit_pine3`, `kit_tree`, `kit_fountain`, `kit_tree3`, `kit_cart2`, `kit_hedge2`, `kit_pine4`, `kit_cart`, `kit_stones`, `kit_log2`, `kit_fence`, `kit_fence2`, `kit_fence2_b`, `kit_fence_b`, `kit_gate`, `kit_gate_b`, `kit_planks`, `kit_rock2`, `kit_logs`, `kit_rock`, `kit_hedge`, `kit_wheel`, `kit_log`, `kit_bush2`, `kit_grass2`, `kit_bush3`, `kit_mushroom2`, `kit_mushroom3`, `kit_flower`, `kit_plant`, `kit_bush`, `kit_grass`, `kit_rock3`, `kit_flower2`, `kit_bush4`, `kit_mushroom`, `kit_flower3`, `kit_grass3`
-
-- **Barbara Rivera / C Phillips** — CC-BY-SA 3.0 / GPL 3.0  
-  <https://opengameart.org/content/tiled-terrains>  
-  `deadtree`
-
-- **bluecarrot16, Lanea Zimmerman (Sharm), Michele Bucelli (Buch), Casper Nilsson, Xenodora, keith karnage, NaRNeRZz, Talon (Talosaurus)** — CC-BY-SA 3.0 / GPL 3.0  
-  <https://opengameart.org/content/lpc-roofs>  
-  `tower`, `house_c`, `hall`, `house_d`, `house_a`, `house_b`, `house_e`, `house_f`, `roof`, `roof_shingle`, `roof_plank`, `roof_k00`, `roof_k01`, `roof_k02`, `roof_k03`, `roof_k04`, `roof_k05`, `roof_k10`, `roof_k11`, `roof_k12`, `roof_k13`, `roof_k14`, `roof_k15`, `roof_k20`, `roof_k21`, `roof_k22`, `roof_k23`, `roof_k24`, `roof_k25`, `roof_k30`, `roof_k31`, `roof_k32`, `roof_k33`, `roof_k34`, `roof_k35`, `roof_k40`, `roof_k41`, `roof_k42`, `roof_k43`, `roof_k44`, `roof_k45`, `roof_shingle_k00`, `roof_shingle_k01`, `roof_shingle_k02`, `roof_shingle_k03`, `roof_shingle_k04`, `roof_shingle_k05`, `roof_shingle_k10`, `roof_shingle_k11`, `roof_shingle_k12`, `roof_shingle_k13`, `roof_shingle_k14`, `roof_shingle_k15`, `roof_shingle_k20`, `roof_shingle_k21`, `roof_shingle_k22`, `roof_shingle_k23`, `roof_shingle_k24`, `roof_shingle_k25`, `roof_shingle_k30`, `roof_shingle_k31`, `roof_shingle_k32`, `roof_shingle_k33`, `roof_shingle_k34`, `roof_shingle_k35`, `roof_shingle_k40`, `roof_shingle_k41`, `roof_shingle_k42`, `roof_shingle_k43`, `roof_shingle_k44`, `roof_shingle_k45`, `roof_plank_k00`, `roof_plank_k01`, `roof_plank_k02`, `roof_plank_k03`, `roof_plank_k04`, `roof_plank_k05`, `roof_plank_k10`, `roof_plank_k11`, `roof_plank_k12`, `roof_plank_k13`, `roof_plank_k14`, `roof_plank_k15`, `roof_plank_k20`, `roof_plank_k21`, `roof_plank_k22`, `roof_plank_k23`, `roof_plank_k24`, `roof_plank_k25`, `roof_plank_k30`, `roof_plank_k31`, `roof_plank_k32`, `roof_plank_k33`, `roof_plank_k34`, `roof_plank_k35`, `roof_plank_k40`, `roof_plank_k41`, `roof_plank_k42`, `roof_plank_k43`, `roof_plank_k44`, `roof_plank_k45`
-
-- **Lanea Zimmerman (AKA Sharm)** — CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0  
-  <https://opengameart.org/content/tiled-terrains>  
-  `oak`, `oak2`, `pine2`, `shrub`, `shrub2`, `pine`, `trunk`, `barrels`, `menhir`, `barrels3`, `cupboard`, `bookcase`, `china_case`, `china_case2`, `barrels2`, `drawers`, `barrel`, `chest2`, `grass`, `grass_r1`, `grass_r2`, `grass_r3`, `grass_m`, `grass_m1`, `grass_m2`, `grass_m3`, `grass2`, `grass2_r1`, `grass2_r2`, `grass2_r3`, `grass2_m`, `grass2_m1`, `grass2_m2`, `grass2_m3`, `grass3`, `grass3_r1`, `grass3_r2`, `grass3_r3`, `grass3_m`, `grass3_m1`, `grass3_m2`, `grass3_m3`, `dirt`, `dirt_m`, `dirt_m2`, `dirt_r2`, `dirt2`, `dirt2_m`, `dirt2_m2`, `dirt2_r2`, `ash`, `rock_floor`, `rock_floor_m`, `rock_floor_m2`, `rock_floor_r2`, `stone`, `stone_m`, `stone_m2`, `stone_r2`, `boulder`, `scatter`, `bush`, `bush2`, `clock`, `pot_blue`, `lamp2`, `lamp`, `lamp3`, `lamp4`, `sacks3`, `lantern2`, `barrel2`, `barrel3`, `trunk2`, `rubble`, `bottles`, `lantern`, `skull`, `plates2`, `plates`, `tray`, `sidetable`, `china`
-
-- **Lanea Zimmerman (AKA Sharm)** — CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0  
-  <https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles>  
-  `waterfall`, `shelf`, `shelf2`, `cabinet`, `cabinet2`, `keg2`, `keg3`, `keg`, `t_grass_nw`, `t_grass_n`, `t_grass_ne`, `t_grass_w`, `t_grass_e`, `t_grass_sw`, `t_grass_s`, `t_grass_se`, `t_grass_ise`, `t_grass_isw`, `t_grass_ine`, `t_grass_inw`, `t_road_nw`, `t_road_n`, `t_road_ne`, `t_road_w`, `t_road_e`, `t_road_sw`, `t_road_s`, `t_road_se`, `t_road_ise`, `t_road_isw`, `t_road_ine`, `t_road_inw`, `t_paved_nw`, `t_paved_n`, `t_paved_ne`, `t_paved_w`, `t_paved_e`, `t_paved_sw`, `t_paved_s`, `t_paved_se`, `t_paved_ise`, `t_paved_isw`, `t_paved_ine`, `t_paved_inw`, `t_shore_nw`, `t_shore_n`, `t_shore_ne`, `t_shore_w`, `t_shore_e`, `t_shore_sw`, `t_shore_s`, `t_shore_se`, `t_shore_ise`, `t_shore_isw`, `t_shore_ine`, `t_shore_inw`, `in_floor`, `in_floor2`, `in_wall`, `in_house`, `in_house2`, `in_tower`, `in_tower2`, `in_stair`, `in_stair_wood`, `bridge`, `bridge_b`, `water`, `water2`, `water3`
-
-- **Skorpio** — CC-BY-SA 3.0 / GPL 3.0  
-  <https://opengameart.org/content/tiled-terrains>  
-  `barrel4`
-
-- **William Thompsonj** — CC-BY-SA 3.0 / GPL 3.0  
-  <https://opengameart.org/content/lpc-sandrock-alt-colors>  
-  `sand`
-
+- **Lanea Zimmerman (AKA Sharm)** — CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+  <https://opengameart.org/content/tiled-terrains>
+  boulder, brazier, cauldron, column, floor-clay, floor-cobble, floor-earth, floor-sand, floor-slate, menhir, pebbles, rubble-a, rubble-b, scatter

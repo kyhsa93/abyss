@@ -1,0 +1,330 @@
+{
+  "aimed_shot": {
+    "icon": "arrow-scope",
+    "author": "lorc"
+  },
+  "astral_shift": {
+    "icon": "lightning-shield",
+    "author": "lorc"
+  },
+  "avengers_shield": {
+    "icon": "shield-bounces",
+    "author": "lorc"
+  },
+  "barkskin": {
+    "icon": "tree-growth",
+    "author": "delapouite"
+  },
+  "beacon_of_light": {
+    "icon": "lighthouse",
+    "author": "delapouite"
+  },
+  "chain_heal": {
+    "icon": "linked-rings",
+    "author": "lorc"
+  },
+  "chain_lightning": {
+    "icon": "chain-lightning",
+    "author": "willdabeast"
+  },
+  "chaos_bolt": {
+    "icon": "evil-comet",
+    "author": "lorc"
+  },
+  "charge": {
+    "icon": "charging",
+    "author": "delapouite"
+  },
+  "cheetah": {
+    "icon": "feline",
+    "author": "delapouite"
+  },
+  "cleave": {
+    "icon": "axe-swing",
+    "author": "lorc"
+  },
+  "consecration": {
+    "icon": "fire-zone",
+    "author": "lorc"
+  },
+  "crusader_strike": {
+    "icon": "shining-sword",
+    "author": "lorc"
+  },
+  "dash": {
+    "icon": "running-ninja",
+    "author": "darkzaitzev"
+  },
+  "deterrence": {
+    "icon": "riposte",
+    "author": "andymeneely"
+  },
+  "die_by_the_sword": {
+    "icon": "crossed-swords",
+    "author": "lorc"
+  },
+  "dispersion": {
+    "icon": "smoke-bomb",
+    "author": "darkzaitzev"
+  },
+  "divine_protection": {
+    "icon": "templar-shield",
+    "author": "delapouite"
+  },
+  "divine_shield": {
+    "icon": "bubble-field",
+    "author": "lorc"
+  },
+  "divine_steed": {
+    "icon": "pegasus",
+    "author": "skoll"
+  },
+  "earth_shock": {
+    "icon": "earth-crack",
+    "author": "lorc"
+  },
+  "evasion": {
+    "icon": "evasion",
+    "author": "delapouite"
+  },
+  "eviscerate": {
+    "icon": "large-wound",
+    "author": "lorc"
+  },
+  "execute": {
+    "icon": "guillotine",
+    "author": "lorc"
+  },
+  "exorcism": {
+    "icon": "crucifix",
+    "author": "delapouite"
+  },
+  "fade": {
+    "icon": "invisible",
+    "author": "delapouite"
+  },
+  "ferocious_bite": {
+    "icon": "carnivore-mouth",
+    "author": "lorc"
+  },
+  "flame_shock": {
+    "icon": "burning-embers",
+    "author": "lorc"
+  },
+  "flash_heal": {
+    "icon": "healing",
+    "author": "delapouite"
+  },
+  "frenzied_regen": {
+    "icon": "regeneration",
+    "author": "sbed"
+  },
+  "frostbolt": {
+    "icon": "ice-bolt",
+    "author": "lorc"
+  },
+  "growl": {
+    "icon": "wolf-howl",
+    "author": "lorc"
+  },
+  "hammer_of_wrath": {
+    "icon": "thor-hammer",
+    "author": "delapouite"
+  },
+  "hand_of_reckoning": {
+    "icon": "pointing",
+    "author": "lorc"
+  },
+  "heal": {
+    "icon": "health-increase",
+    "author": "sbed"
+  },
+  "healing_touch": {
+    "icon": "glowing-hands",
+    "author": "lorc"
+  },
+  "healing_wave": {
+    "icon": "wave-crest",
+    "author": "lorc"
+  },
+  "holy_light": {
+    "icon": "sunbeams",
+    "author": "lorc"
+  },
+  "holy_shock": {
+    "icon": "holy-hand-grenade",
+    "author": "delapouite"
+  },
+  "ice_barrier": {
+    "icon": "ice-shield",
+    "author": "lorc"
+  },
+  "ice_lance": {
+    "icon": "ice-spear",
+    "author": "lorc"
+  },
+  "immolate": {
+    "icon": "fire-silhouette",
+    "author": "lorc"
+  },
+  "judgement": {
+    "icon": "tarot-20-judgement",
+    "author": "caro-asercion"
+  },
+  "lava_burst": {
+    "icon": "eruption",
+    "author": "lorc"
+  },
+  "lay_on_hands": {
+    "icon": "open-palm",
+    "author": "skoll"
+  },
+  "life_tap": {
+    "icon": "life-tap",
+    "author": "lorc"
+  },
+  "lightning_bolt": {
+    "icon": "lightning-arc",
+    "author": "lorc"
+  },
+  "living_bomb": {
+    "icon": "time-bomb",
+    "author": "lorc"
+  },
+  "maul": {
+    "icon": "bear-head",
+    "author": "delapouite"
+  },
+  "mind_blast": {
+    "icon": "psychic-waves",
+    "author": "lorc"
+  },
+  "mind_flay": {
+    "icon": "brain-tentacle",
+    "author": "delapouite"
+  },
+  "moonfire": {
+    "icon": "moon",
+    "author": "lorc"
+  },
+  "mortal_strike": {
+    "icon": "sword-wound",
+    "author": "lorc"
+  },
+  "pyroblast": {
+    "icon": "burning-meteor",
+    "author": "lorc"
+  },
+  "rake": {
+    "icon": "claw-slashes",
+    "author": "lorc"
+  },
+  "rejuvenation": {
+    "icon": "sprout",
+    "author": "lorc"
+  },
+  "rend": {
+    "icon": "bleeding-wound",
+    "author": "lorc"
+  },
+  "renew": {
+    "icon": "heart-plus",
+    "author": "zeromancer"
+  },
+  "riptide": {
+    "icon": "splashy-stream",
+    "author": "lorc"
+  },
+  "rupture": {
+    "icon": "dripping-blade",
+    "author": "lorc"
+  },
+  "serpent_sting": {
+    "icon": "snake-bite",
+    "author": "lorc"
+  },
+  "shadow_bolt": {
+    "icon": "skull-bolt",
+    "author": "lorc"
+  },
+  "shadow_word_death": {
+    "icon": "death-note",
+    "author": "lorc"
+  },
+  "shadow_word_pain": {
+    "icon": "back-pain",
+    "author": "lorc"
+  },
+  "shield_of_vengeance": {
+    "icon": "spiked-shield",
+    "author": "delapouite"
+  },
+  "shield_slam": {
+    "icon": "shield-bash",
+    "author": "delapouite"
+  },
+  "shield_wall": {
+    "icon": "defensive-wall",
+    "author": "heavenly-dog"
+  },
+  "shred": {
+    "icon": "triple-scratches",
+    "author": "lorc"
+  },
+  "sinister_strike": {
+    "icon": "stiletto",
+    "author": "lorc"
+  },
+  "smite": {
+    "icon": "sun-spear",
+    "author": "delapouite"
+  },
+  "sprint": {
+    "icon": "sprint",
+    "author": "lorc"
+  },
+  "starfire": {
+    "icon": "falling-star",
+    "author": "delapouite"
+  },
+  "starsurge": {
+    "icon": "star-swirl",
+    "author": "lorc"
+  },
+  "steady_shot": {
+    "icon": "target-shot",
+    "author": "lorc"
+  },
+  "sunfire": {
+    "icon": "sun-radiations",
+    "author": "lorc"
+  },
+  "survival_instincts": {
+    "icon": "muscular-torso",
+    "author": "delapouite"
+  },
+  "swiftmend": {
+    "icon": "leaf-swirl",
+    "author": "lorc"
+  },
+  "swipe": {
+    "icon": "paw-print",
+    "author": "lorc"
+  },
+  "taunt": {
+    "icon": "shouting",
+    "author": "lorc"
+  },
+  "unending_resolve": {
+    "icon": "inner-self",
+    "author": "lorc"
+  },
+  "wild_charge": {
+    "icon": "pounce",
+    "author": "sbed"
+  },
+  "wrath": {
+    "icon": "green-power",
+    "author": "delapouite"
+  }
+}

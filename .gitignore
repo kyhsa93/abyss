@@ -1,23 +1,14 @@
 node_modules
 dist
-__pycache__/
 .DS_Store
 *.local
 .claude/worktrees/
+sprites.svg
+shot.png
+shot.svg
 /shots/
-*.tmp.mjs
-
-# `public/data/` — the client-baked world — is committed, by the owner's
-# decision on 2026-09-13.  What it holds is a height grid, a water mask, a
-# ground mask in our own words and a list of doodad placements by our own kind
-# names: geometry, and no prose, no model paths and none of Blizzard's art.
-# The line that still holds is the one about words — see CLAUDE.md.
-
-# `art/facade/*.png` — the underlays `pipeline/facade.py` writes.  Each one is
-# an orthographic projection of a building's own triangles, so every shape in
-# it is Blizzard's: it is a reference to draw over, not a thing to ship, and
-# the line in CLAUDE.md about art holds.  The brief beside it — `facade.json`,
-# sizes and door positions and the words a texture is *named* — is committed,
-# because that is numbers and words.  Re-make the pictures with a client and
-# `python3 pipeline/facade.py`.
-art/facade/*.png
+.gemini-key
+# Generated art. The PNGs artgen writes are committed under art/ once they are
+# real; this keeps the throwaway ones out while the pipeline has no key.
+/art/.cache/
+/shots-land/

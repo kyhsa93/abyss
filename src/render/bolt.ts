@@ -12,12 +12,11 @@
  * which is why there is no credits file to go with it.
  */
 
-/** The four bodies a thing can be thrown as. */
-export type ProjectileKind = 'bolt' | 'dot' | 'heavy' | 'heal'
+import type { ProjectileKind } from '../sim/types'
 
 export const BOLT_CELL = 32
 export const BOLT_FRAMES = 6
-export const BOLT_SRC = './art/bolt.webp'
+export const BOLT_SRC = 'art/bolt.webp'
 
 export const BOLT_ROW: Record<ProjectileKind, number> = {
   bolt: 0,
