@@ -2,7 +2,7 @@ import { TRASH_KINDS, TRASH_LOOKS, trashLook } from '../src/sim/trash'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomArea, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
-import { FLOOR_PIECES, FLOOR_TALL, surroundTakes } from '../src/render/scenery'
+import { FLOOR_PIECES, FLOOR_TALL, sowSurround, surroundTakes } from '../src/render/scenery'
 import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
@@ -10270,6 +10270,46 @@ for (const [label, w, h] of [
     }
   }
   expect('and no point is both outside the wall and on the floor', both.length === 0, both.slice(0, 3).join('; '))
+
+  // And a piece the camera can still see is the same piece it was a step ago.
+  //
+  // The field is sown over the rectangle the camera can reach, so walking
+  // slides the rectangle -- and for a long time both the thinning's phase and
+  // its strength were read off the corner of that rectangle rather than off
+  // the world. Walking therefore re-rolled the field: measured at the size
+  // this game actually runs at, two and a half seconds of it left none of the
+  // litter on any floor on screen. It is asked here rather than in a
+  // screenshot because two frames of rocks are not comparable by eye, which is
+  // how it survived this long.
+  const moved: string[] = []
+  {
+    const room = ENCOUNTERS[0]!.room ?? ROUND_ARENA
+    const wide = L.w / L.scale + 200
+    const deep = L.h / (L.scale * TILT) + 200
+    const sow = (cy: number, where: 'outside' | 'floor') =>
+      sowSurround([room], where, { x: -wide, y: cy - deep }, { x: wide, y: cy + deep })
+    const place = (p: { at: { x: number; y: number } }) => `${Math.round(p.at.x)},${Math.round(p.at.y)}`
+    for (const where of ['outside', 'floor'] as const) {
+      const first = sow(0, where)
+      // A body walks about a hundred and sixty units a second, so this is the
+      // first step through to the walk that used to empty the field.
+      for (const walk of [40, 160, 400, 1200]) {
+        const now = new Map(sow(-walk, where).map((p) => [place(p), p]))
+        for (const was of first) {
+          if (was.at.y < -walk - deep || was.at.y > -walk + deep) continue
+          const still = now.get(place(was))
+          if (!still || still.id !== was.id || still.flip !== was.flip) {
+            moved.push(`${where} at ${place(was)} after ${walk}`)
+          }
+        }
+      }
+    }
+  }
+  expect(
+    'and a piece still in view is the same piece a step later',
+    moved.length === 0,
+    `${moved.length} changed, e.g. ${moved.slice(0, 3).join('; ')}`,
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

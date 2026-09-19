@@ -350,27 +350,29 @@ function depthIn(cells: RoomShape[], at: Vec2): number {
   return deep
 }
 
-export function drawSurround(
-  ctx: CanvasRenderingContext2D,
-  project: (p: Vec2) => Vec2,
-  scale: number,
-  /** Every piece of floor on screen, which is what decides where this may go. */
+/** One piece of the field, where it stands and what it is drawn as. */
+export interface SownPiece {
+  id: string
+  at: Vec2
+  tall: number
+  flip: boolean
+}
+
+/**
+ * Where every piece of the field stands, for a view of the world.
+ *
+ * Lifted out of the drawing so that `rendercheck` can hold the promise the
+ * drawing makes rather than a restatement of it: a piece the camera can still
+ * see is the same piece it was a step ago. That promise was broken for a long
+ * time and no check could have caught it, because the only way to ask was to
+ * draw two frames and compare rocks.
+ */
+export function sowSurround(
   cells: RoomShape[],
-  /**
-   * Which side of the wall this pass is for.
-   *
-   * Two passes because they sit at two different depths: the field outside
-   * goes under the building, and the rim goes over the floor and under every
-   * mechanic on it. One pass could not be both.
-   */
   where: 'outside' | 'floor',
-  /** The world rectangle to cover, which is whatever the camera can see. */
   from: Vec2,
   to: Vec2,
-): boolean {
-  begin()
-  if (!sheet) return false
-
+): SownPiece[] {
   // The floor is walked on and looked at from much closer than the field
   // outside is, so it is sown twice as fine: at the outside field's spacing a
   // room the size of a fight's floor holds about forty marks, which reads as
@@ -383,11 +385,33 @@ export function drawSurround(
   // A cap, because the camera zooms out and a frame that draws ten thousand
   // rocks is a frame that does not arrive. At the widest zoom the field thins
   // rather than the frame dropping.
-  const step = Math.max(1, Math.ceil(Math.sqrt(((x1 - x0) * (y1 - y0)) / 900)))
+  //
+  // Off the view's own size rather than off the rounded cell indices, and that
+  // is not a tidy-up. `x1 - x0` is a floor and a ceil either side of a sliding
+  // number, so it changes by one as the camera walks -- and at the sizes this
+  // game actually runs at, one is enough to take `step` from one to two and
+  // back. Every rock in the field lands on a different cell the moment it does.
+  const step = Math.max(
+    1,
+    Math.ceil(Math.sqrt(((to.x - from.x) / pitch) * ((to.y - from.y) / pitch)) / 30),
+  )
 
   const lumps: Array<{ id: string; at: Vec2; tall: number; flip: boolean }> = []
-  for (let gx = x0; gx <= x1; gx += step) {
-    for (let gy = y0; gy <= y1; gy += step) {
+  // Anchored to the world grid rather than to the corner of the view, for the
+  // same reason the seed is: which cells the thinning keeps has to be a fact
+  // about the cell. Started at `x0` it was a fact about where the camera stood.
+  //
+  // Measured rather than reasoned about, and the measurement is the only
+  // reason the right half of this was found: sowing the field twice with the
+  // camera a walk apart and comparing the pieces that were still in view both
+  // times. Two and a half seconds of walking left *none* of the litter on any
+  // floor on screen -- 46 pieces in view, 46 of them gone and re-sown. The
+  // rooms behind the fight are on screen too, so what that looked like from
+  // the floor was the ground in the distance crawling.
+  const sx = Math.floor(x0 / step) * step
+  const sy = Math.floor(y0 / step) * step
+  for (let gx = sx; gx <= x1; gx += step) {
+    for (let gy = sy; gy <= y1; gy += step) {
       const rng = new Rng(gx * 73856093 + gy * 19349663)
       // A gap here and there, so the field is not a lattice.
       if (rng.chance(0.14)) continue
@@ -410,6 +434,31 @@ export function drawSurround(
       lumps.push({ id, at, tall: tall * rng.range(0.6, 1.35), flip: rng.chance(0.5) })
     }
   }
+  return lumps
+}
+
+export function drawSurround(
+  ctx: CanvasRenderingContext2D,
+  project: (p: Vec2) => Vec2,
+  scale: number,
+  /** Every piece of floor on screen, which is what decides where this may go. */
+  cells: RoomShape[],
+  /**
+   * Which side of the wall this pass is for.
+   *
+   * Two passes because they sit at two different depths: the field outside
+   * goes under the building, and the rim goes over the floor and under every
+   * mechanic on it. One pass could not be both.
+   */
+  where: 'outside' | 'floor',
+  /** The world rectangle to cover, which is whatever the camera can see. */
+  from: Vec2,
+  to: Vec2,
+): boolean {
+  begin()
+  if (!sheet) return false
+
+  const lumps = sowSurround(cells, where, from, to)
 
   // Where the floor stops being scenery and starts being the space in front of
   // the camera. Off the layout rather than picked: the action bar is the top
