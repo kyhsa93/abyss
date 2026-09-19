@@ -592,7 +592,7 @@ is the one thing about a room that a picture cannot argue with:
 | Blood-Queen Lana'thel | `CircleBoundary(4595.93, 2769.365) r64` | 128 × 128 |
 | Sister Svalna | `RectangleBoundary(4291, 4423, 2438, 2653)` | 132 × 215 |
 | Valithria | `RectangleBoundary(4112.5, 4293.5, 2385, 2585)` | 181 × 200 |
-| Sindragosa | `EllipseBoundary(4408.6, 2484) 100 × 75` | 200 × 150 |
+| Sindragosa | `EllipseBoundary(4418.6, 2484) 110 × 75` | 220 × 150 |
 
 **Read a rectangle as a bound and a circle as a shape.** Nobody writes a circle
 boundary for a square room, so Marrowgar's half-disc and the queen's circle are
@@ -1230,6 +1230,45 @@ missing and each is a different kind of missing:
 
 Ambient rows are not on the list and are not missing: the three Spire Frostwyrms
 circle the lower spire and cannot be attacked.
+
+### The people in it, off `creature`, for an Alliance raid
+
+The hall's own note has said for a while that what the source puts in the great
+hall is "forty people who are not fighting anybody", and for a while that was
+all it was: a note. They are in it now — thirty-five of them — as `Bystander`,
+which is a `Prop` with a silhouette rather than an `Actor`: drawn, sorted by
+depth, and invisible to the simulation, because `Faction` has two values on
+purpose and a third would give the raid something friendly to aim at.
+
+**Whose hall it is had to be decided, and the data decided most of it.** The
+instance spawns Garrosh Hellscream, High Overlord Saurfang, three Kor'kron
+Generals and the Horde's five quartermasters in this room, and there is no
+Alliance row for any of them on map 631: `Muradin Bronzebeard` and
+`The Skybreaker` exist, but every placement of either is on map 672, the
+gunship's own map, in that ship's coordinates. So for an Alliance raid the
+Horde's own are left out rather than renamed, and what stands in the hall is
+the half of it that belongs to neither side — the Argent Crusade, the Ebon
+Blade, Tirion Fordring, and the quartermasters both factions share.
+
+`look` is a sheet key and not a claim: Liberated Pixel Cup draws what it draws,
+so an Argent Champion is a paladin's silhouette because that is the nearest
+thing in the set.
+
+**Two groups are not in yet and the reason is written here so the next round
+does not rediscover it.**
+
+- **The Rampart of Skulls.** Twenty-one Skybreaker bodies stand on it, faction
+  84, and they are the Alliance side of a battle in progress — the Kor'kron
+  answer them seven strong. Placed by the convention the great hall verified
+  (the middle of a room's own spawns), the furthest of them lands 1,780 units
+  from the middle against a platform whose radius is 1,686: a body standing off
+  the edge of the floor. Putting one army on a floor without the other would
+  also be a fight with one side missing.
+- **Sister Svalna's escort.** Captain Arnath, Brandon, Grondel and Rupert with
+  Crok Scourgebane stand in the Ymirjar column, which is a corridor rather than
+  a room, and a corridor carries what is in it a different way — see how
+  `terrain` reaches `s.obstacles` in `travel.ts`. That plumbing is not built
+  for people yet.
 
 ### The building's own furniture, off `gameobject`
 

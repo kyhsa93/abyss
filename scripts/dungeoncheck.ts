@@ -35,6 +35,7 @@ import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
 import { CLASSES, RAID_SIZES, autoParty, pickFor } from '../src/sim/classes'
 import { MUSTER_HALF, fromRoom, insideRoom, type RoomShape } from '../src/sim/room'
+import { LPC_ROW } from '../src/render/lpc'
 import type { Vec2 } from '../src/sim/types'
 import { inTerrain } from '../src/sim/battleground'
 import {
@@ -852,6 +853,35 @@ const everywhere = () => true
       }
     }
     expect('everything standing in a room is on its floor, clear of it', wrong.length === 0, wrong.join('; '))
+  }
+
+  // And the people standing in a room are in it, and are drawn as somebody.
+  //
+  // The same two ways this data can be wrong as the packs above, and both are
+  // invisible until somebody looks: a body written a few hundred units out
+  // stands inside the wall, and a `look` that is not a row of the sheet draws
+  // nothing at all -- `drawBystanders` skips what it cannot draw rather than
+  // falling back, so a typo is a person who silently is not there.
+  {
+    const lost: string[] = []
+    for (const chamber of CHAMBERS) {
+      const folk = chamber.bystanders
+      if (folk === undefined) continue
+      const room: RoomShape = { ...roomOf(chamber.id), at: placeOf(chamber.id) }
+      for (const [i, one] of folk.entries()) {
+        if (!insideRoom(room, fromRoom(room, one.pos), 40)) {
+          lost.push(`${chamber.id}#${i} stands outside its room`)
+        }
+        if (LPC_ROW[one.look] === undefined) {
+          lost.push(`${chamber.id}#${i} is drawn as "${one.look}", which is not a body`)
+        }
+      }
+    }
+    expect(
+      `${CHAMBERS.reduce((n, c) => n + (c.bystanders?.length ?? 0), 0)} bystanders stand in their room and are drawn as somebody`,
+      lost.length === 0,
+      lost.slice(0, 3).join('; '),
+    )
   }
 
   // And every fight in the building is standing in its own room.
@@ -1798,7 +1828,7 @@ expect(
     // reading of the same building. There is no boss boundary for a room with
     // no boss in it, so there is nothing better to have.
     ['dream', 181.0, 200.0], // RectangleBoundary(4112.5, 4293.5, 2385, 2585), Valithria
-    ['lair', 175.0, 175.0], // EllipseBoundary(4408.6, 2484.0), 100 by 75, as a mean
+    ['lair', 185.0, 185.0], // EllipseBoundary(4418.6, 2484.0), 110 by 75, as a mean
     // And the rooms nobody fights in, which are still the client map tile's
     // reading of the same building.
     ['vigil', 130.0, 125.0],

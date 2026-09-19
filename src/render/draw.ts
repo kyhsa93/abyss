@@ -42,13 +42,13 @@ import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/bat
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { ENCOUNTERS, encounterAt } from '../sim/encounters'
-import { CHAMBERS, placeOf, type Chamber, type WingId, chamberAt } from '../dungeon'
+import { CHAMBERS, placeOf, type Chamber, type WingId, chamberAt, roomOf } from '../dungeon'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
-import { drawGrave, drawObstacles, drawProps, drawSurround, floorTexture } from './scenery'
+import { drawBystanders, drawGrave, drawObstacles, drawProps, drawSurround, floorTexture } from './scenery'
 import { EDGE_LAP, fromRoom, roomAt, roomHasOutside, roomReach, type RoomShape } from '../sim/room'
 import { COLORS, L, classColor, setWorldRoom, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
@@ -404,13 +404,59 @@ export function drawWorld(
   // is -- a fight's room is the encounter's, a room being crossed is the
   // chamber's -- so the two can never disagree about which room this is.
   {
+    // Room-local, and turned into the world's the same way the bystanders
+    // below are: a fight is built at `placeOf` so the two frames already
+    // coincide, and a walk is the whole building at once, where they do not.
+    // The throne room is the only chamber carrying furniture and its fight is
+    // not built yet, so nobody had ever seen this drawn -- which is why it
+    // could sit here wrong.
     const own =
       s.mode === 'raid'
         ? encounterAt(s.encounter).props
         : s.chamber
           ? chamberAt(s.chamber)?.props
           : undefined
-    if (own && own.length > 0) drawProps(ctx, worldToScreen, L.scale, own)
+    if (own && own.length > 0) {
+      const here =
+        s.mode === 'raid' || !s.chamber
+          ? own
+          : (() => {
+              const room: RoomShape = { ...roomOf(s.chamber), at: placeOf(s.chamber) }
+              return own.map((one) => ({ ...one, pos: fromRoom(room, one.pos) }))
+            })()
+      drawProps(ctx, worldToScreen, L.scale, here)
+    }
+  }
+
+  // And the people standing in it who are not in the fight, on the same terms:
+  // resolved the way the room is, drawn over the floor and under every
+  // mechanic. They are scenery with a silhouette -- see `Bystander` -- so this
+  // sits beside the furniture rather than anywhere near `drawOrder`.
+  {
+    // Room-local, and only a fight's room is also the world's origin.
+    //
+    // A fight is built at `placeOf` -- `newState(placeOf(id), ...)` -- so the
+    // two frames coincide and the positions can go straight out. A walk is the
+    // whole building at once, with every room standing where the plan puts it,
+    // and handing the same numbers over there draws the great hall's forty
+    // people around the middle of the citadel instead: measured, the first of
+    // them lands eighteen hundred units from the hall it is written in.
+    const folk =
+      s.mode === 'raid'
+        ? encounterAt(s.encounter).bystanders
+        : s.chamber
+          ? chamberAt(s.chamber)?.bystanders
+          : undefined
+    if (folk && folk.length > 0) {
+      const here =
+        s.mode === 'raid' || !s.chamber
+          ? folk
+          : (() => {
+              const room: RoomShape = { ...roomOf(s.chamber), at: placeOf(s.chamber) }
+              return folk.map((one) => ({ ...one, pos: fromRoom(room, one.pos) }))
+            })()
+      drawBystanders(ctx, worldToScreen, L.scale, here)
+    }
   }
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)

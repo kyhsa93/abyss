@@ -23,7 +23,9 @@ import { Rng } from '../sim/rng'
 import { wallGap, type RoomShape } from '../sim/room'
 import { PROPS, PROPS_SRC, PROP_IDS } from './props'
 import { L } from './theme'
-import type { Obstacle, Prop, Vec2 } from '../sim/types'
+import { drawBody, hasBody } from './lpcimage'
+import { PARTY_RADIUS } from '../sim/constants'
+import type { Bystander, Obstacle, Prop, Vec2 } from '../sim/types'
 
 type Sheet = CanvasImageSource & { width: number; height: number }
 
@@ -536,6 +538,41 @@ export function drawProps(
   }
   ctx.restore()
   return true
+}
+
+/**
+ * The people standing in a room who are not in the fight.
+ *
+ * Drawn exactly the way a prop is and for the same reason: they are scenery
+ * with a silhouette, not bodies the simulation knows about. The one line they
+ * keep is the one every prop keeps -- nothing in the strip the HUD lives in,
+ * because a figure standing over the ability bar is a figure standing on the
+ * joystick.
+ *
+ * Back to front by depth, so somebody further up the hall is drawn behind
+ * somebody nearer the camera rather than in whatever order the list happens to
+ * be written in.
+ */
+export function drawBystanders(
+  ctx: CanvasRenderingContext2D,
+  project: (p: Vec2) => Vec2,
+  scale: number,
+  people: readonly Bystander[],
+): void {
+  const nearest = L.actionY - 40
+  // Sorted by depth, and the index is handed on as `who`: that number only has
+  // to be stable and to differ between neighbours, which is what decides
+  // whether the two Argent Commanders standing together carry the same sword.
+  const order = [...people].sort((a, b) => a.pos.y - b.pos.y)
+  for (let i = 0; i < order.length; i++) {
+    const one = order[i]!
+    const on = project(one.pos)
+    if (on.y > nearest) continue
+    // Nobody at all rather than a fallback silhouette: a bystander is dressing,
+    // and dressing that arrives as the wrong person is worse than none.
+    if (!hasBody(one.look)) continue
+    drawBody(ctx, one.look, on.x, on.y, PARTY_RADIUS * scale, one.facing, 0, false, null, 1, i)
+  }
 }
 
 /** What a body gets when it stops being one. */

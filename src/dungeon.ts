@@ -1,7 +1,7 @@
 import { ENCOUNTERS } from './sim/encounters'
 import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, carried, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
-import type { Obstacle, Prop, Vec2 } from './sim/types'
+import type { Bystander, Obstacle, Prop, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 import { BOSS_WIDTH, BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, YARD } from './sim/constants'
 
@@ -77,6 +77,15 @@ export interface Chamber {
   terrain?: Obstacle[]
   /** And what is standing in it that nothing collides with. See `Prop`. */
   props?: Prop[]
+
+  /**
+   * And who is standing in it that the fight cannot see. See `Bystander`.
+   *
+   * The source fills this building with people who are not fighting anybody --
+   * the Argent Crusade and the Ebon Blade hold the great hall between them --
+   * and the hall a raid walks through had none of them.
+   */
+  bystanders?: Bystander[]
 
   /**
    * And what is standing in it, in the same frame.
@@ -299,7 +308,59 @@ export const CHAMBERS: Chamber[] = [
       { pos: { x: -619, y: 29 }, radius: 50, look: 'fire' },
       { pos: { x: 5, y: 520 }, radius: 45 },
     ],
-  },
+      // The forty people the source puts in this hall who are not fighting
+    // anybody, which is what makes it a hall rather than a floor. Off
+    // `creature` on map 631 between x -125 and x 0, in the room's own frame at
+    // `BUILD_SCALE`, the same conversion the forge and its anvils came through.
+    //
+    // An Alliance raid's hall: the instance spawns Garrosh, High Overlord
+    // Saurfang, three Kor'kron Generals and the Horde's five quartermasters
+    // here, and there is no Alliance row for any of them on this map -- Muradin
+    // and the Skybreaker are placed on 672, the gunship's own map, in that
+    // ship's coordinates. So the Horde's own are left out rather than renamed,
+    // and what stands here is the half of the hall that belongs to neither: the
+    // Argent Crusade, the Ebon Blade, and the quartermasters both sides share.
+    //
+    // `look` is the nearest silhouette Liberated Pixel Cup has, not a claim
+    // about anybody's class. See `Bystander`.
+    bystanders: [
+      { pos: { x:   438, y:   191 }, look: 'mage-frost', facing: 3.79 }, // Alchemist Finklestein
+      { pos: { x:  -366, y:  -396 }, look: 'paladin-retribution', facing: 2.13 }, // Argent Champion
+      { pos: { x:    46, y:  -165 }, look: 'paladin-retribution', facing: 3.28 }, // Argent Champion
+      { pos: { x:   377, y:  -528 }, look: 'paladin-retribution', facing: 4.36 }, // Argent Champion
+      { pos: { x:    81, y:   475 }, look: 'paladin-protection', facing: 3.26 }, // Argent Commander
+      { pos: { x:   168, y:   343 }, look: 'paladin-protection', facing: 3.98 }, // Argent Commander
+      { pos: { x:   223, y:   297 }, look: 'paladin-protection', facing: 3.40 }, // Argent Commander
+      { pos: { x:   484, y:  -488 }, look: 'paladin-protection', facing: 4.56 }, // Argent Commander
+      { pos: { x:   489, y:  -571 }, look: 'paladin-protection', facing: 4.66 }, // Argent Commander
+      { pos: { x:   500, y:   116 }, look: 'paladin-protection', facing: 4.66 }, // Argent Commander
+      { pos: { x:  -190, y:    31 }, look: 'mage-frost', facing: 1.05 }, // Aronen
+      { pos: { x:   540, y:  -530 }, look: 'warrior-protection', facing: 4.50 }, // Commander Kunz
+      { pos: { x:   130, y:    36 }, look: 'paladin-protection', facing: 3.26 }, // Crusader Grimtong
+      { pos: { x:   237, y:     8 }, look: 'paladin-protection', facing: 5.93 }, // Crusader Halford
+      { pos: { x:  -671, y:  -217 }, look: 'warrior-protection', facing: 1.54 }, // Ebon Blade Commander
+      { pos: { x:  -658, y:   -39 }, look: 'warrior-protection', facing: 1.76 }, // Ebon Blade Commander
+      { pos: { x:  -509, y:  -474 }, look: 'warrior-protection', facing: 1.43 }, // Ebon Blade Commander
+      { pos: { x:  -489, y:   116 }, look: 'warrior-protection', facing: 1.64 }, // Ebon Blade Commander
+      { pos: { x:  -488, y:  -566 }, look: 'warrior-protection', facing: 1.29 }, // Ebon Blade Commander
+      { pos: { x:  -264, y:    26 }, look: 'warrior-protection', facing: 1.54 }, // Ebon Blade Commander
+      { pos: { x:  -210, y:   293 }, look: 'warrior-protection', facing: 2.57 }, // Ebon Blade Commander
+      { pos: { x:  -158, y:   335 }, look: 'warrior-protection', facing: 2.13 }, // Ebon Blade Commander
+      { pos: { x:   -72, y:   474 }, look: 'warrior-protection', facing: 3.11 }, // Ebon Blade Commander
+      { pos: { x:  -390, y:  -496 }, look: 'warrior-arms', facing: 1.92 }, // Ebon Champion
+      { pos: { x:   -30, y:  -172 }, look: 'warrior-arms', facing: 3.16 }, // Ebon Champion
+      { pos: { x:   115, y:  -189 }, look: 'warrior-arms', facing: 3.30 }, // Ebon Champion
+      { pos: { x:   352, y:  -397 }, look: 'warrior-arms', facing: 4.38 }, // Ebon Champion
+      { pos: { x:  -650, y:  -140 }, look: 'warrior-arms', facing: 1.45 }, // Fury
+      { pos: { x:   476, y:   156 }, look: 'rogue-assassination', facing: 4.24 }, // Goodman the "Closer"
+      { pos: { x:  -640, y:   -89 }, look: 'warrior-arms', facing: 1.55 }, // Highlord Darion Mograine
+      { pos: { x:    29, y:   151 }, look: 'paladin-holy', facing: 3.23 }, // Highlord Tirion Fordring
+      { pos: { x:  -180, y:    58 }, look: 'priest-shadow', facing: 2.50 }, // Ormus the Penitent
+      { pos: { x:   463, y:   178 }, look: 'priest-discipline', facing: 3.84 }, // Scott the Merciful
+      { pos: { x:  -512, y:  -521 }, look: 'rogue-assassination', facing: 1.36 }, // Stefan Vadu
+      { pos: { x:  -452, y:   238 }, look: 'priest-discipline', facing: 6.11 }, // Torgo the Elder
+    ],
+},
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
   // The way out of the first fight, and there are two of them because the
   // source has two.
@@ -373,12 +434,18 @@ export const CHAMBERS: Chamber[] = [
     // raised platform at the far end. Round here, because a horseshoe is a
     // concave shape and this game does not buy path-finding.
     //
-    // A hundred and seventy-eight yards across. The four triggers that put a
+    // A hundred and forty-six yards across. The four triggers that put a
     // raider onto the other ship stand at the corners of the deck in the
-    // source — 229 yards apart one way and 127 the other — and a circle that
-    // splits the difference is the nearest a platform gets to that. It was 92,
-    // which made the one open-air room in the building the smallest arena in
-    // the game.
+    // source — `areatrigger` 5628 to 5631, whose edges measure 229 yards one
+    // way and 127 the other — and a platform is a circle, so it cannot be
+    // both. The mean of the two is 178 and this is not that: a circle wide
+    // enough for the long edge swallows the rooms either side of it on the
+    // plan, so the width is the one the building can hold rather than the one
+    // the deck measures. It was 92, which made the one open-air room in the
+    // building the smallest arena in the game.
+    //
+    // Written down because the comment used to claim the 178 outright while
+    // the number below has always been this one.
     room: { kind: 'platform', radius: 1686 },
     pad: killed('oratory'),
   },
@@ -472,7 +539,9 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Sanctum',
     wing: 'crimson',
     encounter: 7,
-    room: { kind: 'round', radius: 460 },
+    // No room of its own: a chamber with a built fight in it is the fight's
+    // room -- see `writtenRoom` -- so a line here would be dead weight, which
+    // is the same reason the dreaming hall has none.
   },
 
   // --- the frostwing halls --------------------------------------------------

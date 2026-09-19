@@ -1056,6 +1056,33 @@ export interface Prop {
 }
 
 /**
+ * Somebody standing in a room who is not in the fight.
+ *
+ * The instance is full of them -- the Argent Crusade and the Ebon Blade hold
+ * the great hall, and the source puts forty people in it who are not fighting
+ * anybody. They were missing entirely, so the hall a raid walks through was
+ * furniture and no one.
+ *
+ * Deliberately not an `Actor`. A body in `s.actors` is a body the fight can
+ * see: it would take threat, answer a taunt, eat a cone and show up in the
+ * target list, and `Faction` has two values on purpose -- see the note in
+ * `sim.ts` about there being no friendly targeting in this game. So a
+ * bystander is drawn and nothing else, the same way a `Prop` is, and the
+ * simulation never learns it exists.
+ *
+ * `look` is a sheet key from `LPC_ROW`, not a claim about the person's class:
+ * the set draws what it draws, and an Argent Champion is a paladin's
+ * silhouette because that is the nearest thing in it.
+ */
+export interface Bystander {
+  pos: Vec2
+  /** A body sheet key from `src/render/lpc.ts`. */
+  look: string
+  /** Which way they are turned, in radians. */
+  facing: number
+}
+
+/**
  * What one side has decided to do, and when it may decide again.
  *
  * The alternative to this is what was here before: every actor answered "where

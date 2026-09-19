@@ -1,6 +1,6 @@
 import type { DifficultyId, RaidSize } from './classes'
 import type { RoomShape } from './room'
-import type { Obstacle, Prop, Vec2 } from './types'
+import type { Bystander, Obstacle, Prop, Vec2 } from './types'
 
 /**
  * The bosses, in the order they are fought.
@@ -948,6 +948,9 @@ export interface Encounter {
    * thing the instance happens to put in the room.
    */
   props?: Prop[]
+
+  /** And who is standing in it that the fight cannot see. See `Bystander`. */
+  bystanders?: Bystander[]
   /**
    * Where whatever this fight summons walks in from, or omitted to roll it.
    *
