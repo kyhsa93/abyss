@@ -60,7 +60,6 @@ export const COLORS = {
   manaBar: '#3b82f6',
   rageBar: '#dc2626',
   energyBar: '#facc15',
-  focusBar: '#f97316',
   castBar: '#facc15',
   bossCast: '#f97316',
   panel: 'rgba(15, 17, 26, 0.9)',
@@ -505,7 +504,6 @@ export function classColor(classId: string): string {
 export function resourceColor(resource: string): string {
   if (resource === 'rage') return COLORS.rageBar
   if (resource === 'energy') return COLORS.energyBar
-  if (resource === 'focus') return COLORS.focusBar
   return COLORS.manaBar
 }
 

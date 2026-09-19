@@ -863,7 +863,7 @@ export interface Tally {
  * nothing and is earned by hitting and being hit, so a warrior opens a pull
  * unable to do anything and a tank mid-fight can barely spend it fast enough.
  */
-export type ResourceId = 'mana' | 'rage' | 'energy' | 'focus'
+export type ResourceId = 'mana' | 'rage' | 'energy'
 
 export type SoundEvent =
   | 'countdown'

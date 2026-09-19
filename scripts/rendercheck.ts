@@ -2740,10 +2740,17 @@ for (const [label, w, h] of [
 
 // --- classes run on different resources -----------------------------------
 //
-// Mana is a budget for the fight, energy and focus refill on their own, and
-// rage is neither: it starts at nothing and is earned by hitting and being
-// hit. A resource that never moves is a bar, not a system, so the shape of
-// each one is checked rather than just its presence.
+// Mana is a budget for the fight, energy refills on its own, and rage is
+// neither: it starts at nothing and is earned by hitting and being hit. A
+// resource that never moves is a bar, not a system, so the shape of each one
+// is checked rather than just its presence.
+//
+// There were four. Focus was the hunter's and the hunter never had one:
+// `ChrClasses.dbc` gives class 3 a `DisplayPower` of mana, and the core hands
+// focus to a pet and nought to a player asking for it. The three shapes above
+// are all still here -- the warrior and the bear keep rage, the rogue and the
+// cat keep energy -- so what went was an invented resource and not a kind of
+// one.
 {
   // Keyed by spec, not by class: a bear tank runs on rage while the same
   // druid healing runs on mana, which is the whole reason the resource sits
@@ -2754,7 +2761,6 @@ for (const [label, w, h] of [
     'druid guardian': 'rage',
     'rogue assassination': 'energy',
     'druid feral': 'energy',
-    'hunter marksmanship': 'focus',
   }
   const wrongRes = SPEC_OPTIONS.filter(
     (pick) => specOf(pick).resource !== (EXPECTED[`${pick.classId} ${pick.spec}`] ?? 'mana'),

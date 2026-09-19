@@ -1343,6 +1343,16 @@ one was fixed in the comment rather than in the number, for the reason below.
 All three are the same bug `abilities.ts` warns about in its own comments, back
 for a third time.
 
+**Fixed since.** The hunter spent focus, which is not a hunter's resource:
+`ChrClasses.dbc` gives class 3 a `DisplayPower` of mana, and the core hands
+focus to a pet and nought to a player asking for it. It spends mana now, and
+its three costs were multiplied by nine nineteenths on the way — mana returns
+at nine a second where the invented focus returned at nineteen, so without the
+rescale the correction would have halved what a marksman can sustain and been
+a nerf wearing a correction's clothes. The three shapes a resource can have
+here are untouched: rage is still earned, energy still refills, mana is still
+a budget for the whole fight.
+
 **Tried, and not taken, with what it cost written down.** Two corrections were
 made, measured, and put back, and they are recorded here because the next
 person to read the source will find both of them again.
@@ -1387,7 +1397,6 @@ citation is given so the work can start from here rather than from scratch.
 
 | what | the source | here |
 | --- | --- | --- |
-| the hunter's resource | `ChrClasses.dbc` class 3 `DisplayPower` = 0, mana. Focus is the pet's — `Unit.cpp` returns 0 for a player | `focus`, with a regen of its own |
 | energy | 10 a second — `StatSystem.cpp:979-980` writes the flat modifier as `regenPerSecond - 10.f` | 25 a second |
 | the five-second rule | `Unit.cpp:13665` — `IsUnderLastManaUseEffect()` is `now - m_lastManaUse < 5000`, read by the mana branch at `Player.cpp:1918` | absent: a healer's bar fills while it casts |
 | mana costs | a share of base mana, `ManaCostPct`: Greater Heal 32, Holy Light 29, Shadow Word: Pain 22, Frostbolt 11, and Lay on Hands **free** with a twenty-minute `CategoryRecoveryTime` | 3.8, 4.5, 1.9, 1.8 per cent of the pool, and Lay on Hands the most expensive thing a paladin owns |
@@ -1395,7 +1404,7 @@ citation is given so the work can start from here rather than from scratch.
 | cast times | eleven of the twelve are hard casts: Flash Heal 1500, Chain Heal 2500, Smite 2500, Mind Blast 1500, Wrath 2000, Lightning Bolt 2500, Lava Burst 2000, Shadow Bolt 3000, Immolate 2000, Steady Shot 1500, Exorcism 1500. Mind Flay is 0 because it is a channel | instant |
 | the global cooldown | `StartRecoveryTime`: Taunt, Growl, Hand of Reckoning, Heroic Strike, Maul, Shield Wall, Sprint and Evasion are **0**; Eviscerate and Rupture are **1000**; Frostbolt is 1500 | 1.5 seconds for everything, taunts included |
 | the attack table | `Unit::MeleeSpellMissChance` — 5% base plus `1 + (diff - 10) * 0.4` against a mob, so **8%** at level 80 into a level 83 boss, **+19** more for an offhand; and a glancing blow is `(10 + defence - skill) * 100` capped at 4000, so **25%** here and 40% at the cap | no miss, dodge, parry, block or glancing blow at all |
-| nine abilities | absent from a 3.3.5a `Spell.dbc` by id: 118038, 97462, 190784, 184662, 62618, 78674, 93402, 104773, 98008. `astral_shift` 52179 does exist, but as a passive | on the bars, five of them in baseline spec slots |
+| nine abilities | absent from a 3.3.5a `Spell.dbc` by id: 118038, 97462, 190784, 184662, 62618, 78674, 93402, 104773, 98008. `astral_shift` 52179 does exist, but as a passive | their **ids** are on the bars, not their names: what a player sees is `Last Stand`, `Reprisal`, `Charger`, `Star Lance`, `Sunbrand`, `Grit` — this game's own words, the way every boss and every trash look is. The ids are borrowed labels rather than a claim about the era, and renaming them would mean renaming the icon keys they index (`art/icons.json`, which `rendercheck` holds against the ability list) for nothing a player could see. Left alone deliberately |
 
 None of these are small numbers, and every one of them moves a simulated pull.
 That matters more than it sounds: `rendercheck`'s mechanic sweep runs one

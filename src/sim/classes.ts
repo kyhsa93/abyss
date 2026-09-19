@@ -345,7 +345,6 @@ export const RESOURCES: Record<ResourceId, ResourceRules> = {
   // Fast enough to cover a filler roughly every global cooldown, so the
   // question is never "can I afford anything" but "can I afford the big one".
   energy: { regen: 25, onSwing: 0, onHit: 0, startsFull: true },
-  focus: { regen: 19, onSwing: 0, onHit: 0, startsFull: true },
 }
 
 const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities => ({
@@ -748,7 +747,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         id: 'marksmanship',
         role: 'dps',
         trait: 'distance',
-        resource: 'focus',
+        resource: 'mana',
         melee: false,
         auto: SHOT,
         hp: 3600,

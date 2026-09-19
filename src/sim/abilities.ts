@@ -161,9 +161,19 @@ const list: Ability[] = [
   { id: 'ice_lance', name: 'Icicle', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 10, amount: 83, threatMult: 1, aura: null, range: SPELL },
 
   // --- hunter: everything instant, so it never stops damaging --------------
-  { id: 'steady_shot', name: 'Steady Draw', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 14, amount: 109, physical: true, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
-  { id: 'serpent_sting', name: 'Venom Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 20, amount: 44, physical: true, threatMult: 1, aura: 'serpent_sting', range: SPELL, minRange: SHOT_MIN_RANGE },
-  { id: 'aimed_shot', name: 'Long Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 25, amount: 328, physical: true, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
+  //
+  // And it spends mana, because the hunter spends mana. `ChrClasses.dbc` gives
+  // class 3 a `DisplayPower` of 0, and `Unit.cpp` hands `POWER_FOCUS` to a pet
+  // and returns nought for a player asking for it. Focus was invented here,
+  // with a regeneration of nineteen a second against mana's nine.
+  //
+  // So the three costs below are the old ones times nine nineteenths: the
+  // resource changes and the class does not. Swapping the resource alone would
+  // have halved what a marksman can sustain, which is a nerf wearing a
+  // correction's clothes.
+  { id: 'steady_shot', name: 'Steady Draw', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 7, amount: 109, physical: true, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'serpent_sting', name: 'Venom Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 9, amount: 44, physical: true, threatMult: 1, aura: 'serpent_sting', range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'aimed_shot', name: 'Long Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 12, amount: 328, physical: true, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
 
   // --- leather melee: brief speed on a long cooldown -----------------------
   //
