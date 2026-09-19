@@ -1254,21 +1254,32 @@ Blade, Tirion Fordring, and the quartermasters both factions share.
 so an Argent Champion is a paladin's silhouette because that is the nearest
 thing in the set.
 
-**Two groups are not in yet and the reason is written here so the next round
-does not rediscover it.**
+**One group is in, by plumbing that had to be built for it, and one is still
+out with its reason written here so the next round does not rediscover it.**
 
-- **The Rampart of Skulls.** Twenty-one Skybreaker bodies stand on it, faction
-  84, and they are the Alliance side of a battle in progress — the Kor'kron
-  answer them seven strong. Placed by the convention the great hall verified
-  (the middle of a room's own spawns), the furthest of them lands 1,780 units
-  from the middle against a platform whose radius is 1,686: a body standing off
-  the edge of the floor. Putting one army on a floor without the other would
-  also be a fight with one side missing.
-- **Sister Svalna's escort.** Captain Arnath, Brandon, Grondel and Rupert with
-  Crok Scourgebane stand in the Ymirjar column, which is a corridor rather than
-  a room, and a corridor carries what is in it a different way — see how
-  `terrain` reaches `s.obstacles` in `travel.ts`. That plumbing is not built
-  for people yet.
+- **Sister Svalna's escort is in.** Captain Arnath, Brandon, Grondel and
+  Rupert with Crok Scourgebane stand at the far end of the Ymirjar column,
+  eight units off its far wall, which is where the source stands them: nearer
+  the crossing than the first Ymirjar pack, so the raid passes them on the way
+  in. The column is a corridor rather than a room, and a corridor did not
+  carry people — a room's bystanders reach the drawing through the chamber the
+  party is standing in, and a passage has no chamber. So `Corridor` gained
+  `bystanders`, `groundFor` puts them through the same placement its packs and
+  doors already go through, and `drawWorld` reads them off `s.travel`. They
+  were nearly left written in their own coordinates for the renderer to move
+  instead, which is the second convention in one file that once drew the
+  furniture around the middle of the citadel. Svalna herself is not among
+  them: she is the eleventh fight this game does not have.
+- **The Rampart of Skulls is not.** Twenty-one Skybreaker bodies stand on it,
+  faction 84, and they are the Alliance side of a battle in progress — the
+  Kor'kron answer them seven strong. Placed by the convention the great hall
+  verified (the middle of a room's own spawns), the furthest of them lands
+  1,780 units from the middle against a platform whose radius is 1,686: a body
+  standing off the edge of the floor. Putting one army on a floor without the
+  other would also be a fight with one side missing, and a battle in progress
+  rendered as bodies that never move is a worse thing to walk past than an
+  empty rampart — the escort above stands still because standing still is what
+  an escort waiting does.
 
 ### The building's own furniture, off `gameobject`
 

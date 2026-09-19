@@ -884,6 +884,36 @@ const everywhere = () => true
     )
   }
 
+  // And the ones standing in a passage, on the same two promises.
+  //
+  // Asked with no clearance where the packs ask for forty, and the difference
+  // is the point: a pack is something the raid walks up to on purpose and has
+  // to have room around, and a bystander is dressing that collides with
+  // nothing. Svalna's escort stands where the source stands it, which is eight
+  // units off the far wall of the Ymirjar column -- inside it, and no more
+  // room than that to give.
+  {
+    const strayed: string[] = []
+    for (const passage of PASSAGES) {
+      const walk = passage.corridor
+      const folk = walk?.bystanders
+      if (!walk || folk === undefined) continue
+      for (const [i, one] of folk.entries()) {
+        if (!insideRoom(walk.room, one.pos)) {
+          strayed.push(`${walk.id}#${i} stands outside its passage`)
+        }
+        if (LPC_ROW[one.look] === undefined) {
+          strayed.push(`${walk.id}#${i} is drawn as "${one.look}", which is not a body`)
+        }
+      }
+    }
+    expect(
+      `${PASSAGES.reduce((n, p) => n + (p.corridor?.bystanders?.length ?? 0), 0)} bystanders stand in their passage and are drawn as somebody`,
+      strayed.length === 0,
+      strayed.slice(0, 3).join('; '),
+    )
+  }
+
   // And every fight in the building is standing in its own room.
   //
   // A boss used to exist only inside its own fight, and crossing the doorway

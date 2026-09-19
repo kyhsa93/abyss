@@ -1012,7 +1012,7 @@ export const PASSAGES: Passage[] = [
     // all one weight — this is the one wing whose trash is all the same size —
     // so what varies is only how many arrive at once, which is the cleanest
     // version of the decision a corridor asks.
-    corridor: corridor('dreamway', 'dream', [
+    corridor: { ...corridor('dreamway', 'dream', [
       { pos: { x:    1, y:  1810 }, of: ['Ymirjar Warlord', 'Ymirjar Huntress', 'Ymirjar Huntress'], pulls: PULL },
       { pos: { x:   -9, y:  1623 }, of: ['Ymirjar Battle-Maiden'], pulls: PULL },
       { pos: { x:   11, y:  1617 }, of: ['Ymirjar Battle-Maiden'], pulls: PULL },
@@ -1022,7 +1022,27 @@ export const PASSAGES: Passage[] = [
       { pos: { x:  -13, y:  1084 }, of: ['Ymirjar Battle-Maiden', 'Ymirjar Huntress', 'Ymirjar Deathbringer'], pulls: PULL },
       { pos: { x:   -2, y:   458 }, of: ['Ymirjar Battle-Maiden', 'Ymirjar Warlord', 'Ymirjar Huntress', 'Ymirjar Battle-Maiden', 'Ymirjar Warlord', 'Ymirjar Huntress'], pulls: PULL },
       { pos: { x:   12, y:   301 }, of: ['Ymirjar Warlord'], pulls: PULL },
-    ]),
+    ]), bystanders: [
+      // Sister Svalna's escort, which the source stands at the far end of the
+      // Ymirjar column: `creature` on map 631 at z 349, converted the way the
+      // column's own packs are -- along the walk from the dreaming hall's own
+      // y, and squeezed across it, because the real column is thirty yards
+      // wide and a corridor here is twelve.
+      //
+      // Svalna herself is not among them. She is a boss in the source, with a
+      // `BossBoundaryData` entry of her own, and the eleventh fight this game
+      // does not have -- see `docs/reading-the-source.md`.
+      //
+      // They stand close to the far wall: the nearest is eight units off it.
+      // That is fine for these and would not be for a pack -- a bystander
+      // collides with nothing and is never walked into on purpose -- which is
+      // why the check below them asks for less room than `packsPlaced` does.
+      { pos: { x:   57, y:  2176 }, look: 'paladin-protection', facing: 1.6 }, // Captain Arnath
+      { pos: { x:   30, y:  2212 }, look: 'priest-discipline', facing: 1.6 },  // Captain Brandon
+      { pos: { x:  -36, y:  2233 }, look: 'warrior-arms', facing: 1.6 },       // Captain Grondel
+      { pos: { x:  -53, y:  2188 }, look: 'hunter-marksmanship', facing: 1.6 },// Captain Rupert
+      { pos: { x:    5, y:  2184 }, look: 'warrior-protection', facing: 1.6 }, // Crok Scourgebane
+    ] }
   },
   { from: 'dream', to: 'gauntlet', gate: killed('dream') },
   // The citadel's longest walk, and the one it is named for: three packs, and
@@ -2134,6 +2154,19 @@ export function groundFor(from: string, to: string): Corridor | null {
     ...(passage.corridor.jets
       ? { jets: passage.corridor.jets.map((j) => ({ ...j, at: place(j.at) })) }
       : {}),
+    // Through the same frame as everything else standing in it. Left out, they
+    // were the one thing in a laid corridor still written in its own
+    // coordinates while the renderer moved them itself -- two conventions in
+    // one file, which is how the furniture came to be drawn around the middle
+    // of the citadel.
+    ...(passage.corridor.bystanders
+      ? {
+          bystanders: passage.corridor.bystanders.map((one) => ({
+            ...one,
+            pos: place(one.pos),
+          })),
+        }
+      : {}),
   }
 }
 
@@ -2267,6 +2300,16 @@ export function citadelTerrain(): Obstacle[] {
 /** And everything in it that has not arrived yet, placed the same way. */
 export function citadelSprings(cleared?: ReadonlySet<string>): Spring[] {
   return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.springs ?? [])
+}
+
+/**
+ * And the people standing in its passages, placed the same way.
+ *
+ * The rooms' own are not here: those reach the drawing through the chamber the
+ * party is standing in, which a room has and a passage does not.
+ */
+export function citadelBystanders(cleared?: ReadonlySet<string>): Bystander[] {
+  return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.bystanders ?? [])
 }
 
 /**

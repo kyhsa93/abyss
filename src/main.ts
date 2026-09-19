@@ -168,6 +168,7 @@ import {
   passageKey,
   roomOf,
   placeOf,
+  citadelBystanders,
 } from './dungeon'
 import { marchReach, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
@@ -901,6 +902,10 @@ function standIn(
     terrain: citadelTerrain(),
     alarms: citadelAlarms(new Set(run.cleared)),
     jets: citadelJets(new Set(run.cleared)),
+    // And who is standing in the passages, which does not wait for a door
+    // either: the escort at the head of the Ymirjar column is there whether or
+    // not the dreaming hall has been opened.
+    bystanders: citadelBystanders(new Set(run.cleared)),
   }
   state = createCorridorState(
     roomSeed(run, 'citadel'),

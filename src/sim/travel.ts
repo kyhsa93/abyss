@@ -34,7 +34,7 @@ import { blankGround, turnToward } from './boss'
 import { trashLook, trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
 import { ROUND_ARENA, carried, pushInside, pushOutside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
-import type { Actor, Obstacle, SimState, Vec2 } from './types'
+import type { Bystander, Actor, Obstacle, SimState, Vec2 } from './types'
 
 /**
  * The walk between two rooms.
@@ -299,6 +299,16 @@ export interface Corridor {
    * set of coordinates for the whole building — see `citadelTerrain`.
    */
   terrain?: Obstacle[]
+
+  /**
+   * And who is standing in it that the fight cannot see. See `Bystander`.
+   *
+   * A corridor gets these the way a room does, but it reaches the drawing by a
+   * different door: a passage is not a chamber, so there is no `chamberAt` to
+   * ask. The walk carries its corridor on the state and the renderer already
+   * reads it -- see `s.travel` in the HUD -- so they are read from there.
+   */
+  bystanders?: Bystander[]
 }
 
 /** A tripwire in the floor, and the pack it wakes when a foot finds it. */

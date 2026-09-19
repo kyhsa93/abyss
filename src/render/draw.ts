@@ -458,6 +458,20 @@ export function drawWorld(
       drawBystanders(ctx, worldToScreen, L.scale, here)
     }
   }
+
+  // And the people standing in a passage, which reach the drawing by a
+  // different door than the ones in a room: a corridor is not a chamber, so
+  // there is no `chamberAt` to ask, and the walk carries its own on the state.
+  // Both can be true at once -- a building walk crossing a room has a chamber
+  // and a corridor -- and they are different people, so both are drawn.
+  {
+    const walk = s.travel?.corridor
+    const folk = walk?.bystanders
+    // Already in the world's frame: `groundFor` puts a passage's people through
+    // the same placement its packs and doors go through, so unlike a chamber's
+    // there is nothing left to do here.
+    if (walk && folk && folk.length > 0) drawBystanders(ctx, worldToScreen, L.scale, folk)
+  }
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
