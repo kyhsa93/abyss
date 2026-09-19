@@ -1,5 +1,6 @@
 import { damageBoard, healingBoard, standings, type Attempt } from './history'
 import { CLASSES } from './sim/classes'
+import { CHAMPION_CAP, INOCULATED_MAX } from './sim/constants'
 import { ENCOUNTERS, type MechanicId } from './sim/encounters'
 import type { AuraId, SimState } from './sim/types'
 
@@ -49,6 +50,13 @@ const billed = (s: SimState, ...ids: MechanicId[]): number =>
 /** How many bodies are wearing this at the end. */
 const wearing = (s: SimState, id: AuraId): number =>
   party(s).filter((a) => a.auras.some((au) => au.id === id)).length
+
+/** The most stacks of one aura any single body is carrying. */
+const stacksOn = (s: SimState, id: AuraId): number =>
+  party(s).reduce(
+    (most, a) => Math.max(most, a.auras.find((au) => au.id === id)?.stacks ?? 0),
+    0,
+  )
 
 /**
  * A kill on one fight, judged by one rule.
@@ -189,18 +197,25 @@ export const AWARDS: Award[] = [
     'clean_board',
     'A Clean Board',
     'Kill the Bloodgorged with fewer than three marks out.',
-    // I've Gone and Made a Mess: fewer than three at ten, five at
-    // twenty-five, which is the raid's own size read the source's way.
+    // I've Gone and Made a Mess: the source asks for fewer marks than its own
+    // cap -- `_fallenChampionCastCount < RAID_MODE(3, 5, 3, 5)`, which is the
+    // number of casts it allows. This fight's cap is `CHAMPION_CAP`, so that
+    // is the number to ask about. Against the source's three it could never
+    // fail: two is the most this fight will ever put out.
     'gorged',
-    (s) => wearing(s, 'championed') < (party(s).length > 10 ? 5 : 3),
+    (s) => wearing(s, 'championed') < CHAMPION_CAP,
   ),
   onKill(
     'short_of_shots',
     'Short of Shots',
     'Kill the Reeking Host with fewer than three of you covered.',
-    // Flu Shot Shortage: `DATA_INOCULATED_STACK < 3`.
+    // Flu Shot Shortage: `DATA_INOCULATED_STACK < 3`, which counts the stacks
+    // on one body rather than the bodies wearing one. A spore covers everyone
+    // near whoever caught it, so three raiders wearing it is the ordinary
+    // result of playing the fight properly -- asked that way the award was
+    // very nearly unearnable.
     'host',
-    (s) => wearing(s, 'inoculated') < 3,
+    (s) => stacksOn(s, 'inoculated') < INOCULATED_MAX,
   ),
   onKill(
     'nothing_merged',

@@ -6,7 +6,8 @@ import { encounterAt, type MechanicId } from './encounters'
 import {
   CHARGE_RAGE,
   CRIT_CHANCE,
-  CRIT_MULTIPLIER,
+  CRIT_PHYSICAL,
+  CRIT_SPELL,
   GLOBAL_COOLDOWN,
   HEALTH,
   MELEE_RANGE,
@@ -41,6 +42,7 @@ import {
   SUPPRESS_CUT,
   INFECTION_HEALING,
   FLOOD_SLOW,
+  INOCULATED_MAX,
 } from './constants'
 import type { Rng } from './rng'
 import { CHAMPION_HEAL, killedKin, untouchable } from './boss'
@@ -326,6 +328,11 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   // The numbers are read from the constants that name them rather than
   // written again here, so the two cannot drift apart the way they already
   // had.
+  // The spore, which the source counts on a body: `DATA_INOCULATED_STACK < 3`.
+  // It was missing from this table, so `stackAura` silently capped it at one
+  // and three stacks -- the thing the source's own award asks about -- could
+  // not happen. The same silent cap as the three above, found the same way.
+  inoculated: INOCULATED_MAX,
   gorged: INHALE_MAX,
   swelling: BLOAT_BURST_AT,
   slighted: SLIGHT_MAX,
@@ -597,10 +604,6 @@ export function topThreatTarget(s: SimState): Actor | null {
   let best: Actor | null = null
   let bestValue = -1
   for (const a of livingParty(s)) {
-    // A body inside the boss is not holding it. This is the whole cost of the
-    // swallowing: whoever was first on the list is gone for four seconds, so
-    // the boss turns to whoever is second, and if nobody has been building
-    // anything that is a healer.
     if (getAura(a, 'swallowed')) continue
     const value = s.threat[a.id] ?? 0
     if (value > bestValue) {
@@ -642,6 +645,13 @@ export interface DamageOptions {
   silent?: boolean
   /** Rolled by the caller, which is the only place with the rng. */
   crit?: boolean
+  /**
+   * What that crit is worth. Defaults to a spell's half again.
+   *
+   * Carried rather than read off `school`, because an ability passes `none` on
+   * purpose and `none` cannot say whether a weapon or a spell threw it.
+   */
+  critMult?: number
   /**
    * An avoidable mechanic, named. Counted per hit rather than per point,
    * because "ate three puddles" is the thing worth knowing, not the total.
@@ -903,7 +913,7 @@ export function applyDamage(
     }
   }
 
-  if (opts.crit) final *= CRIT_MULTIPLIER
+  if (opts.crit) final *= opts.critMult ?? CRIT_SPELL
 
   final = Math.round(final)
   target.hp = Math.max(0, target.hp - final)
@@ -1393,10 +1403,11 @@ export function landAbility(
       // was read at.
       const bonus = traitBonus(actor, ability, target) * urgencyOf(actor)
       const amount = Math.round(ability.amount * bonus)
-      applyDamage(s, target, amount, 'none', { sourceId: actor.id, crit })
+      const critMult = ability.physical ? CRIT_PHYSICAL : CRIT_SPELL
+      applyDamage(s, target, amount, 'none', { sourceId: actor.id, crit, critMult })
       pushEffect(s, 'impact', target.pos, {
         abilityId: ability.id,
-        power: amount * (crit ? CRIT_MULTIPLIER : 1),
+        power: amount * (crit ? critMult : 1),
         crit,
         // A tenth over is rounding; a fifth over is the trait paying, and that
         // is what the extra ring is for.

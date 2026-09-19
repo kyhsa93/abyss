@@ -150,6 +150,7 @@ import {
   FESTER_BITE,
   GORGE_RADIUS,
   GORGE_BURST,
+  CHAMPION_CAP,
 } from './constants'
 import { clearTerrain } from './battleground'
 import {
@@ -1404,11 +1405,11 @@ function scheduleSpore(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
  * and everybody else is covered only if they came.
  */
 export function burstSpore(s: SimState, carrier: Actor): void {
-  addAura(carrier, 'inoculated', BOSS_ID)
+  stackAura(carrier, 'inoculated', BOSS_ID)
   for (const a of livingParty(s)) {
     if (a.id === carrier.id) continue
     if (dist(a.pos, carrier.pos) > SPORE_REACH) continue
-    addAura(a, 'inoculated', BOSS_ID)
+    stackAura(a, 'inoculated', BOSS_ID)
   }
   pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_spore', radius: SPORE_REACH })
 }
@@ -1997,7 +1998,7 @@ export function marked(s: SimState): Actor[] {
  * nobody may lose and no hands left for the fight. The roster is allowed to
  * make each one heavier instead; it is not allowed to make them more numerous.
  */
-const CHAMPION_CAP = 2
+// Lives in `constants.ts` now: the award has to read the same number.
 
 /**
  * What share of the boss's hands lands on each marked body, swing and slam.

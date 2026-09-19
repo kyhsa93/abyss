@@ -57,7 +57,7 @@ import {
 } from './combat'
 import {
   CRIT_CHANCE,
-  CRIT_MULTIPLIER,
+  CRIT_PHYSICAL,
   DT,
   MELEE_RANGE,
   REEK_REACH,
@@ -277,8 +277,13 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     // needing to know.
     // A weapon crits like anything else the party throws.
     const crit = rng.chance(CRIT_CHANCE)
-    const hit = auto.damage * urgencyOf(a) * (crit ? CRIT_MULTIPLIER : 1)
-    applyDamage(s, target, Math.round(auto.damage * urgencyOf(a)), 'physical', { sourceId: a.id, crit })
+    const hit = auto.damage * urgencyOf(a) * (crit ? CRIT_PHYSICAL : 1)
+    applyDamage(s, target, Math.round(auto.damage * urgencyOf(a)), 'physical', {
+      sourceId: a.id,
+      crit,
+      // A weapon, so the source's double rather than a spell's half again.
+      critMult: CRIT_PHYSICAL,
+    })
 
     // A weapon swing had no picture at all: damage arrived every three
     // seconds from a token standing still. Melee get an arc where the swing

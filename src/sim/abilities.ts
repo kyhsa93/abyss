@@ -26,6 +26,14 @@ export interface Ability {
    *
    * Taunts ignore this: they do not scale off a number they never deal.
    */
+  /**
+   * Whether the blow is a weapon's rather than a spell's.
+   *
+   * Only a crit reads it: the source doubles physical and adds half again to
+   * magic. It is not the damage school -- see `CRIT_PHYSICAL` -- because an
+   * ability's damage is applied school-less on purpose.
+   */
+  physical?: boolean
   threatMult: number
   /** Aura applied to the target on a successful cast. */
   aura: AuraId | null
@@ -65,14 +73,24 @@ export interface Ability {
 // and two thirds yards while the raid stood five out.
 const MELEE = MELEE_RANGE
 const SPELL = SPELL_RANGE
-const HEAL_RANGE = 390
+const HEAL_RANGE = SPELL
 
 /**
  * As far as a warrior will run at something.
  *
- * Twenty-five yards, which is the source's, and short of a spell's range: this
- * is a sprint, not a leap across the arena. Thirteen and a half before, from
- * back when a yard here was worth two.
+ * Twenty-one yards, and that is a decision rather than a measurement. The
+ * source's charge is a range of eight to twenty-five (`SpellRange` row 95),
+ * and this comment used to claim the twenty-five outright while the number
+ * below said 487, which is twenty-one -- one of the reaches the yardstick
+ * rescale walked past, written as a literal and never re-read.
+ *
+ * Moving it to the source's twenty-five was tried and does not pay. The four
+ * extra yards change where the raid stands at the pull, and on the tenth fight
+ * that is enough that no coffin is left standing when the shadow's cadence
+ * comes round: a mechanic quietly lost to a reach nobody had asked for.
+ * Distances here are ours to choose -- see `SPELL_RANGE`, which is eighteen
+ * against the source's thirty for the same kind of reason -- so what was
+ * actually wrong was the comment, and the comment is what changed.
  */
 const CHARGE_RANGE = 487
 
@@ -93,8 +111,8 @@ const TAUNT_COOLDOWN = 10
 
 const list: Ability[] = [
   // --- warrior (tank) -------------------------------------------------------
-  { id: 'cleave', name: 'Wide Swing', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 15, amount: 60, threatMult: 4, aura: null, range: MELEE },
-  { id: 'shield_slam', name: 'Shield Bash', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 20, amount: 110, threatMult: 6, aura: null, range: MELEE },
+  { id: 'cleave', name: 'Wide Swing', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 15, amount: 60, physical: true, threatMult: 4, aura: null, range: MELEE },
+  { id: 'shield_slam', name: 'Shield Bash', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 20, amount: 110, physical: true, threatMult: 6, aura: null, range: MELEE },
   { id: 'shield_wall', name: 'Brace', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
   { id: 'taunt', name: 'Challenge', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
@@ -143,9 +161,9 @@ const list: Ability[] = [
   { id: 'ice_lance', name: 'Icicle', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 10, amount: 83, threatMult: 1, aura: null, range: SPELL },
 
   // --- hunter: everything instant, so it never stops damaging --------------
-  { id: 'steady_shot', name: 'Steady Draw', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 14, amount: 109, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
-  { id: 'serpent_sting', name: 'Venom Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 20, amount: 44, threatMult: 1, aura: 'serpent_sting', range: SPELL, minRange: SHOT_MIN_RANGE },
-  { id: 'aimed_shot', name: 'Long Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 25, amount: 328, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'steady_shot', name: 'Steady Draw', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 14, amount: 109, physical: true, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'serpent_sting', name: 'Venom Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 20, amount: 44, physical: true, threatMult: 1, aura: 'serpent_sting', range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'aimed_shot', name: 'Long Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 25, amount: 328, physical: true, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
 
   // --- leather melee: brief speed on a long cooldown -----------------------
   //
@@ -162,9 +180,9 @@ const list: Ability[] = [
   { id: 'dash', name: 'Dash', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 45, cost: 0, amount: 0, threatMult: 0, aura: 'sprint', range: 0, offGcd: true },
 
   // --- rogue: highest sustained damage, paid for in melee range ------------
-  { id: 'sinister_strike', name: 'Quick Stab', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 32, amount: 93, threatMult: 1, aura: null, range: MELEE },
-  { id: 'rupture', name: 'Open Wound', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 45, threatMult: 1, aura: 'rupture', range: MELEE },
-  { id: 'eviscerate', name: 'Gut', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 35, amount: 193, threatMult: 1, aura: null, range: MELEE },
+  { id: 'sinister_strike', name: 'Quick Stab', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 32, amount: 93, physical: true, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rupture', name: 'Open Wound', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 45, physical: true, threatMult: 1, aura: 'rupture', range: MELEE },
+  { id: 'eviscerate', name: 'Gut', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 35, amount: 193, physical: true, threatMult: 1, aura: null, range: MELEE },
 
   // --- warrior, as damage: bleeds and an execute -----------------------------
   { id: 'charge', name: 'Close', role: 'dps', kind: 'charge', castTime: 0, cooldown: 15, cost: 0, amount: 0, threatMult: 0, aura: null, range: CHARGE_RANGE, minRange: MELEE + 40 },
@@ -173,24 +191,24 @@ const list: Ability[] = [
   // because a tank that cannot reach what wandered off is a tank whose raid is
   // being eaten while it jogs.
   { id: 'wild_charge', name: 'Bound', role: 'tank', kind: 'charge', castTime: 0, cooldown: 15, cost: 0, amount: 0, threatMult: 0, aura: null, range: CHARGE_RANGE, minRange: MELEE + 40 },
-  { id: 'mortal_strike', name: 'Deep Cut', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 108, threatMult: 1, aura: null, range: MELEE },
-  { id: 'rend', name: 'Bleed', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 10, amount: 40, threatMult: 1, aura: 'rend', range: MELEE },
-  { id: 'execute', name: 'Finish', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 475, threatMult: 1, aura: null, range: MELEE },
+  { id: 'mortal_strike', name: 'Deep Cut', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 108, physical: true, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rend', name: 'Bleed', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 10, amount: 40, physical: true, threatMult: 1, aura: 'rend', range: MELEE },
+  { id: 'execute', name: 'Finish', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 475, physical: true, threatMult: 1, aura: null, range: MELEE },
 
   // --- paladin, as tank ------------------------------------------------------
-  { id: 'avengers_shield', name: 'Thrown Shield', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 28, amount: 105, threatMult: 6, aura: null, range: 200 },
+  { id: 'avengers_shield', name: 'Thrown Shield', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 28, amount: 105, threatMult: 6, aura: null, range: SPELL },
   { id: 'consecration', name: 'Hallowed Ground', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 22, amount: 58, threatMult: 4, aura: null, range: MELEE },
   { id: 'divine_protection', name: 'Ward', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
   { id: 'hand_of_reckoning', name: 'Summons', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- paladin, as damage ----------------------------------------------------
   { id: 'crusader_strike', name: 'Zealot Blow', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 80, threatMult: 1, aura: null, range: MELEE },
-  { id: 'judgement', name: 'Verdict', role: 'dps', kind: 'damage', castTime: 0, cooldown: 8, cost: 14, amount: 26, threatMult: 1, aura: 'judgement', range: 200 },
-  { id: 'hammer_of_wrath', name: 'Falling Hammer', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, cost: 45, amount: 301, threatMult: 1, aura: null, range: 200 },
+  { id: 'judgement', name: 'Verdict', role: 'dps', kind: 'damage', castTime: 0, cooldown: 8, cost: 14, amount: 26, threatMult: 1, aura: 'judgement', range: SPELL },
+  { id: 'hammer_of_wrath', name: 'Falling Hammer', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, cost: 45, amount: 301, threatMult: 1, aura: null, range: SPELL },
 
   // --- druid, as tank --------------------------------------------------------
-  { id: 'maul', name: 'Maul', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 22, amount: 118, threatMult: 6, aura: null, range: MELEE },
-  { id: 'swipe', name: 'Swipe', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 16, amount: 62, threatMult: 4, aura: null, range: MELEE },
+  { id: 'maul', name: 'Maul', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 22, amount: 118, physical: true, threatMult: 6, aura: null, range: MELEE },
+  { id: 'swipe', name: 'Swipe', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 16, amount: 62, physical: true, threatMult: 4, aura: null, range: MELEE },
   { id: 'frenzied_regen', name: 'Knit', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
   { id: 'growl', name: 'Growl', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
@@ -257,7 +275,7 @@ const list: Ability[] = [
   // pressed one.
   { id: 'shadow_word_death', name: 'Last Word', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 22, amount: 196, threatMult: 1, aura: null, range: SPELL },
   { id: 'sunfire', name: 'Sunbrand', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 21, amount: 188, threatMult: 1, aura: null, range: SPELL },
-  { id: 'exorcism', name: 'Banish', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 22, amount: 197, threatMult: 1, aura: null, range: 200 },
+  { id: 'exorcism', name: 'Banish', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 22, amount: 197, threatMult: 1, aura: null, range: SPELL },
   { id: 'earth_shock', name: 'Stoneblow', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 24, amount: 205, threatMult: 1, aura: null, range: SPELL },
 
   // The paladin's healing kit was two buttons, which is the smallest in the
@@ -282,9 +300,9 @@ const list: Ability[] = [
   // --- druid ---------------------------------------------------------------
   { id: 'wrath', name: 'Sunbolt', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 16, amount: 106, threatMult: 1, aura: null, range: SPELL },
   { id: 'moonfire', name: 'Moonbrand', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, cost: 24, amount: 58, threatMult: 1, aura: 'moonfire', range: SPELL },
-  { id: 'shred', name: 'Shred', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 30, amount: 82, threatMult: 1, aura: null, range: MELEE },
-  { id: 'rake', name: 'Rake', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 26, amount: 37, threatMult: 1, aura: 'rake', range: MELEE },
-  { id: 'ferocious_bite', name: 'Savage Bite', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 33, amount: 175, threatMult: 1, aura: null, range: MELEE },
+  { id: 'shred', name: 'Shred', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 30, amount: 82, physical: true, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rake', name: 'Rake', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 26, amount: 37, physical: true, threatMult: 1, aura: 'rake', range: MELEE },
+  { id: 'ferocious_bite', name: 'Savage Bite', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 33, amount: 175, physical: true, threatMult: 1, aura: null, range: MELEE },
   { id: 'starfire', name: 'Starbolt', role: 'dps', kind: 'damage', castTime: 2, cooldown: 9, cost: 38, amount: 412, threatMult: 1, aura: null, range: SPELL },
 ]
 

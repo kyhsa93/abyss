@@ -142,7 +142,8 @@ import {
   slimeDry,
   HEALTH,
   CRIT_CHANCE,
-  CRIT_MULTIPLIER,
+  CRIT_PHYSICAL,
+  CRIT_SPELL,
   BOSS_WIDTH,
   MELEE_RANGE,
   SHOT_MIN_RANGE,
@@ -1019,7 +1020,21 @@ console.log(`rendered ${frames} frames with no exceptions`)
       for (const g of s.ground) {
         // The floor and the mechanic that laid it are not always the same
         // word: a grain is `nucleus` on the ground and `nuclei` on the table.
-        seen.add(g.kind === 'nucleus' ? 'nuclei' : g.kind)
+        // Two mechanics share one floor kind and only the owner tells them
+        // apart: the plagueworks sprays and the cold breathes, and both lay a
+        // `spray`. Recorded by kind alone, a breath was filed as a spray and
+        // the only evidence left that it happened at all was somebody being
+        // billed for it -- so a cone that fired six times and caught nobody
+        // read as a cone that never fired. Measured: at 25 raiders it bills
+        // two hits in a whole pull, so this check was passing on a margin of
+        // two damage events and any change to where the raid stands tipped it.
+        seen.add(
+          g.kind === 'nucleus'
+            ? 'nuclei'
+            : g.kind === 'spray'
+              ? ((g as { owner?: string }).owner ?? 'spray')
+              : g.kind,
+        )
       }
       for (const a of s.actors) {
         if (a.faction !== 'boss' || a.id === 100) continue
@@ -3487,9 +3502,26 @@ for (const [label, w, h] of [
   const big = mid - target.hp
   expect(
     'and hit for the multiplier',
-    Math.abs(big - plain * CRIT_MULTIPLIER) < 1,
+    Math.abs(big - plain * CRIT_SPELL) < 1,
     `${plain} then ${big}`,
   )
+
+  // And a weapon's crit is worth more than a spell's, which is the half of
+  // this the source actually splits.
+  const beforePhysical = target.hp
+  applyDamage(s, target, 200, 'none', {
+    sourceId: member.id,
+    silent: true,
+    crit: true,
+    critMult: CRIT_PHYSICAL,
+  })
+  const weapon = beforePhysical - target.hp
+  expect(
+    'and a weapon crits harder than a spell',
+    Math.abs(weapon - plain * CRIT_PHYSICAL) < 1 && weapon > big,
+    `spell ${big}, weapon ${weapon}`,
+  )
+
 
   // Your own crit reads as one rather than as a bigger number.
   s.texts.length = 0

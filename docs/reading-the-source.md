@@ -144,7 +144,7 @@ own collision rather than the width of a picture of one.
 
 | | source | where |
 | --- | --- | --- |
-| a body across | 0.778 yards | `DEFAULT_PLAYER_BOUNDING_RADIUS` 0.389, doubled |
+| a body across | 0.778 yards | `DEFAULT_WORLD_OBJECT_SIZE` 0.388999998569489, doubled |
 | a body's run | 7.0 yards a second | `baseMoveSpeed[MOVE_RUN]` |
 | melee's floor | 5.0 yards | `NOMINAL_MELEE_RANGE` |
 | the first boss across | 9.0 yards | `creature_model_info` 31119, bounding radius 4.5 |
@@ -159,6 +159,39 @@ hitting, and the boss is **eleven and a half bodies** across. The yardstick
 used to hang on a body 0.95 yards wide, off the model rather than the
 collision, and every one of those ratios was a fifth short — which is most of
 what "the map is too big" was. The map did not change; the pace did.
+
+### Where the numbers actually live, which is not where they look like they do
+
+Written down because an audit lost a day to it, and the next one would lose
+the same day.
+
+- **`db_world/spell_dbc.sql` is not Spell.dbc.** It is the subset AzerothCore
+  overrides, and it carries none of this raid's spells and none of the
+  player's. Looking a spell up there and finding nothing means nothing.
+- **`spellduration_dbc.sql`, `spellradius_dbc.sql`, `spellcasttimes_dbc.sql`
+  and `spellrange_dbc.sql` are schema with no rows.** They are the tables every
+  duration, radius, cast time and range is a foreign key *into*, so on their
+  own they answer nothing at all.
+- **The values are in the client.** `~/workspace/warmane/Data/koKR/` holds them
+  — `locale-koKR.MPQ` and the three `patch-koKR*` archives, later patches
+  winning — as `DBFilesClient\Spell.dbc` (49,839 rows, 234 fields) and the four
+  index tables. `python -m mpyq` reads them; the header is `WDBC`, then record
+  count, field count, record size and string-block size as four `uint32`.
+- **The field order is `spell_dbc`'s column order.** AzerothCore's table mirrors
+  the DBC one for one — 234 columns against 234 fields — so the SQL's
+  `CREATE TABLE` is the field list the binary does not carry. `ID` 0,
+  `CastingTimeIndex` 28, `DurationIndex` 40, `RangeIndex` 46,
+  `EffectRadiusIndex_1..3` 92-94. There is no `MaxAffectedTargets` column, so
+  how many bodies a spell may hit cannot be read this way.
+- **Names are localised and this client is Korean.** Slot 137 is the name;
+  slot 131 is a description and reads like a name if you take the first
+  populated string, which is how `가스 포자` first came back as a sentence
+  about seconds remaining.
+
+Checked this way: Frostbolt 71420 casts in 2,000ms, Slime Spray 69508 in
+1,500ms, Mutated Infection 69674 lasts 12,000ms, and Gas Spore is **two**
+entries — 69278 at 90 seconds and 69279 at twelve, which is the one this game
+took its twelve from.
 
 ### The lower spire, from the instance's own coordinates
 
@@ -266,9 +299,9 @@ source's own number:
 | Whisper (Lady Deathwhisper) | adds ← wave 60s (45s heroic) · decay ← Death and Decay 22–30s, first at 17s · dominate ← Dominate Mind 40–45s, first at 27s · empower ← Dark Empowerment 25s, first at 15s · frostbolt ← Frostbolt 12s · volley ← Frostbolt Volley 20s · insignificance ← Touch of Insignificance 6–9s · shade ← Summon Spirits 12s |
 | Host (Festergut) | inhale ← Inhale Blight 33.5–35s, first at 25–30s · spore ← Gas Spore 40–45s, first at 20–25s · bloat ← Gastric Bloat 15–17.5s, first at 12.5–15s · vilegas ← Vile Gas 28–35s · blight, pungent — this game's own |
 | Gorged (Deathbringer Saurfang) | adds ← Summon Blood Beast 40s, first at 30s · spill ← Boiling Blood 15–20s, first at 15.5s · siphon ← Blood Nova 20–25s, first at 17s · fester ← Rune of Blood 20–25s, first at 20s · champion ← Mark of the Fallen Champion, which is a bar rather than a clock |
-| Confluence (Rotface) | spray ← Slime Spray 20s · infection ← Mutated Infection 14s · flood ← Ooze Flood 25s · slime ← Sticky Ooze 15s, first at 5s · engulf, ooze, merge — this game's own |
+| Confluence (Rotface) | spray ← Slime Spray 20s · infection ← Mutated Infection 14s · flood ← Ooze Flood 25s · slime ← Sticky Ooze 15s, first at 5s · ooze, merge ← `SPELL_LITTLE_OOZE_COMBINE` 69537, `SPELL_LARGE_OOZE_COMBINE` 69552 and `SPELL_OOZE_MERGE` 69889, which are the fight's signature and were wrongly called this game's own here · engulf ← `SPELL_UNSTABLE_OOZE_EXPLOSION` 69839 |
 | Flasks (Professor Putricide) | hound ← Malleable Goo 21–26s · gather ← Slime Puddle 35s, first at 10s · decant ← Choking Gas Bomb 35–40s · caustic ← Unstable Experiment 35–40s · chase ← Unbound Plague 90s |
-| Crowns (Blood Prince Council) | rotation ← Invocation of Blood 46.5s · nuclei ← Shadow Resonance 10–15s · thirst ← Conjure Flame 20s · ballast ← Kinetic Bomb 18–24s · prison ← Shock Vortex 15–20s |
+| Crowns (Blood Prince Council) | rotation ← Invocation of Blood 46.5s · nuclei ← Shadow Resonance 10–15s · thirst ← Conjure Flame, **first** at 20s and **repeating** 20–25s · ballast ← Kinetic Bomb, first 18–24s, repeating 30.5s at ten and 20.5s at twenty-five · prison ← Shock Vortex, first 15–20s, repeating 18–23s. Only the first casts were written down here, and phase one took them as its repeats — the one mistake this file has a rule against |
 | Gift (Blood-Queen Lana'thel) | gift ← Vampiric Bite 15s · bond ← Pact of the Darkfallen 30.5s, first at 15s · crimson ← Twilight Bloodbolt 20–25s · flight ← Air Phase, **not** taken |
 
 Two were taken and put back, and both for the same reason — the source's
@@ -1236,10 +1269,10 @@ shortfall.
 | Deathwhisper | death and decay, dominate mind, frostbolt, frostbolt volley, shadow bolt, summon shade, touch of insignificance, empower cultist, summon wave | decay, dominate, frostbolt, volley, shade, insignificance, empower, adds | **shadow bolt**, **dark martyrdom** (a cultist that kills itself to come back worse), and the mana barrier, which was removed here on purpose |
 | Saurfang | blood nova, rune of blood, boiling blood, summon blood beast, mark of the fallen champion, blood power | spill, gorge, fester, adds, champion, siphon | — |
 | Festergut | inhale blight, gas spore, gastric bloat, vile gas, pungent blight, mortal wound | inhale, spore, bloat, vilegas, pungent, blight | — |
-| Rotface | mutated infection, slime spray, sticky ooze, ooze flood, vile gas, hasten infections, mortal wound | infection, spray, slime, flood, merge, ooze, engulf | **vile gas**, **hasten infections** — the interval shortening as the pull runs, which is the fight's own clock |
-| Putricide | slime puddle, unstable experiment, malleable goo, choking gas bomb, unbound plague, mutated plague | caustic, gather, chase, hound, decant, reagent | **choking gas bomb**, **mutated plague** (the third phase's stacking bill) |
+| Rotface | mutated infection, slime spray, sticky ooze, ooze flood, ooze combine and merge, vile gas, hasten infections, mortal wound | infection, spray, slime, flood, merge, ooze, engulf | **vile gas**, **hasten infections** — the interval shortening as the pull runs, which is the fight's own clock |
+| Putricide | slime puddle, unstable experiment, malleable goo, choking gas bomb, unbound plague, mutated plague | caustic, gather, chase, hound, decant, reagent | — (this row used to claim the choking gas bomb was missing; it is `decant`, and the plague is `reagent`) |
 | Blood Council | invocation of blood, shock vortex, kinetic bomb, conjure flame, glittering sparks, shadow resonance, shadow prison | rotation, thirst, ballast, nuclei, prison, adds | **conjure flame**, **glittering sparks** — both Taldaram's, so one of the three princes has none of his own |
-| Lana'thel | vampiric bite, pact of the darkfallen, swarming shadows, twilight bloodbolt, delirious slash, blood mirror, air phase | gift, bond, stain, crimson, turning, flight | **twilight bloodbolt**, **delirious slash** |
+| Lana'thel | vampiric bite, pact of the darkfallen, swarming shadows, twilight bloodbolt, delirious slash, blood mirror, air phase | gift, bond, stain, crimson, turning, flight | **swarming shadows**, **blood mirror**, **delirious slash** (the bloodbolt is `crimson` and was wrongly listed missing) |
 | Valithria | dream portal, column of frost, suppression, mana void, and four kinds of add | portal, suppress, adds, empower, bleed, kin | **column of frost**, **mana void**, and the four add kinds are one wave here. `bleed` and `kin` are this game's own and have no source at all |
 | Sindragosa | frost breath, blistering cold, unchained magic, ice tomb, frost bomb, icy grip, bellowing roar, air phase, mystic buffet, permeating chill | chill, instability, haul, spike, cover, buffet | **frost breath** (the frontal cone), **the air phase**, bellowing roar |
 
@@ -1274,6 +1307,103 @@ nothing had confirmed: Valithria has **four** `DOOR_TYPE_SPAWN_HOLE` doors —
 `GO_DOODAD_ICECROWN_ROOSTPORTCULLIS_01` through `04`. The four doors that room
 is supposed to have are in the source's own data, and the wave here still
 arrives without them.
+
+## The player's half, which had never been read against the source
+
+2026-09-19. Everything above this line is about the building and the fights in
+it. That is what this file has always been, and the gap that made it worth
+saying: **no part of the player — the classes, the abilities, the resources,
+the crit, the armour, the global cooldown — had ever been checked against
+anything.** There is not one spell id, DBC citation or tooltip reference in
+`abilities.ts`, `classes.ts` or `autocast.ts`. The rule this file states, that
+times and counts and coordinates come from the source while percentages and
+distances are decided here, had simply never been applied to that half.
+
+So it was read, once, against the client's own `Spell.dbc` and AzerothCore's
+`Unit.cpp`. What follows is what came back.
+
+**Right, and by more than luck.** Melee reach is `NOMINAL_MELEE_RANGE` 5.0 to
+the digit. The global cooldown's 1.5 is `MAX_GCD`. The combo cap of five is the
+engine's own clamp, rage and energy cap at 100 as they do there, rage is earned
+from damage dealt rather than handed out, life tap spends health because the
+source's `PowerType` is −2, and the armour curve is `armour / (armour + K)`,
+which is algebraically the same function the server uses. Eight costs and
+cooldowns match their spells exactly — Eviscerate 35 energy, Rupture 25, Shield
+Slam 20 rage and a 6-second cooldown, Charge 15, Holy Shock 6, Mind Blast 8.
+Somebody had read the source; they just never wrote down that they had.
+
+**Wrong, and fixed in this round.** The crit multiplier was one number where
+the source has two: `Unit.cpp` doubles a weapon and adds half again to a spell,
+so every physical crit in the game was a quarter light. Three reaches were bare
+unit literals the yardstick rescale walked past — a heal reaching 16.9 yards
+against the 18 every other cast gets, and four paladin abilities at 8.6, both
+now on the one band the rest of the casts use; and a charge whose comment
+claimed the source's twenty-five while the number said twenty-one. That last
+one was fixed in the comment rather than in the number, for the reason below.
+All three are the same bug `abilities.ts` warns about in its own comments, back
+for a third time.
+
+**Tried, and not taken, with what it cost written down.** Two corrections were
+made, measured, and put back, and they are recorded here because the next
+person to read the source will find both of them again.
+
+The first is the charge's four yards. The source's charge is eight to
+twenty-five and the value here is twenty-one, so moving it looked like closing
+a gap. At twenty-five the raid stands differently at the pull, and on the tenth
+fight that is enough that no coffin is left standing when the shadow's cadence
+comes round: `cover` stopped being cast at all. A reach nobody had asked for,
+paid for with a mechanic.
+
+The second is the threat table. `ThreatManager::SelectVictim` does not hand the
+boss to whoever leads by a point — a challenger needs a tenth in front to take
+it in melee, three tenths to take it from range, and the body already holding
+it keeps it otherwise. That is a rule's shape rather than a percentage, which
+is the half of the source this file does take, and it was written and it works.
+It also costs the same mechanic: the boss changes target less often, so it
+walks a different path, so the coffins and the shadow they cast stop lining up.
+Answering that by tuning the coffins would be tuning a second number to protect
+a first, which this repo has a rule against. So the boss still turns on the
+first point of difference, and the reason it does is now written here rather
+than nowhere.
+
+Both were found the same way, and the way is worth keeping: `rendercheck`'s
+mechanic sweep runs one scripted pull per fight and asserts that everything a
+boss sells, it throws. That makes it a good alarm and a poor diagnosis — it
+fires on any change that moves a trajectory, and it took a bisect of five runs
+to learn which change was which.
+
+**Wrong, and deliberately left.** Spell range is eighteen yards rather than the
+source's thirty — that decision is recorded above. Abilities deal their damage
+school-less so that armour and defensive cooldowns do not answer them; in a
+raid that costs nothing, because a boss here carries no armour and no block,
+and in a battleground it is the whole reason a fight between players resolves
+at all. Both are decisions. What was missing was anybody having written down
+that they were.
+
+**Still open, with the source read and written down so the next round does not
+have to find it again.** Every one of these was checked against the client's
+own `Spell.dbc` or AzerothCore's source, not against a summary, and the
+citation is given so the work can start from here rather than from scratch.
+
+| what | the source | here |
+| --- | --- | --- |
+| the hunter's resource | `ChrClasses.dbc` class 3 `DisplayPower` = 0, mana. Focus is the pet's — `Unit.cpp` returns 0 for a player | `focus`, with a regen of its own |
+| energy | 10 a second — `StatSystem.cpp:979-980` writes the flat modifier as `regenPerSecond - 10.f` | 25 a second |
+| the five-second rule | `Unit.cpp:13665` — `IsUnderLastManaUseEffect()` is `now - m_lastManaUse < 5000`, read by the mana branch at `Player.cpp:1918` | absent: a healer's bar fills while it casts |
+| mana costs | a share of base mana, `ManaCostPct`: Greater Heal 32, Holy Light 29, Shadow Word: Pain 22, Frostbolt 11, and Lay on Hands **free** with a twenty-minute `CategoryRecoveryTime` | 3.8, 4.5, 1.9, 1.8 per cent of the pool, and Lay on Hands the most expensive thing a paladin owns |
+| defensive cooldowns | Shield Wall and Divine Shield 300s, Divine Protection 180s, Deterrence 90s, and Evasion, Sprint, Survival Instincts and Frenzied Regeneration all 180s — the last four in `CategoryRecoveryTime`, which is why they read as zero if you only look at `RecoveryTime` | 40 to 50 seconds |
+| cast times | eleven of the twelve are hard casts: Flash Heal 1500, Chain Heal 2500, Smite 2500, Mind Blast 1500, Wrath 2000, Lightning Bolt 2500, Lava Burst 2000, Shadow Bolt 3000, Immolate 2000, Steady Shot 1500, Exorcism 1500. Mind Flay is 0 because it is a channel | instant |
+| the global cooldown | `StartRecoveryTime`: Taunt, Growl, Hand of Reckoning, Heroic Strike, Maul, Shield Wall, Sprint and Evasion are **0**; Eviscerate and Rupture are **1000**; Frostbolt is 1500 | 1.5 seconds for everything, taunts included |
+| the attack table | `Unit::MeleeSpellMissChance` — 5% base plus `1 + (diff - 10) * 0.4` against a mob, so **8%** at level 80 into a level 83 boss, **+19** more for an offhand; and a glancing blow is `(10 + defence - skill) * 100` capped at 4000, so **25%** here and 40% at the cap | no miss, dodge, parry, block or glancing blow at all |
+| nine abilities | absent from a 3.3.5a `Spell.dbc` by id: 118038, 97462, 190784, 184662, 62618, 78674, 93402, 104773, 98008. `astral_shift` 52179 does exist, but as a passive | on the bars, five of them in baseline spec slots |
+
+None of these are small numbers, and every one of them moves a simulated pull.
+That matters more than it sounds: `rendercheck`'s mechanic sweep runs one
+scripted pull per fight, so a change of a few per cent in damage or a few yards
+in reach can stop a mechanic landing and turn the sweep red for a reason that
+has nothing to do with the change being wrong. They are written here rather
+than changed in the same round that found them, and whoever takes them should
+expect to bisect.
 
 ## How to take a measurement off a picture
 

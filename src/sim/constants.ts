@@ -164,7 +164,23 @@ export function readable(tuned: number): number {
 export const CHARGE_RAGE = 25
 
 export const CRIT_CHANCE = 0.15
-export const CRIT_MULTIPLIER = 1.5
+
+/**
+ * What a critical hit is worth, and it is two numbers because the source has
+ * two.
+ *
+ * `Unit.cpp` doubles a weapon swing and a physical ability (`:1820`,
+ * `:9421-9436`) and adds half again to a spell (`:9460-9478`). One number here
+ * meant every physical crit in the game was worth a quarter less than the
+ * thing it was copied from, while the spell half was right by accident.
+ *
+ * Carried on the hit rather than read off the school `applyDamage` is given:
+ * abilities deliberately pass `none` so that armour and a defensive do not
+ * answer them -- see the school branches there -- so the school cannot say
+ * what a crit is worth. The ability does.
+ */
+export const CRIT_SPELL = 1.5
+export const CRIT_PHYSICAL = 2
 
 /** Everyone within this radius of a spread target takes the hit. */
 export const SPREAD_RADIUS = 110
@@ -919,6 +935,26 @@ export const BLIGHT_RELIEF = 0.3
  * reverse: that would make the fifth rung buy the sixth and leave the sixth
  * buying nothing. So the cap is what makes the pair safe to sell apart.
  */
+/**
+ * How many marks the Bloodgorged may have out at once.
+ *
+ * The source caps its own at `RAID_MODE(3, 5, 3, 5)` casts and this game caps
+ * at two, for a reason written where it is enforced: three at twenty-five is
+ * three bodies nobody may lose. It lives here rather than in `boss.ts` because
+ * the award that asks "did you stay under the cap" has to read the same number
+ * the fight enforces -- it asked for three against a cap of two, so it could
+ * not fail, and a rule that cannot fail is not a rule.
+ */
+export const CHAMPION_CAP = 2
+
+/**
+ * How many spores one body has to eat to be counted as covered.
+ *
+ * `DATA_INOCULATED_STACK < 3` in `boss_festergut.cpp` -- the source counts
+ * stacks on a single body, not bodies wearing one.
+ */
+export const INOCULATED_MAX = 3
+
 export const INHALE_MAX = 3
 /**
  * And how many it may hold when nothing in the kit can make it let go.

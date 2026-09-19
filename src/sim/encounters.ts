@@ -2849,10 +2849,23 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#be123c',
     names: { slam: 'THE RED HOUR', shard: '', raid: 'THE COURT' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ rotation: 46, thirst: 20, ballast: 21, nuclei: 12.5, prison: 17.5, adds: 48 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ rotation: 41.4, thirst: 17.8, ballast: 18.9, nuclei: 11.2, prison: 15.6, adds: 43 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ rotation: 36.8, thirst: 15.6, ballast: 16.8, nuclei: 10, prison: 13.7, adds: 38 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ rotation: 46, thirst: 22.5, ballast: 30.5, nuclei: 12.5, prison: 20.5, adds: 48 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ rotation: 41.4, thirst: 20.3, ballast: 27.5, nuclei: 11.2, prison: 18.5, adds: 43 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ rotation: 36.8, thirst: 18, ballast: 24.4, nuclei: 10, prison: 16.4, adds: 38 }) },
     },
+    // Three of these were the source's *first cast* standing in for its
+    // *repeat*, which is the one mistake this file has a rule against: phase
+    // one is the repeat and the opening is the first cast. Read off
+    // `boss_blood_prince_council.cpp`: Conjure Flame reschedules at 20-25s
+    // (`:704`) and not at its 20s opening, Shock Vortex at 18-23s (`:1045`)
+    // and not at 15-20, and Kinetic Bomb at `Is25ManRaid() ? 20.5s : 30.5s`
+    // (`:1032`) and not at 18-24. Phases two and three keep the nine tenths
+    // and four fifths they already stood at.
+    //
+    // The bomb is the one cadence in this raid the source splits by size, and
+    // this file has nowhere to put that: `sizeMechanic` is a weight, not a
+    // clock. Ten-man's 30.5 is the one written, because ten is the size every
+    // other number here is read at -- see `BUILD_SCALE` and the add waves.
     // The first crown comes at thirty rather than at forty-five, because a
     // raid that has not seen one does not know what fight it is in -- and a
     // short pull would end without it ever having moved.
