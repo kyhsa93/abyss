@@ -192,17 +192,43 @@ export function stepped(run: Run, at: string, carried = run.carried): Run {
  * is being walked and quietly, which is the better shape and the reason the
  * flat one is only a floor under the doors that have no walk in them.
  */
-export function throughDoor(carried: readonly number[]): number[] {
-  let revived = false
+export function throughDoor(carried: readonly number[], raisers = true): number[] {
   return carried.map((was) => {
     if (was >= 0) return Math.min(1, was + ROOM_RECOVERY)
-    // One of the fallen gets up a door, and no more: a wipe has to stay a wipe
-    // rather than being paid off one body at a time.
-    if (revived) return -1
-    revived = true
-    return ROOM_REVIVE
+    // Everybody gets up, if anybody left can raise them.
+    //
+    // This said "one of the fallen gets up a door, and no more: a wipe has to
+    // stay a wipe rather than being paid off one body at a time", and that was
+    // a deliberate rule rather than an oversight. It is reversed on the
+    // owner's instruction, for the source's behaviour: a raid that wipes its
+    // way through a room and walks out with four bodies on the floor does not
+    // leave three of them there -- the priest, the paladin, the shaman and the
+    // druid raise the lot before the next pull, and a run where they cannot is
+    // a run missing all four of those classes.
+    //
+    // What it costs is the thing the old rule bought: the fallen are no longer
+    // a price the evening keeps charging, so a wipe costs the pull and the
+    // time and nothing after that. That is the trade that was chosen, not one
+    // that was missed -- see `raisers`, which is the whole of what is left of
+    // it: no one alive who can raise, nobody gets up.
+    return raisers ? ROOM_REVIVE : -1
   })
 }
+
+/**
+ * The classes that can put a body back on its feet between pulls.
+ *
+ * Four of the nine, from the client's own spell list rather than from memory:
+ * the priest's `부활`, the paladin's `구원`, the shaman's `영혼의 귀환` and the
+ * druid's `환생`. The warlock's soulstone is not here because it is not this
+ * -- it is bought before the death, not after it.
+ */
+export const RAISING_CLASSES: ReadonlySet<string> = new Set([
+  'priest',
+  'paladin',
+  'shaman',
+  'druid',
+])
 
 /**
  * How the party gets to a room, or that it cannot.

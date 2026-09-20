@@ -137,6 +137,7 @@ import {
   stepTo,
   wayOpen,
   stepped,
+  RAISING_CLASSES,
   throughDoor,
   walkedTo,
   instanceAt,
@@ -1029,7 +1030,17 @@ function goThrough(to: string, carried: number[]): void {
     return
   }
   // A pad skips the walk, so it skips what the walk was worth.
-  run = stepped(run, to, step.kind === 'jump' ? carried : throughDoor(carried))
+  //
+  // And whether anybody still standing can raise the fallen, which is what a
+  // door is worth now: the four classes that carry a resurrection put the
+  // whole floor back on its feet, and a party with none of them left walks on
+  // without them. Read off the shares rather than off the fight, because the
+  // fight is over by the time this runs and the run's own bookkeeping is what
+  // survives it — a share of nought or more is somebody who walked out.
+  const raisers = party.some(
+    (p, i) => RAISING_CLASSES.has(p.classId) && (carried[i] ?? -1) >= 0,
+  )
+  run = stepped(run, to, step.kind === 'jump' ? carried : throughDoor(carried, raisers))
   saveRun(run)
   arriveAt(to, at)
 }
