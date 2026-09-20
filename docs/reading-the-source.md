@@ -535,7 +535,7 @@ seven. The two ramps out of the first fight had one each and the source has
 none on either: a pad stands where a wing begins, and a ramp is not the
 beginning of anything.
 
-### How high every room is, which this game does not use yet
+### How high every room is, and the storeys taken from it
 
 The seven pads above were the only heights in this file, and they are
 waypoints rather than rooms. Here is the whole building, measured, because
@@ -599,13 +599,70 @@ anchor per fight. What does *not* work:
 - **The dump's `Comment` column.** It is empty for almost every row on this
   map; the few that carry anything say `SAI Target`.
 
-**What is still open** is what a storey *is* here. Splitting at a forty-yard
-gap puts the Sanctum and the Crimson Hall in one band, and the source stacks
-them — `placeOf`'s own comment already names the three pairs it had to spread
-sideways because a flat plan cannot nest them. So the bands above are a
-reading of the heights, not a model, and a model has to decide whether a
-storey is a rank, a measured height carried around, or something a room simply
-declares.
+**What a storey is here** is a rank, derived. `storeyOf` cuts the table above
+wherever the heights jump by more than forty yards and numbers the bands; the
+three pairs the source stands one on top of the other are closer than that cut
+and are named in `STACKED` instead. `Cell.storeys` carries the answer onto
+every piece of floor — a room is on one storey, a passage on both of the ones
+it joins — and `floorNow` lays only the storey the party is standing on. Six
+of the twenty passages cross a floor; they are the stairs and the teleporters.
+
+### Standing the stacked pairs in the same place, which was tried and put back
+
+The obvious next step, once there are storeys, is to stop spreading the three
+stacked pairs sideways and let them share a point in plan, held apart by the
+floor they are on. It was built, measured, and put back. What it costs, all of
+it measured with `dungeoncheck`:
+
+- **Four pairs swallow each other** — `oratory/mooring`, `oratory/rise`,
+  `mooring/rise`, `crimson/sanctum`. Note the second: `STACKED` names only
+  `mooring` over `oratory` and `rise` over `mooring`, so an exemption keyed on
+  that list misses the pair the chain makes. It has to be keyed on the chain.
+- **NaN, everywhere a bearing is taken between two rooms.** `ux = (b.x - a.x) / d`
+  is written out in at least three places, and two rooms in the same place make
+  `d` zero. The branch guarded its own division and none of the others, so the
+  bare-floor total and the spread of the bosses both came out `NaN`.
+- **The floor reaches rooms the map still gates.** With the Rampart standing on
+  the Oratory, the floor walk arrives at it before Marrowgar is down: a player
+  walks into the third fight's approach out of the first fight's room.
+
+Any one of those is enough, and none of them is a reason to keep the code. It
+is written out here instead of kept as a patch, because a change that lives
+only in a file somebody has to still have is a change that gets made wrong the
+second time. There are two halves to it:
+
+- In `PLACES`, when the passage being walked leads to a room `STACKED` says
+  stands *on* the one it came from, put it at the same point rather than a
+  bearing's length away, pin it, and take its parent bearing from
+  `CITADEL_PLAN` — with the zero-length case guarded, or the unit vector is a
+  division by nothing and every push after it carries `NaN`.
+- `rigid` must resolve each room to the *root* of its pin chain rather than one
+  step up it. One step is enough for a walkway around a bowl, which is what it
+  was written for, and is not enough for a room on a room on a room: the pair
+  it misses is the one the chain makes.
+
+**The second half is the one that reproduced.** With it, the pairs stacked give
+geometry identical to the unstacked building — the Oratory and both climbs to
+the yard. Whoever tries this again should start there, and should expect the
+three failures above to still be waiting.
+
+**Two mistakes in the measuring, worth more than the result.** The first: a
+probe with `YARD` typed in as 8 instead of imported — it is 23.136 — inflated
+every distance by 2.89 and produced a room "724 yards up the screen" that had
+not moved at all. Nothing measured in yards means anything until the ruler is
+imported from the thing being measured. The second: a log put *inside*
+`crowding()` cannot tell which caller asked. The pull-back's binary search
+re-asks the same question twelve times per room, restoring the geometry between
+each, so the same violation at the same distance seven times running is that
+search doing its job — and it was read as a loop that never settles. Measured
+directly afterwards, the building settles with the pairs stacked and without
+them, in well under its budget of passes.
+
+**Still unexplained**, and left that way rather than guessed at: stacking the
+pairs moves the Oratory thirty-four yards east and takes the difference between
+the two climbs' lengths from thirteen yards to forty-two. Every account of why
+was refuted by the next measurement. The six failures above are reason enough
+not to ship it, and none of them depend on knowing.
 
 ### Boss health: an order, not a set of ratios
 
