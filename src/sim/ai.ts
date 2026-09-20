@@ -2711,11 +2711,40 @@ function wantsBrace(actor: Actor): boolean {
   return actor.alive && actor.hp < actor.maxHp * braceLine(actor)
 }
 
+/**
+ * Could a taunt be the thing this tank presses next?
+ *
+ * Deliberately coarser than the two rules in `tankRotation` that actually
+ * decide it -- is there a taunt, is it ready, is somebody else holding the
+ * boss -- and coarse in the safe direction: this is a superset of both, so it
+ * never stops a taunt the rotation wanted, and when it lets the rotation in
+ * for a taunt that turns out not to be wanted, nothing else in there can fire
+ * anyway. Everything but the taunt is on the global, and `castBlocker` refuses
+ * all of it while the global is running.
+ *
+ * Written as a gate rather than as a copy of the two rules on purpose. Copying
+ * them would put one decision in two places, and the second copy is the one
+ * that goes stale.
+ */
+function mayTaunt(s: SimState, actor: Actor): boolean {
+  const kit = specFor(actor).abilities
+  if (!kit.taunt) return false
+  if ((actor.cooldowns[kit.taunt] ?? 0) > 0) return false
+  const holder = topThreatTarget(s)
+  return holder !== null && holder.id !== actor.id
+}
+
 /** Is there anything worth pressing that ignores the global cooldown? */
 function canUseOffGcd(s: SimState, actor: Actor): boolean {
   const kit = specFor(actor).abilities
   // A brace is worth having up during a global as much as between two.
   if (wantsBrace(actor)) return true
+  // And a taunt is the whole reason the source gives it no global: a tank
+  // mid-rotation is a tank with a global running almost all the time, so a
+  // taunt that waits for one is a taunt that arrives after the body it was
+  // for. Without this line the flag in `abilities.ts` reads as done and does
+  // nothing.
+  if (mayTaunt(s, actor)) return true
   if (!kit.defensive) return false
   const ability = ABILITIES[kit.defensive]
   if (!ability?.offGcd) return false

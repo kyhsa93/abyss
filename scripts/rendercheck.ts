@@ -2104,6 +2104,58 @@ for (const [label, w, h] of [
   }
 }
 
+// And it has to work while the tank is mid-rotation, which is nearly always.
+//
+// `Spell.dbc` gives all three taunts a `StartRecoveryTime` of 0. The reason
+// that matters is not the tenth of a second it saves: a tank presses something
+// every global, so a taunt that queues behind the global is a taunt that
+// arrives after whoever it was for is already being eaten.
+//
+// Written to fail the way the bug actually looked. The flag went on the three
+// abilities first and changed nothing at all, because `useAbilities` returns
+// before the tank's rotation is ever entered while a global is running -- so
+// this holds the global down on every tank for the whole window rather than
+// trusting the table. With the global pinned a tank can build no threat by any
+// other means, so the only road back to it is the taunt.
+{
+  const taunts = CLASSES.warrior.specs
+    .concat(CLASSES.paladin.specs, CLASSES.druid.specs)
+    .filter((sp) => sp.role === 'tank')
+    .map((sp) => sp.abilities.taunt!)
+  const queued = taunts.filter((id) => !ABILITIES[id]?.offGcd)
+  expect(
+    `all ${taunts.length} taunts are off the global cooldown`,
+    taunts.length === 3 && queued.length === 0,
+    queued.join(', '),
+  )
+
+  const party = autoParty(10, pickFor('mage', 'dps')!)
+  const s = pulled(0x51ed, 3, party)
+  const rng = new Rng(0x51ed + 3 * 7919)
+  const tanks = s.actors.filter((a) => a.faction === 'party' && a.role === 'tank')
+  const dealer = s.actors.find((a) => a.faction === 'party' && a.role === 'dps')!
+  expect('there is a tank to keep busy', tanks.length > 0, `${tanks.length}`)
+
+  // A lead no amount of tanking could have closed inside the window, so a pass
+  // cannot come from the tank simply out-hitting it.
+  s.threat[dealer.id] = 50000
+  expect('the dealer has the boss', topThreatTarget(s)?.id === dealer.id, `${topThreatTarget(s)?.name}`)
+
+  let backOnTank = -1
+  while (s.outcome === 'ongoing' && s.time < 30 && backOnTank < 0) {
+    // Pressed again every tick: this is a tank that never has a free global,
+    // not one that happens to be on cooldown when the check starts.
+    for (const tank of tanks) tank.gcd = GLOBAL_COOLDOWN
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    if (topThreatTarget(s)?.role === 'tank') backOnTank = s.time
+  }
+  expect(
+    'a tank takes the boss back without ever getting a free global',
+    backOnTank >= 0,
+    backOnTank < 0 ? 'the boss never came back' : `${backOnTank.toFixed(1)}s`,
+  )
+}
+
 // --- the composition rules have to hold however the raid was built --------
 //
 // They used to be advice: the party screen printed "3 tanks, max 2 — this

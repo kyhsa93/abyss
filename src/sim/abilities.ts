@@ -109,12 +109,33 @@ const TAUNT_RANGE = 584
  */
 const TAUNT_COOLDOWN = 10
 
+/**
+ * And a taunt costs no global, which is the source's and not a preference.
+ *
+ * `Spell.dbc` gives Taunt, Growl and Hand of Reckoning a `StartRecoveryTime`
+ * of 0 -- alone among the things a tank presses, next to Frostbolt's 1500 --
+ * because a taunt is the answer to something that has already gone wrong, and
+ * an answer you have to wait out a global for is an answer that arrives after
+ * the body it was for is dead. That is the shape of a rule rather than the
+ * size of a number, which is why it is taken while the cooldowns and cast
+ * times in the same table are not: see `docs/reading-the-source.md`.
+ *
+ * Named rather than written as a bare `true` on each row, the same as the
+ * reach and the cooldown above it: the three taunts share one answer, and a
+ * reader who finds it on a row should land on the reason.
+ *
+ * The flag alone does nothing. `canUseOffGcd` in `ai.ts` decides whether the
+ * tank's rotation is entered at all while a global is running, and until it
+ * learned about taunts this read as done and was inert.
+ */
+const TAUNT_OFF_GLOBAL = true
+
 const list: Ability[] = [
   // --- warrior (tank) -------------------------------------------------------
   { id: 'cleave', name: 'Wide Swing', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 15, amount: 60, physical: true, threatMult: 4, aura: null, range: MELEE },
   { id: 'shield_slam', name: 'Shield Bash', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 20, amount: 110, physical: true, threatMult: 6, aura: null, range: MELEE },
   { id: 'shield_wall', name: 'Brace', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
-  { id: 'taunt', name: 'Challenge', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
+  { id: 'taunt', name: 'Challenge', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE, offGcd: TAUNT_OFF_GLOBAL },
 
   // --- priest (healer): sustained, leans on its heal-over-time -------------
   { id: 'heal', name: 'Mend', role: 'healer', kind: 'heal', castTime: 2, cooldown: 0, cost: 40, amount: 473, threatMult: 0, aura: null, range: HEAL_RANGE },
@@ -209,7 +230,7 @@ const list: Ability[] = [
   { id: 'avengers_shield', name: 'Thrown Shield', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 28, amount: 105, threatMult: 6, aura: null, range: SPELL },
   { id: 'consecration', name: 'Hallowed Ground', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 22, amount: 58, threatMult: 4, aura: null, range: MELEE },
   { id: 'divine_protection', name: 'Ward', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
-  { id: 'hand_of_reckoning', name: 'Summons', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
+  { id: 'hand_of_reckoning', name: 'Summons', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE, offGcd: TAUNT_OFF_GLOBAL },
 
   // --- paladin, as damage ----------------------------------------------------
   { id: 'crusader_strike', name: 'Zealot Blow', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 80, threatMult: 1, aura: null, range: MELEE },
@@ -220,7 +241,7 @@ const list: Ability[] = [
   { id: 'maul', name: 'Maul', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 22, amount: 118, physical: true, threatMult: 6, aura: null, range: MELEE },
   { id: 'swipe', name: 'Swipe', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, cost: 16, amount: 62, physical: true, threatMult: 4, aura: null, range: MELEE },
   { id: 'frenzied_regen', name: 'Knit', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
-  { id: 'growl', name: 'Growl', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
+  { id: 'growl', name: 'Growl', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE, offGcd: TAUNT_OFF_GLOBAL },
 
   // --- druid, as healer: heal-over-time first ---------------------------------
   { id: 'healing_touch', name: 'Greenmend', role: 'healer', kind: 'heal', castTime: 2.2, cooldown: 0, cost: 42, amount: 385, threatMult: 0, aura: null, range: HEAL_RANGE },

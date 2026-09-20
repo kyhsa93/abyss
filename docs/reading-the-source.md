@@ -1452,9 +1452,31 @@ citation is given so the work can start from here rather than from scratch.
 | mana costs | a share of base mana, `ManaCostPct`: Greater Heal 32, Holy Light 29, Shadow Word: Pain 22, Frostbolt 11, and Lay on Hands **free** with a twenty-minute `CategoryRecoveryTime` | 3.8, 4.5, 1.9, 1.8 per cent of the pool, and Lay on Hands the most expensive thing a paladin owns |
 | defensive cooldowns | Shield Wall and Divine Shield 300s, Divine Protection 180s, Deterrence 90s, and Evasion, Sprint, Survival Instincts and Frenzied Regeneration all 180s — the last four in `CategoryRecoveryTime`, which is why they read as zero if you only look at `RecoveryTime` | 40 to 50 seconds |
 | cast times | eleven of the twelve are hard casts: Flash Heal 1500, Chain Heal 2500, Smite 2500, Mind Blast 1500, Wrath 2000, Lightning Bolt 2500, Lava Burst 2000, Shadow Bolt 3000, Immolate 2000, Steady Shot 1500, Exorcism 1500. Mind Flay is 0 because it is a channel | instant |
-| the global cooldown | `StartRecoveryTime`: Taunt, Growl, Hand of Reckoning, Heroic Strike, Maul, Shield Wall, Sprint and Evasion are **0**; Eviscerate and Rupture are **1000**; Frostbolt is 1500 | 1.5 seconds for everything, taunts included |
+| the global cooldown | `StartRecoveryTime`: Taunt, Growl, Hand of Reckoning, Heroic Strike, Maul, Shield Wall, Sprint and Evasion are **0**; Eviscerate and Rupture are **1000**; Frostbolt is 1500 | **the 0 is taken**: all three taunts are off the global. The rogue's 1000 is not — see `GLOBAL_COOLDOWN` |
 | the attack table | `Unit::MeleeSpellMissChance` — 5% base plus `1 + (diff - 10) * 0.4` against a mob, so **8%** at level 80 into a level 83 boss, **+19** more for an offhand; and a glancing blow is `(10 + defence - skill) * 100` capped at 4000, so **25%** here and 40% at the cap | no miss, dodge, parry, block or glancing blow at all |
 | nine abilities | absent from a 3.3.5a `Spell.dbc` by id: 118038, 97462, 190784, 184662, 62618, 78674, 93402, 104773, 98008. `astral_shift` 52179 does exist, but as a passive | their **ids** are on the bars, not their names: what a player sees is `Last Stand`, `Reprisal`, `Charger`, `Star Lance`, `Sunbrand`, `Grit` — this game's own words, the way every boss and every trash look is. The ids are borrowed labels rather than a claim about the era, and renaming them would mean renaming the icon keys they index (`art/icons.json`, which `rendercheck` holds against the ability list) for nothing a player could see. Left alone deliberately |
+
+**One of them has been taken, and the line it was taken along is worth having
+written down.** A taunt costs no global now, because that row is the *shape of
+a rule* — the source says an answer to a mechanic does not queue behind your
+rotation — and shapes are what this repo takes from the source. The rows above
+it are *sizes*: how fast energy comes back, how long a wall stays down, what
+share of a bar a heal costs. Those this game has already decided for itself,
+and the deciding is written next to each number.
+
+Two were looked at along that line and left:
+
+- **The rogue's 1000ms global** is half of a pair. The source pays for a faster
+  global with an energy bar that refills at ten a second; this one refills at
+  twenty-five. Taking the faster global alone is taking the half that adds
+  damage and leaving the half that pays for it.
+- **The five-second rule** is a shape, and taking it would still be a size. A
+  healer's nine mana a second here is the whole fight's budget, chosen without
+  the rule and with the 240-second enrage in mind. Laying the rule on top of a
+  regeneration picked to be uninterrupted does not add a constraint, it deletes
+  a budget — and then the budget has to be re-tuned to survive it, which is
+  tuning a second number to protect a first. That is exactly what was refused
+  when threat hysteresis was tried and put back.
 
 None of these are small numbers, and every one of them moves a simulated pull.
 That matters more than it sounds: `rendercheck`'s mechanic sweep runs one

@@ -100,6 +100,19 @@ export const ARENA_RADIUS = 1118
  */
 export const BOSS_WIDTH = Math.round(9.0 * YARD)
 
+/**
+ * One length for everybody, which is this game's and not the source's.
+ *
+ * `Spell.dbc` has three `StartRecoveryTime`s rather than one: 1500 for most
+ * of it, 1000 for a rogue's finishers, and 0 for the things that answer a
+ * mechanic. The 0 is taken -- see the taunts in `abilities.ts` -- because it
+ * is the shape of a rule. The rogue's 1000 is not, and the reason is that it
+ * is half of a pair: the source pays for a faster global with an energy bar
+ * that refills at ten a second, and this game's refills at twenty-five. Taking
+ * the faster global without the slower bar is taking the half that adds
+ * damage and leaving the half that pays for it. Both or neither, and the bar
+ * is a number this game has already decided for itself.
+ */
 export const GLOBAL_COOLDOWN = 1.5
 
 /**
