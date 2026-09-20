@@ -6,6 +6,7 @@ import {
   clearedFrom,
   gateOpen,
   killedOnce,
+  padAt,
   padsLit,
   citadelJets,
   citadelPacks,
@@ -1605,6 +1606,53 @@ expect(
 )
 const litEarly = CHAMBERS.filter((c) => c.pad && gateOpen(c.pad, new Set()) && c.id !== 'threshold')
 expect('and none of them lit by walking past it', litEarly.length === 0, litEarly.map((c) => c.id).join(', '))
+
+// And the thing itself, which was a rule and no object for a long time: the
+// pads were in the data and on the map screen and in no room, so the only way
+// to use one was to press a room on a screen from anywhere in the building.
+for (const chamber of CHAMBERS.filter((c) => c.pad)) {
+  const room: RoomShape = { ...roomOf(chamber.id), at: placeOf(chamber.id) }
+  const at = padAt(chamber.id)
+  expect(
+    `the pad in ${chamber.id} is somewhere a party can stand`,
+    insideRoom(room, at, PARTY_RADIUS),
+    `${at.x.toFixed(0)}, ${at.y.toFixed(0)}`,
+  )
+  // And not on a door. Both are ways out of the room and both are taken by
+  // standing near them, so a pad on a doorway is a doorway that sometimes
+  // teleports -- which is the one thing the doors here were built not to be.
+  const doors = hallFor(chamber.id, null, () => true).ways
+  const on = doors.filter((way) => Math.hypot(way.at.x - at.x, way.at.y - at.y) <= EXIT_REACH * 2)
+  expect(
+    `and clear of all ${doors.length} of its doors`,
+    on.length === 0,
+    on.map((way) => way.to).join(', '),
+  )
+}
+
+// A pad is taken *from* a pad, which is the half of the rule that was missing.
+{
+  const start = startRun(11, 10, 'normal')
+  const off = {
+    ...start,
+    at: 'vigil',
+    cleared: ['spire'],
+    visited: ['threshold', 'vigil', 'spire'],
+  }
+  expect(
+    'no pad underfoot, no jump',
+    stepTo(off, 'threshold').kind !== 'jump',
+    stepTo(off, 'threshold').kind,
+  )
+  const on = { ...off, at: 'spire' }
+  // The spire has no pad either, so this is the same answer for the same
+  // reason and not an accident of which room was picked.
+  expect(
+    'and the same from the next room along',
+    stepTo(on, 'threshold').kind !== 'jump',
+    stepTo(on, 'threshold').kind,
+  )
+}
 
 // Read off the chain rather than saved a second time: a boss is killed once
 // the chain has moved past its first rung, and that is what clearing it does.

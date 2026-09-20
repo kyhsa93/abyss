@@ -1580,6 +1580,53 @@ export function hallFor(
 }
 
 /**
+ * Where the room's teleporter stands.
+ *
+ * The source puts a Scourge Transporter in these rooms and gives every one of
+ * them a coordinate -- they are written out in the note on `Chamber.pad`. None
+ * of those coordinates is used here, and the reason is the one already
+ * recorded on the Mooring: a chamber is built at the size the building can
+ * hold rather than the size the deck measures, so a pad dropped at its
+ * measured place lands outside half the rooms it belongs to.
+ *
+ * So it is derived the way the doors are. Against the wall, like every other
+ * fixture in this building, on the bearing with the most wall to itself: the
+ * middle of the widest gap between two doors. A pad is a way out of the room
+ * and the doors are the others, so the one place it must not be is on top of
+ * one of them -- and the widest gap is the bearing furthest from every door at
+ * once. With a single door that is the wall opposite it, which is where
+ * anybody would put it by eye.
+ */
+export function padAt(id: string): Vec2 {
+  const room: RoomShape = { ...roomOf(id), at: placeOf(id) }
+  return onWall(room, quietWall(doorsOf(id, () => true).map((door) => door.angle)))
+}
+
+/** The bearing with the most wall to either side of it. */
+function quietWall(taken: number[]): number {
+  // Nothing in this building has no doors at all. If something ever does, the
+  // raid comes in from `+y` everywhere, so the far wall is the answer that
+  // matches every other rule here.
+  if (taken.length === 0) return -Math.PI / 2
+  const sorted = [...taken].sort((a, b) => a - b)
+  let best = -Math.PI / 2
+  let widest = -1
+  for (let i = 0; i < sorted.length; i++) {
+    const a = sorted[i]!
+    // Round the circle for the last one, so the gap straddling the seam is
+    // measured as a gap rather than as a negative number nothing ever wins
+    // with. With one door that gap is the whole circle and its middle is the
+    // wall opposite.
+    const b = i + 1 < sorted.length ? sorted[i + 1]! : sorted[0]! + Math.PI * 2
+    if (b - a > widest) {
+      widest = b - a
+      best = (a + b) / 2
+    }
+  }
+  return best
+}
+
+/**
  * The whole citadel, in one set of coordinates.
  *
  * The rooms used to be separate places: each one its own scene with its own

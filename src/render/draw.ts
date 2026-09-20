@@ -42,7 +42,8 @@ import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/bat
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { ENCOUNTERS, encounterAt } from '../sim/encounters'
-import { CHAMBERS, placeOf, type Chamber, type WingId, chamberAt, roomOf } from '../dungeon'
+import { CHAMBERS, padAt, placeOf, type Chamber, type WingId, chamberAt, roomOf } from '../dungeon'
+import { EXIT_REACH } from '../sim/travel'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
@@ -303,6 +304,15 @@ export function drawWorld(
   alpha: number,
   clock: number,
   effects: Effects,
+  /**
+   * Whether the pad in the room being crossed is powered.
+   *
+   * Passed in for the same reason `showMap` is, and it is the same fact: what
+   * lights a pad is which bosses this evening has killed, and the simulation
+   * has never heard of an evening. A fight walked into from an invitation
+   * looks identical from in here.
+   */
+  padLit = false,
 ): void {
   // Which room this is, before anything is measured against it: the layout's
   // scale is how much world fits on the glass, and that is a fact about the
@@ -399,6 +409,20 @@ export function drawWorld(
       { x: cam.x + wide, y: cam.y + deep },
     )
   }
+  // And the teleporter, in the rooms the source bolts one to the floor of.
+  //
+  // An oval, which is the shape this game reserved for it long before it drew
+  // one: the note by the doorways says a door was an oval first and had to
+  // stop being one, because an oval here means step on this and go somewhere.
+  // That is exactly what a door must not be and exactly what a pad is.
+  //
+  // It was in the data and on the map screen and in no room. The only
+  // teleporter in the building was a branch in `stepTo`, so the party crossed
+  // the citadel from wherever it stood and nothing on any floor said why.
+  if (s.mode === 'travel' && s.chamber !== null && chamberAt(s.chamber)?.pad) {
+    drawPad(ctx, padAt(s.chamber), padLit, clock)
+  }
+
   // And the building's own furniture, at the source's coordinates: over the
   // floor and its litter, under every mechanic. Resolved the same way the room
   // is -- a fight's room is the encounter's, a room being crossed is the
@@ -2559,6 +2583,40 @@ const STRIDE = 0.16
 function footprint(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number): void {
   ctx.beginPath()
   floorArc(ctx, x, y, rx)
+}
+
+/**
+ * A Scourge Transporter: a disc of floor with a rule on it.
+ *
+ * Drawn at `EXIT_REACH` because that *is* the rule -- the same distance a body
+ * has to be inside to take a way out of a room, and a pad is a way out. The
+ * picture is the number it is judged at rather than a size that looked right,
+ * so a party standing on the drawing is a party standing on the pad.
+ *
+ * An unpowered one is drawn too, dimmer. The thing is bolted to the floor
+ * whether or not the wing it reaches has fallen, and a pad that appears the
+ * moment it starts working is a pad nobody ever learns the position of.
+ */
+function drawPad(ctx: CanvasRenderingContext2D, at: Vec2, lit: boolean, clock: number): void {
+  const on = worldToScreen(at)
+  const r = EXIT_REACH * L.scale
+  ctx.save()
+  footprint(ctx, on.x, on.y, r)
+  ctx.fillStyle = lit ? 'rgba(103, 232, 249, 0.16)' : 'rgba(103, 232, 249, 0.05)'
+  ctx.fill()
+  ctx.strokeStyle = lit ? 'rgba(103, 232, 249, 0.85)' : 'rgba(103, 232, 249, 0.26)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+  // The inner ring turns while it is live, and stands still when it is not.
+  // That is the whole difference between a pad and a plate: a thing with
+  // something happening on it, and a thing with nothing.
+  footprint(ctx, on.x, on.y, r * 0.62)
+  ctx.globalAlpha = lit ? 0.7 : 0.22
+  ctx.setLineDash([5, 7])
+  ctx.lineDashOffset = lit ? -clock * 22 : 0
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.restore()
 }
 
 /**

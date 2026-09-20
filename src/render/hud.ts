@@ -11,7 +11,7 @@ import { BOSS_ID } from '../sim/state'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { awake, heading } from '../sim/travel'
 import { insideRoom, roomAt, roomReach } from '../sim/room'
-import { CHAMBERS, PASSAGES, chamberAt, placeOf, roomOf } from '../dungeon'
+import { CHAMBERS, PASSAGES, chamberAt, padAt, placeOf, roomOf } from '../dungeon'
 import { teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
@@ -422,9 +422,16 @@ export function drawHud(
    * one. A fight walked into from an invitation looks identical from in here.
    */
   showMap = false,
+  /**
+   * Whether the party is standing on a working teleporter.
+   *
+   * Passed in beside `showMap` and for the same reason: it is a fact about the
+   * evening and about where the party is, and only the page holds both.
+   */
+  onPad = false,
 ): void {
   if (s.mode === 'battleground') drawScoreboard(ctx, s)
-  else if (s.mode === 'travel') drawWalkFrame(ctx, s)
+  else if (s.mode === 'travel') drawWalkFrame(ctx, s, onPad)
   else drawBossFrame(ctx, s)
   drawPartyFrames(ctx, s)
   drawFightInfo(ctx, s)
@@ -688,6 +695,23 @@ function drawPlan(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.arc(p.x, p.y, dot, 0, Math.PI * 2)
     ctx.fillStyle = here ? 'rgba(203, 213, 225, 0.85)' : 'rgba(148, 163, 184, 0.28)'
     ctx.fill()
+  }
+
+  // And this room's pad, which is the one fixture on the floor worth pointing
+  // at from here.
+  //
+  // The oval on the floor can only be seen from inside `VIEW_REACH` of it, and
+  // the hub is wider than that: standing where the party arrives in the Upper
+  // Crossing, the pad is against a wall the camera does not reach. A thing you
+  // cannot see and are not told about is exactly the bug this change began as,
+  // so the map carries it -- the same job it already does for the ways out.
+  if (s.chamber !== null && chamberAt(s.chamber)?.pad) {
+    const p = at(padAt(s.chamber))
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(103, 232, 249, 0.9)'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
   }
 
   // The raid, and the player picked out of it. Only the party: fifty-two
@@ -989,7 +1013,7 @@ function middleOfParty(s: SimState): { x: number; y: number } | null {
   }
 }
 
-function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
+function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState, onPad = false): void {
   const travel = s.travel
   if (!travel) return
   // What is on the party, and what is standing in the stretch they are in.
@@ -1032,11 +1056,16 @@ function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   // used to be lit on it. A line telling the player to go and stand on one
   // would be the last of that, and it was the only one they could read.
   const door = going ? `onward — ${chamberAt(going.to)?.name ?? going.to}` : null
+  // Except on a pad, which is the one thing in this building that has to be
+  // said in words. Everywhere else the floor is the instruction -- you can see
+  // ground going that way -- and a pad is ground that goes nowhere you can
+  // see. What it reaches is on the map, so the line says where to look.
+  const pad = onPad ? 'ON THE PAD — MAP TO JUMP' : null
   ctx.fillText(
     up > 0
       ? `${up} ON YOU`
       : travel.building
-        ? (door ?? (left.length > 0 ? held : 'THE WAY IS CLEAR'))
+        ? (pad ?? door ?? (left.length > 0 ? held : 'THE WAY IS CLEAR'))
         : left.length > 0
           ? held
           : (door ?? 'THE WAY IS CLEAR'),

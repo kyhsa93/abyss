@@ -246,7 +246,19 @@ export function stepTo(run: Run, to: string): Step {
   // A pad, which is the only thing on this map that reaches further than a
   // door — and only to somewhere the party has already walked to. Lighting one
   // for a room nobody has been to would switch the corridors off.
-  if (run.visited.includes(to) && padsLit(cleared).some((c) => c.id === to)) {
+  //
+  // And from a pad, which is the half of the rule that was missing. A pad
+  // used to be read off the room you were going *to* and nothing else, so the
+  // party jumped across the citadel from wherever it happened to be standing:
+  // the only teleporter in the building was this branch. Nothing in any room
+  // said so, which is why nobody could find one -- see `padAt`, which is
+  // where the thing itself stands.
+  const lit = padsLit(cleared)
+  if (
+    run.visited.includes(to) &&
+    lit.some((c) => c.id === to) &&
+    lit.some((c) => c.id === run.at)
+  ) {
     return { kind: 'jump', to }
   }
   const passage = passageBetween(run.at, to)

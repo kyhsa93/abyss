@@ -171,8 +171,10 @@ import {
   placeOf,
   storeyOf,
   citadelBystanders,
+  padAt,
+  padsLit,
 } from './dungeon'
-import { marchReach, type Corridor } from './sim/travel'
+import { EXIT_REACH, marchReach, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
 import type { SimState, Vec2 } from './sim/types'
 
@@ -786,6 +788,59 @@ function fightAwaits(id: string): boolean {
  * behind it.
  */
 /**
+ * Where the party is, as one point.
+ *
+ * The middle rather than any one body, for the reason `roomUnderfoot` gives
+ * below and now shares: half of them in a doorway is not half an arrival.
+ * Pulled out of it when the pads needed the same answer, so the two questions
+ * a floor asks about the party -- which room, and what is it standing on --
+ * can never disagree about where it is.
+ */
+function partyMiddle(): Vec2 | null {
+  const bodies = state.actors.filter((a) => a.faction === 'party' && a.alive)
+  if (bodies.length === 0) return null
+  return {
+    x: bodies.reduce((n, a) => n + a.pos.x, 0) / bodies.length,
+    y: bodies.reduce((n, a) => n + a.pos.y, 0) / bodies.length,
+  }
+}
+
+/**
+ * Whether the party is standing on this room's teleporter, and it is powered.
+ *
+ * The half of the pad rule a `Run` cannot answer. The evening knows which
+ * rooms have a lit pad in them and nothing whatever about where anybody is
+ * standing, so `stepTo` can only hold the first half -- see the note there.
+ * This is the second, and it is what makes the thing on the floor the
+ * teleporter rather than the branch.
+ *
+ * Judged at `EXIT_REACH`: the distance a door is taken at, and the radius the
+ * pad is drawn as, so the circle on screen is the circle being tested.
+ */
+function onPad(): boolean {
+  if (state.chamber === null || !padHere()) return false
+  const mid = partyMiddle()
+  if (mid === null) return false
+  const at = padAt(state.chamber)
+  return Math.hypot(mid.x - at.x, mid.y - at.y) <= EXIT_REACH
+}
+
+/**
+ * Whether this room's pad is powered, which is a different question.
+ *
+ * Standing on one and one working are two facts and they were briefly one: the
+ * pad was handed to the renderer as "the party is on it", so it lit up only
+ * once you were already there. A pad you cannot see until you are standing on
+ * it is a pad nobody walks to -- which is the bug this whole change exists to
+ * fix, reintroduced in the drawing of it.
+ */
+function padHere(): boolean {
+  if (!run || state.chamber === null) return false
+  const here = state.chamber
+  return padsLit(new Set(run.cleared)).some((c) => c.id === here)
+}
+
+/**
  * The room the party is standing in, or null while they are between two.
  *
  * The middle of the raid rather than any one body, because half of them in a
@@ -793,12 +848,8 @@ function fightAwaits(id: string): boolean {
  * party is where most of it is.
  */
 function roomUnderfoot(): string | null {
-  const bodies = state.actors.filter((a) => a.faction === 'party' && a.alive)
-  if (bodies.length === 0) return null
-  const mid = {
-    x: bodies.reduce((n, a) => n + a.pos.x, 0) / bodies.length,
-    y: bodies.reduce((n, a) => n + a.pos.y, 0) / bodies.length,
-  }
+  const mid = partyMiddle()
+  if (mid === null) return null
   for (const chamber of CHAMBERS) {
     if (insideRoom({ ...roomOf(chamber.id), at: placeOf(chamber.id) }, mid, 0)) return chamber.id
   }
@@ -1178,6 +1229,11 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       // than a picture — a walk you earned the right not to make. Everywhere
       // else you go by walking, so a press does nothing.
       if (stepTo(run, hit.id).kind !== 'jump') return
+      // And standing on the thing. A lit pad in the room is what the evening
+      // knows; being on it is what the floor knows, and pressing a room on a
+      // screen from the middle of a hall was the whole of what a pad used to
+      // cost.
+      if (!onPad()) return
       goThrough(hit.id, run.carried)
       return
     }
@@ -2275,7 +2331,8 @@ function frame(now: number): void {
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
-  drawWorld(ctx, state, alpha, clock, effects)
+  const pad = onPad()
+  drawWorld(ctx, state, alpha, clock, effects, padHere())
   drawHud(
     ctx,
     state,
@@ -2286,6 +2343,7 @@ function frame(now: number): void {
       auto: input.isAuto(),
     },
     walkingAnEvening(),
+    pad,
   )
   hints.draw(ctx)
   drawAwardBanners(ctx, announced)
