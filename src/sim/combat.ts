@@ -74,6 +74,39 @@ export function actorById(s: SimState, id: number): Actor | undefined {
  * frame over an empty room now, which is what makes that a caught mistake
  * rather than a black screen.
  */
+/**
+ * The body to aim an area attack at, or nothing if there is no pack.
+ *
+ * Three within one blow of each other, which measurement put where it is: a
+ * ten-man raid fight keeps one or two summons alive at a time and should not
+ * be answering that with a cooldown, while a twenty-five man reaches three to
+ * eight and a corridor has eleven to fifteen awake at once. So the line sits
+ * above the ordinary raid fight and well below the trash.
+ *
+ * Returns the body with the most neighbours rather than the nearest, because
+ * where the blow lands is what decides how many it catches — the splash in
+ * `landAbility` measures from the target and not from the caster.
+ *
+ * Here rather than in `ai.ts` because both rotations need it and only one of
+ * them lives there: the packs this is for are mostly in the corridors, which
+ * `travel.ts` drives, and that module already imports this one.
+ */
+export function packAround(s: SimState, actor: Actor, ability: Ability): Actor | null {
+  if (!ability.radius) return null
+  const reach = adds(s).filter((a) => dist(actor.pos, a.pos) <= ability.range + a.radius)
+  if (reach.length < 3) return null
+  let best: Actor | null = null
+  let most = 0
+  for (const a of reach) {
+    const near = reach.filter((o) => dist(o.pos, a.pos) <= ability.radius! + o.radius).length
+    if (near > most) {
+      most = near
+      best = a
+    }
+  }
+  return most >= 3 ? best : null
+}
+
 export function boss(s: SimState): Actor {
   return s.actors.find((a) => a.id === BOSS_ID)!
 }
@@ -1239,7 +1272,13 @@ export function castBlocker(
 
   if (ability.range > 0) {
     const target = actorById(s, targetId)
-    if (!target || !target.alive) return 'target'
+    // A resurrection is the one cast in the game aimed at somebody who is not
+    // standing, so the liveness test runs both ways rather than one. Without
+    // this the press is refused here and nothing happens -- no error, no
+    // effect, the ability simply inert, which is exactly how the interrupts
+    // spent a round landing twenty-three presses and stopping nothing.
+    if (!target) return 'target'
+    if (ability.kind === 'revive' ? target.alive : !target.alive) return 'target'
     const gap = dist(actor.pos, target.pos)
     if (gap > ability.range + target.radius) return 'range'
     // Only a charge has a near edge: being already there is not a reason to
@@ -1437,6 +1476,33 @@ export function landAbility(
       if (target.id === BOSS_ID) addThreat(s, actor.id, amount * ability.threatMult)
       if (ability.aura) addAura(target, ability.aura, actor.id)
       spendTrait(s, actor, ability, target, crit)
+      // And everything else standing near what it landed on.
+      //
+      // Measured from the body that was hit rather than from the caster, so a
+      // blizzard dropped on the far edge of a pack catches the pack and not
+      // whatever happens to be next to the mage. Each of the others takes the
+      // same blow the first one did with no trait on it: the spec's own rule
+      // pays out once, on the target that was aimed at, or a rogue with five
+      // combo points would be spending them on every body in the room.
+      //
+      // The boss is exempt. A pack standing on the boss is the ordinary shape
+      // of this game's fights, and an area attack that also chips the health
+      // bar the whole pull is measured against turns "answer the adds" into
+      // "hit the adds and win faster", which is not the decision it is for.
+      if (ability.radius && ability.radius > 0) {
+        for (const other of s.actors) {
+          if (other.id === target.id || other.id === BOSS_ID) continue
+          if (other.faction !== 'boss' || !other.alive) continue
+          if (dist(other.pos, target.pos) > ability.radius + other.radius) continue
+          applyDamage(s, other, Math.round(ability.amount), 'none', { sourceId: actor.id })
+          pushEffect(s, 'impact', other.pos, {
+            abilityId: ability.id,
+            power: ability.amount,
+            crit: false,
+            angle: Math.atan2(other.pos.y - target.pos.y, other.pos.x - target.pos.x),
+          })
+        }
+      }
       break
     }
     case 'heal': {
@@ -1462,6 +1528,41 @@ export function landAbility(
     // already knows how to draw, so this needs no art of its own.
     case 'interrupt': {
       if (target && target.alive && target.castId) interruptCast(s, target, 'interrupted')
+      break
+    }
+    case 'restore': {
+      // Nothing to hand it to, or a bar that does not exist: a rage or energy
+      // body has a `maxPower` of a hundred and is full most of the time, and
+      // pouring mana into one would be a press thrown away on somebody who
+      // never wanted it. The AI aims this at a mana bar; this is the floor
+      // under that, not a second opinion about it.
+      if (!target || !target.alive || target.maxPower <= 0) break
+      gainPower(target, ability.amount)
+      pushText(s, target.pos, `+${ability.amount}`, 'heal')
+      break
+    }
+    case 'revive': {
+      if (!target || target.alive) break
+      /**
+       * What a body stands up with.
+       *
+       * Less than the door gives between pulls, and deliberately: this one
+       * arrives in the middle of whatever killed them, and a body handed most
+       * of its bar back would simply die again to the same thing while the
+       * raid counted it as saved. Enough to move, to be healed, and to matter.
+       */
+      const BATTLE_REVIVE = 0.3
+      target.alive = true
+      target.hp = Math.max(1, Math.round(target.maxHp * BATTLE_REVIVE))
+      // Back to nothing on the threat table.
+      //
+      // Threat is never cleared by dying -- it is a plain map keyed by id and
+      // nothing deletes the row -- so a body raised in the middle of a fight
+      // would stand up holding every point it had earned before it fell, and
+      // on a raid where it had been second on the table that is the boss
+      // turning round and walking to a healer with a third of its health.
+      s.threat[target.id] = 0
+      pushText(s, target.pos, 'UP', 'heal')
       break
     }
     case 'taunt': {

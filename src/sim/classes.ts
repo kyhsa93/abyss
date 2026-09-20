@@ -54,6 +54,35 @@ export interface ClassAbilities {
    * pet -- and an empty slot says that better than a borrowed button would.
    */
   interrupt: string | null
+  /**
+   * Putting one of the raid back on its feet in the middle of a fight.
+   *
+   * One class in the game carries it, which is the source's answer and not a
+   * shortage here: `환생` is the druid's and there is no second one. Like the
+   * interrupt above it this is not a bar button -- it answers a body hitting
+   * the floor, which is a reaction the AI makes for the whole raid rather than
+   * a sixth key nobody asked for -- so `rendercheck` exempts it from the rule
+   * that every kit entry must be reachable on the bar.
+   */
+  revive: string | null
+  /**
+   * Handing a caster its mana back, for the fight that has gone long.
+   *
+   * Two classes carry one and they are the source's two: the priest's hymn and
+   * the druid's innervate. Off the bar for the same reason as the interrupt
+   * and the resurrection -- it answers a bar running dry, which the AI watches
+   * for every body in the raid rather than leaving to a sixth key.
+   */
+  restore: string | null
+  /**
+   * The one it presses when there are several things to hit rather than one.
+   *
+   * Off the bar with the interrupt, the resurrection and the restore, and for
+   * the same reason: what it answers is a count on the field, which the AI can
+   * see for every body in the raid at once. The player's five buttons are the
+   * five that are about the fight in front of them.
+   */
+  area: string | null
 }
 
 export const CLASS_ORDER: ClassId[] = [
@@ -355,6 +384,9 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   pact: null,
   attack: null,
   interrupt: null,
+  revive: null,
+  restore: null,
+  area: null,
   ...a,
 })
 
@@ -417,6 +449,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'execute',
           mobility: 'charge',
           defensive: 'die_by_the_sword',
+          area: 'whirlwind',
         }),
       },
     ],
@@ -482,6 +515,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'hammer_of_wrath',
           defensive: 'shield_of_vengeance',
           attack: 'exorcism',
+          area: 'divine_storm',
         }),
       },
     ],
@@ -510,6 +544,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'flash_heal',
           defensive: 'fade',
           attack: 'smite',
+          restore: 'hymn_of_hope',
         }),
       },
       {
@@ -529,6 +564,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'mind_blast',
           defensive: 'dispersion',
           attack: 'shadow_word_death',
+          restore: 'hymn_of_hope',
+          area: 'mind_sear',
         }),
       },
     ],
@@ -561,6 +598,14 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           defensive: 'frenzied_regen',
           taunt: 'growl',
           mobility: 'wild_charge',
+          // A bear raises people too, and pays for it out of a rage bar that
+          // starts a pull empty: it cannot do this in the opening seconds and
+          // can once it has been hit a few times. That is the resource's shape
+          // rather than a rule about resurrection, and it is left alone -- the
+          // source lets a guardian cast this, and taking it away because the
+          // bar fills differently would be this game inventing a restriction.
+          revive: 'rebirth',
+          restore: 'innervate',
         }),
       },
       {
@@ -580,6 +625,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'swiftmend',
           defensive: 'barkskin',
           attack: 'starsurge',
+          revive: 'rebirth',
+          restore: 'innervate',
         }),
       },
       {
@@ -599,6 +646,9 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'starfire',
           defensive: 'barkskin',
           attack: 'sunfire',
+          revive: 'rebirth',
+          restore: 'innervate',
+          area: 'starfall',
         }),
       },
       {
@@ -622,6 +672,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'ferocious_bite',
           mobility: 'dash',
           defensive: 'survival_instincts',
+          revive: 'rebirth',
+          restore: 'innervate',
         }),
       },
     ],
@@ -669,6 +721,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'chain_lightning',
           defensive: 'astral_shift',
           attack: 'earth_shock',
+          area: 'thunderstorm',
         }),
       },
     ],
@@ -697,6 +750,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'pyroblast',
           defensive: 'ice_barrier',
           attack: 'ice_lance',
+          area: 'blizzard',
         }),
       },
     ],
@@ -730,6 +784,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'chaos_bolt',
           pact: 'life_tap',
           defensive: 'unending_resolve',
+          area: 'hellfire',
         }),
       },
     ],
@@ -759,6 +814,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'aimed_shot',
           defensive: 'deterrence',
           mobility: 'cheetah',
+          area: 'volley',
         }),
       },
     ],
@@ -788,6 +844,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'eviscerate',
           mobility: 'sprint',
           defensive: 'evasion',
+          area: 'fan_of_knives',
         }),
       },
     ],

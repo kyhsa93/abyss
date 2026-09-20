@@ -28,6 +28,7 @@ import {
   holdOrFall,
   interruptCast,
   livingParty,
+  packAround,
   pushEffect,
 } from './combat'
 import { blankGround, turnToward } from './boss'
@@ -1399,6 +1400,19 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
     return
   }
   if (!target) return
+  // A pack, before anything aimed at one body.
+  //
+  // This is where the packs are. A raid fight keeps one or two summons alive
+  // at a time; a corridor has eleven to fifteen awake at once, and answering
+  // that one body at a time is what an area attack exists to stop. The branch
+  // was written into the raid rotation first and could never fire there --
+  // `updateTravelAi` does not go through `useAbilities`, so a corridor had no
+  // area press at all until this line.
+  if (kit.area) {
+    const ability = ABILITIES[kit.area]
+    const pack = ability ? packAround(s, actor, ability) : null
+    if (pack && cast(s, actor, kit.area, pack.id, rng, moving)) return
+  }
   if (kit.overTime) {
     const dot = getAura(target, kit.overTime as Parameters<typeof getAura>[1])
     if (!dot || dot.remaining < 3) {

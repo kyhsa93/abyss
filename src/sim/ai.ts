@@ -50,6 +50,7 @@ import {
   interruptCast,
   livingParty,
   mostHurt,
+  packAround,
   say,
   holdOrFall,
   topThreatTarget,
@@ -2639,6 +2640,54 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
 
 // --- ability priorities -----------------------------------------------------
 
+/**
+ * Who to put back on their feet first.
+ *
+ * A healer before a tank and a tank before anybody else, which is the order a
+ * raid actually calls it in: the tank that died has already handed the boss to
+ * somebody and the fight has re-arranged itself around that, while a missing
+ * healer is the reason the next body dies. The player is not here -- their
+ * death ends the pull before anything could be cast at them, see
+ * `resolveOutcome` -- so this is always one of the raid.
+ */
+function raiseTarget(s: SimState): Actor | null {
+  const down = s.actors.filter((a) => a.faction === 'party' && !a.alive && !a.isPlayer)
+  if (down.length === 0) return null
+  return (
+    down.find((a) => a.role === 'healer') ?? down.find((a) => a.role === 'tank') ?? down[0]!
+  )
+}
+
+/**
+ * Whose bar has run low enough to be worth a press.
+ *
+ * Healers first and by some distance: a dealer out of mana is less damage and
+ * a healer out of mana is the next death. A quarter left is the line, which is
+ * roughly the point at which a healer has a handful of casts and has started
+ * choosing between people.
+ *
+ * Only bars that are actually mana: rage and energy sit at a hundred, refill
+ * on their own and are full most of a fight, so a body running on either would
+ * otherwise look permanently in need.
+ */
+function dryTarget(s: SimState, actor: Actor): Actor | null {
+  const DRY = 0.25
+  const thirsty = livingParty(s).filter(
+    (a) => a.maxPower >= 500 && a.power / a.maxPower < DRY && a.id !== actor.id,
+  )
+  if (thirsty.length === 0) return null
+  const healers = thirsty.filter((a) => a.role === 'healer')
+  const pool = healers.length > 0 ? healers : thirsty
+  return pool.reduce((low, a) => (a.power / a.maxPower < low.power / low.maxPower ? a : low))
+}
+
+/** The pack this one could catch with its area attack, if it has one. */
+function clustered(s: SimState, actor: Actor): Actor | null {
+  const id = specFor(actor).abilities.area
+  const ability = id ? ABILITIES[id] : undefined
+  return ability ? packAround(s, actor, ability) : null
+}
+
 function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   // A body the fight has named is worth dropping a cast for, and only that is:
   // every other heal in the fight can be finished and then re-aimed, because
@@ -2671,6 +2720,25 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   if (mayInterrupt(s, actor)) {
     const kit = specFor(actor).abilities
     if (kit.interrupt && tryCast(s, actor, kit.interrupt, boss(s).id, rng, moving)) return
+  }
+
+  // And the one press that answers a body hitting the floor. Above the
+  // rotation for the same reason the interrupt is: what it answers has already
+  // happened, and a druid that finishes its filler first is a druid raising
+  // somebody a global later than it could have.
+  {
+    const kit = specFor(actor).abilities
+    const fallen = kit.revive ? raiseTarget(s) : null
+    if (kit.revive && fallen && tryCast(s, actor, kit.revive, fallen.id, rng, moving)) return
+  }
+
+  // And the bar under the health bar. Also above the rotation: a healer that
+  // has run out is not healing, so a global spent putting mana back is worth
+  // more than the filler it replaced.
+  {
+    const kit = specFor(actor).abilities
+    const dry = kit.restore ? dryTarget(s, actor) : null
+    if (kit.restore && dry && tryCast(s, actor, kit.restore, dry.id, rng, moving)) return
   }
 
   if (actor.role === 'tank') tankRotation(s, actor, rng, moving)
@@ -3104,6 +3172,19 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   // that dies at forty percent deals nothing for the rest of the pull.
   if (wantsBrace(actor) && kit.defensive && !rng.chance(actor.ai!.mistakeChance)) {
     if (tryCast(s, actor, kit.defensive, actor.id, rng, moving)) return
+  }
+
+  // Several things to hit rather than one.
+  //
+  // Before the single-target rotation, because that is the whole point of the
+  // press: a dealer that finishes its filler first is a dealer answering a
+  // pack one body at a time. Counted as a cluster rather than as a total --
+  // three summons spread across the room are three single targets and the
+  // press would land on one of them -- so what is asked is whether three of
+  // them are standing close enough together for one blow to reach.
+  {
+    const pack = clustered(s, actor)
+    if (kit.area && pack && tryCast(s, actor, kit.area, pack.id, rng, moving)) return
   }
 
   // Adds first: they beeline for whoever is closest and shred a healer. The

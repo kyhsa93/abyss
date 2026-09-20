@@ -1982,7 +1982,14 @@ for (const [label, w, h] of [
       // asked for. The raid cooldowns used to sit here for a different reason
       // and are gone; everything else on this list being unreachable is still
       // the bug this check was written for.
-      if (slot === 'interrupt') continue
+      if (
+        slot === 'interrupt' ||
+        slot === 'revive' ||
+        slot === 'restore' ||
+        slot === 'area'
+      ) {
+        continue
+      }
       if (id && !bar.includes(id)) unreachable.push(`${specLabel(pick)} ${slot}=${id}`)
     }
   }
@@ -2905,16 +2912,21 @@ for (const [label, w, h] of [
       a.kind === 'defensive' ||
       a.kind === 'taunt' ||
       a.kind === 'charge' ||
-      a.kind === 'interrupt',
+      a.kind === 'interrupt' ||
+      // The two that hand a bar back are free for the sharpest version of the
+      // same reason: a button for the moment somebody has run out of mana
+      // cannot itself be bought with mana, or it is unusable exactly when it
+      // is wanted. The source charges nothing for either, and so does this.
+      a.kind === 'restore',
   )
   expect(
-    `only the ${free.length} defensives, taunts, charges and interrupts are free`,
+    `only the ${free.length} defensives, taunts, charges, interrupts and restores are free`,
     // One a spec, plus the tanks' own: the answer to the floor is free for the
     // same reason a charge is — an answer you sometimes cannot afford is worse
     // than not having one. The seven interrupts are here for that reason as
     // well: a stop the raid cannot pay for is a stop it cannot plan around.
     // The nine raid calls used to be counted here too.
-    shouldBeFree && free.length === 31,
+    shouldBeFree && free.length === 33,
     free.map((a) => a.id).join(', '),
   )
 

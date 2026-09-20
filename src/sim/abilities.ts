@@ -1,7 +1,30 @@
-import { MELEE_RANGE, SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
+import { MELEE_RANGE, SHOT_MIN_RANGE, SPELL_RANGE, YARD } from './constants'
 import type { AuraId, Role } from './types'
 
-export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt' | 'charge' | 'interrupt'
+/**
+ * `revive` is the only one of these aimed at somebody who is not standing.
+ *
+ * Every other kind needs a live target and `castBlocker` enforces it; this one
+ * is refused by that rule unless the rule knows about it, which is the whole
+ * reason the kind exists rather than being a heal with a flag.
+ */
+export type AbilityKind =
+  | 'damage'
+  | 'heal'
+  | 'defensive'
+  | 'taunt'
+  | 'charge'
+  | 'interrupt'
+  | 'revive'
+  /**
+   * Handing somebody else their resource back.
+   *
+   * Aimed at a live ally like a heal, and the only kind that pays out in the
+   * bar under the health bar. It exists because a healer that has run out of
+   * mana is not a healer, and until now nothing in the game could answer that
+   * except the enrage arriving first.
+   */
+  | 'restore'
 
 export interface Ability {
   id: string
@@ -40,6 +63,21 @@ export interface Ability {
   /** Maximum distance to the target. */
   range: number
   /**
+   * How far the blow spreads from whatever it landed on.
+   *
+   * A field rather than a kind of its own, deliberately: an area attack is a
+   * damage ability that happens to touch more than one body, and making it a
+   * kind would mean teaching every check that enumerates kinds about it --
+   * the free-cost rule, the projectile rule, the bar rule -- for a difference
+   * none of them care about.
+   *
+   * Absent on everything that hits one thing, which is most of the list. The
+   * three tank fillers the source draws as area attacks are deliberately not
+   * given one: they are pressed every global, so a radius there would multiply
+   * the damage and threat of every pull already tuned without it.
+   */
+  radius?: number
+  /**
    * Minimum distance.
    *
    * Two things need one, for opposite reasons: a charge because being already
@@ -74,6 +112,19 @@ export interface Ability {
 const MELEE = MELEE_RANGE
 const SPELL = SPELL_RANGE
 const HEAL_RANGE = SPELL
+
+/**
+ * How far an area attack spreads, in the yardstick the rest of the game uses.
+ *
+ * Two sizes rather than nine numbers. A melee one reaches about as far as the
+ * swing that threw it, which is the shape of a whirlwind; a thrown one covers
+ * the ground a pack stands on. Written off `YARD` so that a rescale moves
+ * them with everything else -- the reach constants in this file were left as
+ * literals once before and spent a round measuring two and two thirds yards
+ * while the raid stood five out.
+ */
+const NEAR = Math.round(8 * YARD)
+const WIDE = Math.round(11 * YARD)
 
 /**
  * As far as a warrior will run at something.
@@ -154,6 +205,76 @@ const list: Ability[] = [
   { id: 'silence', name: 'Silence', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 45, cost: 0, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE, offGcd: true },
   { id: 'bash', name: 'Bash', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 60, cost: 0, amount: 0, threatMult: 0, aura: null, range: MELEE, offGcd: true },
   { id: 'silencing_shot', name: 'Silencing Shot', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 20, cost: 0, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE, offGcd: true },
+
+  // --- the battle resurrection --------------------------------------------
+  //
+  // One in the game, and the source's: `환생` is the druid's and nobody
+  // else's. Every other resurrection in the client's spell list is cast out of
+  // combat -- the priest's, the paladin's, the shaman's -- and those are the
+  // door's business rather than a button's; see `throughDoor`.
+  //
+  // Ten minutes, which is the source's own cooldown and which in this game
+  // means once a pull and not twice: a fight resolves around two minutes, so
+  // the cooldown is not a rhythm to play around but a single decision about
+  // one body. That cooldown is the whole of what it costs, and the price on
+  // the row is small on purpose.
+  //
+  // Small because the three druid specs do not share a bar. Balance and
+  // restoration run on mana and carry a thousand of it; feral runs on energy
+  // and carries a hundred, and `castBlocker` refuses any press the bar cannot
+  // cover -- so a price written against a caster's mana is a resurrection a
+  // cat can never cast, silently, with nothing to see. The source lets a feral
+  // druid raise somebody by leaving cat form, which this game does not model;
+  // dropping the ability over a modelling gap would take away a button that
+  // gets pressed in every real raid, so the number moved instead.
+  //
+  // Not free, so it does not join the count in `rendercheck` that says only
+  // the defensives, taunts, charges and interrupts are free.
+  { id: 'rebirth', name: 'Rebirth', role: 'dps', kind: 'revive', castTime: 2, cooldown: 600, cost: 90, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE },
+
+  // --- giving a bar back ---------------------------------------------------
+  //
+  // Two in the source and two here: the priest's `희망의 찬가` and the druid's
+  // `정신 자극`. Both cost nothing to press, which is not generosity -- a
+  // button for the moment somebody has run out of mana cannot itself be
+  // bought with mana, and one that could would be unusable exactly when it is
+  // needed. That is the same rule the defensives and the interrupts are free
+  // under, and `rendercheck` counts them together.
+  //
+  // `amount` is the bar handed over, not a fraction: a healer's bar is around
+  // a thousand and these give a quarter of one back, which is a few more
+  // casts rather than a reset. The cooldowns are the source's, near enough --
+  // both are minutes, so each is one decision a pull.
+  { id: 'hymn_of_hope', name: 'Hymn of Hope', role: 'healer', kind: 'restore', castTime: 2, cooldown: 360, cost: 0, amount: 260, threatMult: 0, aura: null, range: SPELL_RANGE },
+  { id: 'innervate', name: 'Innervate', role: 'dps', kind: 'restore', castTime: 0, cooldown: 180, cost: 0, amount: 230, threatMult: 0, aura: null, range: SPELL_RANGE },
+
+  // --- the area attacks ----------------------------------------------------
+  //
+  // One a class, each the one the source actually gives it, and every one of
+  // them on a cooldown. The cooldown is what makes this a decision rather than
+  // a second filler: a dealer presses it when there is a pack and goes back to
+  // the boss when there is not.
+  //
+  // The three the source draws as area attacks and this game already has --
+  // `cleave`, `consecration`, `swipe` -- are deliberately left alone. All
+  // three are tank fillers, pressed every global, so giving them a radius
+  // would quietly multiply the damage and the threat of every pull that was
+  // tuned without one. New buttons on cooldowns change what happens when a
+  // pack turns up; a radius on a filler changes every second of every fight.
+  //
+  // `amount` is what each body caught takes, not a total split between them,
+  // which is how the source's are written too: a blizzard on six is six times
+  // a blizzard on one. What stops that being free damage is the cooldown and
+  // the fact that the boss is never caught -- see the splash in `landAbility`.
+  { id: 'whirlwind', name: 'Whirlwind', role: 'dps', kind: 'damage', castTime: 0, cooldown: 10, cost: 25, amount: 62, physical: true, threatMult: 1, aura: null, range: MELEE, radius: NEAR },
+  { id: 'fan_of_knives', name: 'Fan of Knives', role: 'dps', kind: 'damage', castTime: 0, cooldown: 10, cost: 35, amount: 55, physical: true, threatMult: 1, aura: null, range: MELEE, radius: NEAR },
+  { id: 'divine_storm', name: 'Divine Storm', role: 'dps', kind: 'damage', castTime: 0, cooldown: 10, cost: 60, amount: 60, physical: true, threatMult: 1, aura: null, range: MELEE, radius: NEAR },
+  { id: 'blizzard', name: 'Blizzard', role: 'dps', kind: 'damage', castTime: 0, cooldown: 12, cost: 90, amount: 58, threatMult: 1, aura: null, range: SPELL, radius: WIDE },
+  { id: 'volley', name: 'Volley', role: 'dps', kind: 'damage', castTime: 0, cooldown: 12, cost: 60, amount: 55, physical: true, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE, radius: WIDE },
+  { id: 'hellfire', name: 'Hellfire', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, cost: 80, amount: 60, threatMult: 1, aura: null, range: SPELL, radius: WIDE },
+  { id: 'thunderstorm', name: 'Thunderstorm', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, cost: 80, amount: 58, threatMult: 1, aura: null, range: SPELL, radius: WIDE },
+  { id: 'starfall', name: 'Starfall', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, cost: 90, amount: 58, threatMult: 1, aura: null, range: SPELL, radius: WIDE },
+  { id: 'mind_sear', name: 'Mind Sear', role: 'dps', kind: 'damage', castTime: 0, cooldown: 10, cost: 85, amount: 55, threatMult: 1, aura: null, range: SPELL, radius: WIDE },
 
 
   // --- priest (healer): sustained, leans on its heal-over-time -------------

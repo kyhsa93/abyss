@@ -45,6 +45,28 @@ const ICONS: Record<string, IconSpec> = {
   silence: { shape: 'moon', colour: '#a78bfa', repeat: 3 },
   bash: { shape: 'burst', colour: '#84cc16', repeat: 3 },
   silencing_shot: { shape: 'arrow', colour: '#fb7185', repeat: 3 },
+  // The battle resurrection. A leaf because it is the druid's and nothing
+  // else's, in a green no other row uses -- the triple has to be unique across
+  // the whole list or `rendercheck` fails, and two buttons that look alike are
+  // worse than a bar with no icons at all.
+  rebirth: { shape: 'leaf', colour: '#34d399' },
+  // The two that hand a bar back. Both drawn on the blue end, which is where
+  // the mana bar is, so the row reads as "this is about the other bar".
+  hymn_of_hope: { shape: 'star', colour: '#e9d5ff' },
+  innervate: { shape: 'spiral', colour: '#4ade80' },
+  // The area attacks. Drawn twice over where the motif allows it, which is the
+  // one thing they have in common and what separates each from the
+  // single-target button it otherwise looks like: this one lands on more than
+  // the thing it was aimed at.
+  whirlwind: { shape: 'blade', colour: '#fda4af', repeat: 2 },
+  fan_of_knives: { shape: 'dagger', colour: '#fecaca', repeat: 2 },
+  divine_storm: { shape: 'burst', colour: '#fde047', repeat: 2 },
+  blizzard: { shape: 'droplet', colour: '#93c5fd', repeat: 2 },
+  volley: { shape: 'arrow', colour: '#fdba74', repeat: 2 },
+  hellfire: { shape: 'flame', colour: '#d8b4fe', repeat: 2 },
+  thunderstorm: { shape: 'bolt', colour: '#67e8f9', repeat: 2 },
+  starfall: { shape: 'star', colour: '#bef264', repeat: 2 },
+  mind_sear: { shape: 'moon', colour: '#f0abfc', repeat: 2 },
   // The raid's cooldowns. Coloured by what they do rather than by class — a
   // player scanning this row is asking "can I soften the next hit", not "which
   // of my nine classes is up" — and shaped so the three answers stay apart at
