@@ -4179,7 +4179,12 @@ for (const [label, w, h] of [
 // shooting. Same machinery as the charge's near edge, for the opposite
 // reason: one exists to cross a gap, the other needs one.
 {
-  const shots = ['steady_shot', 'serpent_sting', 'aimed_shot']
+  // The volley is one of these, and for the reason this whole block states: it
+  // is loosed from the same bow, and an area attack that could be dropped on
+  // somebody standing on top of the hunter would be the one shot in the kit
+  // that does not need the distance. The bow does not make that distinction,
+  // so neither does the list.
+  const shots = ['steady_shot', 'serpent_sting', 'aimed_shot', 'volley']
   const missing = shots.filter((id) => (ABILITIES[id]!.minRange ?? 0) < SHOT_MIN_RANGE)
   expect('every shot needs the distance', missing.length === 0, missing.join(', '))
   expect(
