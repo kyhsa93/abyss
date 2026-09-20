@@ -11,7 +11,6 @@ import {
   GLOBAL_COOLDOWN,
   HEALTH,
   MELEE_RANGE,
-  MELEE_CALL,
   ENRAGE_GRACE,
   TURNED_GUARD,
   INHALE_MAX,
@@ -117,13 +116,6 @@ export function getAura(actor: Actor, id: AuraId): Aura | undefined {
 }
 
 export const AURA_DURATION: Record<AuraId, number> = {
-  // Short. A raid cooldown answers one moment, not a stretch of the fight —
-  // long enough to cover the hit it was called for and the tail of a second
-  // one arriving on its heels, and nowhere near long enough to be held up
-  // whenever it happens to be off cooldown.
-  rally: 7,
-  renewal: 8,
-  urgency: 10,
   living_bomb: 12,
   serpent_sting: 15,
   rupture: 12,
@@ -457,11 +449,6 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // The bear's own trickle, refreshed by every hit it takes. Small, constant,
   // and the reason its healer is topping up rather than catching spikes.
   mending: { heal: 62 },
-  // Called rather than cast, and on everybody at once. Small a tick and worth
-  // it because it lands on twenty-five people: what it answers is a raid that
-  // has just taken one hit together, which is the one thing a healer cannot
-  // fix one bar at a time.
-  renewal: { heal: 54 },
 }
 
 export function addAura(actor: Actor, id: AuraId, sourceId: number): void {
@@ -864,15 +851,6 @@ export function applyDamage(
     // brace was standing in for the practice. A press that makes the fire
     // safe is a press that deletes the fight.
     else if (!opts.mechanic && getAura(target, 'brace')) final *= 0.7
-    // The raid's own, and the one thing in this game that does answer a
-    // mechanic. That is the division rather than an oversight: a brace is
-    // about what you personally could not dodge, and softening the floor with
-    // it deleted the puddle's teaching. A raid cooldown is about the hit the
-    // fight lands on everybody at once, which nobody was ever meant to dodge —
-    // and it is called by name, once or twice in a pull, against twenty to
-    // seventy such hits. Covering two of them is a decision. Covering all of
-    // them is not on offer.
-    if (opts.mechanic && getAura(target, 'rally')) final *= 0.65
     // The enrage is a boss damage amplifier, so it only doubles what the raid
     // is taking. Before the party had a physical attack of its own nothing
     // else reached this line, and reading it as "everything doubles" would
@@ -1289,7 +1267,7 @@ export function beginCast(s: SimState, actor: Actor, abilityId: string, targetId
   // `rendercheck` is written to say exactly that rather than to say the gap
   // does not exist.
   actor.cooldowns[ability.id] =
-    ability.kind === 'raid' && actor.melee ? ability.cooldown * MELEE_CALL : ability.cooldown
+    ability.cooldown
 
   if (actor.isPlayer) s.sounds.push('cast')
 
@@ -1791,15 +1769,14 @@ export function urgencyOf(actor: Actor): number {
   // danger of the mechanic. Borrowing a body and handing it back weakened
   // would be a headcount problem; borrowing the best thing the raid has and
   // pointing it at them is a different question, and it is the one being
-  // asked. It rides the same multiplier as the raid's own press because it is
-  // the same idea with the sign flipped.
-  const rally = getAura(actor, 'urgency') ? 1.3 : 1
+  // asked. It used to ride the same multiplier as the raid's own press, which
+  // was an invention and is gone.
   // And the one thing a fight has ever handed somebody that they want. It
   // rides here for the same reason the raid's own cooldown does: it is the
   // body hitting harder rather than the target being softer, which is what
   // makes passing it round the raid's own damage decision.
   const given = getAura(actor, 'gifted') ? 1 + GIFT_POWER : 1
-  return (getAura(actor, 'turned') ? rally * TURNED_POWER : rally) * given
+  return (getAura(actor, 'turned') ? TURNED_POWER : 1) * given
 }
 
 /** What the fight gets out of a body it has taken. See `urgencyOf`. */

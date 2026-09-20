@@ -227,8 +227,6 @@ export interface Layout {
    * it get pressed like one, which is the failure the whole feature exists to
    * avoid.
    */
-  callY: number
-  callSlot: number
 }
 
 export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -260,9 +258,7 @@ export function computeLayout(w: number, h: number): Layout {
   const mapX = w - mapR - 10
   const mapY = topBand + 8 + mapR
 
-  const callSlot = clamp(Math.min(w, h) * 0.052, 26, 40)
   const actionY = h - (58 * ui + 12 * ui + 10)
-  const callY = (portrait ? h - controlBand : actionY - 22) - callSlot - 10
 
   const btnR = clamp(Math.min(w, h) * 0.031, 17, 26)
   const joyBase = clamp(Math.min(w, h) * 0.105, 58, 92)
@@ -356,8 +352,6 @@ export function computeLayout(w: number, h: number): Layout {
     autoPos,
     autoR,
     btnHit: btnR * 1.32,
-    callY,
-    callSlot,
   }
 }
 

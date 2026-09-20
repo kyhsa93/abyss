@@ -149,7 +149,6 @@ import {
   MELEE_RANGE,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
-  MELEE_CALL,
   COVER_LONG,
   PARTY_RADIUS,
 } from '../src/sim/constants'
@@ -1971,7 +1970,6 @@ for (const [label, w, h] of [
       // whichever member of the class is nearest and ready — so it lives on
       // its own row and is reachable there. Everything else on this list being
       // unreachable is still the bug this check was written for.
-      if (slot === 'raid') continue
       if (id && !bar.includes(id)) unreachable.push(`${specLabel(pick)} ${slot}=${id}`)
     }
   }
@@ -2858,15 +2856,14 @@ for (const [label, w, h] of [
   // timing worth anything.
   const free = Object.values(ABILITIES).filter((a) => a.cost === 0 && !a.selfCost)
   const shouldBeFree = free.every(
-    (a) => a.kind === 'defensive' || a.kind === 'taunt' || a.kind === 'charge' || a.kind === 'raid',
+    (a) => a.kind === 'defensive' || a.kind === 'taunt' || a.kind === 'charge',
   )
   expect(
-    `only the ${free.length} defensives, taunts, charges and raid calls are free`,
-    // One a spec now, plus the tanks' own: the answer to the floor is free
-    // for the same reason a charge is — an answer you sometimes cannot afford
-    // is worse than not having one. The nine raid calls are the same argument
-    // made once per class.
-    shouldBeFree && free.length === 33,
+    `only the ${free.length} defensives, taunts and charges are free`,
+    // One a spec, plus the tanks' own: the answer to the floor is free for the
+    // same reason a charge is — an answer you sometimes cannot afford is worse
+    // than not having one. The nine raid calls used to be counted here too.
+    shouldBeFree && free.length === 24,
     free.map((a) => a.id).join(', '),
   )
 
@@ -6466,17 +6463,6 @@ for (const [label, w, h] of [
 // cores of whatever runs it, for a person who wants the numbers. It comes back
 // here when the bands do; see SUSPENDED in `scripts/balancecheck.ts` for what
 // has to settle first.
-//
-// This is the part of it that was never a simulation. The ranged lead the
-// bands bound is allowed because melee bring the raid's cooldowns back sooner,
-// and that discount is a constant: it can be read without playing a fight.
-{
-  expect(
-    'melee are paid for standing where the boss aims',
-    MELEE_CALL < 1,
-    `${MELEE_CALL} of everybody else's count`,
-  )
-}
 
 // --- a body walks through its own row, wherever it is standing ------------
 //

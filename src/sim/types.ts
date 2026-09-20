@@ -32,13 +32,6 @@ export type AuraId =
   | 'momentum' // mage: stacks while it stands and casts, gone the moment it moves
   | 'eclipse' // balance druid: the window a finisher opens for its filler
   | 'pact' // warlock: the window it bought with its own health
-  // The two a raid cooldown leaves on everybody. Named for what they are
-  // rather than for the class that called them, because more than one class
-  // brings each and a raid should not be able to stack two of the same thing
-  // by bringing two of the classes.
-  | 'rally' // less off every unavoidable hit, for a few seconds
-  | 'renewal' // a heal on everybody, ticking
-  | 'urgency' // everything the raid throws hits harder, briefly
   | 'sprint' // leather melee: brief, expensive speed, for getting out and back
   | 'ward' // priest: damage taken down, applied before the damage arrives
   | 'mending' // druid tank: a slice of what it just took, given back over time
@@ -1180,15 +1173,6 @@ export interface PlayerInput {
   moveY: number
   /** Ability slot indices requested this tick. */
   pressed: number[]
-  /**
-   * A class the player is asking for its raid cooldown, if any.
-   *
-   * The one input in this game that is not about the player's own body, and
-   * the only one with a decision in it: what a fight lands on everybody comes
-   * twenty to seventy times a pull and a roster brings ten or so answers, so
-   * the question is never whether to press but which moment is worth it.
-   */
-  call?: ClassId | null
 }
 
 export interface SimState {

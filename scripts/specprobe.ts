@@ -25,7 +25,6 @@ import { execFile } from 'node:child_process'
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
-import { MELEE_CALL } from '../src/sim/constants'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { createState, unattended } from '../src/sim/state'
@@ -168,7 +167,6 @@ async function main(): Promise<void> {
   // So the question is asked twice. A player choosing a damage spec chooses a
   // way to stand first and a class second, and what must not be obvious is the
   // second choice. Inside a family the limit is 1.35; across the two it is 1.5,
-  // and what makes the lead a trade rather than a tax is `MELEE_CALL` — a melee
   // brings the raid's cooldowns back sooner, and that discount is worth thirty
   // to fifty points of raid dead on a heroic pull.
   //
@@ -190,5 +188,4 @@ async function main(): Promise<void> {
   line('no ranged spec is the obvious one', within(ranged), 1.35)
   line('no melee spec is the obvious one', within(melee), 1.35)
   line('the room favours ranged by no more', best / worst, 1.5)
-  console.log(`\nmelee are paid for it: MELEE_CALL is ${MELEE_CALL} of everybody else's count`)
 }

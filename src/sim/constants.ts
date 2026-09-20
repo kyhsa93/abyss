@@ -769,15 +769,6 @@ export const ECHO_BEAT = readable(1.05)
  */
 export const ENRAGE_GRACE = 30
 
-/**
- * What a melee carrier pays for a raid cooldown, as a fraction of the count
- * everybody else pays.
- *
- * See `beginCast`. Two thirds, which over a three-minute pull is one extra
- * call from a roster with melee in it — enough to be a reason to bring one,
- * small enough that a raid of nothing but melee is not a different game.
- */
-export const MELEE_CALL = 0.67
 
 /**
  * The cold line: how far apart its patches sit, how many there are, how wide

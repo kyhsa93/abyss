@@ -358,25 +358,6 @@ const list: Ability[] = [
  *   press     damage, which asks a different question — not how to live
  *             through this but whether now is the moment to stop asking.
  */
-export const RAID_COOLDOWN = 190
-
-export const RAID_ABILITIES: Ability[] = [
-  // Soften.
-  { id: 'rallying_cry', name: 'Rallying Cry', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'rally', range: 0, offGcd: true },
-  { id: 'aegis', name: 'Aegis', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'rally', range: 0, offGcd: true },
-  { id: 'barrier', name: 'Barrier', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'rally', range: 0, offGcd: true },
-
-  // Undo.
-  { id: 'wildgrowth', name: 'Wildgrowth', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'renewal', range: 0, offGcd: true },
-  { id: 'tidewall', name: 'Tidewall', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 240, threatMult: 0, aura: null, range: 0, offGcd: true },
-  { id: 'harvest', name: 'Harvest', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 180, threatMult: 0, aura: 'renewal', range: 0, offGcd: true },
-
-  // Press.
-  { id: 'quicken', name: 'Quicken', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'urgency', range: 0, offGcd: true },
-  { id: 'volley_call', name: 'Volley', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'urgency', range: 0, offGcd: true },
-  { id: 'shadowmeld_call', name: 'Shadowstep', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'urgency', range: 0, offGcd: true },
-]
-
 export const ABILITIES: Record<string, Ability> = Object.fromEntries(
-  [...list, ...RAID_ABILITIES].map((a) => [a.id, a]),
+  [...list].map((a) => [a.id, a]),
 )

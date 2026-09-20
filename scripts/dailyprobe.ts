@@ -17,8 +17,7 @@ import { createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { encounterAt } from '../src/sim/encounters'
 import { dailyFor, dailyKey } from '../src/sim/daily'
-import { pickFor, specOf, type ClassId } from '../src/sim/classes'
-import type { SimState } from '../src/sim/types'
+import { pickFor } from '../src/sim/classes'
 
 const DAYS = Number(process.argv[2] ?? 30)
 const from = new Date(Date.UTC(2026, 8, 5))
@@ -42,7 +41,7 @@ for (let d = 0; d < DAYS; d++) {
       // plays and that is the one input a player has that the roster does not.
       // Pressed as they come up rather than on the biggest hit -- the crude
       // hand, so the number is a floor and not a ceiling.
-      step(s, { moveX: 0, moveY: 0, pressed: [], call: ready(s) }, rng)
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     }
     if (s.outcome === 'victory') wins++
   }
@@ -53,14 +52,6 @@ for (let d = 0; d < DAYS; d++) {
   )
 }
 
-function ready(s: SimState): ClassId | null {
-  for (const a of s.actors) {
-    if (a.faction !== 'party' || !a.alive || a.castId) continue
-    const id = specOf({ classId: a.classId, spec: a.spec }).abilities.raid
-    if (id && (a.cooldowns[id] ?? 0) <= 0) return a.classId
-  }
-  return null
-}
 
 for (const row of rows) console.log(row)
 console.log(`${won} of ${DAYS} days winnable at all`)

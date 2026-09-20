@@ -1,5 +1,5 @@
 import { ABILITIES } from './abilities'
-import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf, type ClassId, makeSlots, type RaidSize } from './classes'
+import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf, makeSlots, type RaidSize } from './classes'
 import { mayStrike, updatePartyAi } from './ai'
 import { updateBattlegroundAi, updateBattlegroundPlans } from './bgai'
 import {
@@ -94,24 +94,6 @@ import type { Actor, PlayerInput, SimState } from './types'
  * leader calling for something nobody has is a raid leader who has lost count,
  * and losing count is the cost of spending them badly.
  */
-function answerCall(s: SimState, classId: ClassId, rng: Rng): void {
-  const player = s.actors.find((a) => a.isPlayer)
-  let best: Actor | null = null
-  let closest = Infinity
-  for (const a of s.actors) {
-    if (a.faction !== 'party' || !a.alive || a.classId !== classId) continue
-    const id = specOf({ classId: a.classId, spec: a.spec }).abilities.raid
-    if (!id || (a.cooldowns[id] ?? 0) > 0 || a.castId) continue
-    const away = player ? dist(a.pos, player.pos) : 0
-    if (away < closest) {
-      closest = away
-      best = a
-    }
-  }
-  if (!best) return
-  const id = specOf({ classId: best.classId, spec: best.spec }).abilities.raid
-  if (id) beginCast(s, best, id, best.id, rng)
-}
 
 /**
  * The raid taking its position, during the count.
@@ -192,7 +174,6 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   const breathed = new Set<number>()
   for (const a of s.actors) updateTimers(s, a, breathed)
 
-  if (input.call) answerCall(s, input.call, rng)
 
   updatePlayer(s, input, rng)
 

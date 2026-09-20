@@ -46,16 +46,6 @@ export interface ClassAbilities {
   pact: string | null
   /** Healers only: what to press when nobody is hurt. */
   attack: string | null
-  /**
-   * The one the raid asks for, on the class rather than on the spec.
-   *
-   * Everything else in this table is what a body does about its own fight.
-   * This is what it does about everybody else's, and it is not pressed by its
-   * owner at all — the player calls for it and whoever is carrying it answers.
-   * A class brings one whichever spec it is playing, so what a raid has
-   * available is a fact about the roster rather than about the roles in it.
-   */
-  raid: string | null
 }
 
 export const CLASS_ORDER: ClassId[] = [
@@ -356,7 +346,6 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   mobility: null,
   pact: null,
   attack: null,
-  raid: null,
   ...a,
 })
 
@@ -373,17 +362,6 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
  * damage, which is a different question entirely: not "how do we live through
  * this" but "is now the moment we stop worrying about living".
  */
-const RAID_CALL: Record<ClassId, string> = {
-  warrior: 'rallying_cry',
-  paladin: 'aegis',
-  priest: 'barrier',
-  druid: 'wildgrowth',
-  shaman: 'tidewall',
-  mage: 'quicken',
-  warlock: 'harvest',
-  hunter: 'volley_call',
-  rogue: 'shadowmeld_call',
-}
 
 export const CLASSES: Record<ClassId, ClassDef> = {
   warrior: {
@@ -794,18 +772,6 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   },
 }
 
-/**
- * And the raid call put on every spec of its class.
- *
- * Written here rather than into each `kit` because it is not a property of the
- * spec: seventeen specs would carry nine distinct values between them and the
- * table would invite somebody to give one paladin a different one than
- * another, which is exactly the thing the raid is not allowed to be able to
- * choose. What a roster brings is decided by which classes are in it.
- */
-for (const classId of CLASS_ORDER) {
-  for (const spec of CLASSES[classId].specs) spec.abilities.raid = RAID_CALL[classId]
-}
 
 
 /** One class filling one role. */
