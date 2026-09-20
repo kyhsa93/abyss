@@ -68,6 +68,17 @@ The way through, as the map draws it, running down the page:
 5. and a **staircase down** off that height into the next hall, where the
    second fight is.
 
+**That list is how the map draws the approach. It is not the order a raid is
+allowed to walk it, and reading it as one cost a round.** Step 2 says the
+corridor meets the walkway rather than the room, which reads as though the ring
+were the way in — and the building here sends the corridor into the bowl
+instead, so it looks like a divergence worth fixing. It is not one. The
+instance's own doors settle it: both ice walls are `DOOR_TYPE_PASSAGE`, and by
+the server's definition those open when the encounter is **done**. The ring is
+the way *out*. What this game already does — the corridor into the room, and
+both climbs gated on the kill — is the source's walkable order, and a round
+spent re-pointing the entrance would have moved the building away from it.
+
 ## What this game can and cannot hold
 
 `RoomShape` is a convex two-dimensional shape and there is no elevation
@@ -249,6 +260,26 @@ The walkway is two rooms, the East Climb and the West Climb, one on each flank
 source's two ice walls say there should be. Both are held shut by the fight, so
 before the boss is down there is no way out of that room but the way in. Neither
 climbs, because nothing in this game does.
+
+**They are the size the source measured, and that is checked.** Nineteen yards
+across and ninety-five deep, off the same map tile as every other room without
+a boss in it, and `dungeoncheck`'s room-size table holds both at `BUILD_SCALE`
+inside six per cent. So a climb is forty-eight yards deep here because the
+source's walkway is ninety-five, not because the game was being frugal — and
+lengthening one is contradicting a measurement rather than relaxing a
+convenience. That was tried: the climbs end thirty-three yards short of the
+head of the bowl, so the raid leaves the rim at the flank and crosses to the
+Oratory on a diagonal, and stretching them to reach the head made the walk read
+as *around* rather than out-and-back. The table refused it, correctly, and the
+change was reverted.
+
+Which leaves the honest account of that walk. The half-disc and the cliff are
+the source's. The detour is real — going by a climb is sixty-seven per cent
+further than cutting across the ice would be. What is missing is the two steps
+`RoomShape` cannot hold, the climbing and the coming out above, and no
+adjustment to the rooms or the ground between them buys those. What *was*
+available was the rhythm of the walks themselves, which had been flattened to a
+constant; see `BARE_SHARE`.
 
 There was a third room for an afternoon: a ledge across the head of the bowl
 where the two meet. It is gone, and the reason is worth keeping. A room at the
