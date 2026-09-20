@@ -52,6 +52,26 @@ const ICONS: Record<string, IconSpec> = {
   rebirth: { shape: 'leaf', colour: '#34d399' },
   // The two that hand a bar back. Both drawn on the blue end, which is where
   // the mana bar is, so the row reads as "this is about the other bar".
+  // The ten a class picked up this round. Each has to differ from every other
+  // row in shape, colour and count or the check fails, which is the one thing
+  // a bar full of buttons cannot afford to get wrong.
+  hand_of_protection: { shape: 'shield', colour: '#fef08a', repeat: 3 },
+  pain_suppression: { shape: 'cross', colour: '#f5d0fe' },
+  mind_whip: { shape: 'spiral', colour: '#d946ef' },
+  lava_lash: { shape: 'flame', colour: '#ea580c' },
+  cone_of_cold: { shape: 'wave', colour: '#bfdbfe', repeat: 2 },
+  kill_command: { shape: 'arrow', colour: '#dc2626', repeat: 2 },
+  deadly_poison: { shape: 'dagger', colour: '#4ade80' },
+  evocation: { shape: 'orb', colour: '#c4b5fd', repeat: 2 },
+  soul_harvest: { shape: 'orb', colour: '#7f1d1d', repeat: 2 },
+  // The five dispels. A droplet each, because what they all do is wash
+  // something off, and the colour is the school the class is best known for
+  // taking -- they have to differ from one another or the check fails.
+  cleanse: { shape: 'droplet', colour: '#fde68a' },
+  dispel_magic: { shape: 'droplet', colour: '#c7d2fe' },
+  remove_curse: { shape: 'droplet', colour: '#a7f3d0' },
+  cleanse_spirit: { shape: 'droplet', colour: '#fed7aa' },
+  arcane_cleanse: { shape: 'droplet', colour: '#ddd6fe' },
   hymn_of_hope: { shape: 'star', colour: '#e9d5ff' },
   innervate: { shape: 'spiral', colour: '#4ade80' },
   // The area attacks. Drawn twice over where the motif allows it, which is the

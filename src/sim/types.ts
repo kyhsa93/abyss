@@ -266,6 +266,26 @@ export type AuraId =
    * most wants to.
    */
   | 'buffeted'
+  /**
+   * The four a dispel can take off, and the only four.
+   *
+   * Every other debuff in this file is a fight's own machinery: the pin is
+   * answered by breaking the spike, the gift by passing it, the slight by the
+   * other tank taking the boss, the mind by not killing the body wearing it.
+   * A button that removed any of those would not be a dispel, it would be a
+   * cancel, and the mechanic would stop being the thing the fight is about.
+   *
+   * So these exist to be dispelled and do nothing else. The trash carries
+   * them -- corridors had no debuffs at all before this, which is why the five
+   * classes the source gives a dispel had nothing to do with it -- and each is
+   * a school the source dispels separately: magic, disease, poison, curse.
+   * Small effects on purpose: what they cost a raid that cannot clear them is
+   * a slow drain, not a wipe.
+   */
+  | 'enfeebled' // magic: slower on its feet
+  | 'diseased' // disease: heals landing on it are worth less
+  | 'poisoned' // poison: a small dot
+  | 'cursed' // curse: deals less
   | 'enrage' // boss damage amplifier
 
 export interface Aura {

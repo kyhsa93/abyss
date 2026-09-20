@@ -25,6 +25,29 @@ export type AbilityKind =
    * except the enrage arriving first.
    */
   | 'restore'
+  /**
+   * Taking one of the four schools back off somebody.
+   *
+   * Aimed at a live ally like a heal. It is a kind rather than a heal with a
+   * flag because what it does is remove rather than add, and because the
+   * corridor debuffs it answers exist for no other purpose -- see
+   * `DISPELLABLE` in `combat.ts`.
+   */
+  | 'dispel'
+  /**
+   * A window put on somebody else.
+   *
+   * `defensive` is the same idea aimed at yourself and that is the whole
+   * difference, but it is a difference the resolution has to know about: the
+   * one puts its aura on the caster and this one on the target, and a paladin
+   * throwing its bubble over the tank is not a paladin bubbling itself.
+   *
+   * Two in the game, which is what the source gives a raid at this level: the
+   * paladin's hand and the priest's suppression. Both are the answer to
+   * somebody else being about to die, which is why neither is on a bar -- the
+   * AI watches every health bar and the player watches one.
+   */
+  | 'guard'
 
 export interface Ability {
   id: string
@@ -245,6 +268,58 @@ const list: Ability[] = [
   // a thousand and these give a quarter of one back, which is a few more
   // casts rather than a reset. The cooldowns are the source's, near enough --
   // both are minutes, so each is one decision a pull.
+  // --- two or three a class, from the client's own list --------------------
+  //
+  // Only what this simulation can actually express, which is less than the
+  // source carries and is said here rather than quietly padded: a damage
+  // press, a window on yourself, a window on somebody else, a bar handed
+  // back. Fear, Vanish, Misdirection and Rapid Fire are all verified in the
+  // client's spell list and all left out -- crowd control, stealth, threat
+  // redirection and a haste window are concepts this game does not have, and
+  // filing one of them under `defensive` would put the name of a mechanic on
+  // something that is not it.
+  //
+  // The druid is absent because it already took three this round: the
+  // resurrection, the innervate and the starfall.
+  // The warrior takes nothing here. Shield Block was written and removed: the
+  // kit holds one defensive a spec and protection already carries Brace, so
+  // the only way to fit a second was to grow the slot list by one per kind --
+  // which is how a readable kit becomes a bag.
+  { id: 'hand_of_protection', name: 'Hand of Protection', role: 'healer', kind: 'guard', castTime: 0, cooldown: 300, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: SPELL_RANGE, offGcd: true },
+  { id: 'pain_suppression', name: 'Pain Suppression', role: 'healer', kind: 'guard', castTime: 0, cooldown: 180, cost: 0, amount: 0, threatMult: 0, aura: 'ward', range: SPELL_RANGE, offGcd: true },
+  { id: 'mind_whip', name: 'Mind Whip', role: 'dps', kind: 'damage', castTime: 0, cooldown: 8, cost: 40, amount: 210, threatMult: 1, aura: null, range: SPELL },
+  { id: 'lava_lash', name: 'Lava Lash', role: 'dps', kind: 'damage', castTime: 0, cooldown: 6, cost: 30, amount: 190, threatMult: 1, physical: true, aura: null, range: MELEE },
+  { id: 'cone_of_cold', name: 'Cone of Cold', role: 'dps', kind: 'damage', castTime: 0, cooldown: 10, cost: 70, amount: 84, threatMult: 1, aura: null, range: SPELL, radius: NEAR },
+  // No near edge on this one, unlike every other thing the hunter presses.
+  // The bow has one because it cannot be drawn on something standing on top
+  // of you; an order shouted at a pet has no such problem, and giving it one
+  // would put a third family into a promise that says there are two. The
+  // volley already failed that check once this round by being handed a near
+  // edge it did not need -- see `and nothing else has one`.
+  { id: 'kill_command', name: 'Kill Command', role: 'dps', kind: 'damage', castTime: 0, cooldown: 8, cost: 25, amount: 205, physical: true, threatMult: 1, aura: null, range: SPELL },
+  { id: 'deadly_poison', name: 'Deadly Poison', role: 'dps', kind: 'damage', castTime: 0, cooldown: 12, cost: 20, amount: 0, physical: true, threatMult: 1, aura: 'rupture', range: MELEE },
+  { id: 'evocation', name: 'Evocation', role: 'dps', kind: 'restore', castTime: 0, cooldown: 240, cost: 0, amount: 300, threatMult: 0, aura: null, range: 0 },
+  { id: 'soul_harvest', name: 'Soul Harvest', role: 'dps', kind: 'restore', castTime: 0, cooldown: 180, cost: 0, amount: 240, threatMult: 0, aura: null, range: 0 },
+
+  // --- taking something off somebody --------------------------------------
+  //
+  // Five of the nine classes, which is the source's own count: the paladin,
+  // the priest, the druid, the shaman and the mage. The warrior, the rogue
+  // and the hunter carry nothing of the kind -- what their spell lists call a
+  // "해제" is a disarm, a trap kit and a pet dismissal -- and the warlock has
+  // none at all. A raid without one of the five walks its corridors carrying
+  // whatever the trash leaves on it.
+  //
+  // Cheap and quick, because the decision this asks is whether a global is
+  // worth spending on cleaning up rather than whether the button is
+  // affordable. The druid's and the mage's are the same spell in the source
+  // and differ here only by id, which has to be unique.
+  { id: 'cleanse', name: 'Cleanse', role: 'healer', kind: 'dispel', castTime: 0, cooldown: 8, cost: 30, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE },
+  { id: 'dispel_magic', name: 'Dispel Magic', role: 'healer', kind: 'dispel', castTime: 0, cooldown: 8, cost: 32, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE },
+  { id: 'remove_curse', name: 'Remove Curse', role: 'dps', kind: 'dispel', castTime: 0, cooldown: 8, cost: 28, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE },
+  { id: 'cleanse_spirit', name: 'Cleanse Spirit', role: 'healer', kind: 'dispel', castTime: 0, cooldown: 8, cost: 30, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE },
+  { id: 'arcane_cleanse', name: 'Arcane Cleanse', role: 'dps', kind: 'dispel', castTime: 0, cooldown: 8, cost: 28, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE },
+
   { id: 'hymn_of_hope', name: 'Hymn of Hope', role: 'healer', kind: 'restore', castTime: 2, cooldown: 360, cost: 0, amount: 260, threatMult: 0, aura: null, range: SPELL_RANGE },
   { id: 'innervate', name: 'Innervate', role: 'dps', kind: 'restore', castTime: 0, cooldown: 180, cost: 0, amount: 230, threatMult: 0, aura: null, range: SPELL_RANGE },
 

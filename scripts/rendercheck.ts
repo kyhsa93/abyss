@@ -1986,7 +1986,9 @@ for (const [label, w, h] of [
         slot === 'interrupt' ||
         slot === 'revive' ||
         slot === 'restore' ||
-        slot === 'area'
+        slot === 'area' ||
+        slot === 'dispel' ||
+        slot === 'guard'
       ) {
         continue
       }
@@ -2917,16 +2919,21 @@ for (const [label, w, h] of [
       // same reason: a button for the moment somebody has run out of mana
       // cannot itself be bought with mana, or it is unusable exactly when it
       // is wanted. The source charges nothing for either, and so does this.
-      a.kind === 'restore',
+      a.kind === 'restore' ||
+      // A window thrown over somebody else is free for the same reason the
+      // one you put on yourself is: it answers a hit that is already on its
+      // way, and an answer that is sometimes unaffordable is an answer the
+      // raid cannot plan around.
+      a.kind === 'guard',
   )
   expect(
-    `only the ${free.length} defensives, taunts, charges, interrupts and restores are free`,
+    `only the ${free.length} defensives, taunts, charges, interrupts, restores and guards are free`,
     // One a spec, plus the tanks' own: the answer to the floor is free for the
     // same reason a charge is — an answer you sometimes cannot afford is worse
     // than not having one. The seven interrupts are here for that reason as
     // well: a stop the raid cannot pay for is a stop it cannot plan around.
     // The nine raid calls used to be counted here too.
-    shouldBeFree && free.length === 33,
+    shouldBeFree && free.length === 37,
     free.map((a) => a.id).join(', '),
   )
 

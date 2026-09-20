@@ -149,6 +149,16 @@ export function getAura(actor: Actor, id: AuraId): Aura | undefined {
 }
 
 export const AURA_DURATION: Record<AuraId, number> = {
+  // The four the trash hands out for a dispel to take off.
+  //
+  // Twenty seconds, which is long enough that leaving one on somebody is a
+  // decision and short enough that a corridor with nobody who can dispel is
+  // not a corridor spent permanently worse off. A raid without one of the
+  // five classes that carry a dispel simply waits these out.
+  enfeebled: 20,
+  diseased: 20,
+  poisoned: 20,
+  cursed: 20,
   living_bomb: 12,
   serpent_sting: 15,
   rupture: 12,
@@ -430,6 +440,11 @@ export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
 }
 
 export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
+  // The poison, and only the poison: of the four dispellable ones it is the
+  // one whose whole cost is a tick. The other three are modifiers and are
+  // read where they apply rather than here. Deliberately small -- a corridor
+  // with three poisoned bodies should be worth a dispel, not a wipe.
+  poisoned: { damage: 22 },
   // What being pinned costs while it lasts. Steady rather than sharp: the
   // demand is on everybody else's target list, and a spike that killed its
   // victim before a raid could plausibly turn round would be asking for a
@@ -1099,6 +1114,12 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   // what the healer is deciding is when the dot ends, and a heal that ends it
   // now is a heal that puts a body on the floor where this one is standing.
   if (getAura(target, 'infected')) amount *= 1 - INFECTION_HEALING
+  // And the trash's own, which is the same idea at a fraction of the size.
+  //
+  // A fifth rather than the Confluence's share: that one is a fight's whole
+  // demand and this one is a thing to dispel. A body carrying it is worth
+  // cleaning up and is not in danger of dying of it.
+  if (getAura(target, 'diseased')) amount *= 0.8
   target.hp = Math.min(target.maxHp, target.hp + amount * affixHealing(s.affix) * s.healing)
   const healed = Math.round(target.hp - before)
 
@@ -1530,6 +1551,31 @@ export function landAbility(
       if (target && target.alive && target.castId) interruptCast(s, target, 'interrupted')
       break
     }
+    case 'guard': {
+      // The same window as a defensive, put somewhere else. Nothing else about
+      // it differs, which is why it borrows the auras the defensives already
+      // use rather than inventing two more.
+      if (!target || !target.alive || !ability.aura) break
+      addAura(target, ability.aura, actor.id)
+      pushEffect(s, 'heal', target.pos, { abilityId: ability.id, power: 0 })
+      break
+    }
+    case 'dispel': {
+      if (!target || !target.alive) break
+      // One of what it is carrying, chosen at random rather than picked.
+      //
+      // The owner asked for it this way and it is the right shape: a dispel in
+      // the source takes a school off, and which school is up to what landed,
+      // not to who is casting. A press that always found the worst one would
+      // be a press with no decision in it -- the decision is whether to spend
+      // the global on cleaning up at all.
+      const on = DISPELLABLE.filter((id) => getAura(target, id) !== undefined)
+      if (on.length === 0) break
+      const taken = on[rng.int(on.length)]!
+      clearAura(target, taken)
+      pushText(s, target.pos, 'CLEAN', 'heal')
+      break
+    }
     case 'restore': {
       // Nothing to hand it to, or a bar that does not exist: a rage or energy
       // body has a `maxPower` of a hundred and is full most of the time, and
@@ -1916,7 +1962,13 @@ export function urgencyOf(actor: Actor): number {
   // body hitting harder rather than the target being softer, which is what
   // makes passing it round the raid's own damage decision.
   const given = getAura(actor, 'gifted') ? 1 + GIFT_POWER : 1
-  return (getAura(actor, 'turned') ? TURNED_POWER : 1) * given
+  // And the curse, the other way round: a body carrying one deals less until
+  // somebody takes it off. Here rather than on the target for the reason this
+  // whole function exists -- it is the body hitting softer, not the thing it
+  // is hitting being tougher, and a curse on one dealer must not make the
+  // boss harder for everybody else.
+  const hexed = getAura(actor, 'cursed') ? 0.85 : 1
+  return (getAura(actor, 'turned') ? TURNED_POWER : 1) * given * hexed
 }
 
 /** What the fight gets out of a body it has taken. See `urgencyOf`. */
@@ -1928,5 +1980,39 @@ export function hasteOf(actor: Actor): number {
   // own bodies -- which is what makes the flood a fact about the room rather
   // than a tax on the raid.
   const mired = getAura(actor, 'mired') ? FLOOD_SLOW : 1
-  return (getAura(actor, 'sprint') ? 1.5 : 1) * mired
+  // And the corridor's own, which is the flood's idea at a fraction of it.
+  // Enough to notice on a walk and nowhere near enough to strand anybody.
+  const weak = getAura(actor, 'enfeebled') ? 0.9 : 1
+  return (getAura(actor, 'sprint') ? 1.5 : 1) * mired * weak
+}
+
+/**
+ * The four a dispel can take off, in the order nothing depends on.
+ *
+ * Here rather than beside the trash that hands them out, because the two ends
+ * of this have to agree and they live in different modules: `travel.ts` puts
+ * one on and `landAbility` takes one off, and `travel` imports this file
+ * while this file cannot import `travel`. One list, read twice.
+ */
+export const DISPELLABLE = ['enfeebled', 'diseased', 'poisoned', 'cursed'] as const
+
+/**
+ * Who most wants cleaning up, or nobody.
+ *
+ * The body carrying the most of them, so a press that takes one off at random
+ * still lands where there is most to take. Both rotations ask this -- the
+ * corridor is where the debuffs come from and the raid is where somebody may
+ * still be carrying one -- so it lives here with the list itself.
+ */
+export function needsDispel(s: SimState): Actor | null {
+  let worst: Actor | null = null
+  let most = 0
+  for (const a of livingParty(s)) {
+    const on = DISPELLABLE.filter((id) => getAura(a, id) !== undefined).length
+    if (on > most) {
+      most = on
+      worst = a
+    }
+  }
+  return worst
 }

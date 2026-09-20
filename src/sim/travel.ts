@@ -18,6 +18,8 @@ import {
   YARD,
 } from './constants'
 import {
+  DISPELLABLE,
+  addAura,
   applyDamage,
   applyHeal,
   spawnBolt,
@@ -28,6 +30,7 @@ import {
   holdOrFall,
   interruptCast,
   livingParty,
+  needsDispel,
   packAround,
   pushEffect,
 } from './combat'
@@ -927,7 +930,25 @@ function springStep(s: SimState): void {
 /** How near a streaming body has to get to be counted out of the passage. */
 const STREAMED = 70
 
-function trashStep(s: SimState): void {
+/**
+ * How often a swing leaves one behind.
+ *
+ * Measured rather than guessed, which the first figure was not. At a twentieth
+ * the busiest corridor landed seven over a hundred and seven seconds and three
+ * of six corridors landed nothing at all -- a mechanic a player would finish
+ * an evening without meeting. Each swing is its own trial, so the rate is
+ * linear in this: a fifth puts roughly twenty-eight into that same corridor,
+ * about one every four seconds, which is enough for the dispeller to be
+ * visibly busy and for a raid without one to notice.
+ *
+ * What a raid without one actually pays, at the old figure: twenty times as
+ * many body-ticks spent carrying something -- five thousand against two
+ * hundred and fifty. Nobody died of it either way, which is the point. This
+ * is a reason to bring one of the five classes, not a wipe mechanic.
+ */
+const DEBUFF_CHANCE = 0.2
+
+function trashStep(s: SimState, rng: Rng): void {
   for (const body of awake(s)) {
     let nearest: Actor | null = null
     let best = Infinity
@@ -1017,6 +1038,15 @@ function trashStep(s: SimState): void {
       applyDamage(s, nearest, TRASH_DAMAGE * HEALTH, body.melee ? 'physical' : 'magic', {
         sourceId: body.id,
       })
+      // And sometimes something to clean up. Rolled per swing rather than
+      // applied every time: a corridor where every blow lands a debuff is a
+      // corridor that is only about debuffs.
+      if (rng.chance(DEBUFF_CHANCE)) {
+        // The same list the dispel reads, which is why it lives over there:
+        // what the trash hands out and what a cleanse takes off have to be
+        // one fact rather than two copies that can drift apart.
+        addAura(nearest, DISPELLABLE[rng.int(DISPELLABLE.length)]!, body.id)
+      }
       if (!body.melee) spawnBolt(s, body, nearest.id, 'bolt', 'boss_adherent', body.id)
       pushEffect(s, 'impact', nearest.pos, {
         abilityId: body.melee ? 'swing' : 'boss_adherent',
@@ -1057,7 +1087,7 @@ export function updateTravel(s: SimState, rng: Rng): void {
   patrolStep(s)
   listen(s)
   springStep(s)
-  trashStep(s)
+  trashStep(s, rng)
   void rng
 
   // Nothing awake: the party is walking, and walking is when a raid catches
@@ -1412,6 +1442,12 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
     const ability = ABILITIES[kit.area]
     const pack = ability ? packAround(s, actor, ability) : null
     if (pack && cast(s, actor, kit.area, pack.id, rng, moving)) return
+  }
+  // And cleaning up after it. This is where the four come from, so this is
+  // where they are mostly taken off again.
+  if (kit.dispel) {
+    const dirty = needsDispel(s)
+    if (dirty && cast(s, actor, kit.dispel, dirty.id, rng, moving)) return
   }
   if (kit.overTime) {
     const dot = getAura(target, kit.overTime as Parameters<typeof getAura>[1])

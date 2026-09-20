@@ -83,6 +83,35 @@ export interface ClassAbilities {
    * five that are about the fight in front of them.
    */
   area: string | null
+  /**
+   * Taking one of the corridor's four back off somebody.
+   *
+   * Five classes carry one, which is the source's count and not a shortage
+   * here. Off the bar with the rest of these: what it answers is a debuff
+   * landing on somebody else, which the AI watches for across the whole raid.
+   */
+  dispel: string | null
+  /**
+   * The window this one throws over somebody else.
+   *
+   * `defensive` is the same thing aimed at yourself. Two classes carry one --
+   * the paladin's hand and the priest's suppression -- and like the dispel and
+   * the resurrection it is off the bar: what it answers is another body's
+   * health bar falling, which the AI reads for the whole raid at once.
+   */
+  guard: string | null
+  /**
+   * One more press, on a cooldown, for the specs the source gives one.
+   *
+   * The kit is named slots rather than a list, which is what keeps a spec
+   * readable -- but it means a spec cannot hold two of anything, and four of
+   * the abilities this round are exactly that: a second damage press with its
+   * own cooldown, where `filler`, `finisher` and `attack` are already spoken
+   * for. This is the slot they live in, and it is the last one: a fifth
+   * damage button would be a rotation nobody can read rather than a class
+   * that feels like itself.
+   */
+  burst: string | null
 }
 
 export const CLASS_ORDER: ClassId[] = [
@@ -387,6 +416,9 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   revive: null,
   restore: null,
   area: null,
+  dispel: null,
+  guard: null,
+  burst: null,
   ...a,
 })
 
@@ -478,6 +510,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           taunt: 'hand_of_reckoning',
           defensive: 'divine_protection',
           mobility: 'divine_steed',
+          dispel: 'cleanse',
         }),
       },
       {
@@ -496,6 +529,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'lay_on_hands',
           defensive: 'divine_shield',
           attack: 'holy_shock',
+          dispel: 'cleanse',
+          guard: 'hand_of_protection',
         }),
       },
       {
@@ -516,6 +551,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           defensive: 'shield_of_vengeance',
           attack: 'exorcism',
           area: 'divine_storm',
+          dispel: 'cleanse',
         }),
       },
     ],
@@ -545,6 +581,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           defensive: 'fade',
           attack: 'smite',
           restore: 'hymn_of_hope',
+          dispel: 'dispel_magic',
+          guard: 'pain_suppression',
         }),
       },
       {
@@ -566,6 +604,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           attack: 'shadow_word_death',
           restore: 'hymn_of_hope',
           area: 'mind_sear',
+          dispel: 'dispel_magic',
+          burst: 'mind_whip',
         }),
       },
     ],
@@ -606,6 +646,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           // bar fills differently would be this game inventing a restriction.
           revive: 'rebirth',
           restore: 'innervate',
+          dispel: 'remove_curse',
         }),
       },
       {
@@ -627,6 +668,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           attack: 'starsurge',
           revive: 'rebirth',
           restore: 'innervate',
+          dispel: 'remove_curse',
         }),
       },
       {
@@ -649,6 +691,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           revive: 'rebirth',
           restore: 'innervate',
           area: 'starfall',
+          dispel: 'remove_curse',
         }),
       },
       {
@@ -674,6 +717,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           defensive: 'survival_instincts',
           revive: 'rebirth',
           restore: 'innervate',
+          dispel: 'remove_curse',
         }),
       },
     ],
@@ -702,6 +746,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           finisher: 'chain_heal',
           defensive: 'astral_shift',
           attack: 'lava_burst',
+          dispel: 'cleanse_spirit',
         }),
       },
       {
@@ -722,6 +767,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           defensive: 'astral_shift',
           attack: 'earth_shock',
           area: 'thunderstorm',
+          dispel: 'cleanse_spirit',
         }),
       },
     ],
@@ -751,6 +797,9 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           defensive: 'ice_barrier',
           attack: 'ice_lance',
           area: 'blizzard',
+          dispel: 'arcane_cleanse',
+          burst: 'cone_of_cold',
+          restore: 'evocation',
         }),
       },
     ],
@@ -785,6 +834,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           pact: 'life_tap',
           defensive: 'unending_resolve',
           area: 'hellfire',
+          restore: 'soul_harvest',
         }),
       },
     ],
@@ -815,6 +865,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           defensive: 'deterrence',
           mobility: 'cheetah',
           area: 'volley',
+          burst: 'kill_command',
         }),
       },
     ],
@@ -845,6 +896,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           mobility: 'sprint',
           defensive: 'evasion',
           area: 'fan_of_knives',
+          burst: 'deadly_poison',
         }),
       },
     ],

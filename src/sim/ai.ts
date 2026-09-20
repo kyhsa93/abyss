@@ -50,6 +50,7 @@ import {
   interruptCast,
   livingParty,
   mostHurt,
+  needsDispel,
   packAround,
   say,
   holdOrFall,
@@ -2688,6 +2689,22 @@ function clustered(s: SimState, actor: Actor): Actor | null {
   return ability ? packAround(s, actor, ability) : null
 }
 
+/**
+ * Whose health bar is far enough gone to be worth somebody else's cooldown.
+ *
+ * A third left, and the tank first when two are equally low: the tank losing
+ * the argument takes the boss with it, and everybody else dying costs the raid
+ * one body. Never the caster -- it has its own `defensive` for that, and a
+ * priest bubbling itself while the tank drops is the wrong press.
+ */
+function guardTarget(s: SimState, actor: Actor): Actor | null {
+  const sinking = livingParty(s).filter((a) => a.id !== actor.id && a.hp / a.maxHp < 0.33)
+  if (sinking.length === 0) return null
+  const tanks = sinking.filter((a) => a.role === 'tank')
+  const pool = tanks.length > 0 ? tanks : sinking
+  return pool.reduce((low, a) => (a.hp / a.maxHp < low.hp / low.maxHp ? a : low))
+}
+
 function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   // A body the fight has named is worth dropping a cast for, and only that is:
   // every other heal in the fight can be finished and then re-aimed, because
@@ -2737,8 +2754,37 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   // more than the filler it replaced.
   {
     const kit = specFor(actor).abilities
-    const dry = kit.restore ? dryTarget(s, actor) : null
+    const give = kit.restore ? ABILITIES[kit.restore] : undefined
+    // Two of these are aimed at nobody but the caster -- the mage's evocation
+    // and the warlock's harvest have a range of nought -- and `dryTarget`
+    // deliberately skips the presser, so without this they could never be
+    // pressed at all. A bar with no range on it is its own bar.
+    const dry = give
+      ? give.range === 0
+        ? actor.maxPower >= 500 && actor.power / actor.maxPower < 0.3
+          ? actor
+          : null
+        : dryTarget(s, actor)
+      : null
     if (kit.restore && dry && tryCast(s, actor, kit.restore, dry.id, rng, moving)) return
+  }
+
+  // The window thrown over somebody else, for the body that is about to lose
+  // the argument. Above the rotation with the rest of these: what it answers
+  // has already been aimed, and a global spent finishing a filler first is a
+  // global the body it was for does not have.
+  {
+    const kit = specFor(actor).abilities
+    const sinking = kit.guard ? guardTarget(s, actor) : null
+    if (kit.guard && sinking && tryCast(s, actor, kit.guard, sinking.id, rng, moving)) return
+  }
+
+  // And anything the corridor left on somebody. Cheap and quick, so it is
+  // worth a global the moment there is one to take off.
+  {
+    const kit = specFor(actor).abilities
+    const dirty = kit.dispel ? needsDispel(s) : null
+    if (kit.dispel && dirty && tryCast(s, actor, kit.dispel, dirty.id, rng, moving)) return
   }
 
   if (actor.role === 'tank') tankRotation(s, actor, rng, moving)
@@ -3190,6 +3236,15 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   // Adds first: they beeline for whoever is closest and shred a healer. The
   // two exceptions to that are decisions, and they are made in `readTheField`.
   let target = strikeTarget(s, actor, quarry(s, actor))
+
+  // The second press, on its own cooldown. After the target is chosen and
+  // before the rotation spends the global on a filler: what makes it worth a
+  // slot is that it is bigger than the filler and not always up, so pressing
+  // it late is the same as not carrying it.
+  {
+    const kit2 = specFor(actor).abilities
+    if (kit2.burst && target && tryCast(s, actor, kit2.burst, target.id, rng, moving)) return
+  }
 
   // A bow has a near edge, and a thrall's whole plan is to stand on you. The
   // one it cannot shoot is not a target, so it shoots past it at the boss
