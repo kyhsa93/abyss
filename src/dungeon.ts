@@ -1512,15 +1512,42 @@ export const WAY_IN = 'threshold'
 const ENTRY_WALK = 20 * YARD
 
 /**
+ * Where a bare stretch stops being worth its own length.
+ *
+ * Up to here a walk is laid as it measures. Past it every yard is worth
+ * `BARE_SHARE` of one, so a stretch the source made long stays longer than a
+ * stretch it made short without being paid for in full.
+ */
+const BARE_PLAIN = 25 * YARD
+
+/**
+ * What a yard past `BARE_PLAIN` is worth.
+ *
+ * Half, and the reason is what the building looked like when a hard cap did
+ * this job instead. Measured across the nine bare stretches that actually
+ * place a room, a cap at thirty yards left **four** distinct lengths and a
+ * longest-to-shortest of one and a half — ten of the citadel's thirteen bare
+ * passages came out at exactly the cap. Every empty walk in the building was
+ * the same walk. The source's rhythm is a short hop, another, then a long
+ * haul, and a cap delivers all three as the same hop.
+ *
+ * A knee keeps the short ones exactly as measured — the way in is twenty-four
+ * yards and stays twenty-four — and lets the long ones stay long: eight
+ * distinct lengths and a spread of two and a quarter, for four seconds of
+ * extra walking across the whole citadel at seven yards a second.
+ */
+const BARE_SHARE = 0.5
+
+/**
  * The longest a stretch of nothing is allowed to be.
  *
- * Thirty yards, which is about four seconds. Long enough that a door reads as
- * leading somewhere rather than into the next room's wall; short enough that
- * nobody is walking it wondering whether they missed a turn. Anything longer
- * than this in the source is a distance that was measured for a building with
- * a flight path and a mount in it.
+ * Forty-five yards. It was thirty, and thirty was doing two jobs: bounding the
+ * walk, and — because most stretches measured past it — deciding it. Bounding
+ * is the job worth keeping, since anything longer than this in the source is a
+ * distance measured for a building with a flight path and a mount in it.
+ * `BARE_PLAIN` does the shaping now.
  */
-const BARE_MOST = 30 * YARD
+const BARE_MOST = 45 * YARD
 
 /** The room as the source measured it, before the building was scaled down. */
 function writtenRoom(id: string): RoomShape {
@@ -1548,12 +1575,18 @@ function measuredAt(id: string): Vec2 {
  * a stretch of nothing in front of one.
  *
  * A bare passage is the walk the source has there, halved like everything else
- * nobody fights in — and then capped, which the halving alone does not do. The
+ * nobody fights in — and then shaped, which the halving alone does not do. The
  * source's own way in is a hundred and sixty-four yards of empty floor and
  * half of that is still eighty-two: twelve seconds of holding a stick before
  * the first room. Dead floor is the one thing this building may not have more
  * of, however faithfully it was measured, so no stretch of it is longer than
  * `BARE_MOST` and none is shorter than a passage.
+ *
+ * Shaped rather than cut off, though, and that distinction is the whole of
+ * whether this building has a rhythm. A cap answers "how long may a walk be";
+ * it does not answer "which of these two walks is the longer", and when most
+ * of them measure past it, it answers that question too — with "neither". See
+ * `BARE_SHARE`, which is where the measurement of that is written down.
  */
 function linkGap(from: string, to: string): number {
   const room = passageBetween(from, to)?.corridor?.room
@@ -1565,7 +1598,10 @@ function linkGap(from: string, to: string): number {
   const uy = (b.y - a.y) / d
   const bare =
     d - exitAlong(writtenRoom(from), ux, uy) - exitAlong(writtenRoom(to), -ux, -uy)
-  return Math.min(BARE_MOST, Math.max(ENTRY_WALK, bare * BUILD_SCALE))
+  const halved = bare * BUILD_SCALE
+  const shaped =
+    halved <= BARE_PLAIN ? halved : BARE_PLAIN + (halved - BARE_PLAIN) * BARE_SHARE
+  return Math.min(BARE_MOST, Math.max(ENTRY_WALK, shaped))
 }
 
 /**

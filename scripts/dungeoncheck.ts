@@ -488,6 +488,64 @@ const everywhere = () => true
     bare / YARD < 1000,
     `${Math.round(bare / YARD)} yards`,
   )
+
+  // And they are not all the same walk.
+  //
+  // The total above says how much bare floor there is; it says nothing about
+  // whether any of it is distinguishable, and for a while none of it was. A
+  // hard cap at thirty yards meant every stretch the source measured past
+  // thirty came out at exactly thirty: five distinct lengths across the nine
+  // that place a room, a longest only half again the shortest, and a building
+  // whose every empty walk felt like the same walk. See `BARE_SHARE`.
+  //
+  // Two sets are left out and neither is an exception worth arguing with. A
+  // ring room is placed by the bowl it wraps, so what `linkGap` says about it
+  // is never read. And the citadel has one loop in it, so one passage arrives
+  // at a room already placed: its gap is whatever is left over between two
+  // rooms that were positioned by other passages, which is a residue rather
+  // than a decision. Both are found rather than named, so a plan that grows
+  // another loop does not quietly start measuring one.
+  const placer = new Set<string>()
+  {
+    const seen = new Set<string>([DOOR])
+    const queue = [DOOR]
+    while (queue.length > 0) {
+      const from = queue.shift()!
+      for (const p of PASSAGES) {
+        const to = p.from === from ? p.to : p.to === from ? p.from : null
+        if (to === null || seen.has(to)) continue
+        seen.add(to)
+        placer.add(`${p.from}->${p.to}`)
+        queue.push(to)
+      }
+    }
+  }
+  // A room hung off the bowl is found by its neighbour's shape rather than by
+  // its name: the bowl is the one `apse` in the building, and what stands on
+  // its rim is pinned to it.
+  const rhythm: number[] = []
+  for (const passage of PASSAGES) {
+    if (passage.corridor) continue
+    if (!placer.has(`${passage.from}->${passage.to}`)) continue
+    if (roomOf(passage.from).kind === 'apse' || roomOf(passage.to).kind === 'apse') continue
+    const a = placeOf(passage.from)
+    const b = placeOf(passage.to)
+    const d = dist(a, b)
+    const ux = (b.x - a.x) / d
+    const uy = (b.y - a.y) / d
+    rhythm.push(d - exitAlong(roomOf(passage.from), ux, uy) - exitAlong(roomOf(passage.to), -ux, -uy))
+  }
+  const lengths = new Set(rhythm.map((g) => Math.round(g / YARD)))
+  // Counted rather than spread, and the difference matters: the longest and
+  // the shortest of these are both stretches the shaping does not touch, so a
+  // spread test passes just as well on a building where everything between
+  // them is the same number. It was five distinct lengths; the flat middle is
+  // what the knee is for.
+  expect(
+    `the ${rhythm.length} walks between rooms are not one walk repeated`,
+    lengths.size >= 6,
+    `${lengths.size} distinct lengths: ${[...lengths].sort((x, y) => x - y).join(', ')}y`,
+  )
 }
 
 // And a body on that floor is held by the building rather than by one room of
