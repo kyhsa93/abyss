@@ -49,10 +49,8 @@ import {
   save,
   startRun,
   stepTo,
-  abandon,
   instanceAt,
   instances,
-  isSaved,
   lockAt,
   felled,
   resetInstance,
@@ -2355,28 +2353,7 @@ expect(
     instances(monday).map((r) => `${r.size}${r.difficulty[0]}:${r.cleared.length}`).join(', '),
   )
 
-  // Bound by the first kill and not before.
-  store.clear()
-  const looked = startRun(3, 10, 'normal')
-  expect('an instance nobody has killed anything in is not saved', !isSaved(looked))
-  save(looked, monday)
-  abandon(looked, monday)
-  expect(
-    'and giving that one up leaves nothing behind',
-    instanceAt(10, 'normal', monday) === null,
-    JSON.stringify(instanceAt(10, 'normal', monday)),
-  )
-  const bound = cleared(looked, 'spire', [])
-  expect('one with something dead in it is saved', isSaved(bound))
-  save(bound, monday)
-  abandon(bound, monday)
-  expect(
-    'and giving that one up only walks out of the door',
-    load(monday) === null && instanceAt(10, 'normal', monday)?.cleared.join() === 'spire',
-    JSON.stringify(instanceAt(10, 'normal', monday)),
-  )
-
-  // And the one press that puts an instance back the way it was found. The
+  // The one press that puts an instance back the way it was found. The
   // source has no such thing for a raid — its lockouts are weekly and the
   // button is for five-mans — and the reason it has none is loot, which this
   // game does not have. See `resetInstance`.

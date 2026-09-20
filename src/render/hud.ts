@@ -35,11 +35,42 @@ export interface Rect {
  * straight into the top ability button. Not in a corner either — both bottom
  * corners belong to the stick and the buttons on touch.
  */
-export function partyButton(): Rect {
+/**
+ * The corner has always been measured for two, and for a while held one.
+ *
+ * The width here is half of a pair with a six-pixel gap because mute used to
+ * sit beside the party button -- `infoX` in `theme.ts` still says so. Mute
+ * moved to the settings screen and left the left half of the pair empty, and
+ * the plan of the building is what wanted it: the map was two presses deep
+ * behind the class screen, which is where a reset nobody could find was
+ * living.
+ *
+ * Both rects come from here rather than being written twice, so they cannot
+ * drift into each other on a width neither was checked at.
+ */
+function cornerPair(): { w: number; h: number; y: number; right: number } {
   const pair = Math.max(120, Math.min(170, L.w * 0.26))
-  const w = (pair - 6) / 2
-  const h = Math.max(22, Math.min(30, L.h * 0.04))
-  return { x: L.infoX - w, y: L.infoY + 15 * L.ui * 4 + 6, w, h }
+  return {
+    w: (pair - 6) / 2,
+    h: Math.max(22, Math.min(30, L.h * 0.04)),
+    y: L.infoY + 15 * L.ui * 4 + 6,
+    right: L.infoX,
+  }
+}
+
+export function partyButton(): Rect {
+  const { w, h, y, right } = cornerPair()
+  return { x: right - w, y, w, h }
+}
+
+/**
+ * The other half: the plan of the building, while the building is being
+ * walked. Drawn only then -- see `walkingAnEvening` in `main.ts`, which is the
+ * same test the class screen makes before it sends you to the same place.
+ */
+export function mapButton(): Rect {
+  const { w, h, y, right } = cornerPair()
+  return { x: right - w * 2 - 6, y, w, h }
 }
 
 /**
@@ -380,7 +411,19 @@ export function setShareLabel(label: string | null): void {
   shareLabel = label
 }
 
-export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
+export function drawHud(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  touch: TouchView,
+  /**
+   * Whether the plan of the building is reachable from here.
+   *
+   * Passed in rather than read off the state: what makes the map reachable is
+   * an evening the page is holding, and the simulation does not know about
+   * one. A fight walked into from an invitation looks identical from in here.
+   */
+  showMap = false,
+): void {
   if (s.mode === 'battleground') drawScoreboard(ctx, s)
   else if (s.mode === 'travel') drawWalkFrame(ctx, s)
   else drawBossFrame(ctx, s)
@@ -395,7 +438,8 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: Touch
   drawCastBar(ctx, s, touch.active)
   drawTrait(ctx, s, touch.active)
   drawChat(ctx, s)
-  drawPartyButton(ctx)
+  cornerButton(ctx, partyButton(), 'party')
+  if (showMap) cornerButton(ctx, mapButton(), 'map')
   if (s.countdown > 0) drawCountdown(ctx, s)
   if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
 }
@@ -1797,8 +1841,7 @@ function drawAutoButton(ctx: CanvasRenderingContext2D, on: boolean): void {
   ctx.fillText('AUTO', x, y + r * 0.12)
 }
 
-function drawPartyButton(ctx: CanvasRenderingContext2D): void {
-  const r = partyButton()
+function cornerButton(ctx: CanvasRenderingContext2D, r: Rect, label: string): void {
   ctx.fillStyle = 'rgba(15, 17, 26, 0.7)'
   ctx.fillRect(r.x, r.y, r.w, r.h)
   ctx.strokeStyle = COLORS.panelEdge
@@ -1807,7 +1850,7 @@ function drawPartyButton(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(10)
   ctx.textAlign = 'center'
-  ctx.fillText('party', r.x + r.w / 2, r.y + r.h * 0.68)
+  ctx.fillText(label, r.x + r.w / 2, r.y + r.h * 0.68)
 }
 
 function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {

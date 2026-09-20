@@ -402,17 +402,11 @@ export function instanceOf(size: RaidSize, difficulty: DifficultyId): string {
   return `${size}:${difficulty}`
 }
 
-/**
- * Whether the evening is bound to this instance yet.
- *
- * The first kill binds it, which is the source's rule and is also the only
- * humane place to put the line: an instance somebody walked into, looked at
- * and left is not a week thrown away, and one with a boss down in it is a
- * week's progress that must not be re-rolled until it can be earned again.
- */
-export function isSaved(run: Run): boolean {
-  return run.cleared.length > 0
-}
+// Whether an evening is bound to its instance used to be a function here, and
+// it read `run.cleared.length > 0`. The only thing that ever asked was
+// `abandon`, which is gone: leaving now means BACK, and putting the evening
+// back means `resetInstance`. A predicate with no caller is the shape the
+// missing reset had, so it went with it.
 
 /** Everything held, and which one is being played. */
 interface Vault {
@@ -530,8 +524,7 @@ function readRun(parsed: unknown): Run | null {
  *
  * `null` steps out rather than throwing away: leaving the building is not the
  * same as never having been in it, and with a lock on it the difference is a
- * week. What actually removes one is `abandon`, and only while nothing in it
- * has died.
+ * week. What actually removes one is `resetInstance`.
  */
 export function save(run: Run | null, now = Date.now()): void {
   const vault = readVault(now)
@@ -615,13 +608,3 @@ export function resetWeek(now = Date.now()): void {
   writeVault({ lock: lockAt(now), at: null, runs: {} })
 }
 
-export function abandon(run: Run, now = Date.now()): void {
-  const vault = readVault(now)
-  if (isSaved(run)) {
-    writeVault({ ...vault, at: null })
-    return
-  }
-  const runs = { ...vault.runs }
-  delete runs[instanceOf(run.size, run.difficulty)]
-  writeVault({ lock: lockAt(now), at: null, runs })
-}

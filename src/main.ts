@@ -8,6 +8,7 @@ import {
   drawHud,
   hitOutcome,
   outcomeButtons,
+  mapButton,
   partyButton,
   setOpenedLine,
   setShareLabel,
@@ -139,7 +140,6 @@ import {
   stepped,
   throughDoor,
   walkedTo,
-  abandon as abandonRun,
   instanceAt,
   instances,
   resetInstance,
@@ -824,8 +824,27 @@ function harvest(): void {
     if (key === undefined || slot === undefined) continue
     down.push([key, 1 << slot])
   }
-  if (down.length === 0) return
-  const next = felled(run, down)
+  let next = down.length > 0 ? felled(run, down) : run
+
+  // And the other half of what the walk knows: what the party is standing
+  // there with.
+  //
+  // This was missing, and it cost a player their healing. Health lived only in
+  // the walking state, while the evening kept the fractions it was last given
+  // at a door -- so a healer topping the raid up on the way to a boss was
+  // undone by the pull itself: `carryInto` writes the stored fractions over
+  // the new fight, and the stored ones were older than the walk. The bar went
+  // up on screen and was back down when the fight started.
+  //
+  // Read by position, which is how `carryInto` reads them back, so it is only
+  // trusted while the walk is holding the whole party -- the same guard
+  // `whereTheyStand` makes before it believes the order.
+  const bodies = state.actors.filter((a) => a.faction === 'party')
+  if (bodies.length === party.length) {
+    const now = carriedOut(state)
+    if (now.some((share, i) => share !== next.carried[i])) next = { ...next, carried: now }
+  }
+
   if (next === run) return
   run = next
   saveRun(run)
@@ -1030,6 +1049,19 @@ function carriedOut(fight: SimState): number[] {
  */
 let citadelResetArmed = false
 
+/**
+ * Whether the plan of the building is somewhere the party can actually go.
+ *
+ * The same test the class screen's BACK makes before it sends you to the map,
+ * written once and read by both. A control that opens a screen the game would
+ * not otherwise have opened is a control that does nothing, and two copies of
+ * this condition drifting apart is exactly how a reset came to be sitting on a
+ * screen no route reached.
+ */
+function walkingAnEvening(): boolean {
+  return mode.kind === 'raid' && !visiting && run !== null
+}
+
 function updateCitadel(tap: { x: number; y: number } | null): void {
   if (!run) {
     screen = 'home'
@@ -1075,17 +1107,6 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
     // Every other press on this screen disarms it, as on the front page.
     citadelResetArmed = false
     if (hit?.kind === 'back') {
-      screen = 'home'
-      return
-    }
-    if (hit?.kind === 'abandon') {
-      // Given up if it is still allowed to be given up, and otherwise only
-      // stepped out of: the building is locked for the week the moment
-      // something in it dies. `abandon` knows which of the two this is.
-      abandonRun(run)
-      run = null
-      roomId = null
-      standing = null
       screen = 'home'
       return
     }
@@ -1668,7 +1689,13 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       // evening is going, the two settings before one is, and the front page
       // when the fight belongs to somebody else.
       screen =
-        mode.kind !== 'raid' ? 'battleground' : visiting ? 'home' : run ? 'citadel' : 'raid'
+        mode.kind !== 'raid'
+          ? 'battleground'
+          : visiting
+            ? 'home'
+            : walkingAnEvening()
+              ? 'citadel'
+              : 'raid'
       return
     } else if (hit?.kind === 'compose') {
       // Seeded here rather than kept in step with `party`: the board has to
@@ -1877,6 +1904,10 @@ function frame(now: number): void {
   // `Input`; these are the ones only this file knows are on screen.
   {
     const taken = [partyButton()]
+    // On exactly the frames it is drawn on. Reserved while it is not on
+    // screen, the corner would swallow a thumb for nothing; drawn without
+    // being reserved, pressing it would walk the party as well.
+    if (walkingAnEvening()) taken.push(mapButton())
     // The call row is drawn by the HUD and tapped here, so the stick has to be
     // told about it the same way the party button is.
     for (const c of callSlots(state)) taken.push({ x: c.x, y: c.y, w: c.size, h: c.size })
@@ -1900,6 +1931,18 @@ function frame(now: number): void {
   // Leaving mid-fight is always available: escape, or the corner button.
   if (input.takeMenuRequest() || (tap && inside(partyButton(), tap.x, tap.y))) {
     screen = 'roster'
+    requestAnimationFrame(frame)
+    return
+  }
+
+  // And the plan of the building, one press instead of two.
+  //
+  // It used to be escape to the class screen and back out of it, which is a
+  // route nobody finds: the map carries what is down, what is still shut, and
+  // the press that walks the evening again from the start, and all of it was
+  // behind a screen called PICK YOUR CLASS.
+  if (tap && walkingAnEvening() && inside(mapButton(), tap.x, tap.y)) {
+    screen = 'citadel'
     requestAnimationFrame(frame)
     return
   }
@@ -2217,6 +2260,7 @@ function frame(now: number): void {
       heldSlots: input.heldSlots(),
       auto: input.isAuto(),
     },
+    walkingAnEvening(),
   )
   hints.draw(ctx)
   drawAwardBanners(ctx, announced)

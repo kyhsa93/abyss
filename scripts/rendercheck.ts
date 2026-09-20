@@ -23,6 +23,7 @@ import {
   shareRect as outcomeShareRect,
   meterRect,
   outcomeButtons,
+  mapButton,
   partyButton,
   partyFrames,
   slotStatus,
@@ -983,7 +984,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 {
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390], [360, 640]] as const) {
     updateLayout(w, h)
-    for (const [name, rect] of [['party', partyButton()]] as const) {
+    for (const [name, rect] of [['party', partyButton()], ['map', mapButton()]] as const) {
       const overlaps = L.btnPos.some(
         (b) =>
           Math.abs(rect.x + rect.w / 2 - b.x) < rect.w / 2 + L.btnR &&
@@ -2389,16 +2390,24 @@ for (const [label, w, h] of [
       map.x > framesRight,
       `map left ${map.x.toFixed(0)} vs frames ${framesRight.toFixed(0)}`,
     )
-    for (const [name, rect] of [['party', partyButton()]] as const) {
+    for (const [name, rect] of [['party', partyButton()], ['map', mapButton()]] as const) {
       expect(`${label}: the minimap clears the ${name} button`, !overlap(map, rect), JSON.stringify(rect))
     }
+    // And the pair does not sit on top of itself: the map is the left half of
+    // the corner the party button is the right half of, and a width where they
+    // met would put two labels in one box.
+    expect(
+      `${label}: the two corner buttons clear each other`,
+      !overlap(partyButton(), mapButton()) && mapButton().x >= 0,
+      `map ${JSON.stringify(mapButton())} party ${JSON.stringify(partyButton())}`,
+    )
 
     for (const touch of [false, true]) {
       const mode = touch ? 'touch' : 'keyboard'
       const meter = meterRect(touch)
       expect(`${label} ${mode}: the meter is on screen`, onScreen(meter), JSON.stringify(meter))
       expect(`${label} ${mode}: the meter clears the minimap`, !overlap(meter, map), JSON.stringify(meter))
-      for (const [name, rect] of [['party', partyButton()]] as const) {
+      for (const [name, rect] of [['party', partyButton()], ['map', mapButton()]] as const) {
         expect(`${label} ${mode}: the meter clears the ${name} button`, !overlap(meter, rect), JSON.stringify(meter))
       }
 
@@ -10203,31 +10212,29 @@ for (const [label, w, h] of [
       `${dead.join(', ')} answered a press on the map`,
     )
     expect(
-      `${label}: the way out and the way to give up both answer`,
-      hitCitadel(run, layout.back.x + 4, layout.back.y + 4, allowed)?.kind === 'back' &&
-        layout.abandon !== null &&
-        hitCitadel(run, layout.abandon.x + 4, layout.abandon.y + 4, allowed)?.kind === 'abandon',
+      `${label}: the way out answers`,
+      hitCitadel(run, layout.back.x + 4, layout.back.y + 4, allowed)?.kind === 'back',
       'a button does not answer',
     )
-    // And the press that puts this evening back, which is the one thing on
-    // this screen LEAVE is not: leaving keeps the dead where they are, and
-    // there was no control at all that stood them up again.
-    const strip = layout.reset
+    // And the press that puts this evening back, which is what this slot holds
+    // now. LEAVE used to, and with something dead in the evening it only
+    // stepped outside -- a button that read as doing nothing.
+    const reset = layout.reset
     expect(
       `${label}: the way to walk it from the start answers`,
-      strip !== null && hitCitadel(run, strip.x + 4, strip.y + 4, allowed)?.kind === 'reset',
-      strip === null ? 'no line over an evening with a room down' : 'the line did not answer',
+      reset !== null && hitCitadel(run, reset.x + 4, reset.y + 4, allowed)?.kind === 'reset',
+      reset === null ? 'no reset over an evening with a room down' : 'the button did not answer',
     )
-    // It is a line above the bottom row and the map stops above it. Measured
-    // rather than trusted because the rooms are sized off whatever height is
-    // left: a strip laid on afterwards would be drawn through the last row of
-    // boxes on a landscape phone, which is where this screen runs out first.
+    // Two buttons in one row, and the row is the width of a phone: measured
+    // rather than trusted, since both are sized off the screen and a width
+    // where they met would put two labels in one box.
     expect(
-      `${label}: and it clears both the bottom row and the map`,
-      strip !== null &&
-        strip.y + strip.h <= layout.back.y &&
-        layout.rows.every((r) => r.rect.y + r.rect.h <= strip.y),
-      'the line overlaps the buttons or the rooms',
+      `${label}: and it shares the bottom row with BACK without touching it`,
+      reset !== null &&
+        reset.x >= layout.back.x + layout.back.w &&
+        reset.x + reset.w <= w &&
+        reset.y === layout.back.y,
+      'the bottom row overlaps or runs off screen',
     )
     // An evening with a room still open is an evening: it is not offered a
     // different one, whatever rung the chain has reached.
@@ -10243,9 +10250,9 @@ for (const [label, w, h] of [
   }
   updateLayout(1440, 900)
 
-  // Nothing down is nothing to put back. LEAVE already removes an evening
-  // nobody has killed anything in -- that is the half of it that reads GIVE UP
-  // -- so offering a reset there would be two controls for one act.
+  // Nothing down is nothing to put back, so the slot stays empty: a reset
+  // offered over an evening nobody has killed anything in would undo nothing,
+  // and BACK is already the way out of the map.
   const untouched = citadelLayout({ ...run, cleared: [], entered: 0 }, allowed)
   expect(
     'an evening with nothing down is offered no reset',
@@ -10283,8 +10290,8 @@ for (const [label, w, h] of [
   const dead = citadelLayout(stuck, new Set(['spire', 'oratory']), '10-MAN NORMAL')
   expect(
     'an evening with nowhere left to walk offers the next rung',
-    dead.again !== null && dead.abandon === null,
-    `again ${dead.again === null ? 'missing' : 'there'}, abandon ${dead.abandon === null ? 'gone' : 'there'}`,
+    dead.again !== null && dead.reset === null,
+    `again ${dead.again === null ? 'missing' : 'there'}, reset ${dead.reset === null ? 'gone' : 'there'}`,
   )
   expect(
     'and the way on answers as itself',

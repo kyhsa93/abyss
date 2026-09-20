@@ -963,30 +963,21 @@ export interface CitadelRow {
 export interface CitadelLayout {
   rows: CitadelRow[]
   back: Rect
-  /**
-   * Ending the evening, which is only offered while there is one to end.
-   *
-   * Null when the map has nothing left to walk into and there is a rung to
-   * walk it again at: giving up and starting the next evening are then the
-   * same act, and two buttons for one act on a phone's bottom row is one
-   * button too many.
-   */
-  abandon: Rect | null
   /** Walking the building again one rung up. Null unless the evening is over. */
   again: Rect | null
   /**
    * Putting *this* evening back to the door — see `resetInstance`.
    *
-   * A different act from `abandon`, and kept a different control because they
-   * are opposites: leaving keeps the dead where they are, and this stands them
-   * up again. The button that leaves already carries two meanings depending on
-   * whether anything has died, and a third would make it unreadable.
+   * This slot used to hold LEAVE, which called `abandon`: with something dead
+   * in the evening that only stepped outside, because the week's lock keeps
+   * the kills. It was honest and it was useless — the player pressed it, walked
+   * back in, and stood three rooms deep again with no other button to reach
+   * for. Going back to the front page is what BACK is for, so the slot holds
+   * the act that had no control at all instead.
    *
-   * A line rather than a button, for the reason `homeLayout` gives for the
-   * week's version of it: the bottom row of this screen is already BACK and
-   * LEAVE, and on a phone a third box there is one too many. Null when there
-   * is nothing down, because then LEAVE already removes the evening and a
-   * reset would put back nothing.
+   * Null where there is nothing down, since a reset would then put back
+   * nothing, and null while the evening is over: the rung-up press takes the
+   * whole row, and two buttons for one act is one too many on a phone.
    */
   reset: Rect | null
 }
@@ -1009,19 +1000,7 @@ export function citadelLayout(
   const p = pad()
   const back = backRect()
   const top = titleY() + 26 * L.ui * MENU_TEXT
-  // The line that puts this evening back, above the bottom row.
-  //
-  // Measured before the rooms are, and the rooms stop above it: a strip laid
-  // over the map afterwards would have been drawn through the last row of
-  // boxes on a landscape phone, which is where this screen runs out of height
-  // first.
-  const strip = 18 * L.ui * MENU_TEXT
-  const resetWidth = Math.min(300, L.w - p * 2)
-  const reset =
-    run.cleared.length > 0
-      ? { x: L.w / 2 - resetWidth / 2, y: back.y - 8 - strip, w: resetWidth, h: strip }
-      : null
-  const bottom = (reset ? reset.y : back.y) - 10
+  const bottom = back.y - 10
   // Sized off the plan rather than off the screen.
   //
   // A box is as wide as the closest pair of rooms that share a row allows and
@@ -1144,9 +1123,11 @@ export function citadelLayout(
   return {
     rows,
     back,
-    abandon: stuck ? null : { x: L.w - p - 120 * L.ui, y: back.y, w: 120 * L.ui, h: back.h },
     again: stuck ? primaryRect() : null,
-    reset,
+    reset:
+      stuck || run.cleared.length === 0
+        ? null
+        : { x: L.w - p - 120 * L.ui, y: back.y, w: 120 * L.ui, h: back.h },
   }
 }
 
@@ -1326,19 +1307,6 @@ export function drawCitadel(
   }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
-  // Two different presses under one button, so it must not wear one name.
-  // Nothing dead in here: the evening is thrown away and the setting is fresh.
-  // Something dead: the week holds it, and this only walks out of the door.
-  if (layout.abandon) {
-    const bound = down > 0
-    button(
-      ctx,
-      layout.abandon,
-      bound ? 'LEAVE' : 'GIVE UP',
-      bound ? 'the dead stay dead' : '',
-      bound ? COLORS.textDim : COLORS.boss,
-    )
-  }
   if (layout.again && again) {
     button(ctx, layout.again, `WALK IT AGAIN — ${again}`, '', COLORS.castBar, true)
   }
@@ -1347,32 +1315,25 @@ export function drawCitadel(
   //
   // Asks twice and counts what it is about to put back, the same as the week's
   // on the front page: what makes the second press safe is that the first one
-  // printed the size of it. Only drawn where there is something to undo, which
-  // is also the only state in which it differs from LEAVE.
+  // printed the size of it. The armed label says PRESS AGAIN rather than
+  // repeating the name, because the question the second press answers is not
+  // "which button" but "are you sure".
   if (layout.reset) {
     const rooms = down === 1 ? '1 room' : `${down} rooms`
-    ctx.save()
-    ctx.textAlign = 'center'
-    ctx.fillStyle = armed ? COLORS.boss : COLORS.textDim
-    ctx.font = font(9, armed)
-    fitText(
+    button(
       ctx,
-      armed
-        ? `PRESS AGAIN TO WALK IT FROM THE START — ${rooms} stand again`
-        : `this evening: ${rooms} down · WALK IT FROM THE START`,
-      L.w / 2,
-      layout.reset.y + layout.reset.h * 0.72,
-      layout.reset.w,
-      8,
+      layout.reset,
+      armed ? 'PRESS AGAIN' : 'RESET',
+      armed ? `${rooms} stand again` : `${rooms} down`,
+      COLORS.boss,
+      armed,
     )
-    ctx.restore()
   }
 }
 
 export type CitadelHit =
   | { kind: 'room'; id: string }
   | { kind: 'back' }
-  | { kind: 'abandon' }
   | { kind: 'again' }
   | { kind: 'reset' }
 
@@ -1386,7 +1347,6 @@ export function hitCitadel(
 ): CitadelHit | null {
   const layout = citadelLayout(run, allowed, again)
   if (inside(layout.back, x, y)) return { kind: 'back' }
-  if (layout.abandon && inside(layout.abandon, x, y)) return { kind: 'abandon' }
   if (layout.again && inside(layout.again, x, y)) return { kind: 'again' }
   if (layout.reset && inside(layout.reset, x, y)) return { kind: 'reset' }
   for (const row of layout.rows) {
