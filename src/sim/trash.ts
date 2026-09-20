@@ -96,8 +96,39 @@ export function trashWeight(kind: string): number {
   return Math.sqrt(TRASH_KINDS[kind]?.hp ?? 1)
 }
 
-/** How wide it is, in world units, off its combat reach against a player's. */
+/**
+ * The looks that are a person, and are therefore a person's width.
+ *
+ * `reach` orders the raid's bodies correctly and that ordering is what a size
+ * is for here -- but it is a *reach*, and a cultist holding something long is
+ * not a wide cultist. Measured, that put twenty of the thirty-seven between a
+ * third and two thirds wider than the player standing beside them, and the
+ * three Deathspeakers at exactly twice.
+ *
+ * The source has no width to put in its place. Nine derivations were tried
+ * against it and every one failed; `docs/reading-the-source.md` lists them.
+ * The short of it: `creature_model_info.BoundingRadius` is defaulted on the
+ * rows that matter and reads a frost giant as narrower than a vampire, the
+ * client's `CreatureDisplayInfo` scale is a multiplier on a model rather than
+ * a size, and `CreatureModelData`'s extents are either gapped or order a
+ * skeleton above a noble.
+ *
+ * What did survive is already in this file: `TRASH_LOOK` groups the raid by
+ * what each creature *is*, and its own note says so -- bone, cult, risen,
+ * San'layn, vrykul for the people, and the nearest silhouette LPC has for
+ * everything that is not one. Four of those are people end to end, so a body
+ * drawn with one of them is drawn a person's width.
+ *
+ * `bone` is not among them and that is the whole of why this is a list rather
+ * than "every person-shaped look": it holds an Ancient Skeletal Soldier at one
+ * player, The Damned at two and a half and a Deathbound Ward at four, and the
+ * last of those is a construct rather than a man.
+ */
+const PERSON_LOOKS = new Set(['cult', 'blood', 'vrykul', 'ghoul'])
+
+/** How wide it is, in world units: a person's width, or off its combat reach. */
 export function trashRadius(kind: string): number {
+  if (PERSON_LOOKS.has(TRASH_LOOK[kind] ?? '')) return PARTY_RADIUS
   const reach = TRASH_KINDS[kind]?.reach ?? 0
   return Math.round((PARTY_RADIUS * (reach > 0 ? reach : BODY_REACH)) / BODY_REACH)
 }

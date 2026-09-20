@@ -1,4 +1,4 @@
-import { TRASH_KINDS, TRASH_LOOKS, trashLook } from '../src/sim/trash'
+import { TRASH_KINDS, TRASH_LOOKS, trashLook, trashRadius } from '../src/sim/trash'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomArea, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
@@ -6187,6 +6187,23 @@ for (const [label, w, h] of [
         Math.max(...TRASH_LOOKS.map((l) => kinds.filter((k) => trashLook(k) === l).length)) <=
           kinds.length / 3,
       `${used.size} look(s) over ${kinds.length} creatures`,
+    )
+
+    // And a body drawn as a person is a person's width.
+    //
+    // Combat reach orders the raid correctly and is not a width: a cultist
+    // holding something long is not a wide cultist, and it used to draw one
+    // twice the player beside it. Nine derivations off the source were tried
+    // and every one failed -- `docs/reading-the-source.md` lists them -- so
+    // the answer is the look, which says what each creature *is*. `bone` is
+    // not one of the four: it carries a construct and a large undead as well
+    // as a skeleton.
+    const people = kinds.filter((k) => ['cult', 'blood', 'vrykul', 'ghoul'].includes(trashLook(k)))
+    const wide = people.filter((k) => trashRadius(k) !== PARTY_RADIUS)
+    expect(
+      `and all ${people.length} bodies drawn as a person are a player wide`,
+      wide.length === 0,
+      wide.map((k) => `${k} ${(trashRadius(k) / PARTY_RADIUS).toFixed(2)}x`).join(', '),
     )
   }
 

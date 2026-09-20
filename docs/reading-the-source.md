@@ -1245,7 +1245,7 @@ four columns say what each name is:
 | what | column | what it turned out to be |
 | --- | --- | --- |
 | how big a bar | `creature_template.HealthModifier` against `creature_classlevelstats` at level 83 | forty to one, end to end: a Frostwing Whelp is 0.26 of The Damned and a Rotting Frost Giant is 43 |
-| how big a body | `creature_model_info.CombatReach` | a quarter of a player to six players wide |
+| how big a body | `TRASH_LOOK`, not the source — see below | a person is a person; the rest keep combat reach's ordering |
 | how fast | `creature_template.speed_run` | 0.57 (a gargoyle) to 2.0 (the two drakes) |
 | what it does | `smart_scripts` and the C++ AIs | a third of them shoot rather than close; three of them heal |
 
@@ -1259,6 +1259,44 @@ would draw the biggest thing on the rampart smaller than a cultist. Combat
 reach has defaults of its own, but it *orders* them correctly, and an ordering
 is what a size is for here. This is the same lesson as the boss health ratios,
 one table further down: a column being present is not a column being populated.
+
+**And combat reach is not a width, which took nine tries to admit.** The
+ordering is right and the scale is not: measured against the player beside
+them, twenty of the thirty-seven come out between a third and two thirds too
+wide and the three Deathspeakers at exactly twice, because a cultist holding
+something long is not a wide cultist. Every derivation tried against the
+source failed, and they are listed here so the tenth is not attempted:
+
+1. `CombatReach` alone — the ordering is right, the scale is not (above).
+2. `BoundingRadius` alone — a frost giant at 0.542 is narrower than a
+   Darkfallen Noble at 0.632.
+3. The larger of the two, and the geometric mean of them — both inherit the
+   giant's bad row.
+4. Falling back to reach only where both columns sit on a default — three rows
+   of thirty-two, and the giants are not among them.
+5. `creature_template.type` — Humanoid and Undead, and the Undead bucket runs
+   from a skeleton at one player to a frost giant at five.
+6. A band of "person-sized" `BoundingRadius` values — the band was built from
+   the min and max of the Humanoid rows, one of which carries the 2.00
+   default, so it swallowed the table and marked the giants as people.
+7. The client's `CreatureDisplayInfo` scale — a multiplier on a model, so a
+   giant whose model is already huge scores 1.75 while a Spire Minion scores
+   2.00.
+8. That scale times `CreatureModelData`'s extents — the column that orders
+   them sensibly is gapped on eight of thirty-two, including both
+   abominations, and every complete column puts an Ancient Skeletal Soldier
+   above a Darkfallen Noble.
+9. Re-normalising reach so the median person is one player — the median
+   person's reach is already 1.5, so this changes nothing at all.
+
+**What answers it was in the repository already.** `TRASH_LOOK` groups the
+raid by what each creature *is*, and its own note says so: bone, cult, risen,
+San'layn, vrykul for the people, and the nearest silhouette LPC has for
+everything that is not one. Four of those looks are people end to end, so
+`trashRadius` gives a body drawn with one of them a player's width and leaves
+the rest to reach. `bone` is deliberately not among the four: it holds an
+Ancient Skeletal Soldier at one player, The Damned at two and a half, and a
+Deathbound Ward at four, and the last is a construct rather than a man.
 
 **Forty to one is a spread a corridor cannot hold.** A body worth forty
 ordinary ones is a boss standing in a passage, and the pull that contains it is
