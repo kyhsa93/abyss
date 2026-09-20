@@ -131,6 +131,22 @@ export interface Chamber {
    * ramp is not the beginning of anything.
    */
   pad?: Gate
+
+  /**
+   * Which floor of the building this room is on.
+   *
+   * Not written on the room, and that is deliberate: it is derived from the
+   * measured heights in `ROOM_Z` — see `storeyOf`. Nineteen numbers typed out
+   * beside nineteen rooms is nineteen chances to disagree with the table they
+   * came from, and nothing would notice.
+   *
+   * Read this as an ordering rather than a height. The gap between one storey
+   * and the next is not constant in the source and is not meant to be: the
+   * lower spire climbs twenty-one yards from the first fight to the second and
+   * is one floor, while the Sanctum sits forty-three above the Crimson Hall
+   * and is another.
+   */
+  storey?: number
 }
 
 export interface Passage {
@@ -188,6 +204,109 @@ const killed = (...chambers: string[]): Gate => ({ kind: 'killed', chambers })
  * do.
  */
 const PULL = Math.round(20 * YARD * BUILD_SCALE)
+
+/**
+ * How high each room stands in the source, in its own yards.
+ *
+ * Measured, one named object per room, and written down in
+ * `docs/reading-the-source.md` with the entry id each figure came off so any
+ * one of them can be checked without trusting the rest. A door is what was
+ * measured wherever there is one: `DoorData` in the instance script says which
+ * boss's room a door belongs to, so a door is the one thing on this map that
+ * names a room without ambiguity.
+ *
+ * The two without a door are here for the reasons the table gives — the throne
+ * is reached by teleporter and has none, and the great hall is a hall rather
+ * than a fight, so it is the middle of its own spawns.
+ */
+const ROOM_Z: Record<string, number> = {
+  threshold: 30.1,
+  vigil: 30.7,
+  westclimb: 42.0,
+  eastclimb: 42.8,
+  spire: 43.0,
+  oratory: 63.1,
+  mooring: 199.9,
+  lair: 210.5,
+  crossing: 356.0,
+  gauntlet: 358.0,
+  sludge: 359.5,
+  airless: 359.5,
+  vats: 360.0,
+  crimson: 361.2,
+  dream: 366.3,
+  laboratory: 388.3,
+  sanctum: 403.7,
+  rise: 541.1,
+  throne: 1050.0,
+}
+
+/**
+ * The rooms the source stands directly on top of one another.
+ *
+ * `CITADEL_PLAN` already names these three and says what it had to do about
+ * them: a flat plan cannot nest one room inside another, so it sets them just
+ * clear of each other sideways, and those are the only numbers in the plan
+ * that are chosen rather than measured.
+ *
+ * They are here because a height alone does not say "stacked". Two of the
+ * three are far enough apart that any reading of the heights separates them
+ * anyway; the Sanctum is forty-three yards over the Crimson Hall, which is
+ * less than the lower spire climbs *within* one floor, so no threshold reads
+ * both correctly. What settles it is not a better threshold — it is that the
+ * stacking is a fact the source states and this is where it is written down.
+ */
+const STACKED: Array<{ over: string; under: string }> = [
+  { over: 'mooring', under: 'oratory' },
+  { over: 'rise', under: 'mooring' },
+  { over: 'sanctum', under: 'crimson' },
+]
+
+/**
+ * Where one storey stops and the next begins, walking up the heights.
+ *
+ * Forty yards. The lower spire is the case it has to get right: the way in,
+ * both climbs, the first fight and the second sit inside thirty-three yards of
+ * each other and are one floor, because what joins them is a ramp. Anything
+ * shorter than this splits that ramp into storeys; anything much longer starts
+ * swallowing the pairs above.
+ */
+const STOREY_GAP = 40
+
+/**
+ * Which floor a room is on, counted from the door.
+ *
+ * Derived, so that moving a measurement moves the building rather than leaving
+ * a number behind to contradict it. Two things open a new storey: a jump in
+ * height bigger than `STOREY_GAP`, and a room the source stacks directly over
+ * one already on this floor — see `STACKED`, which is the case a threshold
+ * cannot read.
+ */
+const STOREYS: Record<string, number> = (() => {
+  const order = Object.keys(ROOM_Z).sort((a, b) => ROOM_Z[a]! - ROOM_Z[b]!)
+  const out: Record<string, number> = {}
+  let storey = 0
+  let previous: number | null = null
+  let onThisFloor: string[] = []
+  for (const id of order) {
+    const z = ROOM_Z[id]!
+    const jumped = previous !== null && z - previous > STOREY_GAP
+    const stacked = STACKED.some((p) => p.over === id && onThisFloor.includes(p.under))
+    if (jumped || stacked) {
+      storey += 1
+      onThisFloor = []
+    }
+    out[id] = storey
+    onThisFloor.push(id)
+    previous = z
+  }
+  return out
+})()
+
+/** See `Chamber.storey`. Rooms the table has never heard of are on the ground. */
+export function storeyOf(id: string): number {
+  return STOREYS[id] ?? 0
+}
 
 /**
  * What is standing in the Oratory of the Damned, from the source's own rows.
@@ -1479,6 +1598,18 @@ export interface Cell {
   /** A chamber's id, or `from>to` for the ground between two of them. */
   id: string
   room: RoomShape
+
+  /**
+   * Which floors this piece of floor belongs to. See `Chamber.storey`.
+   *
+   * A room is on one. A passage is on *both* of the rooms it joins, and that
+   * is not a convenience: six of the twenty passages in this building cross a
+   * floor, and they are the stairs and the teleporters. A filter that showed a
+   * passage on one storey only would take the stairs away from whichever end
+   * you were standing on, and the citadel comes apart — measured, thirteen of
+   * its nineteen rooms stop being reachable from the door.
+   */
+  storeys: number[]
 }
 
 /**
@@ -2132,6 +2263,7 @@ function bridge(from: string, to: string, corridor?: Corridor): Cell {
     return {
       id: `${from}>${to}`,
       room: { ...corridor.room, front: gap + KNIT * 2 - 60, at, turn },
+      storeys: [storeyOf(from), storeyOf(to)],
     }
   }
   // A door with nothing behind it is still floor, and floor is what keeps the
@@ -2144,6 +2276,9 @@ function bridge(from: string, to: string, corridor?: Corridor): Cell {
   return {
     id: `${from}>${to}`,
     room: { kind: 'hall', halfWidth: 220, front: half, back: half, at: mid, turn },
+    // Both ends. A passage that belongs to one floor is a stair you can only
+    // see from the top of it -- see `Cell.storeys`.
+    storeys: [storeyOf(from), storeyOf(to)],
   }
 }
 
@@ -2399,8 +2534,11 @@ export function citadelWorld(cleared?: ReadonlySet<string>): Cell[] {
   const cells: Cell[] = CHAMBERS.map((c) => ({
     id: c.id,
     room: { ...roomOf(c.id), at: placeOf(c.id) },
+    storeys: [storeyOf(c.id)],
   }))
   for (const passage of laid(cleared)) {
+    // Its storeys come with it: `bridge` knows both ends, and having them set
+    // in one place is the difference between a fact and two copies of one.
     cells.push(bridge(passage.from, passage.to, passage.corridor))
   }
   return cells

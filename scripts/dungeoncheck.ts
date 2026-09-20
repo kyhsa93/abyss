@@ -18,6 +18,7 @@ import {
   placeOf,
   reachable,
   roomOf,
+  storeyOf,
   standing,
   support,
   wingCleared,
@@ -488,6 +489,121 @@ const everywhere = () => true
     bare / YARD < 1000,
     `${Math.round(bare / YARD)} yards`,
   )
+
+  // And every room knows which floor of the building it is on.
+  //
+  // `storeyOf` derives this from the measured heights in `ROOM_Z` rather than
+  // from nineteen numbers typed beside nineteen rooms, so what has to be held
+  // is that the derivation still reads the two cases it was written for. Both
+  // are in `docs/reading-the-source.md`.
+  //
+  // The first is a ramp that must not be cut into floors: the way in, the
+  // great hall, both climbs, the first fight and the second sit inside
+  // thirty-three yards of each other, and the walk between them is a slope.
+  // The second is a pair the source stands one on top of the other with only
+  // forty-three yards between them -- closer than that ramp climbs -- so no
+  // threshold reads both, and `STACKED` is what settles it.
+  {
+    const withoutOne = CHAMBERS.filter((c) => !Number.isInteger(storeyOf(c.id)))
+    expect(
+      `all ${CHAMBERS.length} rooms are on a floor`,
+      withoutOne.length === 0,
+      withoutOne.map((c) => c.id).join(', '),
+    )
+
+    const ramp = ['threshold', 'vigil', 'westclimb', 'eastclimb', 'spire', 'oratory']
+    const floors = new Set(ramp.map(storeyOf))
+    expect(
+      'the lower spire is one floor, because what joins it is a ramp',
+      floors.size === 1,
+      `${ramp.map((id) => `${id}=${storeyOf(id)}`).join(' ')}`,
+    )
+
+    const merged = ([
+      ['mooring', 'oratory'],
+      ['rise', 'mooring'],
+      ['sanctum', 'crimson'],
+    ] as const).filter(([over, under]) => storeyOf(over) <= storeyOf(under))
+    expect(
+      'and the three rooms the source stacks are on floors of their own',
+      merged.length === 0,
+      merged.map(([o, u]) => `${o}(${storeyOf(o)}) is not above ${u}(${storeyOf(u)})`).join('; '),
+    )
+  }
+
+  // And giving the building floors does not take it apart.
+  //
+  // `floorNow` lays only the storey the party is standing on, so a passage
+  // between two of them has to belong to both or it belongs to neither and
+  // there is no way off the ground floor. Six of the twenty cross one: the
+  // stairs up out of the first fight's hall, the two teleporters, and the way
+  // down from the gauntlet to the lair.
+  //
+  // Asserted directly *and* walked, and the first of those is here because the
+  // walk on its own proved to be blind. A walk that starts at the door only
+  // ever tries a passage in the outward direction, so a stair carrying the
+  // near end's storey and not the far one is stepped straight through: patched
+  // to carry one end only, the citadel still came out whole.
+  {
+    const cells = citadelWorld()
+    const floorOf = new Map(cells.map((c) => [c.id, c.storeys]))
+
+    // Before walking anything: every piece of floor says which storeys it is
+    // on. This is here because the first version of the walk below treated a
+    // missing answer as "walk on through", and `bridge` was not filling it in
+    // -- so the citadel came out whole for the reason that it had no floors at
+    // all. A check that passes because the thing it checks is absent is worse
+    // than no check.
+    const unplaced = cells.filter((c) => !Array.isArray(c.storeys) || c.storeys.length === 0)
+    expect(
+      `all ${cells.length} pieces of floor know which storey they are on`,
+      unplaced.length === 0,
+      unplaced.slice(0, 4).map((c) => c.id).join(', '),
+    )
+
+    // The property `floorNow` actually leans on, said once and symmetrically.
+    const stairsFor = (p: { from: string; to: string }) =>
+      floorOf.get(`${p.from}>${p.to}`) ?? floorOf.get(`${p.to}>${p.from}`)
+    const halfLit = PASSAGES.filter((p) => {
+      const stairs = stairsFor(p)
+      return (
+        stairs === undefined ||
+        !stairs.includes(storeyOf(p.from)) ||
+        !stairs.includes(storeyOf(p.to))
+      )
+    })
+    expect(
+      'and every passage is underfoot from both of the floors it joins',
+      halfLit.length === 0,
+      halfLit.map((p) => `${p.from}(${storeyOf(p.from)})>${p.to}(${storeyOf(p.to)})`).join(', '),
+    )
+
+    const reached = new Set<string>([DOOR])
+    for (let grew = true; grew; ) {
+      grew = false
+      for (const passage of PASSAGES) {
+        const stairs = stairsFor(passage)
+        // Missing is not a free pass. A piece of floor that does not say which
+        // storey it is on is one nobody standing anywhere can see.
+        if (stairs === undefined) continue
+        for (const [from, to] of [[passage.from, passage.to], [passage.to, passage.from]] as const) {
+          if (!reached.has(from) || reached.has(to)) continue
+          // Underfoot from both ends: standing on either floor, the stair has
+          // to be part of the floor that gets laid, or it cannot be walked on
+          // to from that side.
+          if (!stairs.includes(storeyOf(from)) || !stairs.includes(storeyOf(to))) continue
+          reached.add(to)
+          grew = true
+        }
+      }
+    }
+    const stranded = CHAMBERS.map((c) => c.id).filter((id) => !reached.has(id))
+    expect(
+      `all ${CHAMBERS.length} rooms are still reachable from the door once the building has floors`,
+      stranded.length === 0,
+      `${stranded.length} cut off: ${stranded.join(', ')}`,
+    )
+  }
 
   // And they are not all the same walk.
   //

@@ -169,6 +169,7 @@ import {
   passageKey,
   roomOf,
   placeOf,
+  storeyOf,
   citadelBystanders,
 } from './dungeon'
 import { marchReach, type Corridor } from './sim/travel'
@@ -505,8 +506,21 @@ let run: Run | null = loadRun()
  * Read off `run.cleared` every time it is handed over, so nothing has to
  * remember to rebuild it.
  */
-function floorNow(): RoomShape[] {
-  return citadelWorld(new Set(run?.cleared ?? [])).map((cell) => cell.room)
+function floorNow(here: string): RoomShape[] {
+  // The floor of the storey the party is standing on, and the stairs off it.
+  //
+  // A passage carries both of the floors it joins -- see `Cell.storeys` -- so
+  // the six that cross one stay underfoot from either end. Without that the
+  // building comes apart: thirteen of its nineteen rooms stop being reachable
+  // from the door, because the way between two floors belongs to neither.
+  //
+  // Taken as an argument rather than read off `state.chamber`, which is what
+  // both callers have just assigned: a floor built from a room the page has
+  // moved on from is a floor with the party standing outside it.
+  const floor = storeyOf(here)
+  return citadelWorld(new Set(run?.cleared ?? []))
+    .filter((cell) => cell.storeys.includes(floor))
+    .map((cell) => cell.room)
 }
 
 /** Which room the fight on screen is in, and what the party walked into it with. */
@@ -939,7 +953,7 @@ function standIn(
   state.chamber = id
   // The whole building is underfoot, not just this room: a doorway is floor,
   // which is what lets the party stand in one.
-  state.floor = floorNow()
+  state.floor = floorNow(id)
   rng = rngFor(state)
   carryInto(state)
   fightingParty = party.map((p) => ({ ...p }))
@@ -1015,7 +1029,7 @@ function walkTo(to: string, key: string, walk: Corridor): void {
   announced = []
   state = createCorridorState(roomSeed(run, key), party, walk, run.difficulty, 4, whereTheyStand())
   state.chamber = to
-  state.floor = floorNow()
+  state.floor = floorNow(to)
   rng = rngFor(state)
   carryInto(state)
   fightingParty = party.map((p) => ({ ...p }))
