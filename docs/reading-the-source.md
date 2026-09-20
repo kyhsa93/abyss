@@ -535,6 +535,78 @@ seven. The two ramps out of the first fight had one each and the source has
 none on either: a pad stands where a wing begins, and a ramp is not the
 beginning of anything.
 
+### How high every room is, which this game does not use yet
+
+The seven pads above were the only heights in this file, and they are
+waypoints rather than rooms. Here is the whole building, measured, because
+"there is no elevation" is a decision this game makes and a decision is worth
+being able to cost.
+
+Every figure is the z of **one named object**, never an average over an area —
+see the method below for why that distinction is the whole of it.
+
+| room | z | what was measured |
+| --- | --- | --- |
+| threshold | 30.1 | the way in's transporter (202242) |
+| vigil | 30.7 | the middle of its own spawns, 62 of them |
+| westclimb | 42.0 | an ice wall (201910) |
+| eastclimb | 42.8 | the other ice wall (201911) |
+| spire | 43.0 | `GO_LORD_MARROWGAR_S_ENTRANCE` (201857) |
+| oratory | 63.1 | `GO_ORATORY_OF_THE_DAMNED_ENTRANCE` (201563) |
+| mooring | 199.9 | the Rampart's transporter (202243) |
+| lair | 210.5 | `GO_SINDRAGOSA_ENTRANCE_DOOR` (201373) |
+| crossing | 356.0 | the upper spire's transporter (202223) |
+| gauntlet | 358 | its spawns, on the line between the dreaming hall and the lair |
+| sludge | 359.5 | `GO_GREEN_PLAGUE_MONSTER_ENTRANCE` (201370) |
+| airless | 359.5 | `GO_ORANGE_PLAGUE_MONSTER_ENTRANCE` (201371) |
+| vats | 360 | its spawns |
+| crimson | 361.2 | `GO_CRIMSON_HALL_DOOR` (201376) |
+| dream | 366.3 | `GO_GREEN_DRAGON_BOSS_ENTRANCE` (201375) |
+| laboratory | 388.3 | `GO_SCIENTIST_ENTRANCE` (201372) |
+| sanctum | 403.7 | `GO_DOODAD_ICECROWN_BLOODPRINCE_DOOR_01` (201746) |
+| rise | 541.1 | `GO_SAURFANG_S_DOOR` (201825) |
+| throne | 836–865 approach, spawns at 1050 | placed by teleporter, so there is no door to measure |
+
+Which falls into bands wherever the heights jump by more than forty yards:
+
+    30 – 63     threshold, vigil, both climbs, spire, oratory
+    200 – 210   mooring, lair
+    356 – 404   crossing, gauntlet, sludge, airless, vats, crimson, dream,
+                laboratory, sanctum
+    541         rise
+    836+        throne
+
+**Two things in that are worth reading twice.** The lower spire is one band:
+Marrowgar, both climbs and the Oratory sit inside twenty-one yards of each
+other, so the walk out of the first fight is a ramp and not a storey — which
+is the answer to why lengthening the climbs could not make that route feel
+like the source's. And Deathbringer's Rise is the *highest* room in the
+building bar the throne, at 541, while being the third fight: the source
+teleports you up to it and teleports you back down to the upper spire at 356,
+which is why both of those are pads.
+
+**The method, and the two ways of doing it that do not work.** `DoorData` in
+`instance_icecrown_citadel.cpp` maps a door's `GO_` constant to the boss whose
+room it belongs to, and `icecrown_citadel.h` maps that constant to an entry id;
+joining those against `gameobject` rows on map 631 gives a named, unambiguous
+anchor per fight. What does *not* work:
+
+- **A boundary box.** Taking the median z of spawns inside a fight's own
+  `BossBoundaryData` looks rigorous and is not: the boxes overlap in plan
+  precisely where the building is stacked, so the Oratory's box spans 49 to 539
+  and Saurfang's reports 200, which is the Rampart underneath him. Using plan
+  geometry to measure height is circular when height is what separates them.
+- **The dump's `Comment` column.** It is empty for almost every row on this
+  map; the few that carry anything say `SAI Target`.
+
+**What is still open** is what a storey *is* here. Splitting at a forty-yard
+gap puts the Sanctum and the Crimson Hall in one band, and the source stacks
+them — `placeOf`'s own comment already names the three pairs it had to spread
+sideways because a flat plan cannot nest them. So the bands above are a
+reading of the heights, not a model, and a model has to decide whether a
+storey is a rank, a measured height carried around, or something a room simply
+declares.
+
 ### Boss health: an order, not a set of ratios
 
 The eight fights here carry between five and a half and fourteen million in the
