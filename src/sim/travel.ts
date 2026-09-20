@@ -1149,10 +1149,52 @@ function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
     across < marchHalf(slots, theirs)
       ? rankAt(actor, lead, across)
       : { x: (mine.x - theirs.x) * MARCH_SPREAD, y: (mine.y - theirs.y) * MARCH_SPREAD }
-  return {
+  // Onto ground that is there, which is the difference between a place to
+  // walk to and a point inside a wall.
+  //
+  // The formation is hung off the leader and asks nothing about what is under
+  // it, so on a stair or in a doorway the back ranks land off the floor. A
+  // body then walks at that point for the rest of the walk: the step is taken
+  // and `holdOrFall` puts it straight back, so it stands on the edge making
+  // no progress and never arrives, and nothing re-plans. Walked over six
+  // thousand ticks of the citadel, that was sixty-two per cent of the raid's
+  // marching on the climbs; in two of the three rooms measured, every single
+  // pinned body-tick had its station off the floor and the body against the
+  // edge, and none had any other explanation.
+  //
+  // Clamped here rather than in `follow`, which deliberately does not clamp
+  // while crossing a building: clamping to the room a body is *in* is what
+  // stops it walking through a door. The floor is every cell of the storey,
+  // which is the same question `marchRoom` already asks of it.
+  return ontoFloor(s, {
     x: lead.pos.x + place.x * c - place.y * sn,
     y: lead.pos.y + place.x * sn + place.y * c,
+  }, actor.radius)
+}
+
+/**
+ * The nearest place on the walkable floor, for a point that may be off it.
+ *
+ * The same shape `holdOrFall` uses on a body that has walked off: inside any
+ * cell it is already somewhere, and outside every one of them the roomiest
+ * cell takes it. A station is a point rather than a body, so this puts the
+ * point back rather than dropping anybody.
+ */
+function ontoFloor(s: SimState, pos: Vec2, radius: number): Vec2 {
+  const cells = s.floor !== undefined && s.floor.length > 0 ? s.floor : [s.room]
+  let best = cells[0]!
+  let near = -Infinity
+  for (const cell of cells) {
+    const gap = wallGap(cell, pos, radius)
+    if (gap >= 0) return pos
+    if (gap > near) {
+      near = gap
+      best = cell
+    }
   }
+  const put = { x: pos.x, y: pos.y }
+  pushInside(best, put, radius)
+  return put
 }
 
 /**

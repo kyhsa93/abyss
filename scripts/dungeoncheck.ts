@@ -11,6 +11,7 @@ import {
   citadelPacks,
   citadelWardens,
   citadelSprings,
+  citadelTerrain,
   citadelWorld,
   groundFor,
   exitAlong,
@@ -1436,6 +1437,81 @@ const everywhere = () => true
     if (closest < PARTY_RADIUS * 1.5) tight.push(`${size}-man: ${Math.round(closest)} apart`)
   }
   expect('a raid walking is not standing inside itself', tight.length === 0, tight.join(', '))
+}
+
+// A raid walking is a raid arriving.
+//
+// The formation is hung off whoever is leading and asks nothing about what is
+// under it, so its back ranks can land off the floor or inside the furniture.
+// A body then walks at a place like that for the rest of the walk: it takes
+// its step, whatever it is standing against puts it straight back, and it
+// never arrives and never re-plans. Nothing above notices. It is not standing
+// inside anybody, it is not lost yet, and `nobody is held in a wall` measures
+// whether a body is *inside* a rock — which a body pinned against two of them
+// correctly is not. Every one of those promises was green while sixty-two per
+// cent of a walk across the climbs was bodies going nowhere, and the raid
+// arrived at the far door without them.
+//
+// So this asks the one thing none of them ask: a body that wants to be
+// somewhere gets there. Two shapes of ground had to be fixed before it would
+// pass — the station is now put back onto the floor, and rocks that overlap
+// are answered together instead of one at a time — and both would go back
+// unnoticed without it.
+//
+// Walked on the storey's own cells, which is what `floorNow` lays in the game.
+// Laying every cell of every storey instead, as the checks above do, hands the
+// raid ground no evening ever has.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const anywhere = () => true
+  const adrift: string[] = []
+  // The three measured: a hall with furniture in it, a stair, and the widest
+  // room in the building. The stair is where this was worst.
+  for (const where of ['threshold', 'eastclimb', 'oratory']) {
+    const ground = {
+      ...hallFor(where, null, anywhere),
+      id: 'citadel',
+      packs: citadelPacks(),
+      terrain: citadelTerrain(),
+    }
+    // Led rather than `unattended`: a leaderless raid in a building stays
+    // where it is, and a raid that never walks cannot be left behind.
+    const s = createCorridorState(7, autoParty(10, dps), ground, 'normal', 4, undefined, true)
+    s.chamber = where
+    s.floor = citadelWorld()
+      .filter((cell) => cell.storeys.includes(storeyOf(where)))
+      .map((cell) => cell.room)
+    const rng = new Rng(7)
+    const lead = s.actors.find((a) => a.isPlayer) ?? s.actors[0]!
+    const legs = [
+      { moveX: 0, moveY: -1 },
+      { moveX: 1, moveY: 0 },
+      { moveX: 0, moveY: 1 },
+      { moveX: -1, moveY: 0 },
+    ]
+    const was = new Map<number, Vec2>()
+    let pinned = 0
+    for (let t = 0; t < 30 * 80; t++) {
+      const leg = legs[Math.floor(t / (30 * 10)) % legs.length]!
+      step(s, { ...leg, pressed: [] }, rng)
+      for (const a of s.actors) {
+        if (a.faction !== 'party' || a.id === lead.id || !a.alive) continue
+        const before = was.get(a.id)
+        was.set(a.id, { x: a.pos.x, y: a.pos.y })
+        // Standing still to hit something is standing still on purpose.
+        if (s.actors.some((o) => o.faction === 'boss' && o.alive && dist(o.pos, a.pos) < 400)) {
+          continue
+        }
+        const want = a.ai?.moveTarget
+        if (before === undefined || want === null || want === undefined) continue
+        // Arrived, so nothing is owed.
+        if (dist(want, a.pos) < 6) continue
+        if (dist(before, a.pos) < 0.01) pinned++
+      }
+    }
+    if (pinned > 0) adrift.push(`${where}: ${pinned} body-ticks`)
+  }
+  expect('a raid walking gets where it is walking to', adrift.length === 0, adrift.join('; '))
 }
 
 // A raid walking is not shaking its head.

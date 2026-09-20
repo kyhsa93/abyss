@@ -332,8 +332,24 @@ function rollTerrain(
  * So the leftover part of the step is redirected along the surface. Whichever
  * way round the rock the step already leaned wins, and dead-on ties go one
  * fixed way rather than nowhere — an arbitrary choice, but it has to be made
- * or the tie is a wall. That is the whole of the path-finding, and it is
- * enough because every rock here is convex: sliding along one always ends.
+ * or the tie is a wall.
+ *
+ * "That is the whole of the path-finding, and it is enough because every rock
+ * here is convex: sliding along one always ends" is what this said, and it was
+ * true of one rock and false of two that touch. The citadel's own furniture
+ * has six overlapping pairs, and a pair makes a pocket, which is concave. Took
+ * in list order, the second rock's push undid the first rock's slide and the
+ * body stood still: over six thousand ticks of the threshold every one of six
+ * thousand jammed body-ticks was against two rocks at once, and one body sat
+ * in the same pocket for seven and a third seconds while the raid walked off
+ * without it.
+ *
+ * So the rocks a body is inside are answered together rather than one at a
+ * time: pushed out of each until it is out of all of them, then slid along the
+ * tangent of their combined normal, which for a pocket runs across its mouth
+ * — the way a person gets out of a corner. With one rock the combined normal
+ * is that rock's normal and every number below is what it always was, which
+ * is what keeps the battleground's own rocks behaving as they did.
  */
 export function clearTerrain(
   obstacles: Obstacle[],
@@ -342,41 +358,70 @@ export function clearTerrain(
   moveX = 0,
   moveY = 0,
 ): void {
-  for (const rock of obstacles) {
-    const dx = pos.x - rock.pos.x
-    const dy = pos.y - rock.pos.y
-    const gap = Math.hypot(dx, dy)
-    const least = rock.radius + radius
-    if (gap >= least) continue
+  // The way out of the pocket, summed over everything the body is inside, and
+  // the deepest it was in any of them — which is what the step is owed back.
+  let nx = 0
+  let ny = 0
+  let owed = 0
+  // Pushing out of one rock can push a body into another, so the pass repeats
+  // until a pass finds nothing. Three is enough for a pocket of two and the
+  // loop leaves early whenever there is nothing to do, which is almost always.
+  for (let pass = 0; pass < 3; pass++) {
+    let touched = false
+    for (const rock of obstacles) {
+      const dx = pos.x - rock.pos.x
+      const dy = pos.y - rock.pos.y
+      const gap = Math.hypot(dx, dy)
+      const least = rock.radius + radius
+      if (gap >= least) continue
+      touched = true
 
-    // Dead centre has no direction to be pushed in; pick one rather than
-    // dividing by zero.
-    if (gap < 0.001) {
-      pos.x = rock.pos.x + least
-      continue
+      // Dead centre has no direction to be pushed in; pick one rather than
+      // dividing by zero.
+      if (gap < 0.001) {
+        pos.x = rock.pos.x + least
+        if (pass === 0) {
+          nx += 1
+          owed = Math.max(owed, least)
+        }
+        continue
+      }
+
+      const ux = dx / gap
+      const uy = dy / gap
+      pos.x = rock.pos.x + ux * least
+      pos.y = rock.pos.y + uy * least
+      // Read on the first pass only: the later ones are cleaning up after this
+      // one's pushes, and their normals are about where the body was put
+      // rather than about where it walked.
+      if (pass === 0) {
+        nx += ux
+        ny += uy
+        owed = Math.max(owed, least - gap)
+      }
     }
-
-    const nx = dx / gap
-    const ny = dy / gap
-    pos.x = rock.pos.x + nx * least
-    pos.y = rock.pos.y + ny * least
-
-    const step = Math.hypot(moveX, moveY)
-    if (step < 0.0001) continue
-
-    // The surface, at right angles to the push. Sign by which way the step was
-    // already going; a step straight at the centre has no lean, and takes the
-    // positive one.
-    const tx = -ny
-    const ty = nx
-    const lean = moveX * tx + moveY * ty
-    const dir = lean >= 0 ? 1 : -1
-    // How much of the step was spent being pushed back out, returned along the
-    // surface instead of thrown away.
-    const spent = Math.min(step, least - gap)
-    pos.x += tx * dir * spent
-    pos.y += ty * dir * spent
+    if (!touched) break
   }
+
+  const step = Math.hypot(moveX, moveY)
+  if (step < 0.0001) return
+  const out = Math.hypot(nx, ny)
+  // Nothing was in the way, or two rocks pushed exactly against each other and
+  // there is no way out to be had this tick.
+  if (out < 0.0001) return
+
+  // The surface, at right angles to the push. Sign by which way the step was
+  // already going; a step straight at the centre has no lean, and takes the
+  // positive one.
+  const tx = -ny / out
+  const ty = nx / out
+  const lean = moveX * tx + moveY * ty
+  const dir = lean >= 0 ? 1 : -1
+  // How much of the step was spent being pushed back out, returned along the
+  // surface instead of thrown away.
+  const spent = Math.min(step, owed)
+  pos.x += tx * dir * spent
+  pos.y += ty * dir * spent
 }
 
 /** Whether a point is inside terrain, for placement and for checks. */
