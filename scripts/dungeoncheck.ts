@@ -28,9 +28,9 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
-import { EXIT_REACH, marchReach, overlapping, packOf, packSize, packsPlaced, unguarded, wakeFor, type Pack } from '../src/sim/travel'
+import { EXIT_REACH, marchReach, overlapping, packOf, packSize, packsPlaced, unguarded, type Pack } from '../src/sim/travel'
 import { TRASH_KINDS, trashMends } from '../src/sim/trash'
-import { dist, holdOrFall } from '../src/sim/combat'
+import { applyDamage, dist, holdOrFall } from '../src/sim/combat'
 import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
@@ -1258,17 +1258,27 @@ const everywhere = () => true
     }
 
     // And the other way in: hit it from wherever you like.
+    //
+    // Hit, rather than woken by hand. This called `wakeFor` itself and then
+    // checked that `wakeFor` had worked, so it passed for as long as the
+    // function existed -- and the function had no callers anywhere in the
+    // game. A shot into a sleeping pack took its health and left it standing
+    // there, which is the thing a player reported and the thing this line
+    // claims to hold. A promise that performs the act it is checking for can
+    // only ever be green.
     const hit = unattended(
       createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
     )
     hit.floor = citadelWorld().map((cell) => cell.room)
     hit.chamber = 'spire'
     const body = hit.actors.find((a) => hit.travel!.belongs[a.id] === index)!
-    wakeFor(hit, body)
+    const shooter = hit.actors.find((a) => a.faction === 'party' && a.alive)!
+    const away = Math.round(dist(shooter.pos, body.pos))
+    applyDamage(hit, body, 1, 'physical', { sourceId: shooter.id, silent: true })
     expect(
       'and a boss that is hit has noticed too',
       hit.travel!.woken[index] === true,
-      'hitting a boss did nothing',
+      `hit from ${away} units away and it stayed asleep`,
     )
   }
 

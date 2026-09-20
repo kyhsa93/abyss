@@ -895,6 +895,15 @@ export function applyDamage(
 
   final = Math.round(final)
   target.hp = Math.max(0, target.hp - final)
+  // And whatever was hit is awake now, however far away the thing that hit it
+  // was. `listen` wakes a pack by walking into its circle and by tripping a
+  // wire, and its own comment says the third way in is being hit -- but the
+  // function that does that had no callers at all, so an arrow into a sleeping
+  // pack took its health and left it standing there. Measured: five hundred
+  // damage from four hundred and thirty-seven units away, health nine hundred
+  // to four hundred, and three seconds later it had moved nought units and was
+  // still asleep.
+  wakeFor(s, target)
   // Ground ticks are silent; 30 floating numbers a second is unreadable.
   if (!opts.silent && mine(target, opts.sourceId)) {
     pushText(
@@ -1293,6 +1302,21 @@ export function beginCast(s: SimState, actor: Actor, abilityId: string, targetId
   return true
 }
 
+/**
+ * Anything that has been hit is awake, whatever the distance.
+ *
+ * Here rather than in `travel.ts`, where it used to live with nobody calling
+ * it: the one place that knows a body has been hit is `applyDamage`, and
+ * `travel` already imports this file, so the call could not go the other way.
+ * It needs nothing but the state, so the move costs nothing.
+ */
+export function wakeFor(s: SimState, victim: Actor): void {
+  const travel = s.travel
+  if (!travel) return
+  const index = travel.belongs[victim.id]
+  if (index !== undefined) travel.woken[index] = true
+}
+
 export function interruptCast(s: SimState, actor: Actor, reason: string): void {
   if (!actor.castId) return
 
@@ -1319,7 +1343,16 @@ export function interruptCast(s: SimState, actor: Actor, reason: string): void {
   actor.castId = null
   actor.castRemaining = 0
   actor.castTargetId = null
-  pushText(s, actor.pos, reason, 'miss')
+  // Why your own cast came apart, and nobody else's.
+  //
+  // This floated over every body that lost a cast, which for a raid of ten is
+  // a word appearing over somebody's head every few seconds and none of them
+  // yours: ninety seconds of one corridor put twenty-four sentences on the
+  // screen, nought of them the player's. It is the same call the file already
+  // makes about damage numbers (`mine`) and about sound ("only the player's
+  // own hits are audible; everyone's would be a wall of noise") -- the rule
+  // was simply never extended to the sentences.
+  if (actor.isPlayer) pushText(s, actor.pos, reason, 'miss')
 }
 
 export function resolveAbility(
@@ -1433,7 +1466,8 @@ export function landAbility(
     }
     case 'taunt': {
       taunt(s, actor)
-      pushText(s, actor.pos, ability.name, 'miss')
+      // The player's own, like every other sentence on the floor.
+      if (actor.isPlayer) pushText(s, actor.pos, ability.name, 'miss')
       break
     }
     case 'defensive': {
@@ -1445,7 +1479,7 @@ export function landAbility(
       // not top up a window that is already open for a fraction of the price.
       if (ability.selfCost) {
         actor.hp = Math.max(1, actor.hp - Math.round(actor.maxHp * ability.selfCost))
-        pushText(s, actor.pos, ability.name, 'taken')
+        if (actor.isPlayer) pushText(s, actor.pos, ability.name, 'taken')
         if (ability.aura) {
           const window = getAura(actor, ability.aura)
           if (window) window.stacks = AURA_MAX[ability.aura] ?? 1

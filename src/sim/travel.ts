@@ -848,13 +848,9 @@ function listen(s: SimState): void {
   })
 }
 
-/** And anything that has been hit is awake, whatever the distance. */
-export function wakeFor(s: SimState, victim: Actor): void {
-  const travel = s.travel
-  if (!travel) return
-  const index = travel.belongs[victim.id]
-  if (index !== undefined) travel.woken[index] = true
-}
+// `wakeFor` lives in `combat.ts` now. It belongs where a body is known to have
+// been hit, and it sat here with no callers at all while the thing it exists
+// to do -- a shot pack waking up -- simply did not happen.
 
 /** A body that was not there when the walk started, given the books it needs. */
 function enrol(s: SimState, body: Actor): void {
