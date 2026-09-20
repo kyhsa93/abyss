@@ -1320,6 +1320,22 @@ export interface Encounter {
     slam: string
     shard: string
     /**
+     * The three the table did not have, and the three the label fell through
+     * on. `hud.ts` asked for the shard by name and defaulted everything else
+     * to the slam, which is right while a boss has two casts and wrong the
+     * moment one has three: the drowned one's cone, the blood queen's tide
+     * back at once and the lich's breath were each announced to the raid as
+     * that fight's tank slam. The bar said `THE BIG ARM` over a cone nobody
+     * was meant to stand in.
+     *
+     * Empty where the fight never casts it, which is most of them, and
+     * `rendercheck` holds the other half of the rule: a cast in the kit with
+     * no name here fails, so adding a cast cannot quietly borrow the slam's.
+     */
+    spray: string
+    crimson: string
+    breath: string
+    /**
      * The unavoidable one, which every boss has and which every boss called by
      * the same name until this existed.
      *
@@ -1556,7 +1572,7 @@ export const ENCOUNTERS: Encounter[] = [
     // is the fight handed over rather than fixed. Between the two.
     sizeMechanic: { 10: 1.0, 25: 0.92 },
     accent: '#e7e5e4',
-    names: { slam: 'SABER LASH', shard: '', raid: 'THE GRINDING' },
+    names: { slam: 'SABER LASH', shard: '', spray: '', crimson: '', breath: '', raid: 'THE GRINDING' },
     kit: ['coldflame', 'spike', 'bonestorm'],
     phases: {
       1: { swing: 2.2, slam: 19, puddleCount: 1, raid: 12, ...beats({ coldflame: 5, spike: 17.5, bonestorm: 92.5 }) },
@@ -1815,7 +1831,7 @@ export const ENCOUNTERS: Encounter[] = [
     // on everybody is the one mechanic whose cost is the size of the raid.
     sizeMechanic: { 10: 1.0, 25: 0.62 },
     accent: '#38bdf8',
-    names: { slam: 'A WORD OF ENDING', shard: 'WINTER SHARD', raid: 'SETTLING COLD' },
+    names: { slam: 'A WORD OF ENDING', shard: 'WINTER SHARD', spray: '', crimson: '', breath: '', raid: 'SETTLING COLD' },
     // Cheapest idea first, and the two that need somebody else to act on them
     // last. The turned mind is the top rung on purpose: it is the only thing
     // in this game that asks a raid to stop hitting one of its own, and a raid
@@ -2000,7 +2016,7 @@ export const ENCOUNTERS: Encounter[] = [
     // harness never printed a size table for this boss. See `SHARDS`.
     sizeMechanic: { 10: 1.1, 25: 0.65 },
     accent: '#84cc16',
-    names: { slam: 'GORGE', shard: '', raid: 'BAD AIR' },
+    names: { slam: 'GORGE', shard: '', spray: '', crimson: '', breath: '', raid: 'BAD AIR' },
     // The air is the first rung rather than something outside the ladder, and
     // that is a compromise worth writing down.
     //
@@ -2277,7 +2293,7 @@ export const ENCOUNTERS: Encounter[] = [
     kit: ['spill', 'siphon', 'fester', 'adds', 'champion', 'gorge'],
     herald: null,
     accent: '#7f1d1d',
-    names: { slam: 'RENDING BLOW', shard: '', raid: 'THE TAKING' },
+    names: { slam: 'RENDING BLOW', shard: '', spray: '', crimson: '', breath: '', raid: 'THE TAKING' },
     phases: {
       1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 12, ...beats({ siphon: 22.5, spill: 17.5, fester: 22.5, adds: 40, champion: 75, gorge: 26 }) },
       2: { swing: 1.8, slam: 14, puddleCount: 1, raid: 11, ...beats({ siphon: 19.1, spill: 15, fester: 19.5, adds: 35.2, champion: 68, gorge: 23 }) },
@@ -2444,7 +2460,7 @@ export const ENCOUNTERS: Encounter[] = [
     always: ['slime'],
     herald: null,
     accent: '#4d7c0f',
-    names: { slam: 'THE BIG ARM', shard: '', raid: 'THE SEEPING' },
+    names: { slam: 'THE BIG ARM', shard: '', spray: 'THE ARM COMES ROUND', crimson: '', breath: '', raid: 'THE SEEPING' },
     phases: {
       1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ spray: 20, infection: 14, flood: 25, engulf: 7, slime: 15 }) },
       2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ spray: 18.2, infection: 12, flood: 22.2, engulf: 6.5, slime: 13.1 }) },
@@ -2660,7 +2676,7 @@ export const ENCOUNTERS: Encounter[] = [
     gates: { chase: 'heroic' },
     herald: null,
     accent: '#a3e635',
-    names: { slam: 'THE HEAVY FLASK', shard: '', raid: 'FUMES' },
+    names: { slam: 'THE HEAVY FLASK', shard: '', spray: '', crimson: '', breath: '', raid: 'FUMES' },
     phases: {
       1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ caustic: 37.5, hound: 27.5, gather: 35, chase: 90, decant: 37.5, reagent: 10 }) },
       2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ caustic: 32.5, hound: 24.6, gather: 31.3, chase: 80.5, decant: 33.4, reagent: 9 }) },
@@ -2850,7 +2866,7 @@ export const ENCOUNTERS: Encounter[] = [
     gates: { prison: 'heroic' },
     herald: null,
     accent: '#be123c',
-    names: { slam: 'THE RED HOUR', shard: '', raid: 'THE COURT' },
+    names: { slam: 'THE RED HOUR', shard: '', spray: '', crimson: '', breath: '', raid: 'THE COURT' },
     phases: {
       1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ rotation: 46, thirst: 22.5, ballast: 30.5, nuclei: 12.5, prison: 20.5, adds: 48 }) },
       2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ rotation: 41.4, thirst: 20.3, ballast: 27.5, nuclei: 11.2, prison: 18.5, adds: 43 }) },
@@ -3018,7 +3034,7 @@ export const ENCOUNTERS: Encounter[] = [
     kit: ['gift', 'bond', 'stain', 'flight', 'turning', 'crimson'],
     herald: null,
     accent: '#e11d48',
-    names: { slam: 'THE RED HAND', shard: '', raid: 'THE COURT BLEEDS' },
+    names: { slam: 'THE RED HAND', shard: '', spray: '', crimson: 'ALL OF IT BACK', breath: '', raid: 'THE COURT BLEEDS' },
     phases: {
       1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ gift: 15, bond: 30, flight: 52, crimson: 12.5 }) },
       2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ gift: 14.2, bond: 26.6, flight: 46, crimson: 11 }) },
@@ -3228,7 +3244,7 @@ export const ENCOUNTERS: Encounter[] = [
     kit: ['bleed', 'kin', 'portal', 'adds', 'empower', 'suppress'],
     herald: null,
     accent: '#22c55e',
-    names: { slam: '', shard: '', raid: 'THE WELL' },
+    names: { slam: '', shard: '', spray: '', crimson: '', breath: '', raid: 'THE WELL' },
     phases: {
       1: { swing: 2, slam: 0, puddleCount: 1, raid: 13, ...beats({ adds: 30, empower: 62, bleed: 34, kin: 70, portal: 45, suppress: 58 }) },
       2: { swing: 2, slam: 0, puddleCount: 1, raid: 12, ...beats({ adds: 26, empower: 55, bleed: 29, kin: 60, portal: 45, suppress: 50 }) },
@@ -3425,7 +3441,7 @@ export const ENCOUNTERS: Encounter[] = [
     always: [],
     herald: null,
     accent: '#a5f3fc',
-    names: { slam: 'THE COLD HAND', shard: '', raid: 'THE LONG WINTER' },
+    names: { slam: 'THE COLD HAND', shard: '', spray: '', crimson: '', breath: 'THE BREATH', raid: 'THE LONG WINTER' },
     phases: {
       1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ chill: 2.4, instability: 26, haul: 19, spike: 26, cover: 40, buffet: 20, breath: 21, flight: 95 }) },
       2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ chill: 2.0, instability: 22, haul: 16, spike: 23, cover: 30, buffet: 12, breath: 18, flight: 85 }) },

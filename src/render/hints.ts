@@ -1,5 +1,5 @@
 import { getAura } from '../sim/combat'
-import { encounterAt } from '../sim/encounters'
+import { encounterAt, encounterKit, type MechanicId } from '../sim/encounters'
 import type { SimState } from '../sim/types'
 import { COLORS, L, MENU_TEXT, fitText } from './theme'
 
@@ -68,14 +68,30 @@ export class Hints {
       if (this.active.age > SHOW_FOR) this.active = null
     }
 
-    for (const g of s.ground) this.trigger(g.kind)
+    // A card is the fight's own or it is not shown.
+    //
+    // Every card but the slam and the tide describes one fight's mechanic, and
+    // each was raised off whatever it happened to watch — an aura on a body, a
+    // spawn, a patch of floor — with nothing asking whose fight it was. Two of
+    // those watches are worn by more than one mechanic: the queen's `turning`
+    // and the Whisper's `dominate` both put `turned` on one of the raid, and
+    // the well has an `empower` of its own. So the blood queen taught a raid
+    // `TURNED MIND`, which is the Whisper's card and the Whisper's word, about
+    // a mechanic of hers that wants something else done about it.
+    //
+    // Asked of the kit at the size and setting being played, which is the same
+    // question `boss.ts` asks before it fires one.
+    const kit = encounterKit(encounterAt(s.encounter), s.party.length, s.difficulty)
+    const owns = (key: string): boolean => kit.includes(key as MechanicId)
+
+    for (const g of s.ground) if (owns(g.kind)) this.trigger(g.kind)
     // The two that are not floor: one is a body standing over somebody, the
     // other is the boss itself behaving differently. Neither would ever be
     // reached by watching the ground, and both are things a first-time player
     // meets on the first boss.
-    if (s.actors.some((a) => a.spawn === 'spike' && a.alive)) this.trigger('spike')
+    if (owns('spike') && s.actors.some((a) => a.spawn === 'spike' && a.alive)) this.trigger('spike')
     const b = boss(s)
-    if (b && getAura(b, 'storming')) this.trigger('bonestorm')
+    if (owns('bonestorm') && b && getAura(b, 'storming')) this.trigger('bonestorm')
     // A wave, and only a wave.
     //
     // It used to be "anything hostile that is not the boss", which was every
@@ -86,6 +102,7 @@ export class Hints {
     // no wave at all, so the very first card this game ever shows a player was
     // about a mechanic that fight does not have.
     if (
+      owns('adds') &&
       s.actors.some(
         (a) =>
           a.faction === 'boss' &&
@@ -97,23 +114,40 @@ export class Hints {
     ) {
       this.trigger('adds')
     }
-    if (boss(s)?.castId === 'boss_slam') this.trigger('slam')
+    // Titled by the fight, like the shard and the tide.
+    //
+    // Every boss slams, so this is not the kit's to gate — but every boss
+    // slams by its own name, and the card said `ABYSSAL SLAM` over all nine of
+    // them while the banner an inch above it said `SABER LASH`, `A WORD OF
+    // ENDING`, `GORGE`. Two names for one blow, and the one the card used
+    // belongs to no fight in the game.
+    if (boss(s)?.castId === 'boss_slam') {
+      this.trigger('slam', encounterAt(s.encounter).names.slam)
+    }
     // The second boss's rungs, each on the plainest thing that is true while
     // it is happening: a cast on the boss, an aura on a body, a body in the
     // wave wearing a mark. The rotting ground is already covered -- the sweep
     // over `s.ground` above triggers on its own kind.
-    if (boss(s)?.castId === 'boss_frostbolt') {
+    if (owns('frostbolt') && boss(s)?.castId === 'boss_frostbolt') {
       this.trigger('frostbolt', encounterAt(s.encounter).names.shard)
     }
-    if (s.actors.some((a) => a.auras.some((au) => au.id === 'haunted'))) this.trigger('shade')
-    if (s.actors.some((a) => a.auras.some((au) => au.id === 'slighted'))) this.trigger('insignificance')
-    if (s.actors.some((a) => a.faction === 'boss' && a.auras.some((au) => au.id === 'empowered'))) {
+    if (owns('shade') && s.actors.some((a) => a.auras.some((au) => au.id === 'haunted'))) {
+      this.trigger('shade')
+    }
+    if (owns('insignificance') && s.actors.some((a) => a.auras.some((au) => au.id === 'slighted'))) {
+      this.trigger('insignificance')
+    }
+    if (
+      owns('empower') &&
+      s.actors.some((a) => a.faction === 'boss' && a.auras.some((au) => au.id === 'empowered'))
+    ) {
       this.trigger('empower')
     }
     // One of the raid's own, turned. Watched on the aura rather than on the
     // chat line the fight speaks, because the line has scrolled by the time
     // anybody works out which body it meant.
     if (
+      owns('dominate') &&
       s.actors.some(
         (a) => a.faction === 'party' && a.alive && a.auras.some((au) => au.id === 'turned'),
       )
@@ -133,7 +167,7 @@ export class Hints {
       // countdown is: the card names a thing the player is about to see called
       // something else on the banner above it.
       if (e.abilityId === 'boss_raid') this.trigger('raid', encounterAt(s.encounter).names.raid)
-      if (e.abilityId === 'boss_volley') this.trigger('volley')
+      if (owns('volley') && e.abilityId === 'boss_volley') this.trigger('volley')
     }
   }
 

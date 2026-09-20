@@ -1086,14 +1086,26 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     // none has no name for it — which drew an empty cast bar over a cast that
     // was very much happening. The fallback is the floor's own word for it.
     //
-    // Every cast asked by name, rather than the cone asked by name and
-    // everything else defaulted to the slam. There are three casts in the game
-    // and that shape had room for two, so the third fell through — and the
-    // third is the shard, which the second boss aims at whoever is holding it
-    // and whose entire answer is reading this bar and cutting the cast. A raid
-    // was being told the incoming interrupt was the tank slam.
-    const label =
-      b.castId === 'boss_frostbolt' ? named.shard || 'INCOMING SHARD' : named.slam
+    // Every cast asked by name, rather than the shard asked by name and
+    // everything else defaulted to the slam. That shape had room for two and
+    // there are five, so three fell through: the drowned one's cone, the
+    // queen's tide back at once and the lich's breath were each announced as
+    // their fight's tank slam — `THE BIG ARM` over a cone, `THE COLD HAND`
+    // over a breath. The raid was being told the wrong mechanic was coming
+    // by the one line on the screen whose whole job is saying which it is.
+    //
+    // Keyed off the cast rather than branched, so a cast added later gets a
+    // missing name instead of somebody else's, and `rendercheck` fails on the
+    // missing one.
+    const CAST_NAMES: Record<string, keyof typeof named> = {
+      boss_slam: 'slam',
+      boss_frostbolt: 'shard',
+      boss_spray: 'spray',
+      boss_crimson: 'crimson',
+      boss_breath: 'breath',
+    }
+    const key = CAST_NAMES[b.castId]
+    const label = (key ? named[key] : '') || named.slam
     bar(ctx, x + w / 2 - cw / 2, y + 22 * L.ui, cw, 9 * L.ui, progress, COLORS.bossCast)
     ctx.fillStyle = COLORS.bossCast
     ctx.font = font(10, true)

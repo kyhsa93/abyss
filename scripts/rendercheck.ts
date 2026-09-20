@@ -4609,6 +4609,28 @@ for (const [label, w, h] of [
     if (!encounter.saving) {
       expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
     }
+    // And so does every other cast it makes.
+    //
+    // The label in `hud.ts` asked for the shard by name and defaulted
+    // everything else to the slam, which had room for two casts in a game with
+    // five. Three fell through, and each was announced to the raid as that
+    // fight's tank slam: the drowned one's cone read `THE BIG ARM`, the
+    // queen's tide back at once read `THE RED HAND`, the lich's breath read
+    // `THE COLD HAND`. The table has a field each now, and this is the half
+    // that stops the next cast quietly borrowing the slam's word again.
+    for (const [mechanic, field] of [
+      ['frostbolt', 'shard'],
+      ['spray', 'spray'],
+      ['crimson', 'crimson'],
+      ['breath', 'breath'],
+    ] as const) {
+      if (!uses(mechanic)) continue
+      expect(
+        `${label}: and its ${mechanic} is called something of its own`,
+        encounter.names[field] !== '',
+        'it had none, so the bar over it would have said the slam',
+      )
+    }
     // And it walks at its own pace rather than the first boss's.
     //
     // `creature_template.speed_run`, a multiplier of the source's base seven
