@@ -823,8 +823,29 @@ function roomUnderfoot(): string | null {
  * Read off `travel`, which is the only thing that knows which pack a body was
  * in and where in it: the pack's own name and a bit for the body's place.
  */
+/**
+ * Which evening the live walk belongs to.
+ *
+ * `harvest` folds what the walk knows back into the run, and it used to check
+ * only that a walk was live -- never that it was *this* run's walk. Pressing
+ * reset then put the fallen straight back on the floor: the handler builds a
+ * fresh run whose `carried` is empty, and `standIn` harvests before reading
+ * it, so the corpses of the evening that was just thrown away were written
+ * over the empty array and `carryInto` laid them out again. The same shape sat
+ * in the rung-up press, which also swaps `run` and then stands.
+ *
+ * A seed rather than the run object because the run is replaced on every door
+ * and kill; `stepped`, `cleared`, `enter`, `wiped` and `felled` all spread the
+ * old one, so the seed is the thing that stays still for an evening and
+ * changes when a new one starts.
+ */
+let walkingRun: number | null = null
+
 function harvest(): void {
   if (!run || state.mode !== 'travel') return
+  // Not this run's walk: a reset, or a step into another instance. What that
+  // walk was holding belongs to an evening that is over.
+  if (walkingRun !== run.seed) return
   const travel = state.travel
   if (!travel) return
   const down: Array<readonly [string, number]> = []
@@ -950,6 +971,7 @@ function standIn(
     carried,
     true,
   )
+  walkingRun = run.seed
   state.chamber = id
   // The whole building is underfoot, not just this room: a doorway is floor,
   // which is what lets the party stand in one.
@@ -1028,6 +1050,7 @@ function walkTo(to: string, key: string, walk: Corridor): void {
   graded = false
   announced = []
   state = createCorridorState(roomSeed(run, key), party, walk, run.difficulty, 4, whereTheyStand())
+  walkingRun = run.seed
   state.chamber = to
   state.floor = floorNow(to)
   rng = rngFor(state)
