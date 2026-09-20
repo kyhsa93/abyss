@@ -1988,7 +1988,8 @@ for (const [label, w, h] of [
         slot === 'restore' ||
         slot === 'area' ||
         slot === 'dispel' ||
-        slot === 'guard'
+        slot === 'guard' ||
+        slot === 'burst'
       ) {
         continue
       }
@@ -7572,6 +7573,9 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     const rng = new Rng(0x51ed)
     let adds = 0
     let lingerTicks = 0
+    // How many ticks there were to count over, because the total alone is two
+    // questions wearing one number.
+    let aliveTicks = 0
     let healing = 0
     let enraged = false
 
@@ -7584,6 +7588,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       // against "the affix is about ground rather than one boss's version of
       // it" ended up naming two bosses' versions of it.
       lingerTicks += fight.ground.filter((g) => g.detonated && g.lingering > 0).length
+      aliveTicks += 1
       if (boss(fight).auras.some((a) => a.id === 'enrage')) enraged = true
       for (const a of fight.actors) {
         const was = before.get(a.id)
@@ -7591,7 +7596,22 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
         if (a.hp > was) healing += a.hp - was
       }
     }
-    return { adds, lingerTicks, healing, enraged }
+    // A rate rather than a total, and renamed so the next reader is not told
+    // one thing and handed another.
+    //
+    // Summed over a pull this measured two things at once: how much ground was
+    // burning, which is the affix, and how long the party lasted, which is
+    // not. The block below already records the same mistake about healing --
+    // "a faltering raid out-healed the plain one, because the plain one wiped
+    // at a hundred and three seconds and stopped needing any" -- and fixes it
+    // the same way. It surfaced here when the raid was given enough new
+    // buttons to stop dying: the plain arm started reaching the hundred and
+    // fifty second cap alive, its total climbed to the ceiling, and the ratio
+    // fell under the bar on four seeds of eight while the affix was working
+    // exactly as well as before. Per tick, the same eight seeds clear it
+    // eight times out of eight, at a mean of 1.8 with the new abilities and
+    // 2.0 without.
+    return { adds, lingerRate: aliveTicks > 0 ? lingerTicks / aliveTicks : 0, healing, enraged }
   }
 
   const plain = play(null, 150)
@@ -7636,11 +7656,18 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     expect('a boss that summons does', bare > 0, 'no wave ever arrived')
     expect('swarming brings more', addsUnder('swarming') > bare, `${bare} at a time`)
   }
-  expect(
-    'lingering leaves more on the floor',
-    play('lingering', 150).lingerTicks > plain.lingerTicks * 1.3,
-    `${plain.lingerTicks}`,
-  )
+  {
+    // Both numbers in the message, not just the baseline. When this failed it
+    // printed one of them, and one of them cannot say which arm moved --
+    // finding that out took a sweep across eight seeds that the message could
+    // have answered on its own.
+    const lit = play('lingering', 150)
+    expect(
+      'lingering leaves more on the floor',
+      lit.lingerRate > plain.lingerRate * 1.3,
+      `${lit.lingerRate.toFixed(1)} a tick against ${plain.lingerRate.toFixed(1)} plain`,
+    )
+  }
   // Measured on one heal rather than across a pull, for the same reason the
   // rot is: a whole fight's healing is a function of how long the fight lasted
   // and how many bodies were still standing to be healed, and those move for
