@@ -664,6 +664,82 @@ the two climbs' lengths from thirteen yards to forty-two. Every account of why
 was refuted by the next measurement. The six failures above are reason enough
 not to ship it, and none of them depend on knowing.
 
+### The interrupts, and the two classes that have none
+
+Seven of the nine classes in this raid carry an interrupt and two do not, and
+the absence is the source's rather than an oversight: a paladin's nearest
+thing is a silence riding Avenger's Shield, and a warlock's Spell Lock belongs
+to a felhunter, which is a pet this game has no room for.
+
+| class | interrupt | id |
+| --- | --- | --- |
+| warrior | Pummel | 6552 |
+| rogue | Kick | 1766 |
+| mage | Counterspell | 2139 |
+| shaman | Wind Shear | 57994 |
+| priest | Silence | 15487 |
+| druid | Bash | 5211 |
+| hunter | Silencing Shot | 34490 |
+| paladin | none | — |
+| warlock | none (pet) | — |
+
+Shield Bash is not among them: this game already spends that name on the
+protection warrior's threat button, and giving one ability two jobs would make
+the check that holds this list read as satisfied while the raid pressed the
+wrong thing.
+
+**Taken by spell id, not by name, and the difference was not cosmetic.**
+Matching on Korean names -- this client is a koKR build, so `Spell.dbc` names
+come back in Korean -- put a rogue's Kick in a priest's kit and listed a
+paladin as carrying a druid's Abolish Poison. Two distinct spells share a name
+across classes often enough that a name is not a key: Cleanse and Purge are
+both `정화`, and Remove Curse is both 475 and 2782. Keying the per-class lists
+on the spell id instead removed both faults at once, and a self-check over
+every skill line -- does the line I assigned to this class actually carry that
+class's mask? -- found the one that had been leaking druid spells into the
+paladin's list.
+
+**Which casts a raid may stop.** Five things the bosses cast, and only two of
+them are a decision:
+
+| cast | what it is | stoppable |
+| --- | --- | --- |
+| `boss_slam` | the tank's hit, and the mark's share of it | no — it is what the tank's brace answers |
+| `boss_spray`, `boss_breath` | a cone that detonates | no — answered by standing elsewhere |
+| `boss_frostbolt` | a bolt at whoever is holding threat | **yes** |
+| `boss_crimson` | a bill on the whole raid | **yes** |
+
+Named rather than "anything with a cast bar". Seven of nine classes carry an
+interrupt, so a raid told to stop everything stops everything, and every
+mechanic in the building becomes a cooldown rotation. Measured on one pull
+each: two of seven casts stopped on the second fight, six of ten on the
+eighth.
+
+**And a mechanic the raid answered is not a mechanic that never happened.**
+Stopping those two casts turned `rendercheck`'s mechanic sweep red with
+`mechanics never fired: frostbolt, crimson`, and the sweep was right to say
+so: it counts a mechanic as having fired when it took health off somebody,
+which is the correct shape for a damage ledger and the wrong question to ask
+about a cast that was cut. An interrupt bills nobody.
+
+Two ways out were considered and both were wrong:
+
+- *Make interrupts miss often enough that some land.* Dead on arithmetic. The
+  bars are 2.4 and 2.6 seconds -- `readable()` adds `NOTICE_GRANT` to every
+  telegraph -- against reaction delays of 0.18 to 0.6 and a fumble chance of
+  five to eleven per cent. Seven raiders carry an interrupt; the chance that
+  all of them miss is not a number worth writing down.
+- *Weaken the check.* The check is the invariant: everything a boss sells, a
+  boss throws. The feature was breaking it, not the other way round.
+
+What it needed was a second signal, and the file already had four of them --
+a gauge that moved, a body that ate, a circle that followed, a mind that
+turned, each with a line saying why that mechanic leaves no bill. So
+`SimState.stopped` counts what the raid cut, `interruptCast` writes to it for
+the boss's own casts only (a mage's `frostbolt` is an ability id, not the
+shard), and the sweep folds it in beside the other four. Without that line an
+interrupt does not make a mechanic quieter; it makes it never have happened.
+
 ### Boss health: an order, not a set of ratios
 
 The eight fights here carry between five and a half and fourteen million in the

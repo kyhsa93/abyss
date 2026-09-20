@@ -1120,6 +1120,16 @@ console.log(`rendered ${frames} frames with no exceptions`)
       ) {
         seen.add('turning')
       }
+      // And the ones the raid answered by stopping them.
+      //
+      // The tally above is a ledger of what took health off somebody, which
+      // is what it should be and the reason a cut cast is invisible to it: an
+      // interrupt bills nobody. The boss still cast it and the raid still
+      // answered, so it belongs here with the other four that leave no bill --
+      // a gauge that moved, a body that ate, a circle that followed, a mind
+      // that turned. Without this line an interrupt does not make a mechanic
+      // quieter, it makes it never have happened.
+      for (const id of Object.keys(s.stopped)) seen.add(id)
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
@@ -1965,15 +1975,50 @@ for (const [label, w, h] of [
     if (bar.length !== BAR_SLOTS) shapes.push(`${specLabel(pick)}: ${bar.length}`)
     const kit = specOf(pick).abilities as unknown as Record<string, string | null>
     for (const [slot, id] of Object.entries(kit)) {
-      // The raid cooldown is the one kit entry that is deliberately not on the
-      // bar. It is not this player's button — it is the raid's, pressed for
-      // whichever member of the class is nearest and ready — so it lives on
-      // its own row and is reachable there. Everything else on this list being
-      // unreachable is still the bug this check was written for.
+      // The interrupt is the one kit entry that is deliberately not on the
+      // bar. It is not a rotation button and it is not the player's: it
+      // answers a cast the moment one starts, which is a reaction the AI
+      // makes for every body in the raid rather than a sixth button nobody
+      // asked for. The raid cooldowns used to sit here for a different reason
+      // and are gone; everything else on this list being unreachable is still
+      // the bug this check was written for.
+      if (slot === 'interrupt') continue
       if (id && !bar.includes(id)) unreachable.push(`${specLabel(pick)} ${slot}=${id}`)
     }
   }
   expect(`all ${SPEC_OPTIONS.length} specs carry ${BAR_SLOTS} buttons`, shapes.length === 0, shapes.join(', '))
+
+  // And the seven classes the source gives an interrupt have one, while the
+  // two it does not give one have none.
+  //
+  // Both halves matter. A raid where nobody can stop a cast is a raid that
+  // watches the bill arrive; a raid where everybody can is a raid that never
+  // sees the mechanic at all. The split is the source's own -- a paladin's is
+  // a silence riding a shield and a warlock's belongs to a pet this game has
+  // no room for -- and `docs/reading-the-source.md` records how each was
+  // found, by spell id rather than by name, after matching on names put a
+  // rogue's Kick in a priest's kit.
+  {
+    const WITH = ['warrior', 'rogue', 'mage', 'shaman', 'priest', 'druid', 'hunter']
+    const WITHOUT = ['paladin', 'warlock']
+    const missing = SPEC_OPTIONS.filter(
+      (pick) => WITH.includes(pick.classId) && !specOf(pick).abilities.interrupt,
+    )
+    const spare = SPEC_OPTIONS.filter(
+      (pick) => WITHOUT.includes(pick.classId) && specOf(pick).abilities.interrupt,
+    )
+    expect(
+      `the ${WITH.length} classes with an interrupt carry one, and the ${WITHOUT.length} without carry none`,
+      missing.length === 0 && spare.length === 0,
+      [...missing, ...spare].map(specLabel).join(', '),
+    )
+    // Free and off the global, for the reason a taunt is: an answer that is
+    // sometimes unaffordable is an answer the raid cannot plan around.
+    const odd = Object.values(ABILITIES).filter(
+      (a) => a.kind === 'interrupt' && (a.cost !== 0 || a.offGcd !== true || a.castTime !== 0),
+    )
+    expect('and every interrupt is free, instant and off the global', odd.length === 0, odd.map((a) => a.id).join(', '))
+  }
   expect('and every one of them is on the bar', unreachable.length === 0, unreachable.join(', '))
 
   // The brace is the fifth for eleven of them, and it has to be the same
@@ -2856,14 +2901,20 @@ for (const [label, w, h] of [
   // timing worth anything.
   const free = Object.values(ABILITIES).filter((a) => a.cost === 0 && !a.selfCost)
   const shouldBeFree = free.every(
-    (a) => a.kind === 'defensive' || a.kind === 'taunt' || a.kind === 'charge',
+    (a) =>
+      a.kind === 'defensive' ||
+      a.kind === 'taunt' ||
+      a.kind === 'charge' ||
+      a.kind === 'interrupt',
   )
   expect(
-    `only the ${free.length} defensives, taunts and charges are free`,
+    `only the ${free.length} defensives, taunts, charges and interrupts are free`,
     // One a spec, plus the tanks' own: the answer to the floor is free for the
     // same reason a charge is — an answer you sometimes cannot afford is worse
-    // than not having one. The nine raid calls used to be counted here too.
-    shouldBeFree && free.length === 24,
+    // than not having one. The seven interrupts are here for that reason as
+    // well: a stop the raid cannot pay for is a stop it cannot plan around.
+    // The nine raid calls used to be counted here too.
+    shouldBeFree && free.length === 31,
     free.map((a) => a.id).join(', '),
   )
 

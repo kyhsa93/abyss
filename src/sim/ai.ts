@@ -2665,6 +2665,14 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   if (actor.ai!.striking?.startsWith('still:')) return
 
   const moving = actor.ai!.moveTarget !== null
+
+  // Before the rotation, and for every role: a healer with a silence stops the
+  // bill the same as a rogue does, and neither should finish a global first.
+  if (mayInterrupt(s, actor)) {
+    const kit = specFor(actor).abilities
+    if (kit.interrupt && tryCast(s, actor, kit.interrupt, boss(s).id, rng, moving)) return
+  }
+
   if (actor.role === 'tank') tankRotation(s, actor, rng, moving)
   else if (actor.role === 'healer') healerRotation(s, actor, rng, moving)
   else dpsRotation(s, actor, rng, moving)
@@ -2734,6 +2742,45 @@ function mayTaunt(s: SimState, actor: Actor): boolean {
   return holder !== null && holder.id !== actor.id
 }
 
+/**
+ * The casts a raid is allowed to stop, and the two it is not.
+ *
+ * Five things the bosses cast and only two of them are a decision. The slam
+ * is what the tank's brace answers -- stopping it would delete the mechanic
+ * the fight spends its whole first minute teaching -- and the two cones are
+ * answered by standing somewhere else. What is left is a bolt at one body and
+ * a bill on the whole raid, and both are worth a global nobody has to spend.
+ *
+ * Named rather than "anything with a cast bar" because seven of the nine
+ * classes carry an interrupt: told to stop everything, a raid would stop
+ * everything, and every mechanic in the building would become a cooldown
+ * rotation.
+ */
+const STOPPABLE = new Set(['boss_frostbolt', 'boss_crimson'])
+
+/**
+ * Whether this body has an interrupt and something worth spending it on.
+ *
+ * No range test here: `castBlocker` already refuses a press from outside the
+ * ability's own reach, so a rogue's Kick is a melee answer and a mage's
+ * Counterspell is not, without this having to know which is which. A refusal
+ * costs the tick and nothing else.
+ *
+ * Several raiders will want it at once. The first to land clears `castId`, so
+ * the rest see no cast and keep their cooldown -- the queue sorts itself out
+ * without anybody counting.
+ */
+function mayInterrupt(s: SimState, actor: Actor): boolean {
+  const kit = specFor(actor).abilities
+  if (!kit.interrupt) return false
+  if ((actor.cooldowns[kit.interrupt] ?? 0) > 0) return false
+  const b = boss(s)
+  if (!b.alive || !b.castId || !STOPPABLE.has(b.castId)) return false
+  // Late enough to be a reaction, early enough to beat the cast: a stop that
+  // lands on the last tenth is a stop that did not happen.
+  return b.castRemaining > 0.3
+}
+
 /** Is there anything worth pressing that ignores the global cooldown? */
 function canUseOffGcd(s: SimState, actor: Actor): boolean {
   const kit = specFor(actor).abilities
@@ -2745,6 +2792,9 @@ function canUseOffGcd(s: SimState, actor: Actor): boolean {
   // for. Without this line the flag in `abilities.ts` reads as done and does
   // nothing.
   if (mayTaunt(s, actor)) return true
+  // Same reasoning, and the same trap: an interrupt that waits for a free
+  // global arrives after the cast it was for.
+  if (mayInterrupt(s, actor)) return true
   if (!kit.defensive) return false
   const ability = ABILITIES[kit.defensive]
   if (!ability?.offGcd) return false

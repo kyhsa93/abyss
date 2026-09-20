@@ -1378,6 +1378,16 @@ export interface SimState {
   difficulty: DifficultyId
   /** Keyed by actor id. */
   tally: Record<number, Tally>
+  /**
+   * Mechanics the raid answered by stopping them, counted.
+   *
+   * The tally above is a ledger of what took health off somebody, which is
+   * the right shape for it and the wrong shape for this: an interrupted cast
+   * bills nobody, so a sweep reading only the tally concludes the mechanic
+   * never happened. It did happen -- the boss cast it and the raid cut it --
+   * and this is where that is written down.
+   */
+  stopped: Partial<Record<MechanicId, number>>
   /** Cleared at the top of every tick; purely an output channel. */
   sounds: SoundEvent[]
   /** The same, for things to draw. See `EffectEvent`. */

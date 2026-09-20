@@ -35,6 +35,16 @@ export interface IconSpec {
 }
 
 const ICONS: Record<string, IconSpec> = {
+  // The interrupts. Shaped for the hand rather than the class -- a fist, a
+  // boot, a cut spell -- because what a player reads off this row is "who can
+  // stop the next cast", and the seven of them answer the same question.
+  pummel: { shape: 'hammer', colour: '#facc15' },
+  kick: { shape: 'blade', colour: '#f97316', repeat: 3 },
+  counterspell: { shape: 'spiral', colour: '#818cf8' },
+  wind_shear: { shape: 'wave', colour: '#22d3ee', repeat: 3 },
+  silence: { shape: 'moon', colour: '#a78bfa', repeat: 3 },
+  bash: { shape: 'burst', colour: '#84cc16', repeat: 3 },
+  silencing_shot: { shape: 'arrow', colour: '#fb7185', repeat: 3 },
   // The raid's cooldowns. Coloured by what they do rather than by class — a
   // player scanning this row is asking "can I soften the next hit", not "which
   // of my nine classes is up" — and shaped so the three answers stay apart at

@@ -568,6 +568,7 @@ export function createTravelState(
   return {
     mode: 'travel',
     bg: null,
+    stopped: {},
     room: corridor.room,
     chamber: null,
     gauge: 0,

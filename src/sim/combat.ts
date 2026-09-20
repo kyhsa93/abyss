@@ -1308,6 +1308,14 @@ export function interruptCast(s: SimState, actor: Actor, reason: string): void {
   // instead of firing.
   pushEffect(s, 'fizzle', actor.pos, { abilityId: actor.castId })
 
+  // What the raid just answered, for anybody counting mechanics rather than
+  // damage. Only the boss's own casts: a party ability shares its name with
+  // the mechanic it answers -- a mage's `frostbolt` is not the shard -- so the
+  // prefix is what tells them apart.
+  if (actor.castId.startsWith('boss_')) {
+    const id = actor.castId.slice('boss_'.length) as MechanicId
+    s.stopped[id] = (s.stopped[id] ?? 0) + 1
+  }
   actor.castId = null
   actor.castRemaining = 0
   actor.castTargetId = null
@@ -1412,18 +1420,15 @@ export function landAbility(
       spendHealTrait(s, actor, ability, target, healed)
       break
     }
-    // Everybody at once, which is the only thing here that does that.
-    case 'raid': {
-      for (const a of s.actors) {
-        if (a.faction !== actor.faction || !a.alive) continue
-        if (ability.aura) addAura(a, ability.aura, actor.id)
-        if (ability.amount > 0) applyHeal(s, a, ability.amount, actor.id)
-        pushEffect(s, ability.amount > 0 ? 'heal' : 'cast', a.pos, {
-          abilityId: ability.id,
-          power: ability.amount,
-        })
-      }
-      s.chat.push({ id: s.nextObjectId++, speaker: actor.name, text: ability.name, age: 0 })
+    // Stopping a cast, which until now nothing in this game could do.
+    //
+    // The press is already paid for by the time this runs -- `beginCast`
+    // spends the cooldown -- so a swing at a boss that is not casting costs
+    // the cooldown and lands nothing, which is what a mistimed interrupt
+    // costs anywhere. `interruptCast` pushes the `fizzle` the renderer
+    // already knows how to draw, so this needs no art of its own.
+    case 'interrupt': {
+      if (target && target.alive && target.castId) interruptCast(s, target, 'interrupted')
       break
     }
     case 'taunt': {

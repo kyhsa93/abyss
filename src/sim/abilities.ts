@@ -1,7 +1,7 @@
 import { MELEE_RANGE, SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
 import type { AuraId, Role } from './types'
 
-export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt' | 'charge' | 'raid'
+export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt' | 'charge' | 'interrupt'
 
 export interface Ability {
   id: string
@@ -136,6 +136,25 @@ const list: Ability[] = [
   { id: 'shield_slam', name: 'Shield Bash', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 20, amount: 110, physical: true, threatMult: 6, aura: null, range: MELEE },
   { id: 'shield_wall', name: 'Brace', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, cost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
   { id: 'taunt', name: 'Challenge', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE, offGcd: TAUNT_OFF_GLOBAL },
+  // --- interrupts ---------------------------------------------------------
+  //
+  // Seven of the nine classes carry one and two do not: a paladin's is a
+  // silence on a shield rather than an interrupt, and a warlock's belongs to
+  // a pet this game has no room for. The absence is the source's, not an
+  // oversight -- see `docs/reading-the-source.md`.
+  //
+  // Free and off the global, for the same reason a taunt is: an answer that
+  // is sometimes unaffordable is an answer the raid cannot plan around. The
+  // cooldowns are the source's own, which is what makes stopping one cast
+  // rather than every cast the decision.
+  { id: 'pummel', name: 'Pummel', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 10, cost: 0, amount: 0, threatMult: 0, aura: null, range: MELEE, offGcd: true },
+  { id: 'kick', name: 'Kick', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 10, cost: 0, amount: 0, threatMult: 0, aura: null, range: MELEE, offGcd: true },
+  { id: 'counterspell', name: 'Counterspell', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 24, cost: 0, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE, offGcd: true },
+  { id: 'wind_shear', name: 'Wind Shear', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 6, cost: 0, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE, offGcd: true },
+  { id: 'silence', name: 'Silence', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 45, cost: 0, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE, offGcd: true },
+  { id: 'bash', name: 'Bash', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 60, cost: 0, amount: 0, threatMult: 0, aura: null, range: MELEE, offGcd: true },
+  { id: 'silencing_shot', name: 'Silencing Shot', role: 'dps', kind: 'interrupt', castTime: 0, cooldown: 20, cost: 0, amount: 0, threatMult: 0, aura: null, range: SPELL_RANGE, offGcd: true },
+
 
   // --- priest (healer): sustained, leans on its heal-over-time -------------
   { id: 'heal', name: 'Mend', role: 'healer', kind: 'heal', castTime: 2, cooldown: 0, cost: 40, amount: 473, threatMult: 0, aura: null, range: HEAL_RANGE },

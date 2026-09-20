@@ -46,6 +46,14 @@ export interface ClassAbilities {
   pact: string | null
   /** Healers only: what to press when nobody is hurt. */
   attack: string | null
+  /**
+   * The button that stops a cast, for the seven classes the source gives one.
+   *
+   * `null` on a paladin and a warlock because the source gives them none --
+   * the paladin's is a silence riding a shield and the warlock's belongs to a
+   * pet -- and an empty slot says that better than a borrowed button would.
+   */
+  interrupt: string | null
 }
 
 export const CLASS_ORDER: ClassId[] = [
@@ -346,6 +354,7 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   mobility: null,
   pact: null,
   attack: null,
+  interrupt: null,
   ...a,
 })
 
@@ -383,6 +392,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 100,
         abilities: kit({
           filler: 'cleave',
+          interrupt: 'pummel',
           threat: 'shield_slam',
           defensive: 'shield_wall',
           taunt: 'taunt',
@@ -402,6 +412,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 100,
         abilities: kit({
           filler: 'mortal_strike',
+          interrupt: 'pummel',
           overTime: 'rend',
           finisher: 'execute',
           mobility: 'charge',
@@ -494,6 +505,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 1050,
         abilities: kit({
           filler: 'heal',
+          interrupt: 'silence',
           overTime: 'renew',
           finisher: 'flash_heal',
           defensive: 'fade',
@@ -512,6 +524,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 950,
         abilities: kit({
           filler: 'mind_flay',
+          interrupt: 'silence',
           overTime: 'shadow_word_pain',
           finisher: 'mind_blast',
           defensive: 'dispersion',
@@ -543,6 +556,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 100,
         abilities: kit({
           filler: 'swipe',
+          interrupt: 'bash',
           threat: 'maul',
           defensive: 'frenzied_regen',
           taunt: 'growl',
@@ -561,6 +575,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 1000,
         abilities: kit({
           filler: 'healing_touch',
+          interrupt: 'bash',
           overTime: 'rejuvenation',
           finisher: 'swiftmend',
           defensive: 'barkskin',
@@ -579,6 +594,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 950,
         abilities: kit({
           filler: 'wrath',
+          interrupt: 'bash',
           overTime: 'moonfire',
           finisher: 'starfire',
           defensive: 'barkskin',
@@ -601,6 +617,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 100,
         abilities: kit({
           filler: 'shred',
+          interrupt: 'bash',
           overTime: 'rake',
           finisher: 'ferocious_bite',
           mobility: 'dash',
@@ -628,6 +645,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 1050,
         abilities: kit({
           filler: 'healing_wave',
+          interrupt: 'wind_shear',
           overTime: 'riptide',
           finisher: 'chain_heal',
           defensive: 'astral_shift',
@@ -646,6 +664,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 950,
         abilities: kit({
           filler: 'lightning_bolt',
+          interrupt: 'wind_shear',
           overTime: 'flame_shock',
           finisher: 'chain_lightning',
           defensive: 'astral_shift',
@@ -673,6 +692,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 1000,
         abilities: kit({
           filler: 'frostbolt',
+          interrupt: 'counterspell',
           overTime: 'living_bomb',
           finisher: 'pyroblast',
           defensive: 'ice_barrier',
@@ -734,6 +754,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 100,
         abilities: kit({
           filler: 'steady_shot',
+          interrupt: 'silencing_shot',
           overTime: 'serpent_sting',
           finisher: 'aimed_shot',
           defensive: 'deterrence',
@@ -762,6 +783,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         power: 100,
         abilities: kit({
           filler: 'sinister_strike',
+          interrupt: 'kick',
           overTime: 'rupture',
           finisher: 'eviscerate',
           mobility: 'sprint',
