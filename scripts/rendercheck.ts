@@ -10209,6 +10209,26 @@ for (const [label, w, h] of [
         hitCitadel(run, layout.abandon.x + 4, layout.abandon.y + 4, allowed)?.kind === 'abandon',
       'a button does not answer',
     )
+    // And the press that puts this evening back, which is the one thing on
+    // this screen LEAVE is not: leaving keeps the dead where they are, and
+    // there was no control at all that stood them up again.
+    const strip = layout.reset
+    expect(
+      `${label}: the way to walk it from the start answers`,
+      strip !== null && hitCitadel(run, strip.x + 4, strip.y + 4, allowed)?.kind === 'reset',
+      strip === null ? 'no line over an evening with a room down' : 'the line did not answer',
+    )
+    // It is a line above the bottom row and the map stops above it. Measured
+    // rather than trusted because the rooms are sized off whatever height is
+    // left: a strip laid on afterwards would be drawn through the last row of
+    // boxes on a landscape phone, which is where this screen runs out first.
+    expect(
+      `${label}: and it clears both the bottom row and the map`,
+      strip !== null &&
+        strip.y + strip.h <= layout.back.y &&
+        layout.rows.every((r) => r.rect.y + r.rect.h <= strip.y),
+      'the line overlaps the buttons or the rooms',
+    )
     // An evening with a room still open is an evening: it is not offered a
     // different one, whatever rung the chain has reached.
     expect(
@@ -10222,6 +10242,16 @@ for (const [label, w, h] of [
     drawCitadel(ctx, run, allowed)
   }
   updateLayout(1440, 900)
+
+  // Nothing down is nothing to put back. LEAVE already removes an evening
+  // nobody has killed anything in -- that is the half of it that reads GIVE UP
+  // -- so offering a reset there would be two controls for one act.
+  const untouched = citadelLayout({ ...run, cleared: [], entered: 0 }, allowed)
+  expect(
+    'an evening with nothing down is offered no reset',
+    untouched.reset === null,
+    'a reset was offered over an evening with nothing in it',
+  )
 
   // A room whose fight nobody has built says so, once the doors reach it.
   const deeper = { ...run, at: 'mooring', cleared: ['spire', 'oratory'] }

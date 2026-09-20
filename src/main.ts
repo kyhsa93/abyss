@@ -142,6 +142,7 @@ import {
   abandon as abandonRun,
   instanceAt,
   instances,
+  resetInstance,
   resetWeek,
   lockAt,
   load as loadRun,
@@ -1020,6 +1021,15 @@ function carriedOut(fight: SimState): number[] {
  * the evening is being played at. The citadel is a place to walk the ladder
  * through, not a way around it.
  */
+/**
+ * Whether the press that puts this evening back is armed.
+ *
+ * Its own flag rather than the front page's: the two resets are about
+ * different things — one setting against the whole week — and sharing the
+ * arming would let a press on one screen confirm a press on the other.
+ */
+let citadelResetArmed = false
+
 function updateCitadel(tap: { x: number; y: number } | null): void {
   if (!run) {
     screen = 'home'
@@ -1039,6 +1049,31 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
   const again = climb ? tierLabel(climb) : null
   if (tap) {
     const hit = hitCitadel(run, tap.x, tap.y, allowed, again)
+    if (hit?.kind === 'reset') {
+      // Twice, and only where there is something to put back — the same shape
+      // as the week's reset on the front page and for the same reason: an
+      // evening's kills are not a thing to lose to a stray tap, and the first
+      // press is what prints how many rooms are about to stand again.
+      if (run.cleared.length === 0) return
+      if (!citadelResetArmed) {
+        citadelResetArmed = true
+        return
+      }
+      const { size, difficulty } = run
+      resetInstance(size, difficulty)
+      citadelResetArmed = false
+      // Straight into the door of the fresh evening rather than out to the
+      // front page. The press says "walk it from the start", and sending the
+      // player back to a menu to find the way in again is answering it with
+      // homework — the same reasoning as the rung-up press below.
+      run = startRun(Date.now(), size, difficulty)
+      roomId = null
+      saveRun(run)
+      standIn(run.at, null)
+      return
+    }
+    // Every other press on this screen disarms it, as on the front page.
+    citadelResetArmed = false
     if (hit?.kind === 'back') {
       screen = 'home'
       return
@@ -1079,7 +1114,7 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       return
     }
   }
-  drawCitadel(ctx, run, allowed, again, resetsAt(lockAt(Date.now())) - Date.now())
+  drawCitadel(ctx, run, allowed, again, resetsAt(lockAt(Date.now())) - Date.now(), citadelResetArmed)
 }
 
 let state: SimState = newState()

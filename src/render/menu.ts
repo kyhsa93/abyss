@@ -974,6 +974,21 @@ export interface CitadelLayout {
   abandon: Rect | null
   /** Walking the building again one rung up. Null unless the evening is over. */
   again: Rect | null
+  /**
+   * Putting *this* evening back to the door — see `resetInstance`.
+   *
+   * A different act from `abandon`, and kept a different control because they
+   * are opposites: leaving keeps the dead where they are, and this stands them
+   * up again. The button that leaves already carries two meanings depending on
+   * whether anything has died, and a third would make it unreadable.
+   *
+   * A line rather than a button, for the reason `homeLayout` gives for the
+   * week's version of it: the bottom row of this screen is already BACK and
+   * LEAVE, and on a phone a third box there is one too many. Null when there
+   * is nothing down, because then LEAVE already removes the evening and a
+   * reset would put back nothing.
+   */
+  reset: Rect | null
 }
 
 const CITADEL_ORDER_IDS = CHAMBERS.map((c) => c.id)
@@ -994,7 +1009,19 @@ export function citadelLayout(
   const p = pad()
   const back = backRect()
   const top = titleY() + 26 * L.ui * MENU_TEXT
-  const bottom = back.y - 10
+  // The line that puts this evening back, above the bottom row.
+  //
+  // Measured before the rooms are, and the rooms stop above it: a strip laid
+  // over the map afterwards would have been drawn through the last row of
+  // boxes on a landscape phone, which is where this screen runs out of height
+  // first.
+  const strip = 18 * L.ui * MENU_TEXT
+  const resetWidth = Math.min(300, L.w - p * 2)
+  const reset =
+    run.cleared.length > 0
+      ? { x: L.w / 2 - resetWidth / 2, y: back.y - 8 - strip, w: resetWidth, h: strip }
+      : null
+  const bottom = (reset ? reset.y : back.y) - 10
   // Sized off the plan rather than off the screen.
   //
   // A box is as wide as the closest pair of rooms that share a row allows and
@@ -1119,6 +1146,7 @@ export function citadelLayout(
     back,
     abandon: stuck ? null : { x: L.w - p - 120 * L.ui, y: back.y, w: 120 * L.ui, h: back.h },
     again: stuck ? primaryRect() : null,
+    reset,
   }
 }
 
@@ -1146,6 +1174,8 @@ export function drawCitadel(
   again: string | null = null,
   /** Milliseconds until this lock turns over, or null where nothing is held. */
   untilReset: number | null = null,
+  /** Whether the press that puts this evening back is armed. See `layout.reset`. */
+  armed = false,
 ): void {
   backdrop(ctx)
   const layout = citadelLayout(run, allowed, again)
@@ -1312,6 +1342,31 @@ export function drawCitadel(
   if (layout.again && again) {
     button(ctx, layout.again, `WALK IT AGAIN — ${again}`, '', COLORS.castBar, true)
   }
+
+  // And the press that stands this evening's dead back up.
+  //
+  // Asks twice and counts what it is about to put back, the same as the week's
+  // on the front page: what makes the second press safe is that the first one
+  // printed the size of it. Only drawn where there is something to undo, which
+  // is also the only state in which it differs from LEAVE.
+  if (layout.reset) {
+    const rooms = down === 1 ? '1 room' : `${down} rooms`
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.fillStyle = armed ? COLORS.boss : COLORS.textDim
+    ctx.font = font(9, armed)
+    fitText(
+      ctx,
+      armed
+        ? `PRESS AGAIN TO WALK IT FROM THE START — ${rooms} stand again`
+        : `this evening: ${rooms} down · WALK IT FROM THE START`,
+      L.w / 2,
+      layout.reset.y + layout.reset.h * 0.72,
+      layout.reset.w,
+      8,
+    )
+    ctx.restore()
+  }
 }
 
 export type CitadelHit =
@@ -1319,6 +1374,7 @@ export type CitadelHit =
   | { kind: 'back' }
   | { kind: 'abandon' }
   | { kind: 'again' }
+  | { kind: 'reset' }
 
 export function hitCitadel(
   run: Run,
@@ -1332,6 +1388,7 @@ export function hitCitadel(
   if (inside(layout.back, x, y)) return { kind: 'back' }
   if (layout.abandon && inside(layout.abandon, x, y)) return { kind: 'abandon' }
   if (layout.again && inside(layout.again, x, y)) return { kind: 'again' }
+  if (layout.reset && inside(layout.reset, x, y)) return { kind: 'reset' }
   for (const row of layout.rows) {
     if (!inside(row.rect, x, y)) continue
     // Only a lit pad answers. Everywhere else is somewhere to walk to, and
