@@ -138,7 +138,29 @@ export const EDGE_LAP = 64
  * what callers actually want to know and a fourth shape may answer it too.
  */
 export function roomHasOutside(room: RoomShape): boolean {
-  return room.kind === 'platform' || room.kind === 'apse'
+  // An apse is not one of them, and it used to be.
+  //
+  // The shape came off the source's map tile correctly -- half the disc is
+  // floor and the far half is ice -- and the reading taken from it was that
+  // the straight side is therefore a drop. The instance's own data says
+  // otherwise: what stands along that side is a pair of gameobjects,
+  // `GO_ICEWALL` and `GO_DOODAD_ICECROWN_ICEWALL02`, both listed in
+  // `DoorData` as `DOOR_TYPE_PASSAGE` for Marrowgar, and both spawned at
+  // z 42.0 and 42.8 -- the height of the floor they stand on, not the bottom
+  // of anything. They are doors, held shut until the fight is done. The fight
+  // is bounded too: `RectangleBoundary(-430, -330, 2110, 2310)`.
+  //
+  // So there is ice out there and a wall in front of it, and a player who
+  // walks that way in the source meets the wall. Here they walked through it
+  // and died -- measured, a hundred and eighty-two ticks from the middle of
+  // the room, killed nine units *inside* the edge because the fall test
+  // ignores the body's radius while the containment test does not.
+  //
+  // `wallGap` already reads the straight side as a wall, so nothing new is
+  // needed to hold somebody in -- but `pushOffWalls` branched on the *kind*
+  // rather than on this, so it had to be changed with it. Both of the apse's
+  // walls are walls now.
+  return room.kind === 'platform'
 }
 
 /**
@@ -158,8 +180,10 @@ export function roomHasOutside(room: RoomShape): boolean {
  */
 export function dropGap(room: RoomShape, pos: Vec2, radius = 0): number {
   if (room.kind === 'platform') return wallGap(room, pos, radius)
-  if (room.kind !== 'apse') return Infinity
-  return local(room, pos).y + room.back - radius
+  // The apse's straight side answered here until the source's doors settled
+  // it -- see `roomHasOutside`. It is a wall, so there is no edge to fall off
+  // and nothing is one step away from one.
+  return Infinity
 }
 
 /**
@@ -296,20 +320,16 @@ export function pushInside(room: RoomShape, pos: Vec2, radius = 0): void {
  * pushed off its curve and left alone at its straight edge.
  */
 export function pushOffWalls(room: RoomShape, pos: Vec2, radius = 0): void {
+  // A platform is all edge and nothing to be pushed off onto.
   if (room.kind === 'platform') return
-  if (room.kind !== 'apse') {
-    pushInside(room, pos, radius)
-    return
-  }
-  const p = local(room, pos)
-  const limit = Math.max(0, room.radius - radius)
-  const y = p.y + room.back
-  const dist = Math.hypot(p.x, y)
-  if (dist <= limit) return
-  const scale = limit / dist
-  const back = world(room, { x: p.x * scale, y: y * scale - room.back })
-  pos.x = back.x
-  pos.y = back.y
+  // Every other room, the apse included. It used to be excluded, and the
+  // exclusion was the other half of the ice-cliff reading: a body was pushed
+  // off the curve and let through the straight side, because the straight
+  // side was believed to be a drop. The source's doors say it is a wall -- see
+  // `roomHasOutside` -- and `wallGap` has always read it as one, so `pushInside`
+  // holds a body at it with no new geometry. Measured before this: a player
+  // walking at the ice wall passed a thousand units through it.
+  pushInside(room, pos, radius)
 }
 
 /** A point written in the room's own frame, put where the room actually is. */

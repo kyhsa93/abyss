@@ -744,10 +744,22 @@ const everywhere = () => true
   }
   expect('nothing lays floor over the first fight\'s cliff', laid.length === 0, laid.slice(0, 3).join(' / '))
 
-  // And a body that walks off it goes over, while one that walks into the
-  // curved wall is a body against a wall. Both halves matter: a room that
-  // drops you at every edge is a room the raid cannot use, and one that drops
-  // you at none of them is the disc this was before.
+  // And neither of its edges drops anybody, because neither of them is a drop.
+  //
+  // This asked the opposite until the instance's own data was read against it.
+  // The far half of the disc is ice, which the map tile shows and which is
+  // true; what a tile cannot show is that a pair of doors stands along the
+  // straight side -- GO_ICEWALL and GO_DOODAD_ICECROWN_ICEWALL02, both
+  // DOOR_TYPE_PASSAGE for Marrowgar in DoorData, spawned at z 42.0 and 42.8,
+  // which is the height of the floor rather than the bottom of a fall. The
+  // fight is bounded too: RectangleBoundary(-430, -330, 2110, 2310). In the
+  // source you walk that way and meet a wall. Here you walked through it and
+  // died -- a player steering at it from the middle of the room was dead in a
+  // hundred and eighty-two ticks, killed nine units *inside* the edge, because
+  // the fall test ignores the body's radius and the containment test does not.
+  //
+  // The rooms that do drop you are the two platforms, and rendercheck holds
+  // that: only a platform has an outside, and a raid on one never walks off.
   const dropped = (at: Vec2): boolean => {
     const party = autoParty(5, pickFor('warrior', 'dps')!)
     const s = unattended(createCorridorState(1, party, hallFor('spire', null, () => true), 'normal'))
@@ -764,8 +776,8 @@ const everywhere = () => true
   const wall = bowl.kind === 'apse'
     ? fromRoom(room, { x: 0, y: bowl.radius - bowl.back + PARTY_RADIUS * 4 })
     : middle
-  expect('a body that walks off the cliff goes over it', dropped(over), `${Math.round(over.x)},${Math.round(over.y)}`)
-  expect('and one that walks into the curved wall does not', !dropped(wall), `${Math.round(wall.x)},${Math.round(wall.y)}`)
+  expect('a body that walks at the ice wall is stopped by it, not dropped', !dropped(over), `${Math.round(over.x)},${Math.round(over.y)}`)
+  expect('and one that walks into the curved wall is not either', !dropped(wall), `${Math.round(wall.x)},${Math.round(wall.y)}`)
 }
 
 // A fight has to survive being put somewhere.
