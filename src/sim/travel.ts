@@ -14,6 +14,7 @@ import {
   MEND_EVERY,
   MEND_FIRST,
   MEND_REACH,
+  MUSTER_PACE,
   PARTY_RADIUS,
   PULL,
   YARD,
@@ -1254,6 +1255,42 @@ const GATHER = 60
 const MARCH_SPREAD = 1.8
 
 /**
+ * Where a body walks in the order, which is what its job is rather than what
+ * its number is.
+ *
+ * Tanks at the front, then whoever fights in reach of what they are hitting,
+ * then the healers and the ranged behind them. That is the order a raid
+ * actually forms up in, and it was nobody's order here: both the formation
+ * and the ranks were handed out by actor id, which is the roster's order and
+ * means nothing on the floor. Measured before this, walking the same ten-man
+ * through two rooms: the tanks came last in the entrance shaft and the melee
+ * came last in the great hall, and neither was a decision.
+ */
+function marchRank(a: Actor): number {
+  if (a.role === 'tank') return 0
+  if (a.role === 'dps' && a.melee) return 1
+  return 2
+}
+
+/**
+ * Everybody's place in that order, by actor id, leader excluded.
+ *
+ * The dead are counted. A living-only order would re-seat everybody behind
+ * whoever just fell, which is the one thing the ranks are written not to do --
+ * a body does not swap places with its neighbour halfway down a corridor. The
+ * dead are carried rather than walking, so the gap they leave costs nothing.
+ *
+ * Ties break on the id, so the order is the same order every tick and the
+ * same order on a replay.
+ */
+function marchingOrder(s: SimState, lead: Actor): number[] {
+  return s.actors
+    .filter((a) => a.faction === 'party' && a.id !== lead.id)
+    .sort((a, b) => marchRank(a) - marchRank(b) || a.id - b.id)
+    .map((a) => a.id)
+}
+
+/**
  * Where one body walks, which is its own place in the marching order.
  *
  * The raid's own formation, opened out and turned to face the way it is going,
@@ -1271,11 +1308,36 @@ const MARCH_SPREAD = 1.8
  * nobody was turning. The leader already faces the way they are walking, so
  * their bearing is the walk's bearing and costs nothing to read.
  */
-function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
+export function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
   const slots = makeSlots(s.party.length as RaidSize)
-  const mine = slots[actor.id - 1]
   const theirs = slots[lead.id - 1]
-  if (!mine || !theirs || actor.id === lead.id) return lead.pos
+  if (!theirs || actor.id === lead.id) return lead.pos
+  // The same places, handed out in marching order instead of in roster order.
+  //
+  // Re-assigned rather than rebuilt, and the reference stays the leader's own
+  // slot, so the set of offsets is the set it always was: `marchHalf` and
+  // `marchReach` are computed from the slots and the leader's place rather
+  // than from who is standing in them, and both come out unchanged -- 532 and
+  // 515 at ten, 483 and 440 at twenty-five, before and after. Moving the
+  // reference to the front-most place instead would have widened the raid by
+  // a third, which is a change to how much floor a raid needs and not a change
+  // to the order it walks in.
+  //
+  // Front to back is *descending* `y`, and this was derived wrong once before
+  // trusting it: the slots are written with the boss at the origin and the
+  // raid coming in from `+y`, and the reasonable-sounding conclusion -- that
+  // a smaller `y` is nearer the front -- is backwards once `station` has
+  // turned the formation onto the leader's bearing. Handing the first place
+  // to the tanks under the other order put them at the back of the raid in
+  // all three rooms measured. The bodies are the authority here, not the
+  // arithmetic: measure where they end up, do not work it out.
+  const order = marchingOrder(s, lead)
+  const ordinal = order.indexOf(actor.id)
+  if (ordinal < 0) return lead.pos
+  const mine = slots
+    .filter((_, i) => i !== lead.id - 1)
+    .sort((a, b) => b.y - a.y)[ordinal]
+  if (!mine) return lead.pos
   const aim = lead.facing
   const c = Math.cos(aim - Math.PI / 2)
   const sn = Math.sin(aim - Math.PI / 2)
@@ -1284,7 +1346,7 @@ function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
   const across = marchRoom(s, lead)
   const place =
     across < marchHalf(slots, theirs)
-      ? rankAt(actor, lead, across)
+      ? rankAt(ordinal, across)
       : { x: (mine.x - theirs.x) * MARCH_SPREAD, y: (mine.y - theirs.y) * MARCH_SPREAD }
   // Onto ground that is there, which is the difference between a place to
   // walk to and a point inside a wall.
@@ -1349,8 +1411,10 @@ const RANK_STEP = PARTY_RADIUS * 4
  * A body's place in the ranks, for a raid crossing something narrow.
  *
  * As many abreast as the floor holds, and the rest behind them. Ordered by
- * slot so the ranks are the same ranks every time and a body does not swap
- * places with its neighbour halfway down a corridor.
+ * the walk -- see `marchRank` -- so the front rank is the one that meets
+ * whatever is down the corridor, and the same body is in it every time: the
+ * ordinal is a standing order rather than a position, so nobody swaps places
+ * with a neighbour halfway down.
  *
  * Written as a place behind the leader rather than as the formation squeezed,
  * because a squeezed formation is the bug this replaced: scaled down far
@@ -1359,12 +1423,21 @@ const RANK_STEP = PARTY_RADIUS * 4
  * actually adopts when the walls come in, and it has a spacing of its own
  * rather than a fraction of somebody else's.
  */
-function rankAt(actor: Actor, lead: Actor, across: number): Vec2 {
+function rankAt(ordinal: number, across: number): Vec2 {
   const perRank = Math.max(1, Math.floor((across * 2) / RANK_STEP))
-  const ordinal = actor.id > lead.id ? actor.id - 2 : actor.id - 1
   const column = (ordinal % perRank) - (perRank - 1) / 2
   const rank = 1 + Math.floor(ordinal / perRank)
-  return { x: column * RANK_STEP, y: rank * RANK_STEP }
+  // Behind, which is the sign this had backwards.
+  //
+  // `place.y` is measured forward: the bigger it is, the further in front of
+  // the leader a seat sits -- read off the seats themselves rather than worked
+  // out, because the same reasoning got it wrong twice. Ranks running *out*
+  // from the leader put every follower ahead of somebody walking at their own
+  // speed, so nobody could ever reach a seat and the gap grew instead of
+  // closing: measured at twelve and twenty seconds, a body owed 289 units was
+  // owed 736 eight seconds later. It also read as the order being reversed,
+  // because the last rank was the furthest forward.
+  return { x: column * RANK_STEP, y: -rank * RANK_STEP }
 }
 
 /**
@@ -1501,13 +1574,23 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   const want = target
     ? standAt(s, actor, target)
     : marching
-      ? follow(s, actor, station(s, actor, lead!), 24)
+      // Onto the place itself, near enough that two neighbouring places stay
+      // two separate bodies. Slack here is subtracted from the gap between
+      // one body and the next, twice over, and the column's places are only
+      // twenty-six apart at twenty-five.
+      ? follow(s, actor, station(s, actor, lead!), 6)
       : player
         ? follow(s, actor, player.pos)
         : s.travel.building
           ? actor.pos
           : follow(s, actor, heading(s)?.at ?? actor.pos)
-  moveToward(s, actor, want)
+  // Formation is for the walk, never for the fight: a body with something to
+  // fight is going where the fight is, at its own speed. Only a follower
+  // taking up its place in the column is allowed to close on it, and it is
+  // allowed the same pace the raid already musters at before a pull, which is
+  // the same problem -- a body walking to a place in the formation while the
+  // formation is somewhere else.
+  moveToward(s, actor, want, marching && !target ? MUSTER_PACE : 1)
 
   // A column faces the way the column is going.
   //
@@ -1599,17 +1682,40 @@ function follow(s: SimState, actor: Actor, lead: Vec2, close = GATHER): Vec2 {
   return want
 }
 
-function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
+/**
+ * Walk a body at something, at a pace.
+ *
+ * The pace is for one thing: a station that is *ahead* of where a body
+ * currently is cannot be reached at the leader's own speed. Everybody in the
+ * raid walks within twelve per cent of everybody else and the leader is a
+ * warrior at the bottom of that range, so a follower chasing a point that
+ * moves with the leader closes its gap by nothing. Measured over twenty
+ * seconds of quiet walking: every body at 158 -- the leader's own speed --
+ * ended the walk between 94 and 316 units short of its place, and the only
+ * ones that arrived were the ones whose place was *behind* them, which costs
+ * no speed at all. The raid never formed up; it strung out in whatever order
+ * it happened to leave in.
+ */
+function moveToward(s: SimState, actor: Actor, target: Vec2 | null, pace = 1): void {
   if (!target) return
   const d = dist(actor.pos, target)
-  const step = actor.moveSpeed * DT * hasteOf(actor)
+  const own = actor.moveSpeed * DT * hasteOf(actor)
   // A step, not six units — see the same window in `ai.ts` for what a fixed
   // one costs once a step is bigger than it.
-  if (d < Math.max(6, step)) {
+  //
+  // Asked of the body's own step and not of the paced one. A pace is how fast
+  // a body is allowed to close, and it has no business widening how near
+  // counts as arrived: at 1.7 it took the window from six units to nine, and
+  // the places in a twenty-five-man column are twenty-six apart, so two
+  // bodies each allowed to stop nine short of their own place stood on top of
+  // each other. The build catches it as a raid standing two units apart.
+  if (d < Math.max(6, own)) {
     actor.ai!.moveTarget = null
     return
   }
   actor.ai!.moveTarget = { x: target.x, y: target.y }
+  // Never past it: a paced step can be longer than the distance left.
+  const step = Math.min(own * pace, d)
   const stepX = ((target.x - actor.pos.x) / d) * step
   const stepY = ((target.y - actor.pos.y) / d) * step
   // Facing the way it is walking. Nothing turned a body while it walked, so a
