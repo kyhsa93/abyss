@@ -1,4 +1,4 @@
-import { COUNTDOWN_TICKS, HEALTH, MENDING_START, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, YARD, bar } from './constants'
+import { COUNTDOWN_TICKS, HEALTH, MENDING_START, PARTY_RADIUS, YARD, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
@@ -185,11 +185,10 @@ export function createState(
   /**
    * Where the party already is, for a fight it walked into.
    *
-   * The slots are still where everybody is *going*: the count is spent walking
-   * to them — see `muster` — so a fight that begins from a doorway begins from
-   * the same formation every measurement was taken in, three seconds later. A
-   * pull that starts in position, which is every pull the harness runs, hands
-   * nothing here and is placed exactly as it always was.
+   * And where they stay: the slots give a body its name and where it is put
+   * when nothing else says, but a raid that walked in through a door begins
+   * the fight standing where the walk left it. Nothing marches it into line
+   * first.
    */
   standing?: Vec2[],
 ): SimState {
@@ -197,18 +196,19 @@ export function createState(
   // How far the furthest of them has to walk, which is how long the count is.
   // Three seconds for a pull that starts in formation, exactly as it always
   // was; long enough to reach the line for one that came in through a door.
-  let furthest = 0
   const members = party.map((pick, i) => {
     const home = { x: slots[i]!.x + at.x, y: slots[i]!.y + at.y }
     const where = standing?.[i] ?? home
-    furthest = Math.max(furthest, Math.hypot(where.x - home.x, where.y - home.y))
     return makeMember(i + 1, pick, { ...slots[i]!, x: where.x, y: where.y }, i === 0, attempt)
   })
-  const slowest = Math.min(...party.map((pick) => CLASSES[pick.classId].moveSpeed))
-  const count = Math.max(
-    COUNTDOWN_TICKS,
-    Math.ceil((furthest / (slowest * MUSTER_PACE)) * TICK_RATE),
-  )
+  // The count is the count, and not the time it takes to line up.
+  //
+  // It used to be stretched so the furthest body could walk to its slot before
+  // the fight began, and the three seconds were spent walking there. A raid
+  // that has just walked into a room through a door is already standing
+  // somewhere; making it re-form first is a pause the player did not ask for
+  // and did not do anything during. The fight starts where they are.
+  const count = COUNTDOWN_TICKS
   const scale = sizeHealth(party.length) * DIFFICULTIES[difficulty].health
   const fight = encounterAt(encounter)
   // The room, before anything is placed in it. Everything below that used to

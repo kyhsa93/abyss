@@ -757,9 +757,9 @@ function enterRoom(id: string): void {
   // decision — it was the walk's floor left switched on.
   //
   // Everybody walked in on their own feet and the doorway is a step behind
-  // them, so what this costs is a straggler still in it being set down inside;
-  // the countdown then walks the raid into formation, which it was already
-  // doing.
+  // them, so what this costs is a straggler still in it being set down inside.
+  // The fight then starts where they are standing: the countdown used to spend
+  // itself walking the raid into formation and does not any more.
   state.floor = [state.room]
   rng = rngFor(state)
 

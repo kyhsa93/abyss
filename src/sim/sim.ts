@@ -1,5 +1,5 @@
 import { ABILITIES } from './abilities'
-import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf, makeSlots, type RaidSize } from './classes'
+import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf } from './classes'
 import { mayStrike, updatePartyAi } from './ai'
 import { updateBattlegroundAi, updateBattlegroundPlans } from './bgai'
 import {
@@ -63,10 +63,9 @@ import {
   REEK_REACH,
   TICK_RATE,
   FESTER_LINE,
-  INFECTION_FLUSH, MUSTER_PACE } from './constants'
+  INFECTION_FLUSH } from './constants'
 import { encounterAt } from './encounters'
 import type { Rng } from './rng'
-import { roomAt } from './room'
 import { updateTravel, updateTravelAi } from './travel'
 import { BOSS_ID } from './state'
 import type { Ability } from './abilities'
@@ -95,45 +94,6 @@ import type { Actor, PlayerInput, SimState } from './types'
  * and losing count is the cost of spending them badly.
  */
 
-/**
- * The raid taking its position, during the count.
- *
- * A fight the party walked into starts with everybody wherever the walk left
- * them, which is the whole of what makes arriving at a boss an arrival rather
- * than a scene change. But every number in `docs/mechanic-rules.md` was
- * measured from the opening formation, so a fight that simply began from a
- * doorway would be a fight measured against a raid that no longer stands where
- * the measurements assumed.
- *
- * So they walk to it, during the three seconds the boss is not moving either.
- * A pull that already starts in formation — the harness, a daily, a link — has
- * nobody more than a hair from their slot and this does nothing at all, which
- * is a property the build checks rather than a hope.
- *
- * Walking and nothing else: no timers, no abilities, no clock. The count is
- * still the count.
- */
-function muster(s: SimState): void {
-  if (s.mode !== 'raid') return
-  const slots = makeSlots(s.party.length as RaidSize)
-  const c = roomAt(s.room)
-  for (const a of s.actors) {
-    if (a.faction !== 'party' || !a.alive) continue
-    // Party bodies are made in slot order and numbered from one, so a body
-    // knows which place is its own without being told.
-    const slot = slots[a.id - 1]
-    if (slot === undefined) continue
-    const want = { x: slot.x + c.x, y: slot.y + c.y }
-    const away = dist(a.pos, want)
-    if (away < 1) continue
-    a.prevPos.x = a.pos.x
-    a.prevPos.y = a.pos.y
-    const stride = Math.min(away, a.moveSpeed * MUSTER_PACE * DT)
-    a.pos.x += ((want.x - a.pos.x) / away) * stride
-    a.pos.y += ((want.y - a.pos.y) / away) * stride
-    turnToward(a, Math.atan2(want.y - a.pos.y, want.x - a.pos.x))
-  }
-}
 
 export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   // Drained before the guard, not after: leaving the last tick's events in
@@ -156,7 +116,6 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
     if (s.countdown % TICK_RATE === 0) {
       s.sounds.push(s.countdown > 0 ? 'countdown' : 'pull')
     }
-    muster(s)
     return
   }
 
