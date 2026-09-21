@@ -24,6 +24,7 @@ import {
   meterRect,
   outcomeButtons,
   mapButton,
+  settingsButton,
   partyButton,
   partyFrames,
   slotStatus,
@@ -2443,8 +2444,26 @@ for (const [label, w, h] of [
       map.x > framesRight,
       `map left ${map.x.toFixed(0)} vs frames ${framesRight.toFixed(0)}`,
     )
-    for (const [name, rect] of [['party', partyButton()], ['map', mapButton()]] as const) {
+    for (const [name, rect] of [
+      ['party', partyButton()],
+      ['map', mapButton()],
+      ['settings', settingsButton()],
+    ] as const) {
       expect(`${label}: the minimap clears the ${name} button`, !overlap(map, rect), JSON.stringify(rect))
+      expect(
+        `${label}: the ${name} button is on screen`,
+        rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= w && rect.y + rect.h <= h,
+        JSON.stringify(rect),
+      )
+    }
+    // The settings row sits under the pair rather than beside them, so the
+    // thing it must clear is the pair itself.
+    for (const [name, rect] of [['party', partyButton()], ['map', mapButton()]] as const) {
+      expect(
+        `${label}: the settings button clears the ${name} button`,
+        !overlap(settingsButton(), rect),
+        JSON.stringify(settingsButton()),
+      )
     }
     // And the pair does not sit on top of itself: the map is the left half of
     // the corner the party button is the right half of, and a width where they
@@ -2460,7 +2479,11 @@ for (const [label, w, h] of [
       const meter = meterRect(touch)
       expect(`${label} ${mode}: the meter is on screen`, onScreen(meter), JSON.stringify(meter))
       expect(`${label} ${mode}: the meter clears the minimap`, !overlap(meter, map), JSON.stringify(meter))
-      for (const [name, rect] of [['party', partyButton()], ['map', mapButton()]] as const) {
+      for (const [name, rect] of [
+        ['party', partyButton()],
+        ['map', mapButton()],
+        ['settings', settingsButton()],
+      ] as const) {
         expect(`${label} ${mode}: the meter clears the ${name} button`, !overlap(meter, rect), JSON.stringify(meter))
       }
 
@@ -6407,12 +6430,19 @@ for (const [label, w, h] of [
   drawSettings(stubCtx(), false, 1, true, 0, 'You')
   drawSettings(stubCtx(), true, 0, false, 3, 'Somebody')
   const settings = settingsLayout()
+  // `credits` was not on this list and should always have been: the promise
+  // below is what catches a row landing on the way out, and a row nobody
+  // measured cannot land on anything. The reset joined it, and a seventh row
+  // is exactly the squeeze the layout's own note says once put a row through
+  // the BACK button on a landscape phone.
   const settingsRects = [
     settings.name,
     settings.sound,
     ...settings.volumes,
     ...settings.cameras,
     settings.backdrop,
+    settings.credits,
+    settings.reset,
     settings.back,
   ]
   expect(`${label}: the settings fit`, settingsRects.every(onScreen), JSON.stringify(settingsRects))
@@ -6439,7 +6469,9 @@ for (const [label, w, h] of [
         const hit = hitSettings(...middle(r))
         return hit?.kind === 'volume' && hit.level === i
       }) &&
-      hitSettings(...middle(settings.back))?.kind === 'back',
+      hitSettings(...middle(settings.back))?.kind === 'back' &&
+      hitSettings(...middle(settings.credits))?.kind === 'credits' &&
+      hitSettings(...middle(settings.reset))?.kind === 'reset',
     'a setting answered as something else',
   )
 }

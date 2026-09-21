@@ -73,6 +73,24 @@ export function mapButton(): Rect {
 }
 
 /**
+ * And the settings, under the pair rather than squeezed in beside them.
+ *
+ * A third share of the same strip would be thirty-eight pixels wide on a
+ * phone, which is under half what the other controls on this screen are given
+ * -- so it takes a row of its own instead, the width of the pair and directly
+ * below it. The corner is already the one piece of furniture every viewport
+ * is checked against, so growing it downward by one row is the change with
+ * the fewest new places to be wrong.
+ *
+ * It exists because a phone had no way in at all: the settings are reached
+ * from the front page, and the front page is two screens back from a fight.
+ */
+export function settingsButton(): Rect {
+  const { w, h, y, right } = cornerPair()
+  return { x: right - w * 2 - 6, y: y + h + 6, w: w * 2 + 6, h }
+}
+
+/**
  * Buttons on the end-of-fight overlay; shared with the hit test in main.
  *
  * A kill with something after it grows a third button, to the left of PULL
@@ -429,6 +447,17 @@ export function drawHud(
    * evening and about where the party is, and only the page holds both.
    */
   onPad = false,
+  /**
+   * Whether the corner group is on screen at all.
+   *
+   * False on a phone until the minimap is touched, and always true with a
+   * keyboard, where nothing is competing for the corner and a thumb is not
+   * about to land on it. Drawn and reserved together, always: the note in
+   * `main.ts` records what happens when the two come apart -- reserved while
+   * invisible swallows a thumb for nothing, drawn while unreserved walks the
+   * party as well as pressing the button.
+   */
+  corners = true,
 ): void {
   if (s.mode === 'battleground') drawScoreboard(ctx, s)
   else if (s.mode === 'travel') drawWalkFrame(ctx, s, onPad)
@@ -443,8 +472,11 @@ export function drawHud(
   drawCastBar(ctx, s, touch.active)
   drawTrait(ctx, s, touch.active)
   drawChat(ctx, s)
-  cornerButton(ctx, partyButton(), 'party')
-  if (showMap) cornerButton(ctx, mapButton(), 'map')
+  if (corners) {
+    cornerButton(ctx, partyButton(), 'party')
+    if (showMap) cornerButton(ctx, mapButton(), 'map')
+    cornerButton(ctx, settingsButton(), 'settings')
+  }
   if (s.countdown > 0) drawCountdown(ctx, s)
   if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
 }

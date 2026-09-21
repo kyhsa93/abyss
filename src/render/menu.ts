@@ -1465,6 +1465,7 @@ export function hitCredits(x: number, y: number): 'back' | null {
 
 export type SettingsHit =
   | { kind: 'credits' }
+  | { kind: 'reset' }
   | { kind: 'sound' }
   | { kind: 'volume'; level: number }
   | { kind: 'backdrop' }
@@ -1479,6 +1480,8 @@ export interface SettingsLayout {
   backdrop: Rect
   cameras: Rect[]
   credits: Rect
+  /** The press that puts the whole save back to nothing. See `wipeSaves`. */
+  reset: Rect
   back: Rect
   headings: number[]
 }
@@ -1496,7 +1499,10 @@ export function settingsLayout(): SettingsLayout {
   // that order. The sixth row arrived with the credits and a layout that only
   // ever squeezed the gaps put it straight through the BACK button on a
   // landscape phone, which is the shape with the least height in the game.
-  const rows = 6
+  // Seven now: the reset joined them, last on purpose -- the row that destroys
+  // everything sits furthest from the rows anybody comes here to touch, and
+  // directly above the way out.
+  const rows = 7
   const first = top + 14 * L.ui
   const room = Math.max(0, back.y - 14 - first)
   const rowH = Math.max(26, Math.min(52, Math.min(L.h * 0.07, room / rows - 4)))
@@ -1520,6 +1526,7 @@ export function settingsLayout(): SettingsLayout {
   const cameras = spread(ZOOM_NAMES.length, rowY(3))
   const backdrop = { x: L.w / 2 - w / 2, y: rowY(4), w, h: rowH }
   const credits = { x: L.w / 2 - w / 2, y: rowY(5), w, h: rowH }
+  const reset = { x: L.w / 2 - w / 2, y: rowY(6), w, h: rowH }
 
   return {
     name,
@@ -1528,8 +1535,9 @@ export function settingsLayout(): SettingsLayout {
     cameras,
     backdrop,
     credits,
+    reset,
     back,
-    headings: [0, 1, 2, 3, 4, 5].map((i) => rowY(i) - 10 * L.ui),
+    headings: [0, 1, 2, 3, 4, 5, 6].map((i) => rowY(i) - 10 * L.ui),
   }
 }
 
@@ -1542,6 +1550,10 @@ export function drawSettings(
   scene: boolean,
   camera: number,
   name: string,
+  /** Whether the press that empties the save is armed. */
+  armed = false,
+  /** How many things are saved, for the line that says what is about to go. */
+  saved = 0,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'SETTINGS')
@@ -1598,6 +1610,23 @@ export function drawSettings(
   heading('ART', layout.headings[5]!)
   button(ctx, layout.credits, 'CREDITS', 'who drew what, and under which licence', COLORS.text)
 
+  // And the press that empties the save.
+  //
+  // Asks twice and counts what it is about to take, the same as the week's on
+  // the front page and this evening's on the map: what makes the second press
+  // safe is that the first one printed the size of it. Nothing saved is
+  // nothing to arm, so an empty save says so and offers no press at all.
+  heading('SAVE', layout.headings[6]!)
+  const things = saved === 1 ? '1 thing' : `${saved} things`
+  button(
+    ctx,
+    layout.reset,
+    saved === 0 ? 'NOTHING SAVED' : armed ? 'PRESS AGAIN' : 'RESET EVERYTHING',
+    saved === 0 ? 'there is nothing to put back' : armed ? `${things} go` : `${things} saved`,
+    saved === 0 ? COLORS.dead : COLORS.boss,
+    armed,
+  )
+
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
 }
 
@@ -1605,6 +1634,7 @@ export function hitSettings(x: number, y: number): SettingsHit | null {
   const layout = settingsLayout()
   if (inside(layout.back, x, y)) return { kind: 'back' }
   if (inside(layout.credits, x, y)) return { kind: 'credits' }
+  if (inside(layout.reset, x, y)) return { kind: 'reset' }
   if (inside(layout.name, x, y)) return { kind: 'name' }
   if (inside(layout.sound, x, y)) return { kind: 'sound' }
   if (inside(layout.backdrop, x, y)) return { kind: 'backdrop' }

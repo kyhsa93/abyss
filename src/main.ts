@@ -8,6 +8,7 @@ import {
   hitOutcome,
   outcomeButtons,
   mapButton,
+  settingsButton,
   partyButton,
   setOpenedLine,
   setShareLabel,
@@ -177,6 +178,7 @@ import {
 } from './dungeon'
 import { EXIT_REACH, marchReach, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
+import { savedKeys, wipeSaves } from './saves'
 import type { SimState, Vec2 } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -471,6 +473,66 @@ let openNote: number | null = null
  */
 let shareSaid: string | null = null
 let shareSaidAt = 0
+
+/**
+ * When the minimap was last touched, which is when the corner group appeared.
+ *
+ * On a phone the corner is three buttons of permanent furniture on a screen
+ * that already carries a stick, four abilities, two frames and a readout, and
+ * two of the three are things you press once an evening. So they are put
+ * behind the one piece of the corner that is always there and always means
+ * "where am I": touch the minimap and they appear for long enough to reach.
+ *
+ * A window rather than a toggle, and the same shape as `fresh` below. A toggle
+ * has an off state that can be left on, and the thing it would be left on top
+ * of is the ability bar.
+ *
+ * Not nought. `performance.now()` is milliseconds since the page opened, so
+ * nought means "shown six seconds ago" for the first six seconds of every
+ * session -- which is exactly the window a player is in when they walk into
+ * the first room. Measured by walking into one on a phone: all three buttons
+ * were up without the minimap having been touched.
+ */
+let cornersShownAt = Number.NEGATIVE_INFINITY
+
+/** How long the corner group stays up once the minimap has been touched. */
+const CORNERS_LINGER = 6000
+
+/**
+ * Whether the corner group is on screen.
+ *
+ * Always, with a keyboard: nothing is competing for that corner and no thumb
+ * is about to land on it. On touch, only for a while after the minimap has
+ * been pressed.
+ */
+function cornersShown(): boolean {
+  return !input.isTouchMode() || performance.now() - cornersShownAt < CORNERS_LINGER
+}
+
+/** The minimap, as something to press. Drawn in every mode -- see `drawHud`. */
+function minimapRect(): { x: number; y: number; w: number; h: number } {
+  return { x: L.mapX - L.mapR, y: L.mapY - L.mapR, w: L.mapR * 2, h: L.mapR * 2 }
+}
+
+/**
+ * Where the settings screen was opened from, so BACK goes back.
+ *
+ * The class screen works this out from `mode` and `visiting` -- see
+ * `updateRoster` -- and the settings screen cannot: it is reached from the
+ * front page and now also from the corner of a fight, and nothing about the
+ * page distinguishes those. So it is remembered rather than derived.
+ */
+let settingsFrom: 'home' | 'fight' = 'home'
+
+/**
+ * Whether the press that empties the save is armed.
+ *
+ * The same two-press shape the week's reset and this evening's both use, and
+ * for a stronger version of the same reason: this one takes the lot. Cleared
+ * by anything else on the screen and by leaving it, so an arming never
+ * outlives what it was aimed at.
+ */
+let saveResetArmed = false
 
 /** The confirmation is a moment, not a state: two seconds and it is gone. */
 function fresh(said: string | null, at: number): string | undefined {
@@ -1554,6 +1616,7 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
       return
     }
     if (hit === 'settings') {
+      settingsFrom = 'home'
       screen = 'settings'
       return
     }
@@ -1720,9 +1783,31 @@ function updateSettings(tap: { x: number; y: number } | null): void {
   if (tap) {
     const hit = hitSettings(tap.x, tap.y)
     if (hit?.kind === 'back') {
-      screen = 'home'
+      // Back to where it was opened from. Reached from the corner of a fight
+      // it has to return to the fight: sending a player to the front page for
+      // turning the sound down would throw away the evening they are in.
+      screen = settingsFrom === 'fight' ? 'fight' : 'home'
+      saveResetArmed = false
       return
     }
+    if (hit?.kind === 'reset') {
+      // Twice, and only where there is something to lose. The second press is
+      // the confirmation; everything else on this screen disarms it.
+      if (savedKeys().length === 0) return
+      if (!saveResetArmed) {
+        saveResetArmed = true
+        return
+      }
+      wipeSaves()
+      // Reloaded rather than unwound. Nineteen keys are read into a dozen
+      // module-level variables at start-up -- the roster, the difficulty, the
+      // week's vault, the name, the zoom, the sound -- and putting each of
+      // them back by hand here is a list that rots exactly the way the list
+      // of keys would have. A reload is the one move that cannot miss one.
+      location.reload()
+      return
+    }
+    saveResetArmed = false
     if (hit?.kind === 'name') {
       editName(settingsLayout().name, playerName, (value) => {
         if (value === null) return
@@ -1769,6 +1854,8 @@ function updateSettings(tap: { x: number; y: number } | null): void {
     ambience.isEnabled(),
     zoomLevel(),
     playerName,
+    saveResetArmed,
+    savedKeys().length,
   )
 }
 
@@ -2011,11 +2098,17 @@ function frame(now: number): void {
   // The ability buttons and the autocast toggle test for themselves inside
   // `Input`; these are the ones only this file knows are on screen.
   {
-    const taken = [partyButton()]
-    // On exactly the frames it is drawn on. Reserved while it is not on
-    // screen, the corner would swallow a thumb for nothing; drawn without
-    // being reserved, pressing it would walk the party as well.
-    if (walkingAnEvening()) taken.push(mapButton())
+    // On exactly the frames they are drawn on. Reserved while not on screen,
+    // the corner would swallow a thumb for nothing; drawn without being
+    // reserved, pressing one would walk the party as well.
+    //
+    // The minimap is reserved whether or not the group is up, because it is
+    // drawn either way and pressing it is what brings the group back.
+    const taken = [minimapRect()]
+    if (cornersShown()) {
+      taken.push(partyButton(), settingsButton())
+      if (walkingAnEvening()) taken.push(mapButton())
+    }
     if (state.outcome !== 'ongoing') {
       const buttons = outcomeButtons(canAdvance(state))
       for (const r of [buttons.next, buttons.retry, buttons.party, shareRect(state)]) {
@@ -2033,8 +2126,20 @@ function frame(now: number): void {
     return
   }
 
+  // The minimap brings the corner back, and is not itself a way anywhere.
+  //
+  // Tested before the buttons it reveals: while the group is down the corner
+  // is empty, and while it is up the two do not overlap -- the build checks
+  // that at every viewport -- so the order only matters for the frame the
+  // group comes up on.
+  if (tap && input.isTouchMode() && inside(minimapRect(), tap.x, tap.y)) {
+    cornersShownAt = performance.now()
+    requestAnimationFrame(frame)
+    return
+  }
+
   // Leaving mid-fight is always available: escape, or the corner button.
-  if (input.takeMenuRequest() || (tap && inside(partyButton(), tap.x, tap.y))) {
+  if (input.takeMenuRequest() || (tap && cornersShown() && inside(partyButton(), tap.x, tap.y))) {
     screen = 'roster'
     requestAnimationFrame(frame)
     return
@@ -2046,7 +2151,15 @@ function frame(now: number): void {
   // route nobody finds: the map carries what is down, what is still shut, and
   // the press that walks the evening again from the start, and all of it was
   // behind a screen called PICK YOUR CLASS.
-  if (tap && walkingAnEvening() && inside(mapButton(), tap.x, tap.y)) {
+  // And the settings, which on a phone are otherwise two screens back.
+  if (tap && cornersShown() && inside(settingsButton(), tap.x, tap.y)) {
+    settingsFrom = 'fight'
+    screen = 'settings'
+    requestAnimationFrame(frame)
+    return
+  }
+
+  if (tap && cornersShown() && walkingAnEvening() && inside(mapButton(), tap.x, tap.y)) {
     screen = 'citadel'
     requestAnimationFrame(frame)
     return
@@ -2349,6 +2462,7 @@ function frame(now: number): void {
     },
     walkingAnEvening(),
     pad,
+    cornersShown(),
   )
   hints.draw(ctx)
   drawAwardBanners(ctx, announced)
