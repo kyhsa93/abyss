@@ -1309,7 +1309,13 @@ function marchRank(a: Actor): number {
 }
 
 /**
- * Everybody's place in that order, by actor id, leader excluded.
+ * Everybody's place in that order, by actor id, the player included.
+ *
+ * The player used to be left out, because the player is what the formation is
+ * hung off -- and the effect of that was a raid whose healer walked at the
+ * front of it whenever the healer was the person playing. Leading a column and
+ * standing at the head of one are different things: the raid follows whoever
+ * is steering, and where that person *stands* is still their own job in it.
  *
  * The dead are counted. A living-only order would re-seat everybody behind
  * whoever just fell, which is the one thing the ranks are written not to do --
@@ -1319,9 +1325,9 @@ function marchRank(a: Actor): number {
  * Ties break on the id, so the order is the same order every tick and the
  * same order on a replay.
  */
-function marchingOrder(s: SimState, lead: Actor): number[] {
+function marchingOrder(s: SimState): number[] {
   return s.actors
-    .filter((a) => a.faction === 'party' && a.id !== lead.id)
+    .filter((a) => a.faction === 'party')
     .sort((a, b) => marchRank(a) - marchRank(b) || a.id - b.id)
     .map((a) => a.id)
 }
@@ -1367,13 +1373,21 @@ export function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
   // to the tanks under the other order put them at the back of the raid in
   // all three rooms measured. The bodies are the authority here, not the
   // arithmetic: measure where they end up, do not work it out.
-  const order = marchingOrder(s, lead)
+  //
+  // Measured from the place the leader themselves stands in, which is the
+  // whole of what lets a raid have a shape the player is *inside*. Hung off
+  // the leader's body instead, every formation had the player at the point of
+  // it: a ranged player walked in front of the tanks all the way up the
+  // building, because the offsets were all behind a reference that was the
+  // player wherever the player happened to be in the order.
+  const order = marchingOrder(s)
   const ordinal = order.indexOf(actor.id)
-  if (ordinal < 0) return lead.pos
-  const mine = slots
-    .filter((_, i) => i !== lead.id - 1)
-    .sort((a, b) => b.y - a.y)[ordinal]
-  if (!mine) return lead.pos
+  const leadAt = order.indexOf(lead.id)
+  if (ordinal < 0 || leadAt < 0) return lead.pos
+  const ranked = slots.slice().sort((a, b) => b.y - a.y)
+  const mine = ranked[ordinal]
+  const leadPlace = ranked[leadAt]
+  if (!mine || !leadPlace) return lead.pos
   const aim = lead.facing
   const c = Math.cos(aim - Math.PI / 2)
   const sn = Math.sin(aim - Math.PI / 2)
@@ -1385,15 +1399,21 @@ export function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
   // only be done where all of them are known. The formation path below is
   // still an offset from the leader, turned and put down one at a time.
   if (across < marchHalf(slots, theirs)) {
+    const laid = rankPlaces(order.map((id) => marchRank(s.actors.find((a) => a.id === id)!)), across)
+    const anchor = laid[leadAt]
+    if (!anchor) return lead.pos
+    // Shifted so the leader's own rank sits under the leader. `apart` puts
+    // each place down at `lead.pos` plus the offset it is given, and the
+    // offset the leader is owed is zero.
     const seats = apart(
       s,
       lead,
-      rankPlaces(order.map((id) => marchRank(s.actors.find((a) => a.id === id)!)), across),
+      laid.map((place) => ({ x: place.x - anchor.x, y: place.y - anchor.y })),
       actor.radius,
     )
     return seats[ordinal] ?? lead.pos
   }
-  const place = { x: (mine.x - theirs.x) * MARCH_SPREAD, y: (mine.y - theirs.y) * MARCH_SPREAD }
+  const place = { x: (mine.x - leadPlace.x) * MARCH_SPREAD, y: (mine.y - leadPlace.y) * MARCH_SPREAD }
   // Onto ground that is there, which is the difference between a place to
   // walk to and a point inside a wall.
   //
