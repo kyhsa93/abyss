@@ -482,6 +482,26 @@ export const YOKE_ALONE = 1500
  * 0.778 rather than a picture's 0.95, and the reach a raid actually has is the
  * ratio and not the number.
  */
+/**
+ * How far a body notices, in world units.
+ *
+ * Twenty yards, at the scale the building is walked at, and the twenty is not
+ * chosen: it is `creature_template.detection_range`, and every one of the six
+ * hundred creatures this raid places carries the same value for it -- the
+ * heaviest elite in the wing notices from exactly as far as the lightest.
+ *
+ * The corridors used to spread this by hand between two hundred and thirty and
+ * two hundred and sixty, which was a number being nudged where a fact would
+ * do.
+ *
+ * It lived in `dungeon.ts` while the corridors were the only thing that
+ * asked. A body walking out of a doorway has to ask it as well -- see
+ * `trashStep` -- and `travel.ts` cannot import the building, because the
+ * building imports it. So the fact lives here, where both can read it,
+ * rather than as the same twenty yards written twice.
+ */
+export const PULL = Math.round(20 * YARD * BUILD_SCALE)
+
 export const MELEE_RANGE = Math.round(5 * YARD)
 
 /**

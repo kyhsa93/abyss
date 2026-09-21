@@ -378,6 +378,8 @@ export function createState(
     attempt,
     seed,
     obstacles: rocks,
+    // Nobody holds a boss's room but the raid. See `Defender`.
+    defenders: [],
     party: party.map((p) => ({ ...p })),
     difficulty,
     tally,
@@ -488,6 +490,7 @@ export function createBattlegroundState(
     attempt: 0,
     seed,
     obstacles: rocks,
+    defenders: [],
     party: party.slice(0, size).map((p) => ({ ...p })),
     difficulty: 'normal',
     tally,

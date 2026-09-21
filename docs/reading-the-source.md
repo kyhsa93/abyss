@@ -1514,6 +1514,44 @@ which is a `Prop` with a silhouette rather than an `Actor`: drawn, sorted by
 depth, and invisible to the simulation, because `Faction` has two values on
 purpose and a third would give the raid something friendly to aim at.
 
+**Correction, and it was found by being told.** This note used to be read as
+"the hall fights nobody", and the sentence above about forty people not
+fighting anybody is about the *vendors*. It is not true of the guards, and
+the data says so plainly:
+
+| | entry | `creature_template.faction` | faction | what its template names |
+| --- | --- | --- | --- | --- |
+| The Damned | 37011 | 2209 | 20, Undead — Scourge | 1098 and 1106 as **enemies** |
+| Argent Commander | 37965 | 2131 | 1106, Argent Crusade | 20 as an **enemy** |
+| Ebon Blade Commander | 37967 | 2050 | 1098, Knights of the Ebon Blade | only 1098 as a friend |
+
+So The Damned and the Argent Crusade are enemies in both directions, and The
+Damned names the Ebon Blade as an enemy one way — enough for a fight, since
+it is the one that starts them. Read out of the client's own
+`FactionTemplate.dbc` and `Faction.dbc` (koKR, so the names come out Korean:
+20 `언데드 - 스컬지`, 1098 `칠흑의 기사단`, 1106 `은빛십자군`, 1156 `잿빛 선고단`).
+
+And they do not wait to be walked into. `smart_scripts` for 37011:
+
+    (37011,0,3,0,1,...,60000,60000,...,49,...,25,8,...)  'Out of combat - aggro'
+    (37011,0,2,0,4,...,39,15,...)                        'On aggro - call for help'
+
+`SMART_EVENT_UPDATE_OOC` every sixty seconds, `SMART_ACTION_ATTACK_START` on
+`SMART_TARGET_CLOSEST_ENEMY` within eight yards, and fifteen yards of call for
+help once it is in one. That is the incursion Wowpedia describes in one line —
+"The Damned make incursions from the south and are dealt with by guard NPCs" —
+written as data.
+
+The placement agrees. On map 631 The Damned has twenty-four spawns at x −162
+to −247; the six Argent Commanders stand at x −36 to −104 and the nine Ebon
+Blade Commanders at x −51 to −102. The guards are between the door the raid
+comes in by and the corridor, and the Scourge comes at them from the corridor
+side, whose far end is Lord Marrowgar's Entrance at x −338.1.
+
+**The rule this leaves:** a body in the hall being drawn and nothing else was
+a decision about *this* game's simulation, not a reading of the source. Do not
+cite the source for it.
+
 **Whose hall it is had to be decided, and the data decided most of it.** The
 instance spawns Garrosh Hellscream, High Overlord Saurfang, three Kor'kron
 Generals and the Horde's five quartermasters in this room, and there is no

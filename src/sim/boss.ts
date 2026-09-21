@@ -338,8 +338,14 @@ function mechanic(s: SimState, amount: number): number {
  * mechanic was what made bearings matter. It outlives it: the adds read it,
  * the party AI reads it, and a body that snapped instantly to a new facing
  * would make the turn free wherever one is ever asked for again.
+ *
+ * It takes a bearing rather than an `Actor` because a bearing is all it has
+ * ever touched, and the hall's defenders are not actors and must not become
+ * them -- see `Defender`. Narrowing the parameter to what the body actually
+ * reads was the alternative to casting one thing into another to get at three
+ * lines, which is a lie told to the compiler about what is being turned.
  */
-export function turnToward(actor: Actor, want: number): void {
+export function turnToward(actor: { facing: number }, want: number): void {
   let delta = want - actor.facing
   while (delta > Math.PI) delta -= Math.PI * 2
   while (delta < -Math.PI) delta += Math.PI * 2

@@ -15,6 +15,7 @@ import {
   MEND_FIRST,
   MEND_REACH,
   PARTY_RADIUS,
+  PULL,
   YARD,
 } from './constants'
 import {
@@ -38,7 +39,7 @@ import { blankGround, turnToward } from './boss'
 import { trashLook, trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
 import { ROUND_ARENA, carried, pushInside, pushOutside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
-import type { Bystander, Actor, Obstacle, SimState, Vec2 } from './types'
+import type { Bystander, Actor, Defender, DefenderSeed, Obstacle, SimState, Vec2 } from './types'
 
 /**
  * The walk between two rooms.
@@ -303,6 +304,15 @@ export interface Corridor {
    * set of coordinates for the whole building — see `citadelTerrain`.
    */
   terrain?: Obstacle[]
+
+  /**
+   * And who is standing on it that will fight what walks in. See `Defender`.
+   *
+   * Seeds rather than bodies: the building says who guards a room and how
+   * many watchmen each of them is worth, and the walk turns that into health
+   * at tonight's setting. In world coordinates, the same as `terrain`.
+   */
+  defenders?: DefenderSeed[]
 
   /**
    * And who is standing in it that the fight cannot see. See `Bystander`.
@@ -627,6 +637,16 @@ export function createTravelState(
     // something writes there, while the list on the corridor is the building
     // and outlives the walk.
     obstacles: (corridor.terrain ?? []).map(carried),
+    // Built here for the same reason the watchmen are: one `TRASH_HP` and one
+    // difficulty, so what a hall's guard is worth tracks what it is guarding
+    // against rather than being a second table nobody remembers to update.
+    defenders: (corridor.defenders ?? []).map((one) => ({
+      ...one,
+      pos: { x: one.pos.x, y: one.pos.y },
+      hp: Math.round(hp * one.worth),
+      maxHp: Math.round(hp * one.worth),
+      swingTimer: TRASH_SWING,
+    })),
     party: party.map((p) => ({ ...p })),
     difficulty,
     tally,
@@ -927,6 +947,47 @@ function springStep(s: SimState): void {
   })
 }
 
+/**
+ * The people holding a room answer what walked into it.
+ *
+ * They do not move, which is not a shortcut: the note on the Ymirjar escort
+ * says an escort waiting stands still, and these are a garrison rather than a
+ * war band. What they do is refuse to be walked past -- and the measurement
+ * that made this necessary is on `citadelDefenders`.
+ *
+ * Only what is awake, so nothing in the hall reaches down a corridor and
+ * wakes a pack that the raid has not touched. A body that has not noticed
+ * anybody is still asleep, and killing it in its sleep from another room is
+ * the raid's corridor being cleared by somebody else.
+ */
+function defenderStep(s: SimState): void {
+  if (s.defenders.length === 0) return
+  const up = awake(s)
+  if (up.length === 0) return
+  for (const one of s.defenders) {
+    if (one.hp <= 0) continue
+    let foe: Actor | null = null
+    let best = Infinity
+    for (const body of up) {
+      if (!body.alive) continue
+      const d = dist(one.pos, body.pos)
+      if (d < best) {
+        best = d
+        foe = body
+      }
+    }
+    if (!foe) continue
+    turnToward(one, Math.atan2(foe.pos.y - one.pos.y, foe.pos.x - one.pos.x))
+    one.swingTimer -= DT
+    if (one.swingTimer > 0) continue
+    if (best > MELEE_RANGE + foe.radius + PARTY_RADIUS) continue
+    one.swingTimer = TRASH_SWING
+    // No `sourceId`: nobody in the raid dealt this, and a tally that credits
+    // a player for a paladin's sword is a damage meter that lies.
+    applyDamage(s, foe, TRASH_DAMAGE * HEALTH, 'physical')
+  }
+}
+
 /** How near a streaming body has to get to be counted out of the passage. */
 const STREAMED = 70
 
@@ -959,15 +1020,53 @@ function trashStep(s: SimState, rng: Rng): void {
         nearest = p
       }
     }
-    if (!nearest) continue
+    // And whoever is holding the room, if they are nearer than the raid.
+    //
+    // The hall at the bottom of this passage is full of people the Scourge
+    // used to walk straight through -- see `Defender`. They are not `Actor`s
+    // and never will be, so they are answered here rather than by widening
+    // the target call: a body swings at what is closest, and what is closest
+    // is sometimes an Ebon Blade commander standing between it and the door.
+    let guard: Defender | null = null
+    let guardFar = Infinity
+    for (const one of s.defenders) {
+      if (one.hp <= 0) continue
+      const d = dist(body.pos, one.pos)
+      if (d < guardFar) {
+        guardFar = d
+        guard = one
+      }
+    }
+    if (!nearest && !guard) continue
     // A body that just came out of a passage is walking out of it, not at
     // anybody. That is the difference between a stream and a spawn: they
     // arrive going somewhere, and the party is met by them rather than
     // teleported a fight. Once they are out, they are trash like any other.
     const came = s.travel!.streaming[body.id]
     if (came && dist(body.pos, came) <= STREAMED) delete s.travel!.streaming[body.id]
+    // And a body that has walked into the raid has arrived, wherever it was
+    // going.
+    //
+    // "Where they are going is out" was written for a doorway with the party
+    // standing in front of it, and the building is not that. Laid into the way
+    // up to the first fight, `toward` is three and a half thousand units from
+    // the spring down a corridor thirty-four hundred long, so nothing ever got
+    // there: measured, twelve bodies out of twelve were still streaming after
+    // a minute, and eight of them had walked inside a living raider's reach
+    // and kept going. A watchman strolling through the raid it was sent at is
+    // the one thing this passage is not supposed to be.
+    //
+    // Twenty yards, which is what everything else in the building notices
+    // from -- see `PULL`. Met is met: from here it is trash like any other,
+    // and the two lines below stop being about a destination.
+    if (s.travel!.streaming[body.id] !== undefined && Math.min(best, guardFar) <= PULL) {
+      delete s.travel!.streaming[body.id]
+    }
     const out = s.travel!.streaming[body.id] ?? null
-    const going = out ?? nearest.pos
+    // Nearer wins. A watchman that has stopped has one question -- what is in
+    // front of me -- and the hall is full of answers that are not the raid.
+    const atGuard = guard !== null && guardFar < best
+    const going = out ?? (atGuard ? guard!.pos : nearest!.pos)
     const far = dist(body.pos, going) || 1
     // Close enough to a body is melee; close enough to a place is arrived.
     // Written out rather than left to the fact that one number happens to be
@@ -1029,8 +1128,18 @@ function trashStep(s: SimState, rng: Rng): void {
     }
 
     body.swingTimer -= DT
-    const armed = body.melee ? MELEE_RANGE + nearest.radius : SPELL_RANGE
-    if (body.swingTimer <= 0 && best <= armed) {
+    const aimFar = atGuard ? guardFar : best
+    const armed = body.melee
+      ? MELEE_RANGE + (atGuard ? PARTY_RADIUS : nearest!.radius)
+      : SPELL_RANGE
+    if (body.swingTimer <= 0 && aimFar <= armed && atGuard) {
+      // Straight off the health, because a defender is not an `Actor` and
+      // must not become one: no threat table, no tally, no death message, and
+      // nothing in the raid's own bookkeeping learns it was hit. It trades at
+      // exactly what a watchman trades at -- see `Defender`.
+      body.swingTimer = TRASH_SWING
+      guard!.hp = Math.max(0, guard!.hp - TRASH_DAMAGE * HEALTH)
+    } else if (body.swingTimer <= 0 && aimFar <= armed && nearest) {
       body.swingTimer = TRASH_SWING
       // Spent where it is thrown rather than where it lands, which is how
       // every other bolt in this game bills: the shot in the air is the
@@ -1088,6 +1197,7 @@ export function updateTravel(s: SimState, rng: Rng): void {
   listen(s)
   springStep(s)
   trashStep(s, rng)
+  defenderStep(s)
   void rng
 
   // Nothing awake: the party is walking, and walking is when a raid catches

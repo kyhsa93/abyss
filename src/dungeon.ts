@@ -1,9 +1,9 @@
 import { ENCOUNTERS } from './sim/encounters'
 import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, carried, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
-import type { Bystander, Obstacle, Prop, Vec2 } from './sim/types'
+import type { Bystander, DefenderSeed, Obstacle, Prop, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
-import { BOSS_WIDTH, BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, YARD } from './sim/constants'
+import { BOSS_WIDTH, BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, PULL, YARD } from './sim/constants'
 
 /**
  * The citadel as a graph: rooms, what joins them, and what opens.
@@ -81,8 +81,14 @@ export interface Chamber {
   /**
    * And who is standing in it that the fight cannot see. See `Bystander`.
    *
-   * The source fills this building with people who are not fighting anybody --
+   * The source fills this building with people, most of whom are not fighting
+   * anybody --
    * the Argent Crusade and the Ebon Blade hold the great hall between them --
+   * and the ones who *are* fighting somebody are why `Bystander.guards`
+   * exists: the hall's commanders are hostile to the Scourge in the source's
+   * own faction templates and are attacked by it on a timer. See
+   * `docs/reading-the-source.md`. This sentence used to say none of them
+   * fought, and that was a reading rather than a reading of the rows.
    * and the hall a raid walks through had none of them.
    */
   bystanders?: Bystander[]
@@ -191,19 +197,6 @@ const killed = (...chambers: string[]): Gate => ({ kind: 'killed', chambers })
  * fights — the shape comes across and the name does not — holds for its rooms
  * too, so nothing here is called what the source calls it.
  */
-/**
- * How far a body notices, in world units.
- *
- * Twenty yards, at the scale the building is walked at, and the twenty is not
- * chosen: it is `creature_template.detection_range`, and every one of the six
- * hundred creatures this raid places carries the same value for it -- the
- * heaviest elite in the wing notices from exactly as far as the lightest.
- *
- * The corridors used to spread this by hand between two hundred and thirty and
- * two hundred and sixty, which was a number being nudged where a fact would
- * do.
- */
-const PULL = Math.round(20 * YARD * BUILD_SCALE)
 
 /**
  * How high each room stands in the source, in its own yards.
@@ -444,36 +437,36 @@ export const CHAMBERS: Chamber[] = [
     // about anybody's class. See `Bystander`.
     bystanders: [
       { pos: { x:   438, y:   191 }, look: 'mage-frost', facing: 3.79 }, // Alchemist Finklestein
-      { pos: { x:  -366, y:  -396 }, look: 'paladin-retribution', facing: 2.13 }, // Argent Champion
-      { pos: { x:    46, y:  -165 }, look: 'paladin-retribution', facing: 3.28 }, // Argent Champion
-      { pos: { x:   377, y:  -528 }, look: 'paladin-retribution', facing: 4.36 }, // Argent Champion
-      { pos: { x:    81, y:   475 }, look: 'paladin-protection', facing: 3.26 }, // Argent Commander
-      { pos: { x:   168, y:   343 }, look: 'paladin-protection', facing: 3.98 }, // Argent Commander
-      { pos: { x:   223, y:   297 }, look: 'paladin-protection', facing: 3.40 }, // Argent Commander
-      { pos: { x:   484, y:  -488 }, look: 'paladin-protection', facing: 4.56 }, // Argent Commander
-      { pos: { x:   489, y:  -571 }, look: 'paladin-protection', facing: 4.66 }, // Argent Commander
-      { pos: { x:   500, y:   116 }, look: 'paladin-protection', facing: 4.66 }, // Argent Commander
+      { pos: { x:  -366, y:  -396 }, look: 'paladin-retribution', facing: 2.13, guards: 1 }, // Argent Champion
+      { pos: { x:    46, y:  -165 }, look: 'paladin-retribution', facing: 3.28, guards: 1 }, // Argent Champion
+      { pos: { x:   377, y:  -528 }, look: 'paladin-retribution', facing: 4.36, guards: 1 }, // Argent Champion
+      { pos: { x:    81, y:   475 }, look: 'paladin-protection', facing: 3.26, guards: 1 }, // Argent Commander
+      { pos: { x:   168, y:   343 }, look: 'paladin-protection', facing: 3.98, guards: 1 }, // Argent Commander
+      { pos: { x:   223, y:   297 }, look: 'paladin-protection', facing: 3.40, guards: 1 }, // Argent Commander
+      { pos: { x:   484, y:  -488 }, look: 'paladin-protection', facing: 4.56, guards: 1 }, // Argent Commander
+      { pos: { x:   489, y:  -571 }, look: 'paladin-protection', facing: 4.66, guards: 1 }, // Argent Commander
+      { pos: { x:   500, y:   116 }, look: 'paladin-protection', facing: 4.66, guards: 1 }, // Argent Commander
       { pos: { x:  -190, y:    31 }, look: 'mage-frost', facing: 1.05 }, // Aronen
-      { pos: { x:   540, y:  -530 }, look: 'warrior-protection', facing: 4.50 }, // Commander Kunz
-      { pos: { x:   130, y:    36 }, look: 'paladin-protection', facing: 3.26 }, // Crusader Grimtong
-      { pos: { x:   237, y:     8 }, look: 'paladin-protection', facing: 5.93 }, // Crusader Halford
-      { pos: { x:  -671, y:  -217 }, look: 'warrior-protection', facing: 1.54 }, // Ebon Blade Commander
-      { pos: { x:  -658, y:   -39 }, look: 'warrior-protection', facing: 1.76 }, // Ebon Blade Commander
-      { pos: { x:  -509, y:  -474 }, look: 'warrior-protection', facing: 1.43 }, // Ebon Blade Commander
-      { pos: { x:  -489, y:   116 }, look: 'warrior-protection', facing: 1.64 }, // Ebon Blade Commander
-      { pos: { x:  -488, y:  -566 }, look: 'warrior-protection', facing: 1.29 }, // Ebon Blade Commander
-      { pos: { x:  -264, y:    26 }, look: 'warrior-protection', facing: 1.54 }, // Ebon Blade Commander
-      { pos: { x:  -210, y:   293 }, look: 'warrior-protection', facing: 2.57 }, // Ebon Blade Commander
-      { pos: { x:  -158, y:   335 }, look: 'warrior-protection', facing: 2.13 }, // Ebon Blade Commander
-      { pos: { x:   -72, y:   474 }, look: 'warrior-protection', facing: 3.11 }, // Ebon Blade Commander
-      { pos: { x:  -390, y:  -496 }, look: 'warrior-arms', facing: 1.92 }, // Ebon Champion
-      { pos: { x:   -30, y:  -172 }, look: 'warrior-arms', facing: 3.16 }, // Ebon Champion
-      { pos: { x:   115, y:  -189 }, look: 'warrior-arms', facing: 3.30 }, // Ebon Champion
-      { pos: { x:   352, y:  -397 }, look: 'warrior-arms', facing: 4.38 }, // Ebon Champion
-      { pos: { x:  -650, y:  -140 }, look: 'warrior-arms', facing: 1.45 }, // Fury
+      { pos: { x:   540, y:  -530 }, look: 'warrior-protection', facing: 4.50, guards: 1 }, // Commander Kunz
+      { pos: { x:   130, y:    36 }, look: 'paladin-protection', facing: 3.26, guards: 1 }, // Crusader Grimtong
+      { pos: { x:   237, y:     8 }, look: 'paladin-protection', facing: 5.93, guards: 1 }, // Crusader Halford
+      { pos: { x:  -671, y:  -217 }, look: 'warrior-protection', facing: 1.54, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -658, y:   -39 }, look: 'warrior-protection', facing: 1.76, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -509, y:  -474 }, look: 'warrior-protection', facing: 1.43, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -489, y:   116 }, look: 'warrior-protection', facing: 1.64, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -488, y:  -566 }, look: 'warrior-protection', facing: 1.29, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -264, y:    26 }, look: 'warrior-protection', facing: 1.54, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -210, y:   293 }, look: 'warrior-protection', facing: 2.57, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -158, y:   335 }, look: 'warrior-protection', facing: 2.13, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:   -72, y:   474 }, look: 'warrior-protection', facing: 3.11, guards: 1 }, // Ebon Blade Commander
+      { pos: { x:  -390, y:  -496 }, look: 'warrior-arms', facing: 1.92, guards: 1 }, // Ebon Champion
+      { pos: { x:   -30, y:  -172 }, look: 'warrior-arms', facing: 3.16, guards: 1 }, // Ebon Champion
+      { pos: { x:   115, y:  -189 }, look: 'warrior-arms', facing: 3.30, guards: 1 }, // Ebon Champion
+      { pos: { x:   352, y:  -397 }, look: 'warrior-arms', facing: 4.38, guards: 1 }, // Ebon Champion
+      { pos: { x:  -650, y:  -140 }, look: 'warrior-arms', facing: 1.45, guards: 1 }, // Fury
       { pos: { x:   476, y:   156 }, look: 'rogue-assassination', facing: 4.24 }, // Goodman the "Closer"
-      { pos: { x:  -640, y:   -89 }, look: 'warrior-arms', facing: 1.55 }, // Highlord Darion Mograine
-      { pos: { x:    29, y:   151 }, look: 'paladin-holy', facing: 3.23 }, // Highlord Tirion Fordring
+      { pos: { x:  -640, y:   -89 }, look: 'warrior-arms', facing: 1.55, guards: 3 }, // Highlord Darion Mograine
+      { pos: { x:    29, y:   151 }, look: 'paladin-holy', facing: 3.23, guards: 3 }, // Highlord Tirion Fordring
       { pos: { x:  -180, y:    58 }, look: 'priest-shadow', facing: 2.50 }, // Ormus the Penitent
       { pos: { x:   463, y:   178 }, look: 'priest-discipline', facing: 3.84 }, // Scott the Merciful
       { pos: { x:  -512, y:  -521 }, look: 'rogue-assassination', facing: 1.36 }, // Stefan Vadu
@@ -2526,6 +2519,49 @@ export function citadelSprings(cleared?: ReadonlySet<string>): Spring[] {
  * The rooms' own are not here: those reach the drawing through the chamber the
  * party is standing in, which a room has and a passage does not.
  */
+/**
+ * And who in the building will fight what walks into it.
+ *
+ * The great hall is the whole of it, and it is the great hall because of what
+ * the way up to the first fight does: that passage keeps sending watchmen
+ * back down toward the door the raid came in by -- see `Spring` -- and with
+ * the raid anywhere else they walk the length of it and out into a room
+ * holding twenty-eight armed people, who until now watched them go past.
+ * Measured with the raid standing where it came in: forty-one bodies out of
+ * the spring in four minutes, thirty-six of them into the hall, the nearest
+ * sixty-five units from a commander of the Ebon Blade.
+ *
+ * The quartermasters are not in this list and that is the distinction the
+ * field draws: the source puts vendors and soldiers in the same room, and
+ * only the vendors are there to sell something. The line about "forty people
+ * who are not fighting anybody" is about those vendors and was wrongly read
+ * as being about the hall -- the source's own guards are hostile to the
+ * Scourge and are attacked by it on a timer. See `docs/reading-the-source.md`.
+ *
+ * Six Argent Commanders and nine Ebon Blade Commanders stand between the door
+ * the raid comes in by and the corridor in the source too (x -36 to -104
+ * against The Damned's -162 to -247 on map 631), which is the same place
+ * these stand, because both are read off the same rows.
+ *
+ * Room-local like every other thing written on a chamber, and turned into the
+ * world's frame here, because a walk is the whole building at once. Handing
+ * these over unconverted is the mistake the furniture and the hall's own
+ * people both made once -- see `citadelBystanders`.
+ */
+export function citadelDefenders(): DefenderSeed[] {
+  return CHAMBERS.flatMap((chamber) => {
+    const room: RoomShape = { ...roomOf(chamber.id), at: placeOf(chamber.id) }
+    return (chamber.bystanders ?? [])
+      .filter((one) => one.guards !== undefined)
+      .map((one) => ({
+        pos: fromRoom(room, one.pos),
+        look: one.look,
+        facing: one.facing,
+        worth: one.guards!,
+      }))
+  })
+}
+
 export function citadelBystanders(cleared?: ReadonlySet<string>): Bystander[] {
   return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.bystanders ?? [])
 }

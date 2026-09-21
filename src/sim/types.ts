@@ -1093,6 +1093,78 @@ export interface Bystander {
   look: string
   /** Which way they are turned, in radians. */
   facing: number
+  /**
+   * And whether this one will fight, in watchmen. See `Defender`.
+   *
+   * On the bystander rather than in a second list, because the same row is
+   * both: the great hall's Argent Commander is drawn exactly as it was and
+   * now also answers what walks in. The quartermasters both sides share do
+   * not, which is the whole of what this field distinguishes -- the source
+   * puts vendors and soldiers in the same room and only the vendors are
+   * there to sell something.
+   */
+  guards?: number
+}
+
+/**
+ * Somebody standing in a room who is not in the fight, and will not stand for
+ * what walks into it.
+ *
+ * A `Bystander` with a health bar and a swing, and nothing else: the great
+ * hall holds thirty-five people and the way up to the first fight keeps
+ * sending watchmen down into it, so the Argent Crusade and the Ebon Blade
+ * were being walked through by the Scourge without looking up. Measured, with
+ * the raid standing where it came in: forty-one bodies out of the spring in
+ * four minutes, thirty-six of them into the hall, one of them sixty-five
+ * units from a commander of the Ebon Blade.
+ *
+ * Still not an `Actor`, and that is the point. `Faction` has two values on
+ * purpose -- the note on `Bystander` says why, and it is still true: a third
+ * would put these into `livingParty`, the raid frames, the wipe test, the
+ * tally and the player's own target list, and give the raid something
+ * friendly to aim at. So they fight from outside `s.actors`: they are hit by
+ * what walks in, they hit it back, and nothing in the raid can touch them or
+ * is asked to.
+ *
+ * The source does fight here, and this note used to say it did not. The
+ * Damned is faction 20 (Undead -- Scourge) and its faction template names
+ * both the Argent Crusade and the Ebon Blade as enemies; the Argent
+ * Commander names the Scourge back. On top of that its `smart_scripts` row
+ * attacks the closest enemy within eight yards every sixty seconds while out
+ * of combat, and calls for help within fifteen once it is in one. So the
+ * incursion into the hall is the source's, and so is being met -- see
+ * `docs/reading-the-source.md`, which now carries the entries and the
+ * numbers.
+ *
+ * What is still this game's is how hard they hit, because that is a question
+ * about this simulation rather than about the raid: health is a multiple of
+ * `TRASH_HP`, the one unit trash is already measured in here.
+ */
+export interface DefenderSeed {
+  pos: Vec2
+  /** A body sheet key from `src/render/lpc.ts`, the same as a `Bystander`. */
+  look: string
+  /** Which way they are turned, in radians. */
+  facing: number
+  /**
+   * How many ordinary watchmen this one is worth.
+   *
+   * A multiple rather than a number of health, for the reason every trash
+   * health in this game is a share of The Damned's: what one body is worth is
+   * a fact about the body, and what that is worth tonight is a fact about the
+   * evening. `createTravelState` multiplies it by the same `TRASH_HP` and the
+   * same difficulty the watchmen themselves are built at, so a defender does
+   * not quietly stay at ten-man health on heroic.
+   */
+  worth: number
+}
+
+/** One of them, in a walk that is running. */
+export interface Defender extends DefenderSeed {
+  hp: number
+  maxHp: number
+  /** Seconds until the next swing. */
+  swingTimer: number
 }
 
 /**
@@ -1320,6 +1392,14 @@ export interface SimState {
    * is a fact about the arena; a battleground is a set of rules played in one.
    */
   obstacles: Obstacle[]
+  /**
+   * And who is standing on it that the raid did not bring and cannot touch.
+   *
+   * Empty everywhere but a building walk. See `Defender`: they are scenery
+   * that fights back, kept out of `actors` so that nothing which counts the
+   * raid, the dead, the damage or the target list has to learn a third side.
+   */
+  defenders: Defender[]
   /**
    * The shape of the room this is being fought in.
    *

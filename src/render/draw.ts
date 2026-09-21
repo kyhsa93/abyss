@@ -496,6 +496,31 @@ export function drawWorld(
     // there is nothing left to do here.
     if (walk && folk && folk.length > 0) drawBystanders(ctx, worldToScreen, L.scale, folk)
   }
+
+  // And the ones holding a room, drawn exactly as the bystanders beside them
+  // are -- because until something walked in, that is what they were.
+  //
+  // Already in the world's frame: `citadelDefenders` converts them out of the
+  // room they are written in, the way `groundFor` does for a passage's people,
+  // so there is nothing left to do here. A fallen one gets the headstone a
+  // fallen raider gets, for the same reason: a body that simply stops being
+  // drawn is a body nobody can tell died.
+  {
+    const held = s.defenders
+    if (held.length > 0) {
+      drawBystanders(
+        ctx,
+        worldToScreen,
+        L.scale,
+        held.filter((one) => one.hp > 0),
+      )
+      held.forEach((one, i) => {
+        if (one.hp > 0) return
+        const on = worldToScreen(one.pos)
+        drawGrave(ctx, on.x, on.y, bodyHeight(PARTY_RADIUS * L.scale) * 0.78, i, s.seed)
+      })
+    }
+  }
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)

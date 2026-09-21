@@ -8,6 +8,8 @@ import {
   killedOnce,
   padAt,
   padsLit,
+  citadelAlarms,
+  citadelDefenders,
   citadelJets,
   citadelPacks,
   citadelWardens,
@@ -1590,6 +1592,103 @@ const everywhere = () => true
     samples > 0 && backwards / samples < 0.1,
     `${((backwards / Math.max(1, samples)) * 100).toFixed(0)}% of the time facing the camera`,
   )
+}
+
+// --- what comes out of a doorway -------------------------------------------
+//
+// A spring sends bodies "out of the passage rather than at anybody", which was
+// written for a doorway with the party standing in front of it. The way up to
+// the first fight is not that: `toward` is three and a half thousand units
+// from the spring down a corridor thirty-four hundred long, so nothing ever
+// reached it and nothing ever stopped. Measured before this was fixed, twelve
+// bodies out of twelve were still walking to a place they could not get to
+// after a minute, and eight of them had strolled through a living raider's
+// reach on the way -- a hundred and one body-ticks of watchmen ignoring the
+// raid they had been sent at.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const ground = groundFor('vigil', 'spire')!
+  const s = unattended(createCorridorState(7, autoParty(10, dps), ground, 'normal', 4, undefined, true))
+  const rng = new Rng(7)
+  const packs = ground.packs.length
+  const streamed = (a: { id: number }): boolean => (s.travel!.belongs[a.id] ?? -1) >= packs
+  let through = 0
+  let stopped = 0
+  const made = new Set<number>()
+  for (let t = 0; t < 30 * 60; t++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    for (const b of s.actors.filter(streamed)) {
+      made.add(b.id)
+      if (s.travel!.streaming[b.id] === undefined) {
+        stopped++
+        continue
+      }
+      if (!b.alive) continue
+      // Still walking somewhere, and standing close enough to swing at.
+      if (
+        s.actors.some(
+          (p) =>
+            p.faction === 'party' &&
+            p.alive &&
+            dist(p.pos, b.pos) <= MELEE_RANGE + p.radius + b.radius,
+        )
+      ) {
+        through++
+      }
+    }
+  }
+  expect(
+    'nothing walks through the raid on its way out of a doorway',
+    through === 0,
+    `${through} body-ticks, ${made.size} bodies out`,
+  )
+  // And the other half, or the first would pass by nothing ever coming out.
+  expect('and what came out met somebody', stopped > 0, `${stopped} body-ticks stopped`)
+}
+
+// --- and who is holding the room it comes out into -------------------------
+//
+// The great hall is the only room in the building with a garrison, and it is
+// the great hall because of what the passage above it does: the spring keeps
+// sending watchmen back down toward the door the raid came in by. Measured
+// before they could answer: forty-one bodies out of the spring in four
+// minutes, thirty-six of them into a hall holding twenty-eight armed people,
+// the nearest sixty-five units from a commander of the Ebon Blade, and not
+// one of them so much as turned round.
+{
+  const guards = citadelDefenders()
+  expect('the great hall is held', guards.length > 0, `${guards.length} standing`)
+  const hall: RoomShape = { ...roomOf('vigil'), at: placeOf('vigil') }
+  const adrift = guards.filter((one) => !insideRoom(hall, one.pos, 0))
+  // Written room-local and converted here; unconverted they land near the
+  // middle of the citadel, which is the mistake the furniture and the hall's
+  // own people have both made once. See `citadelDefenders`.
+  expect('and all of them are standing in it', adrift.length === 0, `${adrift.length} outside`)
+
+  const dps = pickFor('warrior', 'dps')!
+  const cleared = new Set<string>()
+  const ground = {
+    ...hallFor('vigil', 'threshold', () => true),
+    id: 'citadel',
+    packs: citadelPacks(cleared, {}),
+    springs: citadelSprings(cleared),
+    terrain: citadelTerrain(),
+    alarms: citadelAlarms(cleared),
+    jets: citadelJets(cleared),
+    defenders: guards,
+  }
+  const s = unattended(createCorridorState(7, autoParty(10, dps), ground, 'normal', 4, undefined, true))
+  s.chamber = 'vigil'
+  s.floor = citadelWorld()
+    .filter((cell) => cell.storeys.includes(storeyOf('vigil')))
+    .map((cell) => cell.room)
+  const rng = new Rng(7)
+  for (let t = 0; t < 30 * 240; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const hurt = s.defenders.filter((one) => one.hp < one.maxHp).length
+  // Hit, not killed: what this promises is that the hall answers, and the
+  // raid is standing in it too, so most of what walks in is the raid's. Six
+  // of thirty-six chose a defender over a raider when this was measured.
+  expect('and what walks into it is met', hurt > 0, `${hurt} of ${s.defenders.length} were hit`)
 }
 
 // --- the pads --------------------------------------------------------------

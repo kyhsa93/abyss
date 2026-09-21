@@ -171,6 +171,7 @@ import {
   placeOf,
   storeyOf,
   citadelBystanders,
+  citadelDefenders,
   padAt,
   padsLit,
 } from './dungeon'
@@ -1012,6 +1013,10 @@ function standIn(
     // either: the escort at the head of the Ymirjar column is there whether or
     // not the dreaming hall has been opened.
     bystanders: citadelBystanders(new Set(run.cleared)),
+    // And who among them will not stand for what walks in. Not conditional
+    // either: the great hall is held by the people standing in it whether or
+    // not anything has been killed yet. See `citadelDefenders`.
+    defenders: citadelDefenders(),
   }
   state = createCorridorState(
     roomSeed(run, 'citadel'),
