@@ -10,9 +10,9 @@ import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
 import { BOSS_ID } from '../sim/state'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { awake, heading } from '../sim/travel'
-import { insideRoom, roomAt, roomReach } from '../sim/room'
+import { insideRoom, roomAt, roomReach, type RoomShape } from '../sim/room'
 import { CHAMBERS, PASSAGES, chamberAt, padAt, placeOf, roomOf } from '../dungeon'
-import { teamColour } from './draw'
+import { arenaPath, teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
 import { COLORS, L, classColor, resourceColor, worldReach, worldRoom } from './theme'
@@ -720,11 +720,23 @@ function drawPlan(ctx: CanvasRenderingContext2D, s: SimState): void {
   // Then the rooms, sized by how big they actually are so the hub reads as a
   // hub and the entrance hall as a hall.
   for (const chamber of CHAMBERS) {
-    const p = at(placeOf(chamber.id))
+    const where = placeOf(chamber.id)
     const here = chamber.id === s.chamber
-    const dot = Math.max(2, roomReach(roomOf(chamber.id)) * k)
+    // The room's own shape, not a circle of its outer reach.
+    //
+    // `roomReach` is the distance to the furthest corner, so a hall came out
+    // as a disc bulging through its own walls -- the great hall is a cross and
+    // the minimap drew it as a ball. Same path the floor is drawn with, in
+    // this projection: see `arenaPath`, which took the projector as an
+    // argument for exactly this.
+    //
+    // A room too small to be a shape still has to be a mark, so anything under
+    // a couple of pixels falls back to a dot rather than vanishing.
+    const room: RoomShape = { ...roomOf(chamber.id), at: where }
+    const p = at(where)
     ctx.beginPath()
-    ctx.arc(p.x, p.y, dot, 0, Math.PI * 2)
+    if (roomReach(room) * k < 2) ctx.arc(p.x, p.y, 2, 0, Math.PI * 2)
+    else arenaPath(ctx, p, room, at, k, 1)
     ctx.fillStyle = here ? 'rgba(203, 213, 225, 0.85)' : 'rgba(148, 163, 184, 0.28)'
     ctx.fill()
   }
@@ -809,6 +821,24 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
   ctx.fillStyle = 'rgba(10, 10, 15, 0.82)'
   ctx.fill()
   ctx.clip()
+
+  // The room itself, which this never drew.
+  //
+  // Everything below floated in an empty disc: the rocks, the objectives and
+  // the bodies were all placed correctly and there was nothing to place them
+  // against, so the one question a minimap answers -- where does the floor end
+  // -- had no answer here. Drawn from the same path the floor is, so an apse
+  // reads as an apse and a hall as a hall.
+  {
+    const room = worldRoom()
+    ctx.beginPath()
+    arenaPath(ctx, at(roomAt(room)), room, at, k, 1)
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.10)'
+    ctx.fill()
+    ctx.strokeStyle = COLORS.floorEdge
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
 
   // Terrain in both modes: a raid has rocks now, and a rock is on the minimap
   // for the same reason it is on the floor.

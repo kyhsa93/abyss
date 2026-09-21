@@ -1337,7 +1337,29 @@ function nearestChamber(at: Vec2): Chamber | null {
   return best
 }
 
-function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): void {
+/**
+ * A room's own outline, in whatever projection the caller is drawing in.
+ *
+ * The projection used to be baked in: `worldToScreen`, `L.scale` and `TILT`,
+ * which is right for the floor and wrong for anything else that wants the
+ * same shape. The minimap wanted it and could not have it, so it drew every
+ * room as a circle of its outer reach instead -- and the great hall is a
+ * cross, so the one room a player spends the walk in was a disc bulging
+ * through its own walls.
+ *
+ * Defaults are the world's, so the five callers that draw the floor are
+ * unchanged. The minimap passes its own projector, its own scale, and a
+ * squash of one: it is a plan seen from above, like the map screen, and
+ * copying the camera's foreshortening onto it would stop it being one.
+ */
+export function arenaPath(
+  ctx: CanvasRenderingContext2D,
+  c: Vec2,
+  room = worldRoom(),
+  project: (p: Vec2) => Vec2 = worldToScreen,
+  scale: number = L.scale,
+  squash: number = TILT,
+): void {
   if (room.kind === 'apse') {
     // Walked round rather than drawn as an arc, for the reason the hall's
     // corners are: this shape has a straight side, and a straight side has to
@@ -1347,7 +1369,7 @@ function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): 
     const steps = 40
     for (let i = 0; i <= steps; i++) {
       const a = (i / steps) * Math.PI
-      const at = worldToScreen(
+      const at = project(
         fromRoom(room, {
           x: Math.cos(a) * room.radius,
           y: Math.sin(a) * room.radius - room.back,
@@ -1360,7 +1382,10 @@ function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): 
     return
   }
   if (room.kind !== 'hall') {
-    floorArc(ctx, c.x, c.y, room.radius * L.scale, 0, Math.PI * 2)
+    // Not `floorArc`: that one squashes by `TILT` because everything it draws
+    // is lying on the floor, and this has to be able to draw a plan as well.
+    const rx = room.radius * scale
+    ctx.ellipse(c.x, c.y, rx, rx * squash, 0, 0, Math.PI * 2)
     return
   }
   // Through the room's own frame, so a hall that has been put somewhere and
@@ -1373,7 +1398,7 @@ function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): 
     { x: -room.halfWidth, y: room.front },
   ]
   corners.forEach((corner, i) => {
-    const at = worldToScreen(fromRoom(room, corner))
+    const at = project(fromRoom(room, corner))
     if (i === 0) ctx.moveTo(at.x, at.y)
     else ctx.lineTo(at.x, at.y)
   })

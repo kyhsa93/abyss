@@ -7,7 +7,7 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { TILT, arenaPath, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
 import { walkFrame } from '../src/render/lpcimage'
@@ -2407,6 +2407,60 @@ for (const [label, w, h] of [
     expect('not five', !isLegalComposition(fill(25, 5)), 'accepted')
     expect('and not three', !isLegalComposition(fill(25, 3)), 'accepted')
   }
+}
+
+// --- a room on the minimap is the shape the room is --------------------------
+//
+// It was a circle of `roomReach` -- the distance to the furthest corner -- for
+// every room whatever its shape, so the great hall, which is a cross, was a
+// disc bulging through its own walls, and the one room a player crosses on the
+// way in did not match the floor they were standing on. The fix was to let
+// `arenaPath` take the projection rather than bake in the world's, so the same
+// path draws the floor and the map; this is the promise that it still does.
+{
+  const seen: { lines: number; ellipses: number } = { lines: 0, ellipses: 0 }
+  const recorder = new Proxy(
+    {},
+    {
+      get(_t, prop) {
+        if (prop === 'moveTo' || prop === 'lineTo') return () => seen.lines++
+        if (prop === 'ellipse') return () => seen.ellipses++
+        if (prop === 'measureText') return () => ({ width: 10 })
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return () => {}
+      },
+      set: () => true,
+    },
+  ) as unknown as CanvasRenderingContext2D
+  const flat = (p: { x: number; y: number }): { x: number; y: number } => p
+
+  seen.lines = 0
+  seen.ellipses = 0
+  arenaPath(recorder, { x: 0, y: 0 }, { kind: 'hall', halfWidth: 100, front: 200, back: 50 }, flat, 1, 1)
+  expect(
+    'a hall on the map is drawn as a hall',
+    seen.lines === 4 && seen.ellipses === 0,
+    `${seen.lines} corners, ${seen.ellipses} ellipses`,
+  )
+
+  seen.lines = 0
+  seen.ellipses = 0
+  arenaPath(recorder, { x: 0, y: 0 }, { kind: 'round', radius: 100 }, flat, 1, 1)
+  expect(
+    'and a round room as a round one',
+    seen.ellipses === 1 && seen.lines === 0,
+    `${seen.lines} corners, ${seen.ellipses} ellipses`,
+  )
+
+  // An apse is neither: it is walked round, so it is corners and no ellipse.
+  seen.lines = 0
+  seen.ellipses = 0
+  arenaPath(recorder, { x: 0, y: 0 }, { kind: 'apse', radius: 100, back: 30 }, flat, 1, 1)
+  expect(
+    'and an apse as the half-disc it is',
+    seen.lines > 4 && seen.ellipses === 0,
+    `${seen.lines} points, ${seen.ellipses} ellipses`,
+  )
 }
 
 // --- the minimap and the meter must fit, and stay out of the way ----------
