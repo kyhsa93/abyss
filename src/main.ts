@@ -1113,7 +1113,8 @@ function standIn(
  * stand in and walk out of the far side of. No menu in between either way —
  * the evening is one continuous walk until something stops it.
  */
-function arriveAt(to: string, from: string): void {
+/** `from` is null for a pad, which nobody walks through a door to reach. */
+function arriveAt(to: string, from: string | null): void {
   if (!run) return
   // Both answers are the same one now: you are standing in the room. What is
   // alive in it is standing in it too -- a pack, or the boss -- and it is
@@ -1161,7 +1162,17 @@ function goThrough(to: string, carried: number[]): void {
   )
   run = stepped(run, to, step.kind === 'jump' ? carried : throughDoor(carried, raisers))
   saveRun(run)
-  arriveAt(to, at)
+  // A pad puts the party down in the room it reaches; a door leaves them where
+  // their feet already are.
+  //
+  // `standIn` reads the door they came in by, and hands the walk their current
+  // positions whenever there is one. That is right for a door -- they are
+  // standing in its mouth -- and wrong for a pad, which does not move anybody:
+  // the run said the party was on the Rampart while every body was still in
+  // the Oratory, so the next frame read the floor under them, found the
+  // Oratory, and stepped the evening back. The lift looked like a button that
+  // did nothing.
+  arriveAt(to, step.kind === 'jump' ? null : at)
 }
 
 function walkTo(to: string, key: string, walk: Corridor): void {

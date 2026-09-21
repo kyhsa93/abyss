@@ -2120,21 +2120,44 @@ expect(
   expect('and nothing two doors away answers', stepTo(fresh, 'mooring').kind === 'shut')
 
   // A door with ground behind it charges once.
-  const held = { ...fresh, at: 'oratory', cleared: ['spire', 'oratory'] }
-  const walk = stepTo(held, 'mooring')
+  // The way up to the first fight, which is a walk and stays one. It used to
+  // be the Oratory's door onto the Rampart; that one is a transporter now --
+  // see `Passage.lift` -- so it is no longer an example of ground behind a
+  // door.
+  const held = { ...fresh, at: 'vigil', cleared: [] as string[] }
+  const walk = stepTo(held, 'spire')
   expect(
     'a door with ground behind it asks for the walk',
     walk.kind === 'walk' && walk.corridor.packs.length > 1,
     walk.kind,
   )
-  const after = walk.kind === 'walk' ? walkedTo(held, walk.key, 'mooring', []) : held
-  expect('and the party is through it afterwards', after.at === 'mooring')
+  const after = walk.kind === 'walk' ? walkedTo(held, walk.key, 'spire', []) : held
+  expect('and the party is through it afterwards', after.at === 'spire')
   // Either a step or a pad, and never the walk again: what a corridor costs is
   // the price of getting there the first time.
   expect(
     'and it does not ask twice',
-    ['step', 'jump'].includes(stepTo({ ...after, at: 'oratory' }, 'mooring').kind),
-    stepTo({ ...after, at: 'oratory' }, 'mooring').kind,
+    ['step', 'jump'].includes(stepTo({ ...after, at: 'vigil' }, 'spire').kind),
+    stepTo({ ...after, at: 'vigil' }, 'spire').kind,
+  )
+
+  // And the one join that is not a walk at all.
+  //
+  // The Rampart stands a hundred and thirty-seven yards above the Oratory and
+  // the source joins them with a transporter, so this is the one door that
+  // reaches a room nobody has walked to -- which is exactly what the pad rule
+  // forbids everywhere else. Both halves are checked, because a lift that
+  // opened early would be the second boss skipped.
+  const atOratory = { ...fresh, at: 'oratory', visited: ['threshold', 'oratory'] }
+  expect(
+    'the Rampart is reached by lift, not on foot',
+    stepTo({ ...atOratory, cleared: ['spire', 'oratory'] }, 'mooring').kind === 'jump',
+    stepTo({ ...atOratory, cleared: ['spire', 'oratory'] }, 'mooring').kind,
+  )
+  expect(
+    'and the lift does not run until the room below is down',
+    stepTo({ ...atOratory, cleared: ['spire'] }, 'mooring').kind === 'shut',
+    stepTo({ ...atOratory, cleared: ['spire'] }, 'mooring').kind,
   )
 
   // A pad reaches across the building, and only once it is lit.

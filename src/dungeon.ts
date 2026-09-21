@@ -174,6 +174,18 @@ export interface Passage {
    * a corridor — which is also what makes the pads worth lighting.
    */
   corridor?: Corridor
+
+  /**
+   * Taken by transporter rather than on foot.
+   *
+   * For the one kind of join the building has that is not a walk: two rooms a
+   * storey apart, where the source puts one of its Scourge Transporters and
+   * this game used to put a corridor. A lift is a pad that goes somewhere new
+   * -- see `stepTo`, which is where the rule that pads only reach rooms you
+   * have already walked to is relaxed, because the whole point of this one is
+   * that you have not.
+   */
+  lift?: boolean
 }
 
 /** What a passage is called where a run has to remember it. */
@@ -560,6 +572,36 @@ export const CHAMBERS: Chamber[] = [
     // the number below has always been this one.
     room: { kind: 'platform', radius: 1686 },
     pad: killed('oratory'),
+    // The Rampart of Skulls, which is the source's and is mostly empty.
+    //
+    // Nine bodies over a hundred and fifty yards, and the two at the far end
+    // are the whole of it: a pair of Rotting Frost Giants, whose health in the
+    // source is forty times a body of ordinary trash and six times one here
+    // after `weight`'s root. Everything after them is gargoyles standing one
+    // at a time, alternating sides, until three of them hold the way onto the
+    // ship. The other thirty-two creatures on this rampart are the two armies
+    // fighting each other over it, and neither is fighting the raid.
+    //
+    // They were written into a corridor between here and the Oratory, back
+    // when that join was a walk. The join is a transporter now and they are
+    // here, in the room's own frame: a raid arrives from `+y`, so the giant it
+    // meets first keeps the largest `y` and the three that hold the far end
+    // keep the smallest, which is the order they stood in.
+    //
+    // Spread over fourteen hundred units rather than the corridor's
+    // twenty-two hundred, because this platform is 843 across once the
+    // building is built -- `roomOf` halves what is written above -- and the
+    // build asks for forty units of clearance off the edge. Written at the
+    // corridor's own spacing, the giant and the far three stood outside the
+    // room they are in.
+    packs: [
+      { pos: { x: 90, y: 700 }, of: ['Rotting Frost Giant'], pulls: PULL, walks: { x: 90, y: -293 } },
+      { pos: { x: 90, y: -122 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x: -90, y: -207 }, of: ['Spire Minion'], pulls: PULL },
+      { pos: { x: -90, y: -233 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x: 90, y: -331 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x: 61, y: -700 }, of: ['Frenzied Abomination', 'Spire Gargoyle', 'Spire Gargoyle'], pulls: PULL },
+    ],
   },
   {
     id: 'rise',
@@ -963,28 +1005,17 @@ export const PASSAGES: Passage[] = [
   // measurement is not a gate.
   { from: 'eastclimb', to: 'oratory', gate: killed('spire') },
   { from: 'westclimb', to: 'oratory', gate: killed('spire') },
-  {
-    from: 'oratory',
-    to: 'mooring',
-    gate: killed('oratory'),
-    // The Rampart of Skulls, which is the source's and is mostly empty.
-    //
-    // Nine bodies over a hundred and fifty yards, and the two at the far end
-    // are the whole of it: a pair of Rotting Frost Giants, whose health in the
-    // source is forty times a body of ordinary trash and six times one here
-    // after `weight`'s root. Everything after them is gargoyles standing one
-    // at a time, alternating sides, until three of them hold the way onto the
-    // ship. The other thirty-two creatures on this rampart are the two armies
-    // fighting each other over it, and neither is fighting the raid.
-    corridor: corridor('rampartway', 'mooring', [
-      { pos: { x: 90, y: 1763 }, of: ['Rotting Frost Giant'], pulls: PULL, walks: { x: 90, y: 664 } },
-      { pos: { x:   90, y:   854 }, of: ['Spire Gargoyle'], pulls: PULL },
-      { pos: { x:  -90, y:   760 }, of: ['Spire Minion'], pulls: PULL },
-      { pos: { x:  -90, y:   731 }, of: ['Spire Gargoyle'], pulls: PULL },
-      { pos: { x:   90, y:   622 }, of: ['Spire Gargoyle'], pulls: PULL },
-      { pos: { x:   61, y:   214 }, of: ['Frenzied Abomination', 'Spire Gargoyle', 'Spire Gargoyle'], pulls: PULL },
-    ]),
-  },
+  // Up, not along. The Oratory's door is at z 63 and the Rampart is at z 200 --
+  // a hundred and thirty-seven yards straight up -- and what the source puts
+  // between them is a transporter (202243), not a ramp. This was written as a
+  // corridor, which made the way on out of the second boss an eighteen-hundred
+  // unit walk along a stretch of floor with a doorway at the end of it: the
+  // one place in the building where the map and the source disagree about what
+  // kind of thing a connection is.
+  //
+  // The Rampart's own nine bodies did not go anywhere. They stand in the
+  // Rampart now, which is where the source has them -- see `mooring`.
+  { from: 'oratory', to: 'mooring', gate: killed('oratory'), lift: true },
   // And nothing at all between the ship and the fight at the top.
   //
   // This had two packs and they were invented. Deathbringer's Rise carries six

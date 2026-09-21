@@ -263,6 +263,17 @@ export function stepTo(run: Run, to: string): Step {
   }
   const passage = passageBetween(run.at, to)
   if (!passage || !passageOpen(passage.gate, cleared)) return { kind: 'shut' }
+  // A lift is the exception to "only somewhere you have already walked to".
+  //
+  // The rule above is what keeps the pads from replacing the building: a pad
+  // is a walk you earned the right not to make twice. A lift is the other
+  // thing the source's transporters do -- the Rampart is a hundred and
+  // thirty-seven yards above the Oratory and there is no ramp -- so this one
+  // has to reach a room nobody has stood in. Both pads still have to be lit,
+  // which is what stops it being a door that opens early.
+  if (passage.lift === true && lit.some((c) => c.id === to) && lit.some((c) => c.id === run.at)) {
+    return { kind: 'jump', to }
+  }
   const key = passageKey(passage.from, passage.to)
   if (passage.corridor && !isWalked(run, key)) {
     return { kind: 'walk', to, corridor: passage.corridor, key }
