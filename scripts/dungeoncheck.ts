@@ -2880,9 +2880,48 @@ expect(
     `${(room / (PARTY_RADIUS * 2)).toFixed(0)} bodies`,
   )
   expect(
-    'and a boss is eleven and a half of them, as it is there',
+    'and the yardstick boss is eleven and a half of them, as it is there',
     BOSS_WIDTH / (PARTY_RADIUS * 2) > 10.5 && BOSS_WIDTH / (PARTY_RADIUS * 2) < 12.5,
     `${(BOSS_WIDTH / (PARTY_RADIUS * 2)).toFixed(1)} bodies`,
+  )
+
+  // And every boss is its own, which is the thing that was not true.
+  //
+  // `CreatureDisplayInfo.CreatureModelScale` for each boss's display, times
+  // the two yards that hold the first boss at nine. The fights are matched to
+  // the source's bosses by `pace`, which is already
+  // `creature_template.speed_run` and agrees to five decimal places on all ten
+  // -- so this table and that one are about the same creature.
+  //
+  // See `Encounter.width` for why this is not the bounding radius.
+  const SOURCE_WIDTH: Record<string, number> = {
+    marrow: 9.0, whisper: 6.0, host: 2.0, gorged: 2.3, confluence: 2.0,
+    flasks: 7.8, crowns: 3.5, gift: 8.0, saved: 4.0, cold: 5.0,
+  }
+  const offSize: string[] = []
+  for (const fight of ENCOUNTERS) {
+    const want = SOURCE_WIDTH[fight.id]
+    if (want === undefined) {
+      offSize.push(`${fight.id}: no source width`)
+      continue
+    }
+    if (Math.abs(fight.width - want) > 0.005) {
+      offSize.push(`${fight.id}: ${fight.width} yd, source says ${want}`)
+    }
+  }
+  expect(
+    'and every boss is the width the source made it',
+    offSize.length === 0,
+    offSize.join('; '),
+  )
+  // Not all one number any more, which is the whole of the change: if these
+  // ever collapse back to a single value the table above has stopped being
+  // read.
+  const widths = new Set(ENCOUNTERS.map((f) => f.width))
+  expect(
+    'and they are not all the same width',
+    widths.size >= 8,
+    `${widths.size} distinct widths across ${ENCOUNTERS.length} fights`,
   )
   // The classes still differ from each other by a tenth, which is a fact about
   // the classes and not about the scale.

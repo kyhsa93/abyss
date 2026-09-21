@@ -1,4 +1,4 @@
-import { BOSS_WIDTH, COUNTDOWN_TICKS, HEALTH, MENDING_START, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, YARD, bar } from './constants'
+import { COUNTDOWN_TICKS, HEALTH, MENDING_START, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, YARD, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
@@ -253,7 +253,8 @@ export function createState(
     faction: 'boss',
     pos: { x: at.x, y: at.y },
     prevPos: { x: at.x, y: at.y },
-    radius: BOSS_WIDTH / 2,
+    // Its own, off `creature_model_info` -- see `Encounter.width`.
+    radius: Math.round((fight.width * YARD) / 2),
     // Its own, off `creature_template.speed_run` — a multiplier of the
     // source's base seven yards a second, which is the unit the party's speeds
     // are already in. It was 197 for every boss, which is the first one's

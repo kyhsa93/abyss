@@ -3,7 +3,7 @@ import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring
 import { ROUND_ARENA, atScale, carried, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
 import type { Bystander, DefenderSeed, Obstacle, Prop, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
-import { BOSS_WIDTH, BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, PULL, YARD } from './sim/constants'
+import { BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, PULL, YARD } from './sim/constants'
 
 /**
  * The citadel as a graph: rooms, what joins them, and what opens.
@@ -2464,7 +2464,7 @@ export function citadelWardens(cleared?: ReadonlySet<string>): Pack[] {
           room: chamber.id,
           fight: fight.id,
           hp: fight.hp,
-          radius: Math.round(BOSS_WIDTH / 2),
+          radius: Math.round((fight.width * YARD) / 2),
           pace: Math.round(fight.pace * 7 * YARD),
         },
       },

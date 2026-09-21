@@ -1037,6 +1037,27 @@ export interface Encounter {
    * that learned it could outrun the bonegrinder learned something untrue
    * about every fight after it.
    */
+  /**
+   * How wide it is, in yards, off the source's own model scale.
+   *
+   * `CreatureDisplayInfo.CreatureModelScale` for the boss's display, times the
+   * two yards that keep the first boss at the nine it was calibrated at. It
+   * was one number for all ten -- the first boss's -- and the first boss is
+   * the largest thing in the raid, so every other fight had a boss several
+   * times too wide, with the melee standing where its edge was rather than
+   * where it is.
+   *
+   * Not `creature_model_info`'s bounding radius, which was tried first and
+   * looked more authoritative: that column is a *collision* radius, and taken
+   * as a width it draws six of the ten at a raider's size or under. Rotface
+   * came out at six tenths of a yard against a body's 0.778 -- in the contact
+   * sheet his fight had no boss in it, just the marker and a ring, and
+   * Sindragosa was the same size as the character standing under her. Model
+   * scale is the column about how big the thing is drawn, it is filled in for
+   * all ten, and none of them is under 1.0, so no boss can come out smaller
+   * than the people fighting it.
+   */
+  width: number
   pace: number
   hp: number
   /** Seconds before the fight is lost outright. */
@@ -1555,6 +1576,8 @@ export const ENCOUNTERS: Encounter[] = [
     // tile is its grain and not its colour, so this is how coarse the ground
     // reads: the coarsest of the five, for a hall that has been ground down.
     floor: 'floor-cobble',
+    // Lord Marrowgar, display 31119, model scale 4.5.
+    width: 9.0,
     pace: 1.21429,
     hp: 46000,
     enrage: 240,
@@ -1778,6 +1801,8 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** Cut stone, laid in courses: a room that is still in use. */
     floor: 'floor-slate',
+    // Lady Deathwhisper, display 30893, model scale 3.0.
+    width: 6.0,
     pace: 1.14286,
     hp: 58000,
     enrage: 240,
@@ -1977,6 +2002,8 @@ export const ENCOUNTERS: Encounter[] = [
     // where the smallest raid clears at 95% and the twenty-five man normal,
     // which is the longest fight on the roster, sits at 65% with seven in ten
     // of the raid dead at the end of it.
+    // Festergut, display 31006, model scale 1.0.
+    width: 2.0,
     pace: 1.5873,
     hp: 60000,
     enrage: 240,
@@ -2231,6 +2258,8 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** Open stone, worn smooth: the top of a spire rather than a hall. */
     floor: 'floor-cobble',
+    // Deathbringer Saurfang, display 30790, model scale 1.15.
+    width: 2.3,
     pace: 1.42857,
     hp: 56000,
     enrage: 240,
@@ -2421,6 +2450,8 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** A workshop floor: laid, drained, and about to be ruined. */
     floor: 'floor-clay',
+    // Rotface, display 31005, model scale 1.0.
+    width: 2.0,
     pace: 1.5873,
     hp: 54000,
     enrage: 245,
@@ -2621,6 +2652,8 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** A workshop, and the brightest room in the building. */
     floor: 'floor-slate',
+    // Professor Putricide, display 30881, model scale 3.9.
+    width: 7.8,
     pace: 1.71429,
     hp: 58000,
     enrage: 250,
@@ -2830,6 +2863,8 @@ export const ENCOUNTERS: Encounter[] = [
     // It is a steep number: at forty-six thousand every cell came out at 93%
     // or better, because a shorter fight is also fewer seconds of standing in
     // the thirst. Fifty-one is where the top rung still costs something.
+    // the Blood Princes, display 30856, model scale 1.75.
+    width: 3.5,
     pace: 1.42857,
     hp: 51000,
     enrage: 250,
@@ -2980,6 +3015,8 @@ export const ENCOUNTERS: Encounter[] = [
     terrain: [],
     /** Red stone, and a balcony that is a painting rather than a place. */
     floor: 'floor-slate',
+    // Blood-Queen Lana'thel, display 31165, model scale 4.0.
+    width: 8.0,
     pace: 1.42857,
     hp: 52000,
     // The shortest clock on the roster, and it is the flight that decides it:
@@ -3160,6 +3197,8 @@ export const ENCOUNTERS: Encounter[] = [
     // does not chase. It is here because every fight carries the pace of the
     // creature it is taken from, and 36789 -- `boss_valithria_dreamwalker` --
     // carries the table's default 1.14286 exactly as the source wrote it.
+    // Valithria Dreamwalker, display 30318, model scale 2.0.
+    width: 4.0,
     pace: 1.14286,
     // What it has left, and it starts at half of it. See `MENDING_START`.
     hp: 40000,
@@ -3359,6 +3398,8 @@ export const ENCOUNTERS: Encounter[] = [
     // whose last rung is "walk out of it" is a fight where being able to walk
     // away from the boss matters, and the source's own row says a raid cannot:
     // it closes at nearly twice the pace of the thing in the first room.
+    // Sindragosa, display 30362, model scale 2.5.
+    width: 5.0,
     pace: 2.28571,
     // Tuned here rather than at any of the rungs, because what the sweep found
     // was a raid that nearly wins. At the forty-five thousand this was written
