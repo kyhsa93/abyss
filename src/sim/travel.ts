@@ -14,6 +14,7 @@ import {
   MEND_EVERY,
   MEND_FIRST,
   MEND_REACH,
+  MUSTER_PACE,
   PARTY_RADIUS,
   PULL,
   YARD,
@@ -1491,7 +1492,17 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   // allowed the same pace the raid already musters at before a pull, which is
   // the same problem -- a body walking to a place in the formation while the
   // formation is somewhere else.
-  moveToward(s, actor, want)
+  // A follower that has fallen behind is allowed to close, at the pace the
+  // raid already musters at.
+  //
+  // Without it the tail grows: everybody walks at their own speed, the person
+  // being followed never stops, and a body that starts a stride behind stays a
+  // stride behind for the rest of the walk. Measured in the entrance hall five
+  // seconds in, six of nine were past the distance they are supposed to stop
+  // at -- forty-three -- and the furthest was a hundred and nineteen out, in a
+  // column two body-widths across. `follow` already answers `actor.pos` for
+  // anybody near enough, so this only ever speeds up somebody catching up.
+  moveToward(s, actor, want, target === null && player !== null ? MUSTER_PACE : 1)
 
 
   const moving = ai.moveTarget !== null
