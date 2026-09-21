@@ -1165,6 +1165,14 @@ export interface Defender extends DefenderSeed {
   maxHp: number
   /** Seconds until the next swing. */
   swingTimer: number
+  /**
+   * The post they were placed on, which is where they go back to.
+   *
+   * A guard that answers what comes down the passage has to leave its mark to
+   * do it, and a guard that then stays where the last one died is a hall that
+   * empties itself over an evening.
+   */
+  home: Vec2
 }
 
 /**

@@ -647,6 +647,7 @@ export function createTravelState(
       hp: Math.round(hp * one.worth),
       maxHp: Math.round(hp * one.worth),
       swingTimer: TRASH_SWING,
+      home: { x: one.pos.x, y: one.pos.y },
     })),
     party: party.map((p) => ({ ...p })),
     difficulty,
@@ -961,10 +962,24 @@ function springStep(s: SimState): void {
  * anybody is still asleep, and killing it in its sleep from another room is
  * the raid's corridor being cleared by somebody else.
  */
+const GUARD_PACE = 104
+
+/** Walk one of them at a point, at a watchman's pace. */
+function guardWalk(one: Defender, to: Vec2): void {
+  const far = dist(one.pos, to)
+  const step = GUARD_PACE * DT
+  if (far <= step) {
+    one.pos.x = to.x
+    one.pos.y = to.y
+    return
+  }
+  one.pos.x += ((to.x - one.pos.x) / far) * step
+  one.pos.y += ((to.y - one.pos.y) / far) * step
+}
+
 function defenderStep(s: SimState): void {
   if (s.defenders.length === 0) return
   const up = awake(s)
-  if (up.length === 0) return
   for (const one of s.defenders) {
     if (one.hp <= 0) continue
     let foe: Actor | null = null
@@ -977,11 +992,32 @@ function defenderStep(s: SimState): void {
         foe = body
       }
     }
-    if (!foe) continue
+    // Back to the post when there is nothing to answer, which is most of an
+    // evening.
+    if (!foe) {
+      if (dist(one.pos, one.home) > 1) guardWalk(one, one.home)
+      continue
+    }
     turnToward(one, Math.atan2(foe.pos.y - one.pos.y, foe.pos.x - one.pos.x))
+    const reach = MELEE_RANGE + foe.radius + PARTY_RADIUS
+    // A few steps to meet it, and no further from the post than the distance
+    // this building notices things from.
+    //
+    // Rooted, they answered nothing: measured over four minutes of the spring
+    // streaming watchmen into the hall, the raid killed every one of them at
+    // about a hundred and twenty-six units -- ten short of a guard's reach --
+    // and one body in two hundred and twenty-two ever came close enough to be
+    // swung at. A hall of twenty-eight armed people watched the whole thing.
+    // `PULL` rather than a number of its own, because what a guard will step
+    // out for is the same thing everything else in here notices from.
+    if (best > reach && dist(foe.pos, one.home) <= PULL) {
+      guardWalk(one, foe.pos)
+    } else if (best > reach && dist(one.pos, one.home) > 1) {
+      guardWalk(one, one.home)
+    }
     one.swingTimer -= DT
     if (one.swingTimer > 0) continue
-    if (best > MELEE_RANGE + foe.radius + PARTY_RADIUS) continue
+    if (dist(one.pos, foe.pos) > reach) continue
     one.swingTimer = TRASH_SWING
     // No `sourceId`: nobody in the raid dealt this, and a tally that credits
     // a player for a paladin's sword is a damage meter that lies.
@@ -1344,10 +1380,20 @@ export function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
   // In ranks when the raid does not fit across the floor it is standing on,
   // and in its own formation when it does.
   const across = marchRoom(s, lead)
-  const place =
-    across < marchHalf(slots, theirs)
-      ? rankAt(ordinal, across)
-      : { x: (mine.x - theirs.x) * MARCH_SPREAD, y: (mine.y - theirs.y) * MARCH_SPREAD }
+  // Ranks answer in the world's own frame, because the places have to be
+  // separated against each other once the floor has moved them, and that can
+  // only be done where all of them are known. The formation path below is
+  // still an offset from the leader, turned and put down one at a time.
+  if (across < marchHalf(slots, theirs)) {
+    const seats = apart(
+      s,
+      lead,
+      rankPlaces(order.map((id) => marchRank(s.actors.find((a) => a.id === id)!)), across),
+      actor.radius,
+    )
+    return seats[ordinal] ?? lead.pos
+  }
+  const place = { x: (mine.x - theirs.x) * MARCH_SPREAD, y: (mine.y - theirs.y) * MARCH_SPREAD }
   // Onto ground that is there, which is the difference between a place to
   // walk to and a point inside a wall.
   //
@@ -1423,21 +1469,76 @@ const RANK_STEP = PARTY_RADIUS * 4
  * actually adopts when the walls come in, and it has a spacing of its own
  * rather than a fraction of somebody else's.
  */
-function rankAt(ordinal: number, across: number): Vec2 {
+function rankPlaces(bands: number[], across: number): Vec2[] {
   const perRank = Math.max(1, Math.floor((across * 2) / RANK_STEP))
-  const column = (ordinal % perRank) - (perRank - 1) / 2
-  const rank = 1 + Math.floor(ordinal / perRank)
-  // Behind, which is the sign this had backwards.
-  //
-  // `place.y` is measured forward: the bigger it is, the further in front of
-  // the leader a seat sits -- read off the seats themselves rather than worked
-  // out, because the same reasoning got it wrong twice. Ranks running *out*
-  // from the leader put every follower ahead of somebody walking at their own
-  // speed, so nobody could ever reach a seat and the gap grew instead of
-  // closing: measured at twelve and twenty seconds, a body owed 289 units was
-  // owed 736 eight seconds later. It also read as the order being reversed,
-  // because the last rank was the furthest forward.
-  return { x: column * RANK_STEP, y: -rank * RANK_STEP }
+  const out: Vec2[] = []
+  let rank = 0
+  let i = 0
+  while (i < bands.length) {
+    const band = bands[i]!
+    let same = 0
+    while (i + same < bands.length && bands[i + same] === band) same++
+    for (let k = 0; k < same; k++) {
+      const row = Math.floor(k / perRank)
+      // Centred on what is actually in this row, so a part-filled last row
+      // sits on the column rather than off to one side of it.
+      const wide = Math.min(perRank, same - row * perRank)
+      const column = (k % perRank) - (wide - 1) / 2
+      out.push({ x: column * RANK_STEP, y: -(rank + 1 + row) * RANK_STEP })
+    }
+    rank += Math.ceil(same / perRank)
+    i += same
+  }
+  return out
+}
+
+/**
+ * The laid places, put onto the floor without being put onto each other.
+ *
+ * `ontoFloor` answers one place at a time, and in a round room the places that
+ * fall off all fail toward the same strip of wall: measured at twenty-five in
+ * the threshold, two seats seven units apart, which the build reports as a
+ * raid standing inside itself. Scaling the whole block instead was worse --
+ * it fitted by shrinking the formation to a third of its spacing, so a raid
+ * that was meant to march in ranks marched in a knot, and the clamp still
+ * halved what was left.
+ *
+ * So the block keeps its spacing and the strays are separated where they land.
+ * Done here because this is the only place that knows all of them; a function
+ * answering one seat cannot see the seat it is standing on.
+ */
+function apart(s: SimState, lead: Actor, places: Vec2[], radius: number): Vec2[] {
+  const aim = lead.facing
+  const c = Math.cos(aim - Math.PI / 2)
+  const sn = Math.sin(aim - Math.PI / 2)
+  const out = places.map((place) =>
+    ontoFloor(s, {
+      x: lead.pos.x + place.x * c - place.y * sn,
+      y: lead.pos.y + place.x * sn + place.y * c,
+    }, radius),
+  )
+  // A body's own width, the same number the build measures this with.
+  const want = PARTY_RADIUS * 1.5
+  // Three passes: a pair pushed apart can land on a third, and settling that
+  // exactly is not worth a solver when the raid is walking through it anyway.
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < out.length; i++) {
+      for (let j = i + 1; j < out.length; j++) {
+        const dx = out[j]!.x - out[i]!.x
+        const dy = out[j]!.y - out[i]!.y
+        const d = Math.hypot(dx, dy)
+        if (d >= want) continue
+        // Straight apart, or along the walk when they are exactly on top of
+        // each other and there is no direction to read off them.
+        const ux = d > 0.01 ? dx / d : Math.cos(aim)
+        const uy = d > 0.01 ? dy / d : Math.sin(aim)
+        const push = (want - d) / 2
+        out[i] = ontoFloor(s, { x: out[i]!.x - ux * push, y: out[i]!.y - uy * push }, radius)
+        out[j] = ontoFloor(s, { x: out[j]!.x + ux * push, y: out[j]!.y + uy * push }, radius)
+      }
+    }
+  }
+  return out
 }
 
 /**
