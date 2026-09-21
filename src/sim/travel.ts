@@ -14,7 +14,6 @@ import {
   MEND_EVERY,
   MEND_FIRST,
   MEND_REACH,
-  MUSTER_PACE,
   PARTY_RADIUS,
   PULL,
   YARD,
@@ -38,7 +37,7 @@ import {
 } from './combat'
 import { blankGround, turnToward } from './boss'
 import { trashLook, trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
-import { ROUND_ARENA, carried, pushInside, pushOutside, wallGap, type RoomShape } from './room'
+import { ROUND_ARENA, carried, pushInside, pushOutside, type RoomShape } from './room'
 import type { Rng } from './rng'
 import type { Bystander, Actor, Defender, DefenderSeed, Obstacle, SimState, Vec2 } from './types'
 
@@ -1235,6 +1234,7 @@ export function updateTravel(s: SimState, rng: Rng): void {
   springStep(s)
   trashStep(s, rng)
   defenderStep(s)
+  huddleApart(s)
   void rng
 
   // Nothing awake: the party is walking, and walking is when a raid catches
@@ -1280,6 +1280,86 @@ export function updateTravel(s: SimState, rng: Rng): void {
 const GATHER = 60
 
 /**
+ * How close the raid gathers on whoever is steering it.
+ *
+ * Off the body and the head count rather than a number of its own: a disc of
+ * radius r holds about `(r / a body's width)²` people, so the room a raid
+ * needs to stand together without standing inside each other grows with the
+ * root of how many of them there are. Sixty units was the answer for every
+ * size, and at twenty-five that is a knot -- three tokens visible and the rest
+ * underneath.
+ */
+function huddle(size: number): number {
+  return Math.round(PARTY_RADIUS * 1.5 * Math.sqrt(Math.max(1, size)))
+}
+
+/**
+ * A place near the person being followed, and not the same one for everybody.
+ *
+ * Sent at the leader's own point, a raid walks in single file: everybody is
+ * behind the same spot, and pushing two bodies apart along the line between
+ * them resolves a queue into a longer queue. Measured in a browser, ten people
+ * crossing the entrance hall were a column one body wide.
+ *
+ * So each of them is owed a different point around that spot. Not a formation
+ * -- nothing here knows what anybody does, and the ring does not turn with the
+ * walk -- just enough spread that a gathered raid is a group rather than a
+ * line. The angle is the golden one off the body's own id, which is the
+ * cheapest way to scatter a handful of points evenly and gives the same answer
+ * every tick and every replay.
+ */
+
+
+/**
+ * And nobody stands inside anybody while they do it.
+ *
+ * `follow` stops a body once it is near enough to the person it is following,
+ * and near enough is a circle rather than a place: ten of them told to stand
+ * within the same circle will happily stand on the same spot. The formation
+ * this replaces answered that by giving everybody a seat; a huddle answers it
+ * here, once per tick, where every body can be seen at once.
+ */
+function huddleApart(s: SimState): void {
+  const bodies = livingParty(s)
+  const want = PARTY_RADIUS * 1.5
+  for (const a of bodies) {
+    for (const b of bodies) {
+      if (b.id <= a.id) continue
+      const dx = b.pos.x - a.pos.x
+      const dy = b.pos.y - a.pos.y
+      const d = Math.hypot(dx, dy)
+      if (d >= want) continue
+      // Straight apart, or along the walk when two bodies are exactly on top
+      // of each other and there is no direction to read off them.
+      // Apart, and across the walk when they are apart along it.
+      //
+      // Pushing two bodies straight apart turns a queue into a longer queue:
+      // everybody following one person is behind them, so the line between any
+      // two of them lies along the way they are going. Measured in a browser,
+      // ten people crossing the entrance hall were a column one body wide.
+      // Sideways is the direction a raid has room in.
+      let ux = d > 0.01 ? dx / d : Math.cos(a.facing)
+      let uy = d > 0.01 ? dy / d : Math.sin(a.facing)
+      const ax = Math.cos(a.facing)
+      const ay = Math.sin(a.facing)
+      if (Math.abs(ux * ax + uy * ay) > 0.7) {
+        // Which side is its own answer, so the two do not swap every tick.
+        const side = ux * -ay + uy * ax >= 0 ? 1 : -1
+        ux = -ay * side
+        uy = ax * side
+      }
+      const push = (want - d) / 2
+      a.pos.x -= ux * push
+      a.pos.y -= uy * push
+      b.pos.x += ux * push
+      b.pos.y += uy * push
+      holdOrFall(s, a)
+      holdOrFall(s, b)
+    }
+  }
+}
+
+/**
  * How much wider the raid stands when it is only walking.
  *
  * The fight formation, opened out. Twenty-five people crossing a citadel in a
@@ -1290,276 +1370,12 @@ const GATHER = 60
  */
 const MARCH_SPREAD = 1.8
 
-/**
- * Where a body walks in the order, which is what its job is rather than what
- * its number is.
- *
- * Tanks at the front, then whoever fights in reach of what they are hitting,
- * then the healers and the ranged behind them. That is the order a raid
- * actually forms up in, and it was nobody's order here: both the formation
- * and the ranks were handed out by actor id, which is the roster's order and
- * means nothing on the floor. Measured before this, walking the same ten-man
- * through two rooms: the tanks came last in the entrance shaft and the melee
- * came last in the great hall, and neither was a decision.
- */
-function marchRank(a: Actor): number {
-  if (a.role === 'tank') return 0
-  if (a.role === 'dps' && a.melee) return 1
-  return 2
-}
 
-/**
- * Everybody's place in that order, by actor id, the player included.
- *
- * The player used to be left out, because the player is what the formation is
- * hung off -- and the effect of that was a raid whose healer walked at the
- * front of it whenever the healer was the person playing. Leading a column and
- * standing at the head of one are different things: the raid follows whoever
- * is steering, and where that person *stands* is still their own job in it.
- *
- * The dead are counted. A living-only order would re-seat everybody behind
- * whoever just fell, which is the one thing the ranks are written not to do --
- * a body does not swap places with its neighbour halfway down a corridor. The
- * dead are carried rather than walking, so the gap they leave costs nothing.
- *
- * Ties break on the id, so the order is the same order every tick and the
- * same order on a replay.
- */
-function marchingOrder(s: SimState): number[] {
-  return s.actors
-    .filter((a) => a.faction === 'party')
-    .sort((a, b) => marchRank(a) - marchRank(b) || a.id - b.id)
-    .map((a) => a.id)
-}
 
-/**
- * Where one body walks, which is its own place in the marching order.
- *
- * The raid's own formation, opened out and turned to face the way it is going,
- * hung off whoever is leading rather than off the room — so it holds its shape
- * through a doorway and across a room that is not the one it started in.
- *
- * Measured from the leader's own slot rather than from the middle of the
- * formation, so that the body everybody is following does not walk away from
- * itself.
- *
- * Turned by the leader and not by the door. It was the door first, and what
- * that produces is a raid that swings round the moment the player is nearer a
- * different one: the formation was arranged about a point on the wall rather
- * than about the walk, and in a room with several ways out it turned while
- * nobody was turning. The leader already faces the way they are walking, so
- * their bearing is the walk's bearing and costs nothing to read.
- */
-export function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
-  const slots = makeSlots(s.party.length as RaidSize)
-  const theirs = slots[lead.id - 1]
-  if (!theirs || actor.id === lead.id) return lead.pos
-  // The same places, handed out in marching order instead of in roster order.
-  //
-  // Re-assigned rather than rebuilt, and the reference stays the leader's own
-  // slot, so the set of offsets is the set it always was: `marchHalf` and
-  // `marchReach` are computed from the slots and the leader's place rather
-  // than from who is standing in them, and both come out unchanged -- 532 and
-  // 515 at ten, 483 and 440 at twenty-five, before and after. Moving the
-  // reference to the front-most place instead would have widened the raid by
-  // a third, which is a change to how much floor a raid needs and not a change
-  // to the order it walks in.
-  //
-  // Front to back is *descending* `y`, and this was derived wrong once before
-  // trusting it: the slots are written with the boss at the origin and the
-  // raid coming in from `+y`, and the reasonable-sounding conclusion -- that
-  // a smaller `y` is nearer the front -- is backwards once `station` has
-  // turned the formation onto the leader's bearing. Handing the first place
-  // to the tanks under the other order put them at the back of the raid in
-  // all three rooms measured. The bodies are the authority here, not the
-  // arithmetic: measure where they end up, do not work it out.
-  //
-  // Measured from the place the leader themselves stands in, which is the
-  // whole of what lets a raid have a shape the player is *inside*. Hung off
-  // the leader's body instead, every formation had the player at the point of
-  // it: a ranged player walked in front of the tanks all the way up the
-  // building, because the offsets were all behind a reference that was the
-  // player wherever the player happened to be in the order.
-  const order = marchingOrder(s)
-  const ordinal = order.indexOf(actor.id)
-  const leadAt = order.indexOf(lead.id)
-  if (ordinal < 0 || leadAt < 0) return lead.pos
-  const ranked = slots.slice().sort((a, b) => b.y - a.y)
-  const mine = ranked[ordinal]
-  const leadPlace = ranked[leadAt]
-  if (!mine || !leadPlace) return lead.pos
-  const aim = lead.facing
-  const c = Math.cos(aim - Math.PI / 2)
-  const sn = Math.sin(aim - Math.PI / 2)
-  // In ranks when the raid does not fit across the floor it is standing on,
-  // and in its own formation when it does.
-  const across = marchRoom(s, lead)
-  // Ranks answer in the world's own frame, because the places have to be
-  // separated against each other once the floor has moved them, and that can
-  // only be done where all of them are known. The formation path below is
-  // still an offset from the leader, turned and put down one at a time.
-  if (across < marchHalf(slots, theirs)) {
-    const laid = rankPlaces(order.map((id) => marchRank(s.actors.find((a) => a.id === id)!)), across)
-    const anchor = laid[leadAt]
-    if (!anchor) return lead.pos
-    // Shifted so the leader's own rank sits under the leader. `apart` puts
-    // each place down at `lead.pos` plus the offset it is given, and the
-    // offset the leader is owed is zero.
-    const seats = apart(
-      s,
-      lead,
-      laid.map((place) => ({ x: place.x - anchor.x, y: place.y - anchor.y })),
-      actor.radius,
-    )
-    return seats[ordinal] ?? lead.pos
-  }
-  const place = { x: (mine.x - leadPlace.x) * MARCH_SPREAD, y: (mine.y - leadPlace.y) * MARCH_SPREAD }
-  // Onto ground that is there, which is the difference between a place to
-  // walk to and a point inside a wall.
-  //
-  // The formation is hung off the leader and asks nothing about what is under
-  // it, so on a stair or in a doorway the back ranks land off the floor. A
-  // body then walks at that point for the rest of the walk: the step is taken
-  // and `holdOrFall` puts it straight back, so it stands on the edge making
-  // no progress and never arrives, and nothing re-plans. Walked over six
-  // thousand ticks of the citadel, that was sixty-two per cent of the raid's
-  // marching on the climbs; in two of the three rooms measured, every single
-  // pinned body-tick had its station off the floor and the body against the
-  // edge, and none had any other explanation.
-  //
-  // Clamped here rather than in `follow`, which deliberately does not clamp
-  // while crossing a building: clamping to the room a body is *in* is what
-  // stops it walking through a door. The floor is every cell of the storey,
-  // which is the same question `marchRoom` already asks of it.
-  return ontoFloor(s, {
-    x: lead.pos.x + place.x * c - place.y * sn,
-    y: lead.pos.y + place.x * sn + place.y * c,
-  }, actor.radius)
-}
 
-/**
- * The nearest place on the walkable floor, for a point that may be off it.
- *
- * The same shape `holdOrFall` uses on a body that has walked off: inside any
- * cell it is already somewhere, and outside every one of them the roomiest
- * cell takes it. A station is a point rather than a body, so this puts the
- * point back rather than dropping anybody.
- */
-function ontoFloor(s: SimState, pos: Vec2, radius: number): Vec2 {
-  const cells = s.floor !== undefined && s.floor.length > 0 ? s.floor : [s.room]
-  let best = cells[0]!
-  let near = -Infinity
-  for (const cell of cells) {
-    const gap = wallGap(cell, pos, radius)
-    if (gap >= 0) return pos
-    if (gap > near) {
-      near = gap
-      best = cell
-    }
-  }
-  const put = { x: pos.x, y: pos.y }
-  pushInside(best, put, radius)
-  return put
-}
 
-/**
- * How far the raid stands from the body in front of it, in ranks.
- *
- * Twice a body across and a body's clearance either side of that, which is
- * close enough to read as one group and far enough that nobody is standing in
- * anybody. It is wider than the tightest pair of the fight formation, so a
- * raid that has closed up into ranks is not standing tighter than a raid that
- * has been told to spread out.
- */
-const RANK_STEP = PARTY_RADIUS * 4
 
-/**
- * A body's place in the ranks, for a raid crossing something narrow.
- *
- * As many abreast as the floor holds, and the rest behind them. Ordered by
- * the walk -- see `marchRank` -- so the front rank is the one that meets
- * whatever is down the corridor, and the same body is in it every time: the
- * ordinal is a standing order rather than a position, so nobody swaps places
- * with a neighbour halfway down.
- *
- * Written as a place behind the leader rather than as the formation squeezed,
- * because a squeezed formation is the bug this replaced: scaled down far
- * enough to fit a shaft, the two middle parties stood ten units apart, which
- * is one body inside another. A rank is the arrangement a group of people
- * actually adopts when the walls come in, and it has a spacing of its own
- * rather than a fraction of somebody else's.
- */
-function rankPlaces(bands: number[], across: number): Vec2[] {
-  const perRank = Math.max(1, Math.floor((across * 2) / RANK_STEP))
-  const out: Vec2[] = []
-  let rank = 0
-  let i = 0
-  while (i < bands.length) {
-    const band = bands[i]!
-    let same = 0
-    while (i + same < bands.length && bands[i + same] === band) same++
-    for (let k = 0; k < same; k++) {
-      const row = Math.floor(k / perRank)
-      // Centred on what is actually in this row, so a part-filled last row
-      // sits on the column rather than off to one side of it.
-      const wide = Math.min(perRank, same - row * perRank)
-      const column = (k % perRank) - (wide - 1) / 2
-      out.push({ x: column * RANK_STEP, y: -(rank + 1 + row) * RANK_STEP })
-    }
-    rank += Math.ceil(same / perRank)
-    i += same
-  }
-  return out
-}
 
-/**
- * The laid places, put onto the floor without being put onto each other.
- *
- * `ontoFloor` answers one place at a time, and in a round room the places that
- * fall off all fail toward the same strip of wall: measured at twenty-five in
- * the threshold, two seats seven units apart, which the build reports as a
- * raid standing inside itself. Scaling the whole block instead was worse --
- * it fitted by shrinking the formation to a third of its spacing, so a raid
- * that was meant to march in ranks marched in a knot, and the clamp still
- * halved what was left.
- *
- * So the block keeps its spacing and the strays are separated where they land.
- * Done here because this is the only place that knows all of them; a function
- * answering one seat cannot see the seat it is standing on.
- */
-function apart(s: SimState, lead: Actor, places: Vec2[], radius: number): Vec2[] {
-  const aim = lead.facing
-  const c = Math.cos(aim - Math.PI / 2)
-  const sn = Math.sin(aim - Math.PI / 2)
-  const out = places.map((place) =>
-    ontoFloor(s, {
-      x: lead.pos.x + place.x * c - place.y * sn,
-      y: lead.pos.y + place.x * sn + place.y * c,
-    }, radius),
-  )
-  // A body's own width, the same number the build measures this with.
-  const want = PARTY_RADIUS * 1.5
-  // Three passes: a pair pushed apart can land on a third, and settling that
-  // exactly is not worth a solver when the raid is walking through it anyway.
-  for (let pass = 0; pass < 3; pass++) {
-    for (let i = 0; i < out.length; i++) {
-      for (let j = i + 1; j < out.length; j++) {
-        const dx = out[j]!.x - out[i]!.x
-        const dy = out[j]!.y - out[i]!.y
-        const d = Math.hypot(dx, dy)
-        if (d >= want) continue
-        // Straight apart, or along the walk when they are exactly on top of
-        // each other and there is no direction to read off them.
-        const ux = d > 0.01 ? dx / d : Math.cos(aim)
-        const uy = d > 0.01 ? dy / d : Math.sin(aim)
-        const push = (want - d) / 2
-        out[i] = ontoFloor(s, { x: out[i]!.x - ux * push, y: out[i]!.y - uy * push }, radius)
-        out[j] = ontoFloor(s, { x: out[j]!.x + ux * push, y: out[j]!.y + uy * push }, radius)
-      }
-    }
-  }
-  return out
-}
 
 /**
  * How far the marching formation reaches, out from the body leading it.
@@ -1583,37 +1399,7 @@ export function marchReach(size: number): number {
   return Math.round(far)
 }
 
-/** How wide the marching formation stands, out from the body leading it. */
-function marchHalf(slots: Vec2[], theirs: Vec2): number {
-  let half = 0
-  for (const slot of slots) half = Math.max(half, Math.abs(slot.x - theirs.x) * MARCH_SPREAD)
-  return half
-}
 
-/**
- * How much floor there is either side of the body in front.
- *
- * The marching formation is thirty-six yards across for ten people, and the
- * building has rooms narrower than that — the way in is a shaft, the frost
- * gauntlet is a corridor with a name. Hung off the leader and no wider
- * question asked, half the raid was standing in a wall, and what a wall does
- * to a body is push it back in: two bodies whose places were mirror images
- * were pushed onto the same strip of it and stood inside each other. The build
- * catches it as a raid standing nought units apart.
- *
- * `wallGap` is asked of every piece of floor the leader is on and the roomiest
- * answer wins: doorways overlap the rooms they join, and the width of a
- * doorway is not the width of the room a raid is crossing.
- */
-function marchRoom(s: SimState, lead: Actor): number {
-  const floor = s.floor
-  let room = wallGap(s.room, lead.pos, lead.radius)
-  if (floor !== undefined && floor.length > 0) {
-    room = -Infinity
-    for (const cell of floor) room = Math.max(room, wallGap(cell, lead.pos, lead.radius))
-  }
-  return Math.max(RANK_STEP, room)
-}
 
 function cast(s: SimState, actor: Actor, id: string, targetId: number, rng: Rng, moving: boolean): boolean {
   const ability = ABILITIES[id]
@@ -1691,42 +1477,22 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   // is through the far door at once, and a raid strung out in marching order
   // never is — so a corridor keeps the huddle it was measured with, following
   // the player if there is one and the way out if there is not.
-  const marching = s.travel.building && lead !== null && actor.id !== lead.id
+  void lead
   const want = target
     ? standAt(s, actor, target)
-    : marching
-      // Onto the place itself, near enough that two neighbouring places stay
-      // two separate bodies. Slack here is subtracted from the gap between
-      // one body and the next, twice over, and the column's places are only
-      // twenty-six apart at twenty-five.
-      ? follow(s, actor, station(s, actor, lead!), 6)
-      : player
-        ? follow(s, actor, player.pos)
-        : s.travel.building
-          ? actor.pos
-          : follow(s, actor, heading(s)?.at ?? actor.pos)
+    : player
+      ? follow(s, actor, player.pos, huddle(s.party.length))
+      : s.travel.building
+        ? actor.pos
+        : follow(s, actor, heading(s)?.at ?? actor.pos)
   // Formation is for the walk, never for the fight: a body with something to
   // fight is going where the fight is, at its own speed. Only a follower
   // taking up its place in the column is allowed to close on it, and it is
   // allowed the same pace the raid already musters at before a pull, which is
   // the same problem -- a body walking to a place in the formation while the
   // formation is somewhere else.
-  moveToward(s, actor, want, marching && !target ? MUSTER_PACE : 1)
+  moveToward(s, actor, want)
 
-  // A column faces the way the column is going.
-  //
-  // `moveToward` turns a body to the step it just took, which is right for
-  // walking somewhere and wrong for holding a place in a formation: a station
-  // moves with the leader, so a follower is forever a step past it and the
-  // correcting step points *backwards*. Half the raid then walks up the
-  // building looking at the camera, turning round every time the leader's
-  // pace changes — which is the head-shaking, and it is not a wobble in the
-  // bearing. It is the bearing being asked the wrong question.
-  //
-  // While marching and with nothing to fight, the answer is the leader's own:
-  // everybody in a column faces where the column is headed, whatever their
-  // feet are doing to keep their place in it.
-  if (marching && !target && lead) turnToward(actor, lead.facing)
 
   const moving = ai.moveTarget !== null
   if (actor.castId || actor.gcd > 0) return
@@ -1796,6 +1562,9 @@ function follow(s: SimState, actor: Actor, lead: Vec2, close = GATHER): Vec2 {
   if (d <= close) return actor.pos
   const t = (d - close * 0.6) / d
   const want = { x: actor.pos.x + (lead.x - actor.pos.x) * t, y: actor.pos.y + (lead.y - actor.pos.y) * t }
+  // Into the room, for a walk that is one room. Not for a building: clamping
+  // where somebody is *going* to the room they are currently in is a party
+  // that cannot follow its leader through a door.
   // Into the room, for a walk that is one room. Not for a building: clamping
   // where somebody is *going* to the room they are currently in is a party
   // that cannot follow its leader through a door.
