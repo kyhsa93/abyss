@@ -120,11 +120,69 @@ export function floorTexture(
   tc.fillStyle = '#808080'
   tc.fillRect(0, 0, sw, sh)
 
+  // And the level taken out as well as the hue.
+  //
+  // The five tiles are not the same brightness. Measured off the sheet, their
+  // mean luminance runs 0.0244 for slate to 0.3114 for sand -- 4.86:1 between
+  // them, and still 2.59:1 once the floor lets `FLOOR_STONE` of it through.
+  // A building drawn a room at a time then reads as light grey in one and
+  // near-black in the next, which is what the citadel looked like: slate in
+  // seven rooms, sand in two, and the walk crossing between them.
+  //
+  // The grain is the point and it stays. Every pixel is scaled by one factor
+  // in linear light, so the variation inside a tile survives and only its
+  // level moves -- measured against the art, not one pixel of the thousand
+  // and twenty-four clips in any of the five, and the grain that spanned
+  // 0.004 to 0.029 across them comes out 0.012 to 0.022. Five floors that are
+  // the same stone rather than five different ones.
+  //
+  // Node never reaches this: `begin` returns without a sheet where there is no
+  // `Image`, and the guard above sends every caller home before the canvas is
+  // made. The pixels are only ever read in a browser, off a same-origin sheet.
+  const px = tc.getImageData(0, 0, sw, sh)
+  const lin = (u: number): number => {
+    const v = u / 255
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  }
+  const srgb = (v: number): number => {
+    const c = Math.max(0, Math.min(1, v))
+    return 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)
+  }
+  let sum = 0
+  let seen = 0
+  for (let i = 0; i < px.data.length; i += 4) {
+    if (px.data[i + 3] === 0) continue
+    sum += 0.2126 * lin(px.data[i]!) + 0.7152 * lin(px.data[i + 1]!) + 0.0722 * lin(px.data[i + 2]!)
+    seen++
+  }
+  if (seen > 0 && sum > 0) {
+    const k = FLOOR_LIGHT / (sum / seen)
+    for (let i = 0; i < px.data.length; i += 4) {
+      if (px.data[i + 3] === 0) continue
+      px.data[i] = srgb(lin(px.data[i]!) * k)
+      px.data[i + 1] = srgb(lin(px.data[i + 1]!) * k)
+      px.data[i + 2] = srgb(lin(px.data[i + 2]!) * k)
+    }
+    tc.putImageData(px, 0, 0)
+  }
+
   const made = ctx.createPattern(tile, 'repeat')
   floorPatterns.set(key, made)
   return made
 }
 
+
+/**
+ * The one brightness every floor is laid at, in linear luminance.
+ *
+ * `floor-cobble`'s own, which is the middle of the five measured off the
+ * sheet -- a real tile's value rather than a number picked to sit between
+ * them, and within a hundredth of their mean. What it buys is a citadel whose
+ * rooms are the same grey: the wings still differ, because the wash that
+ * tells them apart is a colour and this is a level, and a fight's room still
+ * wears its own grain.
+ */
+const FLOOR_LIGHT = 0.1346
 
 /** And everything that is a surface, in a fixed order so a seed picks one. */
 const FLOORS = PROP_IDS.filter((id) => id.startsWith('floor-')).sort()
