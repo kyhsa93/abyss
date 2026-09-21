@@ -6442,6 +6442,7 @@ for (const [label, w, h] of [
     ...settings.cameras,
     settings.backdrop,
     settings.credits,
+    settings.refresh,
     settings.reset,
     settings.back,
   ]
@@ -6471,7 +6472,8 @@ for (const [label, w, h] of [
       }) &&
       hitSettings(...middle(settings.back))?.kind === 'back' &&
       hitSettings(...middle(settings.credits))?.kind === 'credits' &&
-      hitSettings(...middle(settings.reset))?.kind === 'reset',
+      hitSettings(...middle(settings.reset))?.kind === 'reset' &&
+      hitSettings(...middle(settings.refresh))?.kind === 'refresh',
     'a setting answered as something else',
   )
 }

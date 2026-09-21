@@ -179,6 +179,7 @@ import {
 import { EXIT_REACH, marchReach, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
 import { savedKeys, wipeSaves } from './saves'
+import { reloadFresh } from './cache'
 import type { SimState, Vec2 } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -1788,6 +1789,15 @@ function updateSettings(tap: { x: number; y: number } | null): void {
       // turning the sound down would throw away the evening they are in.
       screen = settingsFrom === 'fight' ? 'fight' : 'home'
       saveResetArmed = false
+      return
+    }
+    if (hit?.kind === 'refresh') {
+      // Everything else on this screen disarms the save's press, and this is
+      // everything else.
+      saveResetArmed = false
+      // Nothing to wait for: the last thing it does is reload the page, so
+      // there is no "after" for this frame to draw.
+      void reloadFresh()
       return
     }
     if (hit?.kind === 'reset') {
