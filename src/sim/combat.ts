@@ -805,6 +805,11 @@ export function applyDamage(
   // whatever they like.
   if (target.id === BOSS_ID && s.mode === 'raid' && heraldUp(s)) return
 
+  // And nothing hits the deck gun. It is the fight's one piece of furniture:
+  // the raid stands at it to fire it, and a rotation that read it as the
+  // nearest body with health would spend the pull shooting its own cannon.
+  if (target.spawn === 'cannon') return
+
   // And nothing reaches two of the three bodies on the fight that has three.
   //
   // Nothing rather than less: a cut of any size is answered by carrying on and

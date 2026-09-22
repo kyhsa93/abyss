@@ -506,7 +506,9 @@ export interface Actor {
    * gauge. A wave that goes for the nearest body dies where the damage already
    * is, which is a wave nobody had to answer.
    */
-  spawn?: 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast' | 'adherent' | 'mender' | 'kin' | 'ward'
+  spawn?:
+    | 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast' | 'adherent' | 'mender' | 'kin' | 'ward'
+    | 'boarder' | 'cannon'
 
   /**
    * The fight this body is the boss of, while it is only standing there.

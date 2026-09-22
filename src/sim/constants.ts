@@ -1534,6 +1534,30 @@ export const THIRST_HEAL = 0.0011
  * the same hands. Hitting it sends it back up; ignoring it costs everybody
  * inside two hundred and forty units.
  */
+/**
+ * A fight fought on a deck, and the six things a deck does.
+ *
+ * The numbers here are one fight's own and are not read off anything: the
+ * source places a ship, a gun and a boarding party but no seconds and no
+ * damage -- see `docs/reading-the-source.md` on what a placement can and
+ * cannot say. What they are set against is the rest of this table: a
+ * boarding party is a wave, so it is priced like one; the mortar is a mark on
+ * one body, so it is priced like a mark; the rockets are everybody at once,
+ * so they are priced like a raid hit.
+ */
+export const BOARDER_HP_SCALE = 0.55
+export const MORTAR_REACH = 200
+export const MORTAR_DAMAGE = 2600
+export const ROCKET_DAMAGE = 900
+/** How close two bodies have to be for a rocket to catch both. */
+export const ROCKET_HUDDLE = 150
+export const HULL_DAMAGE = 1500
+/** How far out along the deck the enemy's shells land. */
+export const HULL_RING = 0.62
+export const AXE_DAMAGE = 1800
+export const CANNON_REACH = 120
+export const CANNON_DAMAGE = 5200
+
 export const BALLAST_FALL = 22
 export const BALLAST_REACH = 240
 export const BALLAST_DAMAGE = 3600

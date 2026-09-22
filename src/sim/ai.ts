@@ -581,7 +581,7 @@ function targetCall(s: SimState, actor: Actor): string | null {
   {
     const friend = adds(s).some((a) => a.spawn === 'kin')
     if (friend) {
-      const others = adds(s).filter((a) => a.spawn !== 'kin' && a.spawn !== 'ward')
+      const others = adds(s).filter((a) => a.spawn !== 'kin' && a.spawn !== 'ward' && a.spawn !== 'cannon')
       if (others.length > 0) {
         let weakest = others[0]!
         for (const one of others) if (one.hp < weakest.hp) weakest = one

@@ -1,41 +1,42 @@
 import {
+  BALLAST_REACH,
+  BLEED_TELEGRAPH,
   BLOAT_BURST_AT,
   BLOAT_SWAP_AT,
-  GLOBAL_COOLDOWN,
-  INHALE_MAX,
-  PARTY_RADIUS,
-  PUDDLE_TELEGRAPH,
-  REEK_REACH,
-  SHADE_REACH,
-  SPORE_REACH,
-  SPILL_RADIUS,
-  SPRAY_CAST,
-  MERGE_REACH,
-  ENGULF_MAX,
-  GATHER_TELEGRAPH,
-  SLIME_TELEGRAPH,
-  CROWN_TELEGRAPH,
-  THIRST_REACH,
-  BALLAST_REACH,
-  NUCLEUS_LIFE,
-  STAIN_LIFE,
-  HAUL_DRAG,
-  HAUL_READ,
-  COVER_READ,
-  COVER_LONG,
-  COVER_WIDE,
-  BUFFET_LEAVE,
-  BLEED_TELEGRAPH,
-  PORTAL_OPEN,
   BOND_REACH,
+  BUFFET_LEAVE,
+  CANNON_REACH,
+  COVER_LONG,
+  COVER_READ,
+  COVER_WIDE,
+  CROWN_TELEGRAPH,
+  ENGULF_MAX,
+  FLIGHT_LIFE,
   FLIGHT_REACH,
   FLIGHT_WARNING,
-  FLIGHT_LIFE,
-  HOUND_REACH,
-  REAGENT_MAX,
-  MERGE_BURST_AT,
+  GATHER_TELEGRAPH,
+  GLOBAL_COOLDOWN,
   GORGE_RADIUS,
+  HAUL_DRAG,
+  HAUL_READ,
+  HOUND_REACH,
+  INHALE_MAX,
+  MERGE_BURST_AT,
+  MERGE_REACH,
+  NUCLEUS_LIFE,
+  PARTY_RADIUS,
+  PORTAL_OPEN,
+  PUDDLE_TELEGRAPH,
+  REAGENT_MAX,
+  REEK_REACH,
+  SHADE_REACH,
+  SLIME_TELEGRAPH,
+  SPILL_RADIUS,
+  SPORE_REACH,
+  SPRAY_CAST,
+  STAIN_LIFE,
   STORM_REACH,
+  THIRST_REACH,
 } from '../sim/constants'
 import { AURA_DURATION, dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
@@ -556,6 +557,7 @@ export function drawWorld(
   drawHounds(ctx, s, alpha, clock)
   drawCourt(ctx, s, alpha)
   drawBallast(ctx, s, alpha)
+  drawCannon(ctx, s, alpha)
   drawGifts(ctx, s, alpha, clock)
   drawHelpers(ctx, s, alpha, clock)
   drawFlight(ctx, s, alpha)
@@ -2216,6 +2218,33 @@ function drawCourt(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): v
  * because what the raid is deciding is whether to spend damage on it, and that
  * decision needs to know what it costs to say no.
  */
+/**
+ * The deck gun, and the circle you have to be standing in to fire it.
+ *
+ * Drawn as ground rather than as a body because that is what it is: nothing
+ * here is deciding whether to spend damage on it, they are deciding whether
+ * somebody can be spared to stand there. So the reach is the whole drawing --
+ * a ring you are either inside or not -- and the gun itself is a small solid
+ * thing at the middle of it rather than another silhouette to read.
+ */
+function drawCannon(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  for (const a of s.actors) {
+    if (!a.alive || a.spawn !== 'cannon') continue
+    const p = screenPos(a, alpha)
+    footprint(ctx, p.x, p.y, CANNON_REACH * L.scale)
+    ctx.strokeStyle = iconFor('boss_cannon').colour
+    ctx.globalAlpha = 0.5
+    ctx.lineWidth = 2
+    ctx.setLineDash([10, 7])
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
+    footprint(ctx, p.x, p.y, Math.max(6, a.radius * L.scale))
+    ctx.fillStyle = iconFor('boss_cannon').colour
+    ctx.fill()
+  }
+}
+
 function drawBallast(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
   for (const a of s.actors) {
     if (!a.alive || a.spawn !== 'ballast') continue

@@ -1045,6 +1045,11 @@ console.log(`rendered ${frames} frames with no exceptions`)
         // does something else entirely.
         if (a.spawn === undefined || a.spawn === 'beast') seen.add('adds')
         else if (a.spawn === 'ballast') seen.add('ballast')
+        // The deck's two. A boarder counted as a wave would say this fight
+        // summons on a rung where it does something else, and the gun is not a
+        // summon at all -- it is furniture the raid has to stand at.
+        else if (a.spawn === 'boarder') seen.add('boarding')
+        else if (a.spawn === 'cannon') seen.add('cannon')
         // The two bodies in a wave that are not there to bite. Counted as
         // waves they would say a boss summons on a rung where it does
         // something else entirely -- one of them must not be killed and the

@@ -1,156 +1,166 @@
 import {
-  readable,
+  AXE_DAMAGE,
+  BALLAST_DAMAGE,
+  BALLAST_FALL,
+  BALLAST_LIFT,
+  BALLAST_REACH,
+  BLEED_CLOSE,
+  BLEED_DRAIN,
+  BLEED_HANDS,
+  BLEED_RADIUS,
+  BLEED_TELEGRAPH,
   BLIGHT_RELIEF,
   BLIGHT_TICK,
+  BLOAT_BURST,
+  BLOAT_BURST_AT,
+  BLOAT_POWER,
+  BLOAT_SPLASH,
+  BOARDER_HP_SCALE,
+  BOND_REACH,
+  BOND_TICK,
+  BUFFET_LEAVE,
+  BUFFET_REACH,
+  BUFFET_SHED,
+  CANNON_DAMAGE,
+  CANNON_REACH,
+  CAUSTIC_LANDING,
+  CAUSTIC_LINGER,
+  CAUSTIC_RADIUS,
+  CAUSTIC_TELEGRAPH,
+  CAUSTIC_TICK,
+  CHAMPION_CAP,
+  CHILL_CHANCE,
+  CHILL_LIFE,
   COLDFLAME_ARMS,
   COLDFLAME_CRAWL,
   COLDFLAME_LINGER,
-  COLDFLAME_SPIN,
-  COLDFLAME_STORM_BEAT,
-  COLDFLAME_STORM_LINGER,
   COLDFLAME_RADIUS,
   COLDFLAME_REACH,
+  COLDFLAME_SPIN,
   COLDFLAME_STEP,
+  COLDFLAME_STORM_BEAT,
+  COLDFLAME_STORM_LINGER,
   COLDFLAME_TELEGRAPH,
-  BLOAT_BURST,
-  BLOAT_POWER,
-  BLOAT_BURST_AT,
-  BLOAT_SPLASH,
-  INHALE_HASTE,
+  COVER_APART,
+  COVER_BITE,
+  COVER_HOLD,
+  COVER_LONG,
+  COVER_READ,
+  COVER_WIDE,
+  CRIMSON_BASE,
+  CRIMSON_CAST,
+  CRIMSON_PER_GIFT,
+  CROWN_TELEGRAPH,
+  DECANT_COUNT,
+  DECANT_DAMAGE,
+  DECANT_RADIUS,
+  DECANT_TICK,
   DECAY_DAMAGE,
   DECAY_LINGER,
   DECAY_RADIUS,
+  DT,
   EMPOWER_HEALTH,
   EMPOWER_POWER,
+  ENGULF_BURST,
+  ENGULF_BURST_REACH,
+  ENGULF_MAX,
+  ENGULF_POWER,
+  ENGULF_REACH,
+  FESTER_BITE,
+  FLIGHT_LANDING,
+  FLIGHT_REACH,
+  FLIGHT_TICK,
+  FLOOD_LINGER,
+  FLOOD_REACH,
+  FLOOD_SPREAD,
   FROSTBOLT_CAST,
   FROSTBOLT_DAMAGE,
-  SHADE_REACH,
-  SHADE_SPEED,
-  SLIGHT_MAX,
-  STORM_BITE,
-  STORM_REACH,
-  STORM_REPICK,
-  VOLLEY_DAMAGE,
-  STORM_SPEED,
-  STORM_TICK,
+  GATHER_PER_BODY,
+  GATHER_RADIUS,
+  GATHER_TELEGRAPH,
+  GIFT_REACH,
+  GORGE_BURST,
+  GORGE_RADIUS,
+  HAUL_BITE,
+  HAUL_DRAG,
+  HAUL_INNER,
+  HAUL_PULL,
+  HAUL_RADIUS,
+  HAUL_READ,
+  HEALTH,
+  HOUND_REACH,
+  HOUND_SPEED,
+  HOUND_TICK,
+  HULL_DAMAGE,
+  HULL_RING,
+  INHALE_HASTE,
   INHALE_HELD_ALONE,
   INHALE_MAX,
   INHALE_POWER,
   INOCULATED_SHARE,
-  SPORE_REACH,
-  PUNGENT_PER_BREATH,
-  DT,
-  MELEE_RANGE,
-  SPELL_RANGE,
-  TICK_RATE,
-  PUDDLE_TELEGRAPH,
-  TURN_RATE,
-  SPILL_RADIUS,
-  SPILL_DAMAGE,
-  HEALTH,
-  MENDING_RATE,
-  BLEED_RADIUS,
-  BLEED_TELEGRAPH,
-  BLEED_DRAIN,
-  CHILL_CHANCE,
-  CHILL_LIFE,
-  UNSTABLE_PER,
-  UNSTABLE_DEBT,
-  HAUL_RADIUS,
-  HAUL_DRAG,
-  HAUL_READ,
-  HAUL_PULL,
-  HAUL_INNER,
-  HAUL_BITE,
-  COVER_READ,
-  COVER_LONG,
-  COVER_WIDE,
-  COVER_BITE,
-  COVER_HOLD,
-  COVER_APART,
-  BUFFET_REACH,
-  BUFFET_SHED,
-  BUFFET_LEAVE,
-  BLEED_CLOSE,
-  BLEED_HANDS,
-  KIN_HEAL,
   KIN_COST,
-  PORTAL_RADIUS,
-  PORTAL_OPEN,
-  GIFT_REACH,
-  BOND_REACH,
-  BOND_TICK,
-  STAIN_RADIUS,
-  STAIN_TICK,
-  STAIN_LIFE,
-  FLIGHT_TICK,
-  FLIGHT_REACH,
-  FLIGHT_LANDING,
-  CRIMSON_BASE,
-  CRIMSON_PER_GIFT,
-  CRIMSON_CAST,
-  CROWN_TELEGRAPH,
-  THIRST_REACH,
-  THIRST_TICK,
-  THIRST_HEAL,
-  BALLAST_FALL,
-  BALLAST_REACH,
-  BALLAST_DAMAGE,
-  BALLAST_LIFT,
-  NUCLEUS_REACH,
+  KIN_HEAL,
+  MELEE_RANGE,
+  MENDING_RATE,
+  MERGE_BURST_AT,
+  MERGE_BURST_DAMAGE,
+  MERGE_BURST_REACH,
+  MERGE_REACH,
+  MORTAR_DAMAGE,
+  MORTAR_REACH,
   NUCLEUS_GUARD,
   NUCLEUS_LIFE,
-  PRISON_TICK,
-  PRISON_CAP,
-  slimePatch,
-  SLIME_ARC,
-  slimeDry,
-  SLIME_TELEGRAPH,
-  SLIME_LINGER,
-  SLIME_TICK,
-  CAUSTIC_RADIUS,
-  CAUSTIC_TELEGRAPH,
-  CAUSTIC_LANDING,
-  CAUSTIC_TICK,
-  CAUSTIC_LINGER,
-  HOUND_REACH,
-  HOUND_TICK,
-  HOUND_SPEED,
-  GATHER_RADIUS,
-  GATHER_TELEGRAPH,
-  GATHER_PER_BODY,
-  DECANT_RADIUS,
-  DECANT_COUNT,
-  DECANT_DAMAGE,
-  DECANT_TICK,
-  REAGENT_POWER,
-  REAGENT_MAX,
-  REAGENT_BURST,
-  REAGENT_BURST_REACH,
-  SPRAY_HALF_WIDTH,
-  SPRAY_RANGE,
-  SPRAY_DAMAGE,
-  SPRAY_CAST,
+  NUCLEUS_REACH,
+  OOZE_CAP,
   OOZE_DAMAGE,
   OOZE_HP_PER_BODY,
   OOZE_SPEED,
-  MERGE_REACH,
-  MERGE_BURST_AT,
-  MERGE_BURST_REACH,
-  MERGE_BURST_DAMAGE,
-  OOZE_CAP,
-  FLOOD_REACH,
-  FLOOD_SPREAD,
-  FLOOD_LINGER,
-  ENGULF_REACH,
-  ENGULF_POWER,
-  ENGULF_MAX,
-  ENGULF_BURST,
-  ENGULF_BURST_REACH,
-  FESTER_BITE,
-  GORGE_RADIUS,
-  GORGE_BURST,
-  CHAMPION_CAP,
+  PORTAL_OPEN,
+  PORTAL_RADIUS,
+  PRISON_CAP,
+  PRISON_TICK,
+  PUDDLE_TELEGRAPH,
+  PUNGENT_PER_BREATH,
+  REAGENT_BURST,
+  REAGENT_BURST_REACH,
+  REAGENT_MAX,
+  REAGENT_POWER,
+  ROCKET_DAMAGE,
+  ROCKET_HUDDLE,
+  SHADE_REACH,
+  SHADE_SPEED,
+  SLIGHT_MAX,
+  SLIME_ARC,
+  SLIME_LINGER,
+  SLIME_TELEGRAPH,
+  SLIME_TICK,
+  SPELL_RANGE,
+  SPILL_DAMAGE,
+  SPILL_RADIUS,
+  SPORE_REACH,
+  SPRAY_CAST,
+  SPRAY_DAMAGE,
+  SPRAY_HALF_WIDTH,
+  SPRAY_RANGE,
+  STAIN_LIFE,
+  STAIN_RADIUS,
+  STAIN_TICK,
+  STORM_BITE,
+  STORM_REACH,
+  STORM_REPICK,
+  STORM_SPEED,
+  STORM_TICK,
+  THIRST_HEAL,
+  THIRST_REACH,
+  THIRST_TICK,
+  TICK_RATE,
+  TURN_RATE,
+  UNSTABLE_DEBT,
+  UNSTABLE_PER,
+  VOLLEY_DAMAGE,
+  readable,
+  slimeDry,
+  slimePatch,
 } from './constants'
 import { clearTerrain } from './battleground'
 import {
@@ -629,6 +639,13 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleHaul(s, b, timing)
   scheduleCover(s, b, timing)
   updateBuffet(s, b, timing)
+
+  scheduleBoarding(s, b, rng, timing)
+  scheduleMortar(s, b, rng, timing)
+  scheduleRocket(s, b, timing)
+  scheduleAxes(s, b, rng, timing)
+  scheduleHull(s, b, timing)
+  scheduleCannon(s, b, timing)
 
   updateAdds(s)
   updateOozes(s)
@@ -1638,6 +1655,150 @@ function spawnSpot(s: SimState, rng: Rng, radius: number): Vec2 {
   const pos = { x: c.x + Math.cos(angle) * 230, y: c.y + Math.sin(angle) * 230 }
   pushInside(s.room, pos, radius)
   return pos
+}
+
+/**
+ * The six a deck does, and they are six different answers.
+ *
+ * A fight on a ship is the one here whose enemy is not a thing in the middle
+ * of the floor: what the raid is holding is the floor itself. So none of these
+ * asks "stand somewhere else relative to the boss" -- they ask the raid to
+ * keep a gun manned, keep the rail clear, and not be standing together or out
+ * on the edge when the other ship fires.
+ */
+function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.boarding <= 0) return
+  s.next.boarding -= DT
+  if (s.next.boarding > 0) return
+  s.next.boarding = timing.boarding
+  say(s, b, lineFor(fight(s), 'boarding'))
+
+  // Over the rail rather than through a door: the deck has no doors, and a
+  // wave that arrived in the middle would be a wave nobody had to go and meet.
+  const waves = Math.max(1, Math.round(livingParty(s).length / 6))
+  const reach = roomReach(s.room)
+  for (let i = 0; i < waves; i++) {
+    const angle = rng.range(0, Math.PI * 2)
+    const at = {
+      x: middle(s).x + Math.cos(angle) * reach * 0.86,
+      y: middle(s).y + Math.sin(angle) * reach * 0.86,
+    }
+    pushInside(s.room, at, 9)
+    const boarder = makeAdd(s.nextObjectId++, at.x, at.y)
+    boarder.spawn = 'boarder'
+    boarder.name = "Kor'kron Reaver"
+    boarder.maxHp = Math.round(addHealth(s) * BOARDER_HP_SCALE)
+    boarder.hp = boarder.maxHp
+    s.actors.push(boarder)
+  }
+}
+
+/** One body marked, and the shell lands where they are standing. */
+function scheduleMortar(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.mortar <= 0) return
+  s.next.mortar -= DT
+  if (s.next.mortar > 0) return
+  s.next.mortar = timing.mortar
+  const party = livingParty(s)
+  if (party.length === 0) return
+  const mark = party[Math.floor(rng.range(0, party.length)) % party.length]!
+  say(s, b, lineFor(fight(s), 'mortar'))
+  s.sounds.push('telegraph')
+  const bill = mechanic(s, MORTAR_DAMAGE)
+  for (const a of party) {
+    if (dist(a.pos, mark.pos) > MORTAR_REACH) continue
+    applyDamage(s, a, bill, 'physical', { sourceId: BOSS_ID, mechanic: 'mortar' })
+  }
+  pushEffect(s, 'impact', mark.pos, {
+    abilityId: 'boss_mortar',
+    radius: MORTAR_REACH,
+    power: bill,
+    crit: true,
+  })
+}
+
+/** Everybody at once, and it hurts more where two are standing together. */
+function scheduleRocket(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.rocket <= 0) return
+  s.next.rocket -= DT
+  if (s.next.rocket > 0) return
+  s.next.rocket = timing.rocket
+  say(s, b, lineFor(fight(s), 'rocket'))
+  const party = livingParty(s)
+  const base = mechanic(s, ROCKET_DAMAGE)
+  for (const a of party) {
+    // One share for the body, and another for every neighbour close enough to
+    // be caught by the same rocket. Spreading out is the whole answer.
+    const near = party.filter((o) => o.id !== a.id && dist(o.pos, a.pos) <= ROCKET_HUDDLE).length
+    applyDamage(s, a, base * (1 + near), 'magic', { sourceId: BOSS_ID, mechanic: 'rocket' })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_rocket', power: base * (1 + near) })
+  }
+}
+
+/** The thrown axe, which only ever finds somebody standing at range. */
+function scheduleAxes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.axes <= 0) return
+  s.next.axes -= DT
+  if (s.next.axes > 0) return
+  s.next.axes = timing.axes
+  const far = livingParty(s).filter((a) => !a.melee)
+  if (far.length === 0) return
+  const hit = far[Math.floor(rng.range(0, far.length)) % far.length]!
+  say(s, b, lineFor(fight(s), 'axes'))
+  const bill = mechanic(s, AXE_DAMAGE)
+  applyDamage(s, hit, bill, 'physical', { sourceId: BOSS_ID, mechanic: 'axes' })
+  pushEffect(s, 'impact', hit.pos, { abilityId: 'boss_axes', power: bill })
+}
+
+/** The other ship shelling the deck, which lands out along the rail. */
+function scheduleHull(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.hull <= 0) return
+  s.next.hull -= DT
+  if (s.next.hull > 0) return
+  s.next.hull = timing.hull
+  say(s, b, lineFor(fight(s), 'hull'))
+  const edge = roomReach(s.room) * HULL_RING
+  const bill = mechanic(s, HULL_DAMAGE)
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, middle(s)) < edge) continue
+    applyDamage(s, a, bill, 'physical', { sourceId: BOSS_ID, mechanic: 'hull' })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_hull', power: bill })
+  }
+}
+
+/**
+ * The deck gun, which is the only thing that really hurts a ship.
+ *
+ * A raid can swing at the hull across the gap and it is worth almost nothing:
+ * what takes the other ship down is somebody standing at the gun. That is the
+ * fight's one standing job, and it competes with every other answer here for
+ * the same feet.
+ */
+function scheduleCannon(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.cannon <= 0) return
+  if (!s.actors.some((a) => a.alive && a.spawn === 'cannon')) {
+    const reach = roomReach(s.room)
+    const gun = makeAdd(s.nextObjectId++, middle(s).x, middle(s).y + reach * 0.45)
+    gun.spawn = 'cannon'
+    gun.name = 'Deck Gun'
+    gun.faction = 'boss'
+    gun.moveSpeed = 0
+    gun.radius = 26
+    gun.maxHp = addHealth(s) * 40
+    gun.hp = gun.maxHp
+    pushInside(s.room, gun.pos, gun.radius)
+    s.actors.push(gun)
+  }
+  s.next.cannon -= DT
+  if (s.next.cannon > 0) return
+  s.next.cannon = timing.cannon
+  const gun = s.actors.find((a) => a.alive && a.spawn === 'cannon')
+  if (!gun) return
+  const manned = livingParty(s).some((a) => dist(a.pos, gun.pos) <= CANNON_REACH)
+  if (!manned) return
+  say(s, b, lineFor(fight(s), 'cannon'))
+  applyDamage(s, b, mechanic(s, CANNON_DAMAGE), 'physical', { mechanic: 'cannon' })
+  pushEffect(s, 'impact', b.pos, { abilityId: 'boss_cannon', power: CANNON_DAMAGE, crit: true })
 }
 
 function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
