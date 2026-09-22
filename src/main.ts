@@ -1,7 +1,7 @@
 import { Input } from './input'
 import { resetView } from './render/camera'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
-import { drawWorld } from './render/draw'
+import { drawWorld, padOnScreen } from './render/draw'
 import {
   canAdvance,
   drawHud,
@@ -525,6 +525,25 @@ function cornersShown(): boolean {
   return !input.isTouchMode() || performance.now() - cornersShownAt < CORNERS_LINGER
 }
 
+/**
+ * The teleporter on the floor, as something to press.
+ *
+ * Null unless there is one here, it is powered, and the player is standing in
+ * it -- the same three facts `onPad` answers, because pressing a pad you are
+ * not on would be the map screen's old trick of jumping from anywhere.
+ *
+ * What the press does is open the map, which is where the destination is
+ * chosen: a pad reaches every lit room in the building and cannot pick one on
+ * its own. That is what the line over the party has always said -- ON THE PAD
+ * -- MAP TO JUMP -- and until now the only way to obey it was to find a corner
+ * button whose name does not mention teleporters.
+ */
+function padRect(): { x: number; y: number; w: number; h: number } | null {
+  if (state.chamber === null || !onPad()) return null
+  const e = padOnScreen(padAt(state.chamber))
+  return { x: e.x - e.rx, y: e.y - e.ry, w: e.rx * 2, h: e.ry * 2 }
+}
+
 /** The minimap, as something to press. Drawn in every mode -- see `drawHud`. */
 function minimapRect(): { x: number; y: number; w: number; h: number } {
   return { x: L.mapX - L.mapR, y: L.mapY - L.mapR, w: L.mapR * 2, h: L.mapR * 2 }
@@ -885,7 +904,20 @@ function partyMiddle(): Vec2 | null {
 }
 
 /**
- * Whether the party is standing on this room's teleporter, and it is powered.
+ * Whether the player is standing on this room's teleporter, and it is powered.
+ *
+ * Asked of the body the player is steering, and that is the fix rather than a
+ * detail. It used to be asked of the middle of the party, and the middle of a
+ * party cannot get there: the raid walks in a huddle around whoever is leading
+ * it, so the huddle's centre trails the player by most of its own width. Driven
+ * straight at the Oratory's pad for a minute, the middle closed to a hundred
+ * and twenty-nine units and then settled at a hundred and fifty-five, against a
+ * rule that wanted ninety. There was no way to stand on a teleporter in this
+ * game, on any device, and the reports of one that did nothing were exactly
+ * right.
+ *
+ * The circle drawn on the floor is `EXIT_REACH` across, so what is judged is
+ * now what is drawn: walk the body you are steering into the ring.
  *
  * The half of the pad rule a `Run` cannot answer. The evening knows which
  * rooms have a lit pad in them and nothing whatever about where anybody is
@@ -898,10 +930,10 @@ function partyMiddle(): Vec2 | null {
  */
 function onPad(): boolean {
   if (state.chamber === null || !padHere()) return false
-  const mid = partyMiddle()
-  if (mid === null) return false
+  const who = state.actors.find((a) => a.isPlayer && a.alive) ?? null
+  if (who === null) return false
   const at = padAt(state.chamber)
-  return Math.hypot(mid.x - at.x, mid.y - at.y) <= EXIT_REACH
+  return Math.hypot(who.pos.x - at.x, who.pos.y - at.y) <= EXIT_REACH
 }
 
 /**
@@ -2141,6 +2173,11 @@ function frame(now: number): void {
     // The minimap is reserved whether or not the group is up, because it is
     // drawn either way and pressing it is what brings the group back.
     const taken = [minimapRect()]
+    // The ring on the floor, on the frames it can be used on. Reserved for the
+    // same reason the corner is: a thumb that lands on it must not also shove
+    // the stick.
+    const pad = padRect()
+    if (pad) taken.push(pad)
     if (cornersShown()) {
       taken.push(partyButton(), settingsButton())
       if (walkingAnEvening()) taken.push(mapButton())
@@ -2170,6 +2207,19 @@ function frame(now: number): void {
   // group comes up on.
   if (tap && input.isTouchMode() && inside(minimapRect(), tap.x, tap.y)) {
     cornersShownAt = performance.now()
+    requestAnimationFrame(frame)
+    return
+  }
+
+  // The pad itself, which is the thing that looks like it should work.
+  //
+  // Standing on the ring and pressing it is the one gesture a player tries
+  // here, and for a long time it did nothing at all: every route to a jump ran
+  // through the map screen, so the object drawn on the floor was a picture of
+  // a control rather than a control. It opens the map, because that is where
+  // the destination is.
+  if (tap && (() => { const r = padRect(); return r !== null && inside(r, tap.x, tap.y) })()) {
+    screen = 'citadel'
     requestAnimationFrame(frame)
     return
   }
@@ -2514,6 +2564,61 @@ requestAnimationFrame(frame)
 // Freshness is handled in two layers: the worker fetches the page itself
 // network-first, and this reloads once when a new worker takes over, so a
 // launch never leaves you on a build that has already been replaced.
+/**
+ * What the page knows, for something outside it to read.
+ *
+ * Off in a built game -- this is the same `PROD` switch the service worker
+ * uses below -- so nothing here ships. What it is for is the one class of
+ * question this repo has never been able to answer: the render path and the
+ * input path only exist in a browser, `rendercheck` calls the drawing
+ * functions directly and cannot say where anything ended up on a real screen,
+ * and `visualcheck` takes photographs and asserts only that nothing threw.
+ * Everything between those two has been judged by looking at pixels and
+ * guessing, and the guessing has a record: hunting the teleporter's ring by
+ * its colour found the average of the ring and the party's own footprint,
+ * which read as standing on a pad nobody was near.
+ *
+ * Read-only on purpose. A hook that could move the party or press things would
+ * let a check stage the situation it wants to see, and a staged situation is
+ * not evidence about the game. This says where things are and what the rules
+ * make of that; getting there is still done by playing.
+ */
+if (!import.meta.env.PROD) {
+  ;(window as unknown as { __abyss: unknown }).__abyss = {
+    /** The body the player steers, in world units. */
+    hero(): { x: number; y: number } | null {
+      const me = state.actors.find((a) => a.isPlayer && a.alive)
+      return me ? { x: me.pos.x, y: me.pos.y } : null
+    },
+    /** Which room the walk thinks the party is in. */
+    chamber(): string | null {
+      return state.chamber
+    },
+    /** This room's teleporter, in world units, or null if it has none. */
+    pad(): { x: number; y: number } | null {
+      if (state.chamber === null || chamberAt(state.chamber)?.pad === undefined) return null
+      const at = padAt(state.chamber)
+      return { x: at.x, y: at.y }
+    },
+    /** Whether it is powered -- what the evening knows. */
+    padLit(): boolean {
+      return padHere()
+    },
+    /** Whether the player is standing on it -- what the floor knows. */
+    onPad(): boolean {
+      return onPad()
+    },
+    /** Where it is on the glass, as the thing a tap has to hit. */
+    padRect(): { x: number; y: number; w: number; h: number } | null {
+      return padRect()
+    },
+    /** Which screen is up, so a driver can tell a jump from a refusal. */
+    screen(): string {
+      return screen
+    },
+  }
+}
+
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   const hadController = Boolean(navigator.serviceWorker.controller)
   let reloading = false

@@ -1729,6 +1729,55 @@ for (const chamber of CHAMBERS.filter((c) => c.pad)) {
   )
 }
 
+// And that somebody can actually stand on one.
+//
+// This is the promise whose absence let a teleporter nobody could use ship and
+// stay shipped. Everything above is the *rule* -- which rooms light a pad,
+// what a lit pad reaches -- and the rule was right the whole time. What was
+// wrong was the floor: the jump also asks that the party is standing on the
+// thing, and that half was judged on the middle of the party. A raid walks in
+// a huddle around whoever is leading it, so the huddle's centre trails the
+// player by most of its own width and never arrives. Driven straight at the
+// Oratory's pad for a minute the middle closed to a hundred and twenty-nine
+// units and settled at a hundred and fifty-five, against a rule that wanted
+// ninety.
+//
+// So this walks a body at the ring and asks whether it gets there, which is
+// the question a player asks. `onPad` itself lives in `main.ts` with the page,
+// so what is checked here is the same arithmetic against the same constant.
+{
+  const arrived: string[] = []
+  for (const chamber of CHAMBERS.filter((c) => c.pad)) {
+    const ground = {
+      ...hallFor(chamber.id, null, () => true),
+      id: 'citadel',
+      packs: citadelPacks(),
+      springs: citadelSprings(),
+    }
+    const s = createCorridorState(9, autoParty(10, pickFor('mage', 'dps')!), ground, 'normal', 4, undefined, true)
+    s.floor = citadelWorld().map((cell) => cell.room)
+    s.chamber = chamber.id
+    const pad = padAt(chamber.id)
+    const rng = new Rng(9)
+    const hero = () => s.actors.find((a) => a.isPlayer && a.alive) ?? null
+    let best = Infinity
+    // Ninety seconds is far longer than the walk across any room here; what is
+    // being asked is whether it ever arrives, not how fast.
+    for (let i = 0; i < 30 * 90; i++) {
+      const me = hero()
+      if (!me) break
+      const dx = pad.x - me.pos.x
+      const dy = pad.y - me.pos.y
+      const d = Math.hypot(dx, dy) || 1
+      best = Math.min(best, d)
+      if (d <= EXIT_REACH) break
+      step(s, { moveX: dx / d, moveY: dy / d, pressed: [] }, rng)
+    }
+    if (best > EXIT_REACH) arrived.push(`${chamber.id}: closest ${best.toFixed(0)}, wanted ${EXIT_REACH}`)
+  }
+  expect('a player can walk onto every pad in the building', arrived.length === 0, arrived.join('; '))
+}
+
 // A pad is taken *from* a pad, which is the half of the rule that was missing.
 {
   const start = startRun(11, 10, 'normal')
@@ -2975,7 +3024,27 @@ expect(
   const cells = citadelWorld().map((cell) => cell.room)
   const stands = (p: { x: number; y: number }) => cells.some((c) => insideRoom(c, p, 40))
   const dry: string[] = []
+  const noGround: string[] = []
   for (const passage of PASSAGES) {
+    // A lift is the exception, and it is exempt from this rule rather than
+    // excused from having one. There is no ground between the Oratory and the
+    // Rampart -- that is the whole reason the source puts a transporter there
+    // and this passage carries `lift` -- so asking for a door and then walking
+    // the floor to it is asking for the one thing this join does not have.
+    //
+    // What it owes instead is asked below: no door at either end, and a lit
+    // pad at both, which is the only way anybody crosses it.
+    if (passage.lift === true) {
+      for (const [from, to] of [
+        [passage.from, passage.to],
+        [passage.to, passage.from],
+      ] as const) {
+        if (hallFor(from, null, () => true).ways.some((w) => w.to === to)) {
+          noGround.push(`${from} draws a door to ${to} and there is no floor between them`)
+        }
+      }
+      continue
+    }
     for (const [from, to] of [
       [passage.from, passage.to],
       [passage.to, passage.from],
@@ -2997,6 +3066,11 @@ expect(
     }
   }
   expect('every door has ground between it and the room it opens onto', dry.length === 0, dry.join(', '))
+  // And the other half: a join with no floor draws no door. This is the shape
+  // of the bug it was written for -- the Oratory drew an opening in its east
+  // wall onto a hundred and thirty-seven yards of nothing, and a player who
+  // walked to it asked what it was for.
+  expect('and a lift draws no door at either end', noGround.length === 0, noGround.join(', '))
 }
 
 if (failures > 0) {

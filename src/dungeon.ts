@@ -1443,6 +1443,18 @@ function doorsOf(id: string, canGo: (to: string) => boolean): Array<{ to: string
   const found = PASSAGES.flatMap((passage) => {
     const to = passage.from === id ? passage.to : passage.to === id ? passage.from : null
     if (to === null || !canGo(to)) return []
+    // A lift is not a door, and drawing one as a door is a way out of a room
+    // that does not exist. The Rampart stands a hundred and thirty-seven yards
+    // above the Oratory with no ramp between them -- that is why the source
+    // puts a transporter there and why this passage carries `lift` -- so the
+    // Oratory was drawing an opening in its east wall onto a drop, and a
+    // player who walked to it found nothing and asked what it was for.
+    //
+    // Here rather than at the drawing, because everything downstream reads the
+    // same list: the arrival point, the quiet wall a pad is stood on, and
+    // `dungeoncheck`'s "every door is a passage the map has". Taking it out
+    // once keeps them agreeing.
+    if (passage.lift === true) return []
     // Off where the rooms actually stand rather than off the plan they were
     // read from. The two differ by a flip, and a door placed from the plan
     // while the room it opens onto was placed from the world is a door on the
@@ -1629,9 +1641,61 @@ export function hallFor(
  * once. With a single door that is the wall opposite it, which is where
  * anybody would put it by eye.
  */
+const PAD_BEARING: Record<string, number> = {
+  // Source transporter (-503.6, 2211.5) against the Watcher at (-634.7,
+  // 2211.4): a hundred and thirty-one yards in front of her, dead on the
+  // centre line. Her hall's door end.
+  oratory: Math.PI / 2,
+  // (-549.1, 2211.3) against Saurfang at (-461.5, 2211.1): eighty-eight yards
+  // behind him, on the centre line.
+  rise: -Math.PI / 2,
+  // (4356.6, 2565.8) against Sindragosa's boundary middle at (4408.6, 2484.0):
+  // fifty-two yards back and eighty-two to the side.
+  lair: Math.atan2(-52.0, 81.8),
+}
+
 export function padAt(id: string): Vec2 {
   const room: RoomShape = { ...roomOf(id), at: placeOf(id) }
-  return onWall(room, quietWall(doorsOf(id, () => true).map((door) => door.angle)))
+  // The bearing the source puts its transporter on, where the source can be
+  // asked. The instance's seven rows are written out at `Chamber.pad`, and
+  // three of the six rooms that carry one also have a body in them whose spawn
+  // this repo has already measured -- which is what a bearing needs, since a
+  // coordinate on its own says nothing once the room around it has been
+  // compressed. Every one of the three lands outside the built room, so what
+  // is taken is the direction and not the distance: the Oratory's is a
+  // hundred and thirty-one yards in front of a hall a fifty-seven yard walk
+  // deep.
+  //
+  // It matters because the answer below is a different question. `quietWall`
+  // finds the widest blank wall, which is a reasonable place to put a thing
+  // and is not where the source puts it: in the Oratory the two disagree by
+  // half a turn, so the teleporter stood against the back wall while the
+  // source stands it by the door.
+  //
+  // The other three rooms have no fight and so no measured anchor, and they
+  // keep the blank-wall answer. That is judgement rather than measurement and
+  // is marked as such here rather than dressed up.
+  const doors = doorsOf(id, () => true).map((door) => door.angle)
+  const known = PAD_BEARING[id]
+  if (known !== undefined) {
+    // Unless this building has put a door where the source puts the
+    // transporter, which happens once: Deathbringer's Rise is a balcony with
+    // the way up to the Upper Crossing off the same wall the source stands its
+    // pad against, and a pad on a doorway is the one thing the doors here were
+    // built not to be -- both are taken by standing near them, so it would be
+    // a doorway that sometimes teleports.
+    //
+    // The source loses that argument rather than the floor, because the floor
+    // is what somebody walks on. It falls back to the blank wall below and is
+    // no worse than it was.
+    const want = onWall(room, known)
+    const clash = doors.some((angle) => {
+      const door = onWall(room, angle)
+      return Math.hypot(door.x - want.x, door.y - want.y) <= EXIT_REACH * 2
+    })
+    if (!clash) return want
+  }
+  return onWall(room, quietWall(doors))
 }
 
 /** The bearing with the most wall to either side of it. */

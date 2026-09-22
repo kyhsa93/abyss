@@ -237,6 +237,29 @@ function worldToScreen(p: Vec2): Vec2 {
 }
 
 /**
+ * Where this room's teleporter is on the glass, as something to press.
+ *
+ * The circle on the floor was a picture and nothing else: every way of using a
+ * pad went through the map screen, so the one object in the building that says
+ * "stand here" could be stood on and pressed and did nothing at all. A player
+ * who walks onto it and taps it is doing the only thing it looks like it is
+ * for, and this is what lets the page find out.
+ *
+ * Returned in screen coordinates because that is the space a tap arrives in,
+ * and squashed by `TILT` on the way like the ring that is drawn: the floor is
+ * looked across rather than down, so the thing to press is an ellipse and a
+ * square box around it would take presses off the floor beside it.
+ *
+ * The camera lives in this module, which is why this does -- the page has the
+ * tap and no way to ask where anything is.
+ */
+export function padOnScreen(at: Vec2): { x: number; y: number; rx: number; ry: number } {
+  const on = worldToScreen(at)
+  const rx = EXIT_REACH * L.scale
+  return { x: on.x, y: on.y, rx, ry: rx * TILT }
+}
+
+/**
  * How far the floor is tipped away from the camera.
  *
  * One would be looking straight down; nought would be standing on it. This is
