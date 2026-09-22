@@ -546,7 +546,7 @@ export function say(s: SimState, actor: Actor, text: string): void {
   if (text === '') return
   if (actor.ai && actor.ai.chatCooldown > 0) return
   if (actor.ai) actor.ai.chatCooldown = 4
-  s.chat.push({ id: s.nextObjectId++, speaker: actor.name, text, age: 0 })
+  s.chat.push({ id: s.nextObjectId++, speaker: actor.name, text, age: 0, by: actor.id })
   if (s.chat.length > 5) s.chat.shift()
 }
 

@@ -527,7 +527,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   const enrageAt = encounter.enrage - affixEnrage(s.affix)
   if (s.time >= enrageAt && !b.auras.some((a) => a.id === 'enrage')) {
     addAura(b, 'enrage', b.id)
-    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'ENRAGE', age: 0 })
+    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'ENRAGE', age: 0, by: b.id })
   }
 
   // Nothing is holding it while it storms, which is the mechanic: it has let
@@ -692,7 +692,7 @@ function summonHerald(s: SimState, b: Actor): void {
   const plan = fight(s).herald
   if (!plan) return
 
-  s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: plan.line, age: 0 })
+  s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: plan.line, age: 0, by: b.id })
   s.sounds.push('telegraph')
 
   // Off to one side rather than on top of the raid, and not so far off that
@@ -735,7 +735,7 @@ function advancePhase(s: SimState, b: Actor): void {
     s.phase = 2
     s.sounds.push('phase')
     phaseBreak(s, b)
-    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseTwo, age: 0 })
+    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseTwo, age: 0, by: b.id })
     // Pulled in rather than reset: a phase break whose new cadence waits out
     // the old timers is a phase break nobody notices.
     s.nextSlam = Math.min(s.nextSlam, 5)
@@ -770,7 +770,7 @@ function advancePhase(s: SimState, b: Actor): void {
     s.phase = 3
     s.sounds.push('phase')
     phaseBreak(s, b)
-    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseThree, age: 0 })
+    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseThree, age: 0, by: b.id })
     const next = scaled(encounter.phases[3]!, s)
     for (const id of MECHANIC_IDS) {
       if (next[id] > 0) s.next[id] = Math.min(s.next[id], next[id])

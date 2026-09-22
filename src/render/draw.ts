@@ -1,4 +1,6 @@
 import {
+  CHAT_LIFE,
+  PULL,
   BALLAST_REACH,
   BLEED_TELEGRAPH,
   BLOAT_BURST_AT,
@@ -47,7 +49,7 @@ import { CHAMBERS, padAt, placeOf, type Chamber, type WingId, chamberAt, roomOf 
 import { EXIT_REACH } from '../sim/travel'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
-import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
+import type { Actor, BgState, ChatLine, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { drawBystanders, drawGrave, drawObstacles, drawProps, drawSurround, floorTexture } from './scenery'
@@ -607,6 +609,21 @@ export function drawWorld(
       drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, undefined, s.seed, s.phase)
     }
   }
+
+  // What anybody just said, over their head.
+  //
+  // The lines have always existed -- the boss calls its mechanics, the roster
+  // calls its own moves -- and they went to a list in the corner of the
+  // screen, which is the one place a player is not looking while a pull is
+  // running. A bubble puts the words where the body is, so the speaker is the
+  // thing you are already watching.
+  //
+  // Drawn here rather than inside `drawActor`: that function does not take the
+  // state, and the chat lives on it. A pass of its own also puts every bubble
+  // above every body, which a per-actor draw cannot promise -- the raid is
+  // drawn back to front, so a bubble drawn with its own body is covered by
+  // whoever is standing in front of them.
+  drawBubbles(ctx, s, alpha, clock)
 
   drawCarriedFlags(ctx, s, alpha)
   drawProjectiles(ctx, s, alpha)
@@ -3548,6 +3565,155 @@ function drawActor(
     ctx.fillStyle = isBoss ? COLORS.bossCast : COLORS.castBar
     ctx.fillRect(bx, by, w * progress, 5)
   }
+}
+
+/**
+ * The last thing each body said, drawn over it.
+ *
+ * Only the newest line per speaker. A boss that calls two mechanics inside a
+ * second would otherwise stack two bubbles on one head, and the older of them
+ * is the one nobody needs -- the corner list is what keeps the history.
+ *
+ * Fading with the line's own age, on the same six-second life `sim.ts` gives
+ * it, so a bubble and its entry in the list disappear together rather than the
+ * screen keeping something the log has forgotten.
+ */
+function drawBubbles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, clock: number): void {
+  const newest = new Map<number, ChatLine>()
+  for (const line of s.chat) {
+    const seen = newest.get(line.by)
+    if (!seen || line.age < seen.age) newest.set(line.by, line)
+  }
+  for (const [by, line] of newest) {
+    const who = s.actors.find((a) => a.id === by)
+    if (!who || !who.alive) continue
+    const at = actorPos(who, alpha)
+    const p = worldToScreen(at)
+    const fade = Math.max(0, Math.min(1, (1 - line.age / CHAT_LIFE) * 3))
+    if (fade <= 0) continue
+    // Above the head, and inside the screen -- in that order of preference.
+    //
+    // Two goes at this. The first put it over the head and nothing else, and a
+    // boss standing near the top of the view drew its bubble through the boss
+    // frame and off the edge. The second moved it under the body when the head
+    // was too high, which is right for a body that is *on* the screen and does
+    // nothing for one above it: measured again, a ranged raider standing off
+    // the top drew a line across the boss's name, still clipped, and long
+    // lines ran off the sides as well because nothing looked at x at all.
+    //
+    // So the last word is the screen. Preferred spot first, then clamped into
+    // the box the player can actually see, with the boss frame treated as the
+    // top of that box -- a bubble over the fight's own name is a bubble that
+    // hid the thing it was talking about.
+    const lift = Math.max(4, who.radius * L.scale) + 26 * L.ui
+    const top = L.bossY + 54 * L.ui
+    const wide = ctx.measureText(line.text).width + 12 * L.ui
+    const half = Math.min(L.w / 2 - 8, wide / 2)
+    const x = Math.max(half + 8, Math.min(L.w - half - 8, p.x))
+    const y = Math.max(top, Math.min(L.actionY - 30 * L.ui, p.y - lift))
+    bubbleAt(ctx, x, y, line.text, fade)
+  }
+
+  drawBystanderTalk(ctx, s, clock)
+}
+
+/**
+ * What the citadel's own people say as the raid goes past.
+ *
+ * Only the seven the source wrote lines for -- see `Bystander.says`. The
+ * fourteen vendors beside them have nothing in `creature_text` and are left
+ * silent rather than given words this game made up.
+ *
+ * Only while somebody is close enough to be spoken to, and `PULL` is what
+ * close means everywhere else in this building: the twenty yards at which a
+ * pack notices a body walking by. A greeting shouted across an empty hall is
+ * the room talking to itself.
+ *
+ * Which line, off the clock rather than off a roll. A bystander has no state
+ * of its own by design -- it is dressing, and the simulation cannot see it --
+ * so the choice has to come from things that already exist: the name decides
+ * where in their own list they start, which keeps two captains standing
+ * together from saying the same thing, and the clock turns it over slowly
+ * enough to be read.
+ */
+function drawBystanderTalk(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
+  const lead = s.actors.find((a) => a.isPlayer && a.alive) ?? s.actors.find((a) => a.faction === 'party' && a.alive)
+  if (!lead) return
+
+  const inRoom =
+    s.mode === 'raid'
+      ? encounterAt(s.encounter).bystanders
+      : s.chamber
+        ? chamberAt(s.chamber)?.bystanders
+        : undefined
+  const placed =
+    inRoom === undefined
+      ? []
+      : s.mode === 'raid' || !s.chamber
+        ? inRoom
+        : (() => {
+            const room: RoomShape = { ...roomOf(s.chamber), at: placeOf(s.chamber) }
+            return inRoom.map((one) => ({ ...one, pos: fromRoom(room, one.pos) }))
+          })()
+
+  for (const one of [...placed, ...(s.travel?.corridor?.bystanders ?? [])]) {
+    const lines = one.says
+    if (!lines || lines.length === 0) continue
+    if (dist(lead.pos, one.pos) > PULL) continue
+    let seed = 0
+    for (let i = 0; i < one.name.length; i++) seed = (seed * 31 + one.name.charCodeAt(i)) % 9973
+    const line = lines[(seed + Math.floor(clock / 6)) % lines.length]!
+    const on = worldToScreen(one.pos)
+    bubbleAt(ctx, on.x, on.y - bodyHeight(PARTY_RADIUS * L.scale) - 10 * L.ui, line, 1)
+  }
+}
+
+/** A rounded box with a tail, sized to the words in it. */
+function bubbleAt(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, fade: number): void {
+  ctx.save()
+  ctx.font = font(10)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const pad = 6 * L.ui
+  // Cut to what fits. The roster's longest line is a sentence and a phone is
+  // 390 across, so an uncut bubble is a bubble with its ends off the screen --
+  // and the list in the corner still carries the whole of it.
+  const room = L.w - 24
+  let shown = text
+  while (shown.length > 4 && ctx.measureText(shown).width + pad * 2 > room) {
+    shown = shown.slice(0, -2)
+  }
+  if (shown !== text) shown = `${shown.trimEnd()}…`
+  text = shown
+  const w = ctx.measureText(text).width + pad * 2
+  const h = 15 * L.ui
+  const left = x - w / 2
+  const top = y - h / 2
+  const r = 5 * L.ui
+  ctx.globalAlpha = fade
+  ctx.beginPath()
+  ctx.moveTo(left + r, top)
+  ctx.arcTo(left + w, top, left + w, top + h, r)
+  ctx.arcTo(left + w, top + h, left, top + h, r)
+  ctx.arcTo(left, top + h, left, top, r)
+  ctx.arcTo(left, top, left + w, top, r)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(12, 14, 20, 0.86)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.35)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+  // The tail, so the box belongs to the head under it rather than floating.
+  ctx.beginPath()
+  ctx.moveTo(x - 4 * L.ui, top + h)
+  ctx.lineTo(x, top + h + 5 * L.ui)
+  ctx.lineTo(x + 4 * L.ui, top + h)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(12, 14, 20, 0.86)'
+  ctx.fill()
+  ctx.fillStyle = COLORS.text
+  ctx.fillText(text, x, top + h / 2)
+  ctx.restore()
 }
 
 /** Six-digit hex to a translucent rgba, for the halo around a bolt's core. */

@@ -56,14 +56,16 @@ import {
   getAura,
 } from './combat'
 import {
+  CHAT_LIFE,
   CRIT_CHANCE,
   CRIT_PHYSICAL,
   DT,
+  FESTER_LINE,
+  INFECTION_FLUSH,
   MELEE_RANGE,
   REEK_REACH,
   TICK_RATE,
-  FESTER_LINE,
-  INFECTION_FLUSH } from './constants'
+} from './constants'
 import { encounterAt } from './encounters'
 import type { Rng } from './rng'
 import { updateTravel, updateTravelAi } from './travel'
@@ -725,7 +727,7 @@ function ageEphemera(s: SimState): void {
   s.texts = s.texts.filter((t) => t.age < 1.1)
 
   for (const c of s.chat) c.age += DT
-  s.chat = s.chat.filter((c) => c.age < 6)
+  s.chat = s.chat.filter((c) => c.age < CHAT_LIFE)
 }
 
 /**

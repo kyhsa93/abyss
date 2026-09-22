@@ -448,41 +448,41 @@ export const CHAMBERS: Chamber[] = [
     // `look` is the nearest silhouette Liberated Pixel Cup has, not a claim
     // about anybody's class. See `Bystander`.
     bystanders: [
-      { pos: { x:   438, y:   191 }, look: 'mage-frost', facing: 3.79 }, // Alchemist Finklestein
-      { pos: { x:  -366, y:  -396 }, look: 'paladin-retribution', facing: 2.13, guards: 1 }, // Argent Champion
-      { pos: { x:    46, y:  -165 }, look: 'paladin-retribution', facing: 3.28, guards: 1 }, // Argent Champion
-      { pos: { x:   377, y:  -528 }, look: 'paladin-retribution', facing: 4.36, guards: 1 }, // Argent Champion
-      { pos: { x:    81, y:   475 }, look: 'paladin-protection', facing: 3.26, guards: 1 }, // Argent Commander
-      { pos: { x:   168, y:   343 }, look: 'paladin-protection', facing: 3.98, guards: 1 }, // Argent Commander
-      { pos: { x:   223, y:   297 }, look: 'paladin-protection', facing: 3.40, guards: 1 }, // Argent Commander
-      { pos: { x:   484, y:  -488 }, look: 'paladin-protection', facing: 4.56, guards: 1 }, // Argent Commander
-      { pos: { x:   489, y:  -571 }, look: 'paladin-protection', facing: 4.66, guards: 1 }, // Argent Commander
-      { pos: { x:   500, y:   116 }, look: 'paladin-protection', facing: 4.66, guards: 1 }, // Argent Commander
-      { pos: { x:  -190, y:    31 }, look: 'mage-frost', facing: 1.05 }, // Aronen
-      { pos: { x:   540, y:  -530 }, look: 'warrior-protection', facing: 4.50, guards: 1 }, // Commander Kunz
-      { pos: { x:   130, y:    36 }, look: 'paladin-protection', facing: 3.26, guards: 1 }, // Crusader Grimtong
-      { pos: { x:   237, y:     8 }, look: 'paladin-protection', facing: 5.93, guards: 1 }, // Crusader Halford
-      { pos: { x:  -671, y:  -217 }, look: 'warrior-protection', facing: 1.54, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -658, y:   -39 }, look: 'warrior-protection', facing: 1.76, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -509, y:  -474 }, look: 'warrior-protection', facing: 1.43, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -489, y:   116 }, look: 'warrior-protection', facing: 1.64, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -488, y:  -566 }, look: 'warrior-protection', facing: 1.29, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -264, y:    26 }, look: 'warrior-protection', facing: 1.54, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -210, y:   293 }, look: 'warrior-protection', facing: 2.57, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -158, y:   335 }, look: 'warrior-protection', facing: 2.13, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:   -72, y:   474 }, look: 'warrior-protection', facing: 3.11, guards: 1 }, // Ebon Blade Commander
-      { pos: { x:  -390, y:  -496 }, look: 'warrior-arms', facing: 1.92, guards: 1 }, // Ebon Champion
-      { pos: { x:   -30, y:  -172 }, look: 'warrior-arms', facing: 3.16, guards: 1 }, // Ebon Champion
-      { pos: { x:   115, y:  -189 }, look: 'warrior-arms', facing: 3.30, guards: 1 }, // Ebon Champion
-      { pos: { x:   352, y:  -397 }, look: 'warrior-arms', facing: 4.38, guards: 1 }, // Ebon Champion
-      { pos: { x:  -650, y:  -140 }, look: 'warrior-arms', facing: 1.45, guards: 1 }, // Fury
-      { pos: { x:   476, y:   156 }, look: 'rogue-assassination', facing: 4.24 }, // Goodman the "Closer"
-      { pos: { x:  -640, y:   -89 }, look: 'warrior-arms', facing: 1.55, guards: 3 }, // Highlord Darion Mograine
-      { pos: { x:    29, y:   151 }, look: 'paladin-holy', facing: 3.23, guards: 3 }, // Highlord Tirion Fordring
-      { pos: { x:  -180, y:    58 }, look: 'priest-shadow', facing: 2.50 }, // Ormus the Penitent
-      { pos: { x:   463, y:   178 }, look: 'priest-discipline', facing: 3.84 }, // Scott the Merciful
-      { pos: { x:  -512, y:  -521 }, look: 'rogue-assassination', facing: 1.36 }, // Stefan Vadu
-      { pos: { x:  -452, y:   238 }, look: 'priest-discipline', facing: 6.11 }, // Torgo the Elder
+      { pos: { x:   438, y:   191 }, look: 'mage-frost', facing: 3.79, name: 'Alchemist Finklestein' },
+      { pos: { x:  -366, y:  -396 }, look: 'paladin-retribution', facing: 2.13, guards: 1, name: 'Argent Champion' },
+      { pos: { x:    46, y:  -165 }, look: 'paladin-retribution', facing: 3.28, guards: 1, name: 'Argent Champion' },
+      { pos: { x:   377, y:  -528 }, look: 'paladin-retribution', facing: 4.36, guards: 1, name: 'Argent Champion' },
+      { pos: { x:    81, y:   475 }, look: 'paladin-protection', facing: 3.26, guards: 1, name: 'Argent Commander' },
+      { pos: { x:   168, y:   343 }, look: 'paladin-protection', facing: 3.98, guards: 1, name: 'Argent Commander' },
+      { pos: { x:   223, y:   297 }, look: 'paladin-protection', facing: 3.40, guards: 1, name: 'Argent Commander' },
+      { pos: { x:   484, y:  -488 }, look: 'paladin-protection', facing: 4.56, guards: 1, name: 'Argent Commander' },
+      { pos: { x:   489, y:  -571 }, look: 'paladin-protection', facing: 4.66, guards: 1, name: 'Argent Commander' },
+      { pos: { x:   500, y:   116 }, look: 'paladin-protection', facing: 4.66, guards: 1, name: 'Argent Commander' },
+      { pos: { x:  -190, y:    31 }, look: 'mage-frost', facing: 1.05, name: 'Aronen' },
+      { pos: { x:   540, y:  -530 }, look: 'warrior-protection', facing: 4.50, guards: 1, name: 'Commander Kunz' },
+      { pos: { x:   130, y:    36 }, look: 'paladin-protection', facing: 3.26, guards: 1, name: 'Crusader Grimtong' },
+      { pos: { x:   237, y:     8 }, look: 'paladin-protection', facing: 5.93, guards: 1, name: 'Crusader Halford' },
+      { pos: { x:  -671, y:  -217 }, look: 'warrior-protection', facing: 1.54, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -658, y:   -39 }, look: 'warrior-protection', facing: 1.76, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -509, y:  -474 }, look: 'warrior-protection', facing: 1.43, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -489, y:   116 }, look: 'warrior-protection', facing: 1.64, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -488, y:  -566 }, look: 'warrior-protection', facing: 1.29, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -264, y:    26 }, look: 'warrior-protection', facing: 1.54, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -210, y:   293 }, look: 'warrior-protection', facing: 2.57, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -158, y:   335 }, look: 'warrior-protection', facing: 2.13, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:   -72, y:   474 }, look: 'warrior-protection', facing: 3.11, guards: 1, name: 'Ebon Blade Commander' },
+      { pos: { x:  -390, y:  -496 }, look: 'warrior-arms', facing: 1.92, guards: 1, name: 'Ebon Champion' },
+      { pos: { x:   -30, y:  -172 }, look: 'warrior-arms', facing: 3.16, guards: 1, name: 'Ebon Champion' },
+      { pos: { x:   115, y:  -189 }, look: 'warrior-arms', facing: 3.30, guards: 1, name: 'Ebon Champion' },
+      { pos: { x:   352, y:  -397 }, look: 'warrior-arms', facing: 4.38, guards: 1, name: 'Ebon Champion' },
+      { pos: { x:  -650, y:  -140 }, look: 'warrior-arms', facing: 1.45, guards: 1, name: 'Fury' },
+      { pos: { x:   476, y:   156 }, look: 'rogue-assassination', facing: 4.24, name: 'Goodman the "Closer"' },
+      { pos: { x:  -640, y:   -89 }, look: 'warrior-arms', facing: 1.55, guards: 3, name: 'Highlord Darion Mograine', says: ['So, it has begun....', 'Behold! The binding of sacred and corrupt; the forging of Shadow\'s Edge.'] },
+      { pos: { x:    29, y:   151 }, look: 'paladin-holy', facing: 3.23, guards: 3, name: 'Highlord Tirion Fordring', says: ['Our march upon Icecrown Citadel begins now!', 'By the Light, it must be so!', 'Remember, heroes, fear is your greatest enemy in these befouled halls.'] },
+      { pos: { x:  -180, y:    58 }, look: 'priest-shadow', facing: 2.50, name: 'Ormus the Penitent' },
+      { pos: { x:   463, y:   178 }, look: 'priest-discipline', facing: 3.84, name: 'Scott the Merciful' },
+      { pos: { x:  -512, y:  -521 }, look: 'rogue-assassination', facing: 1.36, name: 'Stefan Vadu' },
+      { pos: { x:  -452, y:   238 }, look: 'priest-discipline', facing: 6.11, name: 'Torgo the Elder' },
     ],
 },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
@@ -1188,11 +1188,11 @@ export const PASSAGES: Passage[] = [
       // That is fine for these and would not be for a pack -- a bystander
       // collides with nothing and is never walked into on purpose -- which is
       // why the check below them asks for less room than `packsPlaced` does.
-      { pos: { x:   57, y:  2176 }, look: 'paladin-protection', facing: 1.6 }, // Captain Arnath
-      { pos: { x:   30, y:  2212 }, look: 'priest-discipline', facing: 1.6 },  // Captain Brandon
-      { pos: { x:  -36, y:  2233 }, look: 'warrior-arms', facing: 1.6 },       // Captain Grondel
-      { pos: { x:  -53, y:  2188 }, look: 'hunter-marksmanship', facing: 1.6 },// Captain Rupert
-      { pos: { x:    5, y:  2184 }, look: 'warrior-protection', facing: 1.6 }, // Crok Scourgebane
+      { pos: { x:   57, y:  2176 }, look: 'paladin-protection', facing: 1.6, name: 'Captain Arnath', says: ['The loss of our comrades was unpreventable.', 'Even dying here beats another day collecting reagents for that madman, Finklestein.'] },
+      { pos: { x:   30, y:  2212 }, look: 'priest-discipline', facing: 1.6, name: 'Captain Brandon', says: ['You have done much in this war against the Scourge. May the light embrace you.'] },
+      { pos: { x:  -36, y:  2233 }, look: 'warrior-arms', facing: 1.6, name: 'Captain Grondel', says: ['What can possibly redeem this unholy place? Thank you.'] },
+      { pos: { x:  -53, y:  2188 }, look: 'hunter-marksmanship', facing: 1.6, name: 'Captain Rupert', says: ['Beware the dangers that lie ahead... and do try to remain in one piece.'] },
+      { pos: { x:    5, y:  2184 }, look: 'warrior-protection', facing: 1.6, name: 'Crok Scourgebane', says: ['Ready your arms, my Argent Brothers.', 'The Vrykul will protect the Frost Queen with their lives.'] },
     ] }
   },
   { from: 'dream', to: 'gauntlet', gate: killed('dream') },
@@ -2596,6 +2596,7 @@ export function citadelDefenders(): DefenderSeed[] {
         pos: fromRoom(room, one.pos),
         look: one.look,
         facing: one.facing,
+        name: one.name,
         worth: one.guards!,
       }))
   })

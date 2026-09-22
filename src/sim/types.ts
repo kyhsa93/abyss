@@ -842,6 +842,16 @@ export interface ChatLine {
   speaker: string
   text: string
   age: number
+  /**
+   * Which body said it, so the line can be drawn over their head.
+   *
+   * The name alone was enough while chat was a list in the corner: a reader
+   * looks at the name and then at the floor for themselves. A bubble has to
+   * find the speaker, and two bodies can share a name -- every raid has more
+   * than one of most classes, and the citadel stands two Argent Commanders
+   * side by side -- so the id is the only thing that points at one of them.
+   */
+  by: number
 }
 
 /**
@@ -1097,10 +1107,32 @@ export interface Prop {
  */
 export interface Bystander {
   pos: Vec2
+  /**
+   * Who they are, which is what lets them say anything.
+   *
+   * It was a comment beside the row -- the source's own name for that spawn --
+   * and a comment cannot be drawn. A bystander with a line and no name is a
+   * bubble with nobody under it.
+   */
+  name: string
   /** A body sheet key from `src/render/lpc.ts`. */
   look: string
   /** Which way they are turned, in radians. */
   facing: number
+  /**
+   * What they say as the raid goes past, if the source gave them anything.
+   *
+   * Off `creature_text` rather than written here. Twenty-one of the citadel's
+   * people stand in this game and the source wrote lines for seven of them;
+   * inventing words for the fourteen vendors who have none would be putting
+   * this game's voice in the source's mouth, so they stand there and say
+   * nothing -- which is what they do in the source too.
+   *
+   * Their death, kill and resurrection lines are left out: those belong to a
+   * fight this game does not have, and a captain announcing his own death as
+   * the raid walks past is worse than silence.
+   */
+  says?: readonly string[]
   /**
    * And whether this one will fight, in watchmen. See `Defender`.
    *
@@ -1150,6 +1182,14 @@ export interface Bystander {
  */
 export interface DefenderSeed {
   pos: Vec2
+  /**
+   * Who they are, carried through from the bystander they were.
+   *
+   * A guard is a bystander that answers what walks in -- the same row, drawn
+   * the same way -- so it keeps the same name, and a hall that says something
+   * when the Scourge arrives says it in somebody's voice.
+   */
+  name: string
   /** A body sheet key from `src/render/lpc.ts`, the same as a `Bystander`. */
   look: string
   /** Which way they are turned, in radians. */

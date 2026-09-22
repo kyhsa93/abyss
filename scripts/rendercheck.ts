@@ -1,7 +1,19 @@
+import type { Bystander } from '../src/sim/types'
 import { TRASH_KINDS, TRASH_LOOKS, trashLook, trashRadius } from '../src/sim/trash'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomArea, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
+import {
+  ROUND_ARENA,
+  fromRoom,
+  insideRoom,
+  onEdge,
+  pushInside,
+  roomArea,
+  roomHasOutside,
+  roomReach,
+  wallGap,
+  type RoomShape,
+} from '../src/sim/room'
 import { FLOOR_PIECES, FLOOR_TALL, sowSurround, surroundTakes } from '../src/render/scenery'
 import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
@@ -134,24 +146,25 @@ import {
 } from '../src/sim/combat'
 import {
   ARENA_RADIUS,
+  BOSS_WIDTH,
   CHARGE_RAGE,
   COUNTDOWN,
   COUNTDOWN_TICKS,
-  TICK_RATE,
-  GLOBAL_COOLDOWN,
-  INHALE_MAX,
-  PUNGENT_PER_BREATH,
-  slimeDry,
-  HEALTH,
+  COVER_LONG,
   CRIT_CHANCE,
   CRIT_PHYSICAL,
   CRIT_SPELL,
-  BOSS_WIDTH,
+  GLOBAL_COOLDOWN,
+  HEALTH,
+  INHALE_MAX,
   MELEE_RANGE,
+  PARTY_RADIUS,
+  PULL,
+  PUNGENT_PER_BREATH,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
-  COVER_LONG,
-  PARTY_RADIUS,
+  TICK_RATE,
+  slimeDry,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -182,7 +195,18 @@ import {
 } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
-import { CHAMBERS, PASSAGES, citadelPacks, citadelSprings, citadelWorld, hallFor, wingFights } from '../src/dungeon'
+import {
+  CHAMBERS,
+  PASSAGES,
+  chamberAt,
+  citadelPacks,
+  citadelSprings,
+  citadelWorld,
+  hallFor,
+  placeOf,
+  roomOf,
+  wingFights,
+} from '../src/dungeon'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
@@ -8844,7 +8868,7 @@ for (const [label, w, h] of [
   const s = pulled(0x51ed, 0)
   s.countdown = 0
   for (let i = 0; i < 5; i++) {
-    s.chat.push({ id: i, speaker: 'The Drowned Warden', text: 'The tide rises!', age: 0 })
+    s.chat.push({ id: i, speaker: 'The Drowned Warden', text: 'The tide rises!', age: 0, by: BOSS_ID })
   }
 
   const labels: Label[] = []
@@ -8862,6 +8886,115 @@ for (const [label, w, h] of [
     lines.every((l) => l.y > L.partyY),
     `${L.partyY} against ${Math.min(...lines.map((l) => l.y))}`,
   )
+}
+
+// --- what somebody said is drawn over them -----------------------------------
+//
+// The lines have always existed and always went to the list in the corner,
+// which is the one place nobody looks while a pull is running. They are drawn
+// over the speaker now, and a bubble has two ways to be useless: not drawn at
+// all, and drawn somewhere the screen does not reach. The second is the one
+// that actually happened -- a boss standing near the top of the view put its
+// bubble through the boss frame and off the top edge -- so both are asked for
+// here, at the two shapes of screen the rest of this file uses.
+for (const [label, w, h] of [
+  ['desktop 1440x900', 1440, 900],
+  ['portrait 390x844', 390, 844],
+] as const) {
+  updateLayout(w, h)
+  const s = pulled(0x51ed, 0)
+  s.countdown = 0
+  const boss = s.actors.find((a) => a.id === BOSS_ID)!
+  const reach = roomReach(s.room)
+  // Every corner of the room, not one spot. The first version of this stood
+  // the boss at the top and passed while a raider standing off the top edge
+  // was still drawing its line across the boss frame -- a check that cannot
+  // fail is the shape this file is most often bitten by.
+  const spots: Array<[string, number, number]> = [
+    ['top', 0, -reach * 0.95],
+    ['bottom', 0, reach * 0.95],
+    ['left', -reach * 0.95, 0],
+    ['right', reach * 0.95, 0],
+    ['corner', -reach * 0.9, -reach * 0.9],
+  ]
+  const long = 'Nothing here can call a raid cooldown before the broadside lands'
+  for (const [where, x, y] of spots) {
+    for (const text of ['THE BROADSIDE', long]) {
+      boss.pos = { x, y }
+      boss.prevPos = { ...boss.pos }
+      s.chat = [{ id: 1, speaker: boss.name, text, age: 0, by: boss.id }]
+
+      const labels: Label[] = []
+      drawWorld(recordingCtx([], labels), s, 1, s.time, new Effects())
+      // The bubble may be cut to fit, so it is found by its opening rather
+      // than by the whole sentence.
+      const said = labels.filter((l) => l.text.startsWith(text.slice(0, 12)))
+      expect(`${label} ${where}: what was said is drawn`, said.length === 1, `${said.length}`)
+      expect(
+        `${label} ${where}: and on the screen`,
+        said.every((l) => l.y > 0 && l.y < h && l.x > 0 && l.x < w),
+        JSON.stringify(said.map((l) => ({ x: Math.round(l.x), y: Math.round(l.y) }))),
+      )
+      expect(
+        `${label} ${where}: and clear of the boss frame`,
+        said.every((l) => l.y > L.bossY + 40 * L.ui),
+        JSON.stringify(said.map((l) => Math.round(l.y))),
+      )
+    }
+  }
+}
+
+// --- the citadel's own people greet the raid ---------------------------------
+//
+// Seven of the twenty-one bystanders have lines in the source and fourteen do
+// not, and the ones with nothing to say must stay silent -- a vendor given
+// words this game invented would be the source's mouth saying our sentences.
+// So this asks for both halves: somebody who has a line says it when the raid
+// is beside them, and stops when the raid is not.
+//
+// Found by name rather than by coordinate. The hall's people are placed off
+// the source's own spawns and those numbers move when the room does; a check
+// that hardcodes one is a check that fails for the wrong reason.
+{
+  updateLayout(1440, 900)
+  const dps = pickFor('warrior', 'dps')!
+  const hall = chamberAt('vigil')!
+  const room: RoomShape = { ...roomOf('vigil'), at: placeOf('vigil') }
+  const speaker = (hall.bystanders ?? []).find((one: Bystander) => one.says && one.says.length > 0)!
+  const silent = (hall.bystanders ?? []).find((one: Bystander) => !one.says)!
+  const ground = hallFor('vigil', null, () => true)
+  const s = createCorridorState(9, autoParty(10, dps), ground, 'normal', 4, undefined, true)
+  s.chamber = 'vigil'
+  const me = s.actors.find((a) => a.isPlayer)!
+
+  // Standing with them.
+  const beside = fromRoom(room, speaker.pos)
+  me.pos = { x: beside.x, y: beside.y }
+  me.prevPos = { ...me.pos }
+  const near: Label[] = []
+  drawWorld(recordingCtx([], near), s, 1, 0, new Effects())
+  const heard = near.filter((l) => speaker.says!.some((line: string) => l.text.startsWith(line.slice(0, 12))))
+  expect(`${speaker.name} speaks when the raid is beside them`, heard.length === 1, `${heard.length}`)
+
+  // And the one with nothing to say says nothing, from the same spot.
+  const quiet = fromRoom(room, silent.pos)
+  me.pos = { x: quiet.x, y: quiet.y }
+  me.prevPos = { ...me.pos }
+  const beside2: Label[] = []
+  drawWorld(recordingCtx([], beside2), s, 1, 0, new Effects())
+  expect(
+    `${silent.name} has no lines and says nothing`,
+    beside2.every((l) => l.text.length < 3 || !l.text.includes(' ') || !/[a-z]{4}/.test(l.text) || l.text === silent.name),
+    'something was said',
+  )
+
+  // And out of earshot, the one who does speak is quiet.
+  me.pos = { x: beside.x + PULL * 3, y: beside.y + PULL * 3 }
+  me.prevPos = { ...me.pos }
+  const far: Label[] = []
+  drawWorld(recordingCtx([], far), s, 1, 0, new Effects())
+  const stillHeard = far.filter((l) => speaker.says!.some((line: string) => l.text.startsWith(line.slice(0, 12))))
+  expect(`and is quiet when the raid has walked on`, stillHeard.length === 0, `${stillHeard.length}`)
 }
 
 // --- a heal goes to somebody who needs one ---------------------------------

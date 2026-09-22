@@ -554,6 +554,15 @@ export const SPELL_RANGE = Math.round(18 * YARD)
  * one thing deliberately left alone is what a player's abilities do, and in a
  * battleground that is all there is.
  */
+/**
+ * How long a line stays said.
+ *
+ * Read in two places now -- the list in the corner fades over it, and the
+ * bubble over the speaker's head lives exactly as long -- and a number that
+ * two things have to agree on is a number with a name.
+ */
+export const CHAT_LIFE = 6
+
 export const HEALTH = 0.45
 
 /** A health bar, in the units the rest of the game is written in. */
