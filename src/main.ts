@@ -507,6 +507,21 @@ const CORNERS_LINGER = 6000
  * been pressed.
  */
 function cornersShown(): boolean {
+  // And whenever the party is standing on a pad, whatever the clock says.
+  //
+  // The line over their heads on a pad reads ON THE PAD -- MAP TO JUMP, and on
+  // a phone the map button it names is not on the screen: the corner group is
+  // hidden on touch until the minimap is pressed, and it goes again six
+  // seconds later. So the one moment the game tells a player to use that
+  // button was the one moment they could not see it, which is the whole of
+  // "the teleporter does not work on a phone" -- the jump was never reached
+  // because the way to it was invisible.
+  //
+  // Tied to `padHere` rather than to a longer linger: a window that is long
+  // enough to find the button is long enough to sit over the ability bar, and
+  // what is wanted is not more time but the button being there while it is
+  // being asked for.
+  if (padHere()) return true
   return !input.isTouchMode() || performance.now() - cornersShownAt < CORNERS_LINGER
 }
 
