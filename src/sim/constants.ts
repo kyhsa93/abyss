@@ -1537,25 +1537,69 @@ export const THIRST_HEAL = 0.0011
 /**
  * A fight fought on a deck, and the six things a deck does.
  *
- * The numbers here are one fight's own and are not read off anything: the
- * source places a ship, a gun and a boarding party but no seconds and no
- * damage -- see `docs/reading-the-source.md` on what a placement can and
- * cannot say. What they are set against is the rest of this table: a
- * boarding party is a wave, so it is priced like one; the mortar is a mark on
- * one body, so it is priced like a mark; the rockets are everybody at once,
- * so they are priced like a raid hit.
+ * The first arrangement of these was thrown out whole, and what it was
+ * thrown out for is worth keeping: the rockets billed every body in the raid
+ * in one instant, multiplied by how many neighbours each one had. Measured,
+ * that is a hit of 95% of a health bar landing on ten bodies at once at ten
+ * and 295% at twenty-five, and the raid died at 26.0 seconds on every seed
+ * with the boss at 85%. Three separate rules in `docs/mechanic-rules.md` say
+ * so in advance -- rule 4, that a proximity rule is satisfied before the cast
+ * lands and so is an absent mechanic rather than an easy one; rule 5, that an
+ * instant may not write one near-lethal bill per body; and the field table,
+ * where `spread` is listed among the mechanics "indistinguishable from
+ * nothing". The party AI has no spread instruction to give and deliberately
+ * does not: `elbowRoom` is a preference that never asks anybody to walk.
+ *
+ * The source says the same thing from the other side. `SPELL_ROCKET_ARTILLERY`
+ * is a mortar soldier dropping a shell where somebody is standing, and
+ * `SPELL_BURNING_PITCH` is the other ship setting fire to a patch of deck.
+ * Neither is a bill on the roster; both are a circle on the floor. What the
+ * repo already had for that is `GroundEffect`, answered through the danger
+ * channel that carries the reaction delay -- so the shells became ground and
+ * the multiplier went away.
+ *
+ * The damage is written against the health bar it lands on rather than
+ * chosen. A constant here reaches a body multiplied by the fight's own scale
+ * and then by `HEALTH`, which at ten heroic is 0.378 of what is written; the
+ * bar is about 1787. The hardest single hit any shipped fight lands is the
+ * Crowns' 69% of a bar on one body, and the hardest that lands on the whole
+ * raid at once is the Confluence's 55% -- so a shell is priced at 60% of a
+ * bar for whoever is standing in it and nothing at all for whoever is not.
  */
 export const BOARDER_HP_SCALE = 0.55
-export const MORTAR_REACH = 200
-export const MORTAR_DAMAGE = 2600
-export const ROCKET_DAMAGE = 900
-/** How close two bodies have to be for a rocket to catch both. */
-export const ROCKET_HUDDLE = 150
-export const HULL_DAMAGE = 1500
-/** What a shell is worth to somebody who is not out at the rail. */
-export const HULL_INBOARD = 0.25
-/** How far out along the deck the enemy's shells land. */
-export const HULL_RING = 0.62
+/** The shell the mortar soldiers drop, and how long it is in the air. */
+export const MORTAR_RADIUS = 88
+export const MORTAR_TELEGRAPH = readable(1.3)
+export const MORTAR_DAMAGE = 2100
+/** The rocket artillery: a wider circle, a longer count, a heavier shell. */
+export const ROCKET_RADIUS = 112
+export const ROCKET_TELEGRAPH = readable(1.6)
+export const ROCKET_DAMAGE = 2800
+/** How long a burning patch is worth walking round after it lands. */
+export const SHELL_LINGER = 0.5
+/**
+ * The other ship setting fire to the deck, which is where the raid is.
+ *
+ * It was a ring: full damage out past 62% of the deck's radius, and for a
+ * while a quarter share inboard so that the sweep could see it happen. Both
+ * were wrong and the measurement is flat about it -- the rail sits at 523
+ * units and the furthest any body reached in three pulls at two sizes was
+ * 344, so of 792,558 body-ticks, zero were at or past it. A mechanic nothing
+ * can stand in is not a hard mechanic, it is an absent one, and the inboard
+ * share was a bill on the roster paid to keep a check quiet.
+ *
+ * `SPELL_BURNING_PITCH` says what it actually is: patches of burning deck,
+ * dropped where people are. So it is ground like the shells are, and what it
+ * takes is room rather than health -- a small landing hit and a rate for
+ * anyone who stays. Two at a time, because rule 5 caps how much floor may be
+ * out at once and this fight already throws two other circles.
+ */
+export const HULL_RADIUS = 96
+export const HULL_TELEGRAPH = readable(1.5)
+export const HULL_COUNT = 2
+export const HULL_LINGER = 12
+export const HULL_DAMAGE = 900
+export const HULL_TICK = 190
 export const AXE_DAMAGE = 1800
 export const CANNON_REACH = 120
 export const CANNON_DAMAGE = 5200

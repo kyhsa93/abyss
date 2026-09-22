@@ -614,6 +614,12 @@ export type GroundKind =
   // A broken flask: a large hit where it lands, and floor that stays long
   // enough to decide where the rest of the fight can happen.
   | 'caustic'
+  // A shell landing on the deck: a circle drawn where it will come down, and
+  // the whole of its bill at the instant it does. The ship's two guns throw
+  // the same shape and differ only in size and count, so the kind is one and
+  // `owner` carries which of them it was -- the cone's arrangement, for the
+  // same reason. See `GroundEffect.owner`.
+  | 'pitch'
   // The circle everybody has to be inside, which is drawn shrinking rather
   // than growing because what it says is "come here" rather than "leave".
   | 'gather'

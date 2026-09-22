@@ -92,8 +92,11 @@ import {
   HOUND_SPEED,
   HOUND_TICK,
   HULL_DAMAGE,
-  HULL_INBOARD,
-  HULL_RING,
+  HULL_COUNT,
+  HULL_LINGER,
+  HULL_RADIUS,
+  HULL_TELEGRAPH,
+  HULL_TICK,
   INHALE_HASTE,
   INHALE_HELD_ALONE,
   INHALE_MAX,
@@ -108,7 +111,8 @@ import {
   MERGE_BURST_REACH,
   MERGE_REACH,
   MORTAR_DAMAGE,
-  MORTAR_REACH,
+  MORTAR_RADIUS,
+  MORTAR_TELEGRAPH,
   NUCLEUS_GUARD,
   NUCLEUS_LIFE,
   NUCLEUS_REACH,
@@ -127,7 +131,9 @@ import {
   REAGENT_MAX,
   REAGENT_POWER,
   ROCKET_DAMAGE,
-  ROCKET_HUDDLE,
+  ROCKET_RADIUS,
+  ROCKET_TELEGRAPH,
+  SHELL_LINGER,
   SHADE_REACH,
   SHADE_SPEED,
   SLIGHT_MAX,
@@ -643,9 +649,9 @@ export function updateBoss(s: SimState, rng: Rng): void {
 
   scheduleBoarding(s, b, rng, timing)
   scheduleMortar(s, b, rng, timing)
-  scheduleRocket(s, b, timing)
+  scheduleRocket(s, b, rng, timing)
   scheduleAxes(s, b, rng, timing)
-  scheduleHull(s, b, timing)
+  scheduleHull(s, b, rng, timing)
   scheduleCannon(s, b, timing)
 
   updateAdds(s)
@@ -1707,37 +1713,63 @@ function scheduleMortar(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   const party = livingParty(s)
   if (party.length === 0) return
   const mark = party[Math.floor(rng.range(0, party.length)) % party.length]!
+  // Drawn where it will land and paid for when it does. It used to bill
+  // everybody within two hundred units on the tick it was called, which is a
+  // hit with no telegraph -- the one thing `docs/mechanic-rules.md` measures
+  // as worth more than the payload. Same shell, one and a bit seconds of
+  // warning, and it teaches instead of taxing.
+  const pos = { x: mark.pos.x, y: mark.pos.y }
+  pushInside(s.room, pos, MORTAR_RADIUS)
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'pitch',
+    owner: 'mortar',
+    pos,
+    radius: MORTAR_RADIUS,
+    telegraph: MORTAR_TELEGRAPH,
+    lingering: 0,
+    damage: MORTAR_DAMAGE,
+  })
   say(s, b, lineFor(fight(s), 'mortar'))
   s.sounds.push('telegraph')
-  const bill = mechanic(s, MORTAR_DAMAGE)
-  for (const a of party) {
-    if (dist(a.pos, mark.pos) > MORTAR_REACH) continue
-    applyDamage(s, a, bill, 'physical', { sourceId: BOSS_ID, mechanic: 'mortar' })
-  }
-  pushEffect(s, 'impact', mark.pos, {
-    abilityId: 'boss_mortar',
-    radius: MORTAR_REACH,
-    power: bill,
-    crit: true,
-  })
 }
 
 /** Everybody at once, and it hurts more where two are standing together. */
-function scheduleRocket(s: SimState, b: Actor, timing: PhaseTiming): void {
+function scheduleRocket(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.rocket <= 0) return
   s.next.rocket -= DT
   if (s.next.rocket > 0) return
   s.next.rocket = timing.rocket
-  say(s, b, lineFor(fight(s), 'rocket'))
   const party = livingParty(s)
-  const base = mechanic(s, ROCKET_DAMAGE)
-  for (const a of party) {
-    // One share for the body, and another for every neighbour close enough to
-    // be caught by the same rocket. Spreading out is the whole answer.
-    const near = party.filter((o) => o.id !== a.id && dist(o.pos, a.pos) <= ROCKET_HUDDLE).length
-    applyDamage(s, a, base * (1 + near), 'magic', { sourceId: BOSS_ID, mechanic: 'rocket' })
-    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_rocket', power: base * (1 + near) })
-  }
+  if (party.length === 0) return
+
+  // One circle an instant, whatever the headcount.
+  //
+  // This was a bill on every body in the raid multiplied by how many
+  // neighbours it had, on the argument that spreading out was the answer.
+  // Three things say otherwise and all of them were already written down:
+  // rule 4, that a raid at rest is spread already and so a proximity rule is
+  // an absent mechanic; rule 5, that an instant may not write one near-lethal
+  // bill per body; and the field table, where `spread` sits among the entries
+  // "indistinguishable from nothing". Measured before it was replaced: 95% of
+  // a health bar on ten bodies at once, 295% at twenty-five, every raid dead
+  // at 26.0 seconds. The source never asked for it either -- its artillery is
+  // a mortar soldier dropping a shell where somebody is standing.
+  const mark = party[Math.floor(rng.range(0, party.length)) % party.length]!
+  const pos = { x: mark.pos.x, y: mark.pos.y }
+  pushInside(s.room, pos, ROCKET_RADIUS)
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'pitch',
+    owner: 'rocket',
+    pos,
+    radius: ROCKET_RADIUS,
+    telegraph: ROCKET_TELEGRAPH,
+    lingering: 0,
+    damage: ROCKET_DAMAGE,
+  })
+  say(s, b, lineFor(fight(s), 'rocket'))
+  s.sounds.push('telegraph')
 }
 
 /** The thrown axe, which only ever finds somebody standing at range. */
@@ -1756,25 +1788,43 @@ function scheduleAxes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
 }
 
 /** The other ship shelling the deck, which lands out along the rail. */
-function scheduleHull(s: SimState, b: Actor, timing: PhaseTiming): void {
+function scheduleHull(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.hull <= 0) return
   s.next.hull -= DT
   if (s.next.hull > 0) return
   s.next.hull = timing.hull
-  say(s, b, lineFor(fight(s), 'hull'))
-  const edge = roomReach(s.room) * HULL_RING
-  const bill = mechanic(s, HULL_DAMAGE)
-  for (const a of livingParty(s)) {
-    // A share of it wherever you are standing, and the whole of it out at the
-    // rail. It was the rail alone, and a shell that catches nobody is a
-    // mechanic the build cannot see happening -- the sweep stands the raid in
-    // the middle, so `hull` fired for a whole pull and never billed anyone.
-    // The ask is unchanged: it is much worse to be out there.
-    const out = dist(a.pos, middle(s)) >= edge
-    const share = out ? bill : bill * HULL_INBOARD
-    applyDamage(s, a, share, 'physical', { sourceId: BOSS_ID, mechanic: 'hull' })
-    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_hull', power: share })
+  const party = livingParty(s)
+  if (party.length === 0) return
+
+  // Fire on the deck the raid is standing on, rather than at a rail nothing
+  // ever reaches. Both earlier arrangements are in `HULL_RADIUS`: the ring
+  // billed a band 523 units out that no body came within 180 of, and the
+  // inboard share that was added to make it visible was a bill on the roster.
+  //
+  // Near somebody rather than on them. A patch centred on a body is answered
+  // by one step by whoever it named and by nobody else; offset, it is a piece
+  // of deck that is gone, which is what this rung is for. Two at once and no
+  // more -- rule 5, and this fight already throws two other circles.
+  for (let n = 0; n < HULL_COUNT; n++) {
+    const at = party[Math.floor(rng.range(0, party.length)) % party.length]!
+    const pos = {
+      x: at.pos.x + rng.range(-HULL_RADIUS, HULL_RADIUS),
+      y: at.pos.y + rng.range(-HULL_RADIUS, HULL_RADIUS),
+    }
+    pushInside(s.room, pos, HULL_RADIUS)
+    s.ground.push({
+      ...blankGround(s),
+      kind: 'pitch',
+      owner: 'hull',
+      pos,
+      radius: HULL_RADIUS,
+      telegraph: HULL_TELEGRAPH,
+      lingering: HULL_LINGER,
+      damage: HULL_DAMAGE,
+    })
   }
+  say(s, b, lineFor(fight(s), 'hull'))
+  s.sounds.push('telegraph')
 }
 
 /**
@@ -4305,6 +4355,56 @@ const PHASE_TWO_AT = 55
 const PHASE_THREE_AT = 110
 
 /** Ground damage is applied once per second while standing in a live puddle. */
+/**
+ * Which of the ship's guns laid this, and what each of them costs.
+ *
+ * Out here rather than inside the `pitch` arm of `updateGround`, and for a
+ * check rather than a preference. `rendercheck` reads every `g.kind === '...'`
+ * arm in this file and fails one whose body names a different mechanic,
+ * because that is what a bad merge looks like: two arms written together, and
+ * one handed the other's closing body. It caught this the first time the arm
+ * was written. One geometry serving three rungs has to name all three
+ * somewhere, so the naming lives in a function instead -- which is the split
+ * the cone already makes, where the arm keeps the count and the cast bills.
+ */
+function shellOf(g: GroundEffect): 'mortar' | 'rocket' | 'hull' {
+  return g.owner === 'mortar' ? 'mortar' : g.owner === 'hull' ? 'hull' : 'rocket'
+}
+
+/** A shell arriving: the whole of its bill to whoever is inside the circle. */
+function shellLands(s: SimState, g: GroundEffect): void {
+  const shell = shellOf(g)
+  // A shell leaves nothing behind. The pitch was laid with its own life and
+  // keeps it, which is the only difference between the three.
+  if (shell !== 'hull') g.lingering = SHELL_LINGER
+  const bill = mechanic(s, g.damage)
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+    applyDamage(s, a, bill, 'physical', { sourceId: BOSS_ID, mechanic: shell })
+    pushEffect(s, 'impact', a.pos, { abilityId: `boss_${shell}`, power: bill })
+  }
+  pushEffect(s, 'impact', g.pos, {
+    radius: g.radius,
+    abilityId: `boss_${shell}`,
+    power: bill,
+    crit: true,
+  })
+  s.sounds.push('raid')
+}
+
+/** And the one of them that is still burning afterwards. */
+function burnOn(s: SimState, g: GroundEffect): void {
+  if (shellOf(g) !== 'hull') return
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+    applyDamage(s, a, mechanic(s, HULL_TICK * DT), 'physical', {
+      sourceId: BOSS_ID,
+      mechanic: 'hull',
+      silent: true,
+    })
+  }
+}
+
 export function updateGround(s: SimState): void {
   for (const g of s.ground) {
     // A cone is a telegraph and nothing else: what it costs lands when the
@@ -4349,6 +4449,25 @@ export function updateGround(s: SimState): void {
           silent: true,
         })
       }
+      continue
+    }
+
+    // A shell coming down where it was drawn, and nothing after it but smoke.
+    //
+    // The whole of its bill at one instant to whoever is standing in the
+    // circle and none of it to anybody else, which is rule 1. Whose shell it
+    // was rides on `owner` rather than in a second kind: the mortar and the
+    // artillery are one shape at two sizes, the way the two cones are.
+    if (g.kind === 'pitch') {
+      if (g.detonated) {
+        g.lingering -= lingerStep(s)
+        burnOn(s, g)
+        continue
+      }
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      shellLands(s, g)
       continue
     }
 

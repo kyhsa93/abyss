@@ -3710,7 +3710,15 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1100,
     raidDamage: 100,
     mechanicDamage: 1.0,
-    sizeMechanic: { 10: 0.8, 25: 0.95 },
+    /**
+     * Heavier at ten than at twenty-five, which is the way every other fight
+     * in this table runs and the way the first draft of this one did not.
+     * Rule 5: the deck is the same deck whatever the headcount, so a mechanic
+     * that puts circles on it denies proportionally more of a bigger raid's
+     * standing room. Written at 0.95 for twenty-five it was the size that
+     * died fastest.
+     */
+    sizeMechanic: { 10: 0.9, 25: 0.62 },
     kit: ['boarding', 'mortar', 'rocket', 'axes', 'hull', 'cannon'],
     herald: null,
     accent: '#0ea5e9',
@@ -3723,11 +3731,11 @@ export const ENCOUNTERS: Encounter[] = [
     opening: { slam: 14, raid: 13, ...beats({ boarding: 20, mortar: 12, rocket: 26, axes: 9, hull: 17, cannon: 6 }) },
     lines: {
       boarding: 'Boarders! Get to the rail',
-      mortar: 'Mortar — get away from everyone',
-      rocket: 'Rockets, spread out',
+      mortar: 'Mortar! Watch the deck',
+      rocket: 'Artillery — off the marks',
       axes: 'Axes at the back line',
       cannon: 'The gun is loaded — somebody fire it',
-      hull: 'She is shelling the rail — get inboard',
+      hull: 'Pitch on the deck — off the fire',
       breath: '',
       phaseTwo: 'They are over the rail — hold the deck',
       phaseThree: 'BRING HER DOWN, ALL OF YOU',
