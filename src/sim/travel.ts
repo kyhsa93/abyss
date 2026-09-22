@@ -1291,7 +1291,21 @@ const GATHER = 60
  * underneath.
  */
 function huddle(size: number): number {
-  return Math.round(PARTY_RADIUS * 1.5 * Math.sqrt(Math.max(1, size)))
+  // Wide enough to look like a raid walking, narrow enough to fit a door.
+  //
+  // It was 1.5, which put ten bodies of radius nine inside a circle of
+  // forty-three and twenty-five inside sixty-eight: a knot with two or three
+  // tokens visible and the rest underneath, which is what it looked like on
+  // the screen and what it was asked to stop being.
+  //
+  // The ceiling is not a taste. Going through a door is everybody inside
+  // `EXIT_REACH` of it at the same moment -- `dungeoncheck` walks a
+  // twenty-five man across every room in the building and fails a raid that
+  // cannot leave by one -- so ninety is the width a doorway can swallow whole.
+  // At 1.8 the biggest raid stands in eighty-one and the smallest in
+  // fifty-one, which leaves the door its margin and doubles what a ten-man
+  // takes up.
+  return Math.round(PARTY_RADIUS * 1.8 * Math.sqrt(Math.max(1, size)))
 }
 
 /**
@@ -1322,7 +1336,15 @@ function huddle(size: number): number {
  */
 function huddleApart(s: SimState): void {
   const bodies = livingParty(s)
-  const want = PARTY_RADIUS * 1.5
+  // Far enough apart to be two bodies rather than one.
+  //
+  // A body is `PARTY_RADIUS` across the middle, so at one and a half of it the
+  // pair this pushes apart is still overlapping by a third of itself -- the
+  // separation was set to stop them standing on the same point and not to give
+  // them room, and the difference is visible: the raid read as a single token
+  // with edges. Two and a half leaves a body's width of floor between two
+  // bodies, which is the smallest gap that draws as a gap.
+  const want = PARTY_RADIUS * 2.5
   for (const a of bodies) {
     for (const b of bodies) {
       if (b.id <= a.id) continue
