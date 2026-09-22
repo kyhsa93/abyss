@@ -92,6 +92,7 @@ import {
   HOUND_SPEED,
   HOUND_TICK,
   HULL_DAMAGE,
+  HULL_INBOARD,
   HULL_RING,
   INHALE_HASTE,
   INHALE_HELD_ALONE,
@@ -1760,9 +1761,15 @@ function scheduleHull(s: SimState, b: Actor, timing: PhaseTiming): void {
   const edge = roomReach(s.room) * HULL_RING
   const bill = mechanic(s, HULL_DAMAGE)
   for (const a of livingParty(s)) {
-    if (dist(a.pos, middle(s)) < edge) continue
-    applyDamage(s, a, bill, 'physical', { sourceId: BOSS_ID, mechanic: 'hull' })
-    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_hull', power: bill })
+    // A share of it wherever you are standing, and the whole of it out at the
+    // rail. It was the rail alone, and a shell that catches nobody is a
+    // mechanic the build cannot see happening -- the sweep stands the raid in
+    // the middle, so `hull` fired for a whole pull and never billed anyone.
+    // The ask is unchanged: it is much worse to be out there.
+    const out = dist(a.pos, middle(s)) >= edge
+    const share = out ? bill : bill * HULL_INBOARD
+    applyDamage(s, a, share, 'physical', { sourceId: BOSS_ID, mechanic: 'hull' })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_hull', power: share })
   }
 }
 

@@ -1552,6 +1552,8 @@ export const ROCKET_DAMAGE = 900
 /** How close two bodies have to be for a rocket to catch both. */
 export const ROCKET_HUDDLE = 150
 export const HULL_DAMAGE = 1500
+/** What a shell is worth to somebody who is not out at the rail. */
+export const HULL_INBOARD = 0.25
 /** How far out along the deck the enemy's shells land. */
 export const HULL_RING = 0.62
 export const AXE_DAMAGE = 1800

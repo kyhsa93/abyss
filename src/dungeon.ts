@@ -549,8 +549,11 @@ export const CHAMBERS: Chamber[] = [
     id: 'mooring',
     name: 'The Mooring',
     wing: 'lower',
-    encounter: null,
-    awaiting: 'the boss out of reach (#14)',
+    // The eleventh fight, appended to `ENCOUNTERS` rather than slotted in at
+    // its place in the walk: `LADDER` is derived from that order, so inserting
+    // one would shift what every saved `unlocked` number means. The room is
+    // still the third the raid reaches; it is the last rung that opens.
+    encounter: 10,
     // Open air with an edge, which is the one room in the building that is not
     // indoors — and by the plan of this floor the largest open ground in the
     // lower spire rather than the smallest arena in the game. It is a rampart:
@@ -588,6 +591,11 @@ export const CHAMBERS: Chamber[] = [
     // meets first keeps the largest `y` and the three that hold the far end
     // keep the smallest, which is the order they stood in.
     //
+    // And clear of the middle, which is where the eleventh fight's commander
+    // lands: a body inside his own notice circle is a pull nobody chose. The
+    // four that stood between two and three hundred units out are pushed to
+    // two eighty and beyond, in the order they were in.
+    //
     // Spread over fourteen hundred units rather than the corridor's
     // twenty-two hundred, because this platform is 843 across once the
     // building is built -- `roomOf` halves what is written above -- and the
@@ -596,10 +604,10 @@ export const CHAMBERS: Chamber[] = [
     // room they are in.
     packs: [
       { pos: { x: 90, y: 700 }, of: ['Rotting Frost Giant'], pulls: PULL, walks: { x: 90, y: -293 } },
-      { pos: { x: 90, y: -122 }, of: ['Spire Gargoyle'], pulls: PULL },
-      { pos: { x: -90, y: -207 }, of: ['Spire Minion'], pulls: PULL },
-      { pos: { x: -90, y: -233 }, of: ['Spire Gargoyle'], pulls: PULL },
-      { pos: { x: 90, y: -331 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x: 90, y: -280 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x: -90, y: -320 }, of: ['Spire Minion'], pulls: PULL },
+      { pos: { x: -90, y: -360 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x: 90, y: -420 }, of: ['Spire Gargoyle'], pulls: PULL },
       { pos: { x: 61, y: -700 }, of: ['Frenzied Abomination', 'Spire Gargoyle', 'Spire Gargoyle'], pulls: PULL },
     ],
   },

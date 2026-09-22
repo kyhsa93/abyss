@@ -2920,6 +2920,9 @@ expect(
   const SOURCE_WIDTH: Record<string, number> = {
     marrow: 9.0, whisper: 6.0, host: 2.0, gorged: 2.3, confluence: 2.0,
     flasks: 7.8, crowns: 3.5, gift: 8.0, saved: 4.0, cold: 5.0,
+    // Saurfang's model is an orc at one and a half; the ships are invisible
+    // stalkers and have no width to take.
+    skyward: 3.0,
   }
   const offSize: string[] = []
   for (const fight of ENCOUNTERS) {
