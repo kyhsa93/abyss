@@ -563,6 +563,10 @@ export function drawWorld(
   drawFlight(ctx, s, alpha)
 
   for (const a of drawOrder(s, alpha)) {
+    // The gun is drawn by `drawCannon`, as a ring and a mark on the deck. Left
+    // in here it also gets a body sprite, and a cannon that looks like a
+    // raider is a cannon nobody can see they are meant to stand at.
+    if (a.spawn === 'cannon') continue
     // A body inside the boss is not on the floor. It is drawn as a ring under
     // the boss instead -- see `drawSwallowed` -- because "where did they go"
     // has to be answerable, and a figure standing in the middle of the arena

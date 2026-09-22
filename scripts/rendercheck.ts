@@ -182,7 +182,7 @@ import {
 } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
-import { CHAMBERS, PASSAGES, citadelPacks, citadelSprings, citadelWorld, hallFor } from '../src/dungeon'
+import { CHAMBERS, PASSAGES, citadelPacks, citadelSprings, citadelWorld, hallFor, wingFights } from '../src/dungeon'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
@@ -10481,12 +10481,43 @@ for (const [label, w, h] of [
   )
 
   // A room whose fight nobody has built says so, once the doors reach it.
-  const deeper = { ...run, at: 'mooring', cleared: ['spire', 'oratory'] }
+  //
+  // The Mooring was the example until it got a fight, and the Frozen Throne is
+  // the one left waiting. It gets its own run and its own `allowed` rather
+  // than borrowing the ones above: those are an evening two rooms in, and the
+  // throne is at the top of the building behind three wings. Widening them to
+  // reach it would change what every other promise in this block is standing
+  // on.
+  //
+  // Which rooms have to be down is derived rather than listed. The throne's
+  // gate wants three wings, and a wing is done when every fight in it that has
+  // been *written* is down -- so the twelfth fight cannot quietly break this
+  // the way the eleventh broke the version of it that named the Mooring.
+  const waitingFor = ['plague', 'crimson', 'frostwing'] as const
+  const upstairs = waitingFor.flatMap((wing) => wingFights(wing).map((c) => c.id))
+  // Every room on the way up that has a fight in it, because a room with a
+  // fight is a room the walk stops at. The Mooring only became one of those in
+  // the same change that made the Frozen Throne the last unbuilt room, which
+  // is exactly the drift this derivation exists to survive.
+  const onTheWay = CHAMBERS.filter(
+    (c) => ['threshold', 'vigil', 'spire', 'eastclimb', 'westclimb', 'oratory', 'mooring', 'rise', 'crossing'].includes(c.id)
+      && c.encounter !== null,
+  ).map((c) => c.id)
+  const waitingRun = {
+    ...run,
+    at: 'throne',
+    cleared: [...onTheWay, ...upstairs],
+    visited: ['threshold', 'spire', 'oratory', 'crossing', 'throne'],
+  }
+  // Everything open, because what this asks about is whether a room has a
+  // fight rather than whether the ladder has reached it -- that is the promise
+  // underneath this one.
+  const everywhere = new Set(CHAMBERS.map((c) => c.id))
   expect(
     'a room with no fight in it yet says what it is waiting for',
-    citadelLayout(deeper, allowed).rows.find((r) => r.id === 'mooring')?.state === 'here' &&
-      citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'mooring')?.state === 'waiting',
-    citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'mooring')?.state ?? 'missing',
+    citadelLayout(waitingRun, everywhere).rows.find((r) => r.id === 'throne')?.state === 'here' &&
+      citadelLayout({ ...waitingRun, at: 'crossing' }, everywhere).rows.find((r) => r.id === 'throne')?.state === 'waiting',
+    citadelLayout({ ...waitingRun, at: 'crossing' }, everywhere).rows.find((r) => r.id === 'throne')?.state ?? 'missing',
   )
 
   // A room the chain has not opened is shut on the map even though the door is

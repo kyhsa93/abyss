@@ -3716,9 +3716,9 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#0ea5e9',
     names: { slam: 'THE CLEAVE', shard: '', spray: '', crimson: '', breath: '', raid: 'THE BROADSIDE' },
     phases: {
-      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 12, ...beats({ boarding: 40, mortar: 24, rocket: 33, axes: 18, hull: 28, cannon: 12 }) },
-      2: { swing: 1.9, slam: 14.5, puddleCount: 1, raid: 11, ...beats({ boarding: 36, mortar: 21.5, rocket: 30, axes: 16.5, hull: 25, cannon: 12 }) },
-      3: { swing: 1.8, slam: 13, puddleCount: 1, raid: 10, ...beats({ boarding: 32, mortar: 19.5, rocket: 27, axes: 15, hull: 22.5, cannon: 12 }) },
+      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 12, ...beats({ boarding: 40, mortar: 24, rocket: 33, axes: 18, hull: 28, cannon: 13 }) },
+      2: { swing: 1.9, slam: 14.5, puddleCount: 1, raid: 11, ...beats({ boarding: 36, mortar: 21.5, rocket: 30, axes: 16.5, hull: 25, cannon: 11.5 }) },
+      3: { swing: 1.8, slam: 13, puddleCount: 1, raid: 10, ...beats({ boarding: 32, mortar: 19.5, rocket: 27, axes: 15, hull: 22.5, cannon: 10 }) },
     },
     opening: { slam: 14, raid: 13, ...beats({ boarding: 20, mortar: 12, rocket: 26, axes: 9, hull: 17, cannon: 6 }) },
     lines: {

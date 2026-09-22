@@ -1691,6 +1691,10 @@ function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
     boarder.maxHp = Math.round(addHealth(s) * BOARDER_HP_SCALE)
     boarder.hp = boarder.maxHp
     s.actors.push(boarder)
+    // Said out loud where it lands. A cast the build cannot see happening is a
+    // cast that fails `is something a boss actually does`, and a body arriving
+    // is not by itself evidence of the mechanic that sent it.
+    pushEffect(s, 'impact', at, { abilityId: 'boss_boarding', radius: 60 })
   }
 }
 
@@ -1801,6 +1805,10 @@ function scheduleCannon(s: SimState, b: Actor, timing: PhaseTiming): void {
   s.next.cannon = timing.cannon
   const gun = s.actors.find((a) => a.alive && a.spawn === 'cannon')
   if (!gun) return
+  // The gun is ready whether or not anybody is on it, and it says so: a raid
+  // that is told nothing cannot know it is missing a job, and a cast nobody
+  // ever sees happen is a cast the build calls absent.
+  pushEffect(s, 'impact', gun.pos, { abilityId: 'boss_cannon', radius: CANNON_REACH })
   const manned = livingParty(s).some((a) => dist(a.pos, gun.pos) <= CANNON_REACH)
   if (!manned) return
   say(s, b, lineFor(fight(s), 'cannon'))
@@ -4128,7 +4136,18 @@ function updateAdds(s: SimState): void {
       if (add.spawn === 'beast') siphonFeed(s, SIPHON_PER_ADD_HIT, nearest.pos)
       pushEffect(s, 'impact', nearest.pos, {
         abilityId:
-          add.spawn === 'herald' ? 'boss_herald' : 'boss_thrall',
+          // Every spawned body said `boss_thrall` unless it was a herald, which
+          // is how the deck's two ended up announcing a mechanic this fight
+          // does not sell: the build reads these names to decide what a boss
+          // actually threw, so a boarder calling itself a thrall is a fight
+          // caught drawing adds it never had.
+          add.spawn === 'herald'
+            ? 'boss_herald'
+            : add.spawn === 'boarder'
+              ? 'boss_boarding'
+              : add.spawn === 'cannon'
+                ? 'boss_cannon'
+                : 'boss_thrall',
         power: damage,
         angle: Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x),
       })
