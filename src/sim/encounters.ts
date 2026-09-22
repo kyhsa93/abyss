@@ -83,6 +83,12 @@ export type MechanicId =
   | 'haul'
   | 'cover'
   | 'buffet'
+  | 'boarding'
+  | 'mortar'
+  | 'rocket'
+  | 'axes'
+  | 'cannon'
+  | 'hull'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -232,6 +238,16 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // is the property that keeps it the same question at every size: a quarter
   // of the raid is sorting itself onto its own ground whether that is two
   // people or six.
+  // The gunship's six. A deck is not a room: what scales here is how many
+  // bodies come over the rail and how many of the raid get picked out, and
+  // what does not is the ship itself -- there is one hull, one gun, and one
+  // volley however many are standing on it.
+  boarding: true, // a boarding party per so many bodies
+  mortar: true, // one mark per so many, so nobody is safe by headcount
+  rocket: false, // the whole deck at once, which is the same deck at any size
+  axes: true, // one thrower picks one of the ranged, so more ranged is more axes
+  cannon: false, // there is one gun
+  hull: false, // there is one hull
 }
 
 /**
@@ -291,6 +307,12 @@ export function noTimers(): Record<MechanicId, number> {
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   chill: 'the chill',
+  boarding: 'the boarders',
+  mortar: 'the mortar',
+  rocket: 'the rockets',
+  axes: 'the axes',
+  cannon: 'the gun',
+  hull: 'the hull',
   instability: 'the unstable',
   haul: 'the haul',
   cover: 'the shadow',
@@ -883,6 +905,18 @@ export interface PhaseTiming {
    * table rather than a reason to bring one.
    */
   /** A dot on somebody. Slow, unavoidable, and the healer's to solve. */
+  /** Seconds between one boarding party coming over the rail and the next. */
+  boarding: number
+  /** Seconds between one mortar mark and the next. */
+  mortar: number
+  /** Seconds between one rocket volley and the next. */
+  rocket: number
+  /** Seconds between one axe being thrown at the ranged and the next. */
+  axes: number
+  /** Seconds between the gun being ready to fire and being ready again. */
+  cannon: number
+  /** Seconds between one hit on the hull and the next. */
+  hull: number
 }
 
 export interface Encounter {
@@ -1224,6 +1258,12 @@ export interface Encounter {
    */
   opening: {
     coldflame: number
+    boarding: number
+    mortar: number
+    rocket: number
+    axes: number
+    cannon: number
+    hull: number
     spike: number
     blight: number
     inhale: number
@@ -1372,6 +1412,17 @@ export interface Encounter {
   lines: {
     phaseTwo: string
     phaseThree: string
+    /**
+     * The gunship's six, named here so `rendercheck` can hold a cast to a
+     * word: a mechanic in a kit with no name here fails the build rather than
+     * quietly borrowing the slam's.
+     */
+    boarding: string
+    mortar: string
+    rocket: string
+    axes: string
+    cannon: string
+    hull: string
     adds: string
     coldflame: string
     spike: string
@@ -1604,6 +1655,12 @@ export const ENCOUNTERS: Encounter[] = [
     },
     opening: { slam: 14, raid: 13, ...beats({ coldflame: 5, spike: 12.5, bonestorm: 47.5 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
@@ -1909,6 +1966,12 @@ export const ENCOUNTERS: Encounter[] = [
     // they mean is "this long after the wall comes down".
     opening: { slam: 13, raid: 15, ...beats({ adds: 5, volley: 20, decay: 10, frostbolt: 11, shade: 13.5, insignificance: 7.5, empower: 25, dominate: 30 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
@@ -2112,6 +2175,12 @@ export const ENCOUNTERS: Encounter[] = [
     },
     opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 13.8, vilegas: 35, spore: 22.5, inhale: 27.5, pungent: 112 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
@@ -2333,6 +2402,12 @@ export const ENCOUNTERS: Encounter[] = [
     // the bar, which is the whole point of it.
     opening: { slam: 13, raid: 13, ...beats({ siphon: 17, spill: 15.5, fester: 20, adds: 30, champion: 75, gorge: 30 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'It is heavier now',
       phaseThree: 'IT HAS TAKEN ENOUGH',
@@ -2513,6 +2588,12 @@ export const ENCOUNTERS: Encounter[] = [
     // has to be taken out of the table, or a room becomes a discount.
     opening: { slam: 13, raid: 14, ...beats({ spray: 20, infection: 14, flood: 8, engulf: 8, slime: 5 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'It is coming apart',
       phaseThree: 'ALL OF IT AT ONCE',
@@ -2717,6 +2798,12 @@ export const ENCOUNTERS: Encounter[] = [
     },
     opening: { slam: 14, raid: 13, ...beats({ caustic: 32.5, hound: 27.5, gather: 10, chase: 20, decant: 37.5, reagent: 11 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'The second flask',
       phaseThree: 'BOTH OF THEM, THEN',
@@ -2925,6 +3012,12 @@ export const ENCOUNTERS: Encounter[] = [
     // short pull would end without it ever having moved.
     opening: { slam: 14, raid: 13, ...beats({ rotation: 45, thirst: 20, ballast: 21, nuclei: 12.5, prison: 17.5, adds: 46 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'Another of us, then',
       phaseThree: 'ALL THREE, AND NONE OF YOU',
@@ -3085,6 +3178,12 @@ export const ENCOUNTERS: Encounter[] = [
     // fifty-four percent to twenty-eight in one tick.
     opening: { slam: 14, raid: 14, ...beats({ gift: 15, bond: 20, flight: 52, crimson: 20 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'Take it, all of you',
       phaseThree: 'IT IS EVERYWHERE NOW',
@@ -3304,6 +3403,12 @@ export const ENCOUNTERS: Encounter[] = [
     // its first pull with the wound arriving at forty-eight.
     opening: { slam: 0, raid: 14, ...beats({ adds: 20, empower: 50, bleed: 30, kin: 55, portal: 30, suppress: 55 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: '',
       phaseTwo: 'It is fading',
       phaseThree: 'HOLD ON',
@@ -3517,6 +3622,12 @@ export const ENCOUNTERS: Encounter[] = [
     // early mechanic, it is an unanswerable one.
     opening: { slam: 12, raid: 15, ...beats({ chill: 0, instability: 20, haul: 17, spike: 22, cover: 26, buffet: 8, breath: 12, flight: 60 }) },
     lines: {
+      boarding: '',
+      mortar: '',
+      rocket: '',
+      axes: '',
+      cannon: '',
+      hull: '',
       breath: 'She is breathing — get out of the front',
       phaseTwo: 'The cold gets in',
       instability: 'You are coming apart — hands off',
