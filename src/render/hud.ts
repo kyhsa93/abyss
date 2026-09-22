@@ -1204,7 +1204,18 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.fillText(label, x + w / 2, y + 30 * L.ui)
   }
 
-  const summoned = adds(s)
+  // Everything on the boss's side the raid can actually do something about.
+  //
+  // The deck gun is the one body in this game that refuses damage outright --
+  // `applyDamage` returns on it before anything else -- so counting it here
+  // told a raid there was a thrall to kill, under a health bar forty times an
+  // add's that was never going to move. It is furniture the raid stands at,
+  // not a body it fights, and the line above it is the one that says so.
+  //
+  // Filtered here rather than in `adds` itself: the same list is what the
+  // rotation picks targets from and what `updateAdds` walks to make the gun
+  // exist at all, and a gun nothing iterates is a gun that never fires.
+  const summoned = adds(s).filter((a) => a.spawn !== 'cannon')
   if (summoned.length > 0) {
     ctx.fillStyle = '#c084fc'
     ctx.font = font(11, true)
