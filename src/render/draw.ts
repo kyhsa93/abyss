@@ -372,6 +372,11 @@ export function drawWorld(
       { x: cam.x + wide, y: cam.y + deep },
     )
   }
+  // The one room in the building with a drop instead of a wall, filled in
+  // before any floor is laid so the floor's own lip lands on top of it.
+  for (const cell of cells) {
+    if (cell.kind === 'apse') drawApseIce(ctx, cell)
+  }
   const building = cells.length > 1
   if (building) {
     ctx.save()
@@ -1212,6 +1217,132 @@ function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): 
 }
 
 /**
+ * How far past the lip the ice below it is drawn, as a share of the radius.
+ *
+ * About a third, which on an eleven-hundred bowl is three hundred and fifty
+ * units of it.
+ *
+ * What is drawn is not the cliff's face: from a camera this high and this far
+ * in front, a vertical face behind the floor is hidden by the floor itself.
+ * What can be seen over that edge is the ice the drop lands on, going away --
+ * so this is a distance across the ground rather than a height, which is why
+ * it is laid out in the room's own frame and put through the same projection
+ * as the floor. Enough to read as a depth, and not so much that it climbs the
+ * screen behind the boss.
+ */
+const ICE_FALL = 0.32
+
+/**
+ * What a crack in that ice is drawn in.
+ *
+ * Out here and exported because it is the only thing in the renderer stroked
+ * in this tone, which is what lets `rendercheck` find the cliff at all -- it
+ * counts strokes by colour rather than trying to tell a crack from the
+ * hundred grid lines drawn in the same frame. Held as one value rather than
+ * copied into the check, because the copy went stale within the hour the
+ * first time: quietening the cracks left the check hunting a colour nothing
+ * drew any more, which counts nothing and reads as a missing cliff.
+ */
+export const ICE_CRACK = 'rgba(148, 178, 200, 0.13)'
+
+/**
+ * The ice an apse's floor stops above.
+ *
+ * Drawn as its own pass over the cells rather than with the rest of that
+ * room's edge, and the reason is the one thing that made this invisible for
+ * as long as it existed. A room draws its own outline only when it is the
+ * only room on the glass; inside a building `drawArena` returns before it
+ * reaches `drawBrink`, because a citadel is walled once underneath rather
+ * than thirty-two times. The citadel is the mode Marrowgar's bowl is played
+ * in -- so the band, the bright line and this were all drawn into a frame
+ * nobody was looking at, and the drop behind the boss was black in every
+ * frame of the actual game.
+ */
+function drawApseIce(ctx: CanvasRenderingContext2D, room: RoomShape & { kind: 'apse' }): void {
+  // The cliff itself, which used to be nothing at all.
+  //
+  // What is over that edge in the source is not empty space: it is the ice the
+  // bowl is cut into, and reading that ice as floor is the mistake this room
+  // was rebuilt to undo -- see the opening of `docs/reading-the-source.md`.
+  // The floor still stops at the lip. What changes is that the drop is drawn
+  // as the thing it is rather than as a hole in the picture.
+  //
+  // Paint and nothing else: `dropGap` still answers off the lip, `onEdge`
+  // still keeps the AI off the strip, and a body that steps over still falls.
+  //
+  // Both edges are written in the room's frame and projected together, so the
+  // ice tips and turns with the floor it runs off. Taken to screen space and
+  // extruded straight up instead, it would be right only for a room that has
+  // not been turned -- which is every apse there is today, and is exactly the
+  // kind of agreement that holds until somebody adds the second one.
+  const drop = room.radius * ICE_FALL
+  const shelf = [
+    { x: -room.radius, y: -room.back },
+    { x: room.radius, y: -room.back },
+  ].map((q) => worldToScreen(fromRoom(room, q)))
+  const under = [
+    { x: -room.radius, y: -room.back - drop },
+    { x: room.radius, y: -room.back - drop },
+  ].map((q) => worldToScreen(fromRoom(room, q)))
+  ctx.save()
+  // Pale at the lip and gone by the far end. The light in this game comes from
+  // above -- every body drops its shadow straight onto its own feet -- so the
+  // ice just over the edge catches it and the gorge below does not.
+  //
+  // The far stop is fully transparent, which is the whole of what makes this
+  // a drop rather than a panel: drawn to an edge, a lit quad ends in a hard
+  // horizontal line against the black and reads as something hung behind the
+  // room. Faded out, it is ice going away.
+  //
+  // And it is quiet. It is the largest thing on the screen after the floor,
+  // and the floor's rule -- the ground may say something, and it may not have
+  // an opinion loud enough to be read before a telegraph is -- is a rule
+  // about area as much as about colour. A first pass at this was the
+  // brightest field in the frame and pulled the eye off the fight.
+  const ice = ctx.createLinearGradient(0, under[0]!.y, 0, shelf[0]!.y)
+  ice.addColorStop(0, 'rgba(12, 18, 28, 0)')
+  ice.addColorStop(0.45, 'rgba(24, 38, 54, 0.45)')
+  ice.addColorStop(1, 'rgba(70, 104, 130, 0.42)')
+  ctx.beginPath()
+  ctx.moveTo(shelf[0]!.x, shelf[0]!.y)
+  ctx.lineTo(shelf[1]!.x, shelf[1]!.y)
+  ctx.lineTo(under[1]!.x, under[1]!.y)
+  ctx.lineTo(under[0]!.x, under[0]!.y)
+  ctx.closePath()
+  ctx.fillStyle = ice
+  ctx.fill()
+  // Cracks, because a gradient on its own is fog and ice is broken. Off the
+  // room rather than off a seed, so the same bowl shows the same ice every
+  // pull and nothing shimmers when the camera moves over it.
+  //
+  // They stop where the ice does. Run the full depth at an even weight and
+  // their far halves hang in the black the fill has already faded into, which
+  // reads as scratches on the screen rather than as anything in the world --
+  // so they are drawn across the near part only, where there is still ice for
+  // them to be cracks in.
+  const CRACK = 0.45
+  ctx.strokeStyle = ICE_CRACK
+  ctx.lineWidth = 1
+  for (let i = 1; i < 9; i++) {
+    const t = i / 9
+    const lean = t + (((i * 37) % 11) / 11 - 0.5) * 0.04
+    const from = {
+      x: shelf[0]!.x + (shelf[1]!.x - shelf[0]!.x) * t,
+      y: shelf[0]!.y + (shelf[1]!.y - shelf[0]!.y) * t,
+    }
+    const away = {
+      x: under[0]!.x + (under[1]!.x - under[0]!.x) * lean,
+      y: under[0]!.y + (under[1]!.y - under[0]!.y) * lean,
+    }
+    ctx.beginPath()
+    ctx.moveTo(from.x, from.y)
+    ctx.lineTo(from.x + (away.x - from.x) * CRACK, from.y + (away.y - from.y) * CRACK)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+/**
  * The same lane, along the one straight edge of an apse.
  *
  * A band inside the chord and a brighter line on it. Drawn in the room's own
@@ -1309,19 +1440,59 @@ function wearing(s: SimState, cell: RoomShape, accent: string): string {
  * the ground's own colour has a ceiling: whatever it is, a telegraph on top of
  * it has to read exactly as well as it did on grey.
  */
-const WING_WASH = 0.16
+export const WING_WASH = 0.16
 
-const WING_COLOUR: Record<WingId, string> = {
+/**
+ * And which colour that is, per wing.
+ *
+ * Taken down toward the source's own palette rather than measured off it, and
+ * the difference matters enough to write here. The citadel's interior model
+ * names thirty-three textures and they are nearly all one family: walls and
+ * beams (`JLO_ICEC_WALL01`, `BEAMDARK`, `DARKTRIM`), bone and iron
+ * (`BONEWALL`, `BONEMETAL`, `METALSKULL`, `METALWALL01`-`03`) and floors cut
+ * from the same stone (`FLOORSKULL`, `FLOORSKULLDARK`, `FLOORDARK`,
+ * `FLOORPATH`, `FLOORPATH02`, `FLOORCIRCLE01`, `FLOORSKULLWORN`). Two are ice
+ * (`IC_NEX_ICE_01`, `IC_ROCK01_ICE`). Nothing in it is a saturated green or a
+ * bright red.
+ *
+ * The pixels themselves could not be read: those `.blp` files are not in the
+ * client this repo has -- eighteen archives hold no citadel texture at all,
+ * only the UI's world-map tiles, and those are DXT with no decoder here. So
+ * this is judgement off the names, which is `docs/reading-the-source.md` step
+ * four -- "write down what each colour or texture *is*" -- answered by a
+ * person rather than by a measurement. Say so rather than dress it up: the
+ * next person should be able to disagree with the reading, not hunt for it.
+ *
+ * Each wing keeps its own hue so the building still says which part you are
+ * in; what changes is that the hue is a tint of bone and iron rather than a
+ * colour in its own right. Every one of these is less saturated than the
+ * colour it replaces and none is more so.
+ *
+ * Dulling them is not free, and the first attempt at it cost the thing they
+ * exist for. Washed onto the floor at `WING_WASH` the five have to stay
+ * telling apart, and taking the saturation out took that with it: the lower
+ * spire and the frostwing halls came out three counts apart in their widest
+ * channel, which on a dark floor is one colour drawn twice. So the hues are
+ * pushed back apart as far as the dulling pulled them together -- the closest
+ * pair is six counts, which is exactly where it stood before any of this --
+ * and the ceiling above is measured rather than assumed: the worst telegraph
+ * contrast over any of these floors is 4.45, against 4.44 for the colours
+ * they replace and 6.11 over bare stone. `rendercheck` holds both numbers.
+ */
+export const WING_COLOUR: Record<WingId, string> = {
   // Bone and old iron on the way up, which is what the lower spire is made of.
-  lower: '#8ea0b4',
-  // The plagueworks, which is the one part of the building that is alive.
-  plague: '#7fb069',
-  // The crimson hall.
-  crimson: '#c04d5a',
+  lower: '#a89a86',
+  // The plagueworks, which is the one part of the building that is alive --
+  // but it is alive in a building made of this, so the green is a cast on the
+  // stone rather than a field of it.
+  plague: '#84a468',
+  // The crimson hall, whose red in the source is lamplight and banners on the
+  // same dark stone.
+  crimson: '#b8626a',
   // Ice, and the dragon in it.
-  frostwing: '#6fb6d6',
+  frostwing: '#6aa8c8',
   // The top, which is the same ice gone white.
-  throne: '#cfd8e6',
+  throne: '#d0d6e0',
 }
 
 /**

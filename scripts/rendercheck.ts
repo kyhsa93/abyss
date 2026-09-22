@@ -19,7 +19,7 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { TILT, arenaPath, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { ICE_CRACK, TILT, WING_COLOUR, WING_WASH, arenaPath, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
 import { walkFrame } from '../src/render/lpcimage'
@@ -10820,6 +10820,236 @@ for (const [label, w, h] of [
     'and a piece still in view is the same piece a step later',
     moved.length === 0,
     `${moved.length} changed, e.g. ${moved.slice(0, 3).join('; ')}`,
+  )
+}
+
+// --- what is over the edge of Marrowgar's floor ------------------------------
+//
+// The bowl is cut into an ice cliff and for a long time this game drew the
+// cliff as nothing at all: the floor stopped at the chord and the screen
+// behind it was the same flat black as the space outside every other room.
+// The floor still stops there -- `dropGap` and `onEdge` are untouched and a
+// body that walks over still falls -- but what the player looks at over the
+// lip is now the ice the drop lands on.
+//
+// Asked by colour rather than by shape. The cracks in that ice are the only
+// thing in the renderer stroked in their own tone, and the alternative is
+// counting line segments in a frame that also draws the floor grid a hundred
+// times.
+{
+  updateLayout(1440, 900)
+
+  interface Seg {
+    x0: number
+    y0: number
+    x1: number
+    y1: number
+    style: string
+  }
+  const iceRecorder = (out: Seg[], fills: string[] = []): CanvasRenderingContext2D => {
+    const noop = () => {}
+    let from = { x: 0, y: 0 }
+    let to = { x: 0, y: 0 }
+    let style = ''
+    let filling = ''
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_t, prop) {
+        if (prop === 'moveTo') {
+          return (x: number, y: number) => {
+            from = { x, y }
+            to = { x, y }
+          }
+        }
+        if (prop === 'lineTo') {
+          return (x: number, y: number) => {
+            to = { x, y }
+          }
+        }
+        if (prop === 'stroke') {
+          return () => out.push({ x0: from.x, y0: from.y, x1: to.x, y1: to.y, style })
+        }
+        if (prop === 'fill') return () => fills.push(filling)
+        if (prop === 'measureText') return () => ({ width: 10 })
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+          return () => ({ addColorStop: noop })
+        }
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return noop
+      },
+      set(_t, prop, value) {
+        if (prop === 'strokeStyle') style = String(value)
+        if (prop === 'fillStyle') filling = String(value)
+        return true
+      },
+    }
+    return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
+  }
+
+  const cracksIn = (s: SimState): Seg[] => {
+    const out: Seg[] = []
+    drawWorld(iceRecorder(out), s, 1, s.time, new Effects())
+    return out.filter((seg) => seg.style === ICE_CRACK)
+  }
+  const cracksOf = (encounter: number): Seg[] =>
+    cracksIn(pulled(0x51ed, 0, undefined, undefined, encounter))
+
+  // Marrowgar is the first fight and the only apse in the building.
+  const apse = ENCOUNTERS[0]!
+  expect(
+    'the first fight is the room with the straight edge',
+    (apse.room ?? ROUND_ARENA).kind === 'apse',
+    `${apse.short} is ${(apse.room ?? ROUND_ARENA).kind}`,
+  )
+
+  const cracks = cracksOf(0)
+  expect('and the ice over its edge is drawn', cracks.length > 0, `${cracks.length} cracks`)
+  // Every one of them runs away from the lip rather than along it. A face with
+  // no fall is a line, and a line is what was already there.
+  const flat = cracks.filter((seg) => seg.y0 - seg.y1 < 1)
+  expect(
+    'and every crack in it falls away from the lip',
+    cracks.length > 0 && flat.length === 0,
+    `${flat.length} of ${cracks.length} are flat`,
+  )
+  // And they are spread along the whole chord rather than bunched at a corner,
+  // which is the difference between a face and a smudge.
+  const xs = cracks.map((seg) => seg.x0)
+  const span = Math.max(...xs) - Math.min(...xs)
+  expect(
+    'and the ice runs the width of the drop',
+    cracks.length > 0 && span > L.w * 0.3,
+    `${Math.round(span)} across a ${L.w} window`,
+  )
+
+  // And it is there in the mode the room is actually played in.
+  //
+  // This is the promise the first version of this check was missing, and the
+  // bug it was missing is the one that mattered: a room draws its own outline
+  // only when it is the only room on the glass, so inside the citadel
+  // `drawArena` returns before it ever reaches the floor's edge. Every frame
+  // of the actual game had black over that lip while a check driving a
+  // one-room pull said the ice was fine. So the frame here is a building --
+  // anything with a second cell in it takes the same branch -- and what it
+  // asks is that the drop survives it.
+  //
+  // The second cell has to be close enough to survive the camera's own cull,
+  // or this frame is a one-room pull wearing a second room's name and the
+  // promise is one that cannot fail. So the frame is asked to show its
+  // working: a building lays its wall as a fill under every floor, which a
+  // lone room never does, and that fill is what says the branch was taken.
+  const inside = pulled(0x51ed, 0)
+  inside.floor = [inside.room, { kind: 'round', radius: 300, at: { x: 1200, y: 0 } }]
+  const walls: string[] = []
+  const insideCracks = (() => {
+    const out: Seg[] = []
+    drawWorld(iceRecorder(out, walls), inside, 1, inside.time, new Effects())
+    return out.filter((seg) => seg.style === ICE_CRACK)
+  })()
+  expect(
+    'a frame with two rooms in it is drawn as a building',
+    walls.filter((f) => f === COLORS.floorEdge).length > 0,
+    `${walls.filter((f) => f === COLORS.floorEdge).length} wall fills`,
+  )
+  expect(
+    'and the ice is still drawn when the room is a piece of one',
+    insideCracks.length > 0,
+    `${insideCracks.length} cracks`,
+  )
+
+  // The control. Encounter two is a plain circle, and a round room's floor
+  // ends in a wall rather than in a drop: ice there would be a cliff drawn
+  // inside a building.
+  const round = ENCOUNTERS[2]!
+  expect(
+    'the third fight is a room with no drop',
+    (round.room ?? ROUND_ARENA).kind === 'round',
+    `${round.short} is ${(round.room ?? ROUND_ARENA).kind}`,
+  )
+  const none = cracksOf(2)
+  expect('and nothing draws ice in it', none.length === 0, `${none.length} cracks`)
+}
+
+// --- the wings are the colour the source's own textures are ------------------
+//
+// The five hues the citadel's floors wear while the raid walks are judgement
+// off the texture names rather than a measurement off the pixels -- the
+// reasons are written where they are declared. What can be measured is the
+// two things that judgement is allowed to cost, and neither is obvious by
+// eye, which is why they are here.
+//
+// The first is the ceiling `WING_WASH` already states: a telegraph drawn on a
+// washed floor has to read as well as it did on grey. The second is the whole
+// reason these exist -- five wings that wash out to the same dark stone say
+// nothing about which part of the building the party has walked into, and
+// pulling the saturation out is exactly the change that does that.
+{
+  const channels = (css: string): [number, number, number, number] => {
+    if (css.startsWith('#')) {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(css.slice(i, i + 2), 16))
+      return [r!, g!, b!, 1]
+    }
+    const parts = css.slice(css.indexOf('(') + 1, css.indexOf(')')).split(',').map(Number)
+    return [parts[0]!, parts[1]!, parts[2]!, parts[3] ?? 1]
+  }
+  const over = (top: string, bottom: [number, number, number, number], alpha?: number) => {
+    const t = channels(top)
+    const a = alpha ?? t[3]
+    return [
+      Math.round(t[0] * a + bottom[0] * (1 - a)),
+      Math.round(t[1] * a + bottom[1] * (1 - a)),
+      Math.round(t[2] * a + bottom[2] * (1 - a)),
+      1,
+    ] as [number, number, number, number]
+  }
+  const lum = (p: [number, number, number, number]) => {
+    const f = (v: number) => {
+      const c = v / 255
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2])
+  }
+  const ratio = (a: [number, number, number, number], b: [number, number, number, number]) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p)
+    return (hi! + 0.05) / (lo! + 0.05)
+  }
+
+  const stone = channels(COLORS.floor)
+  const wings = Object.entries(WING_COLOUR)
+  const floors = wings.map(([id, hue]) => [id, over(hue, stone, WING_WASH)] as const)
+
+  // Measured against bare stone rather than against a number somebody picked:
+  // the question the ceiling asks is whether the wash costs anything, and the
+  // only honest zero is the floor with no wash on it.
+  const bare = ratio(over(COLORS.telegraphEdge, stone), stone)
+  const worst = floors
+    .map(([id, floor]) => [id, ratio(over(COLORS.telegraphEdge, floor), floor)] as const)
+    .sort((a, b) => a[1] - b[1])[0]!
+  expect(
+    'a telegraph over a washed floor still reads',
+    worst[1] > bare * 0.7,
+    `${worst[0]} at ${worst[1].toFixed(2)} against ${bare.toFixed(2)} on bare stone`,
+  )
+
+  // And no two wings wash out to the same floor. Six counts in the widest
+  // channel is where this stood before the hues were dulled, and dulling them
+  // is the change that threatens it: the first attempt closed two wings to
+  // three counts, which is one colour drawn twice.
+  let closest = { pair: '', apart: 999 }
+  for (let i = 0; i < floors.length; i++) {
+    for (let j = i + 1; j < floors.length; j++) {
+      const [a, b] = [floors[i]!, floors[j]!]
+      const apart = Math.max(
+        Math.abs(a[1][0] - b[1][0]),
+        Math.abs(a[1][1] - b[1][1]),
+        Math.abs(a[1][2] - b[1][2]),
+      )
+      if (apart < closest.apart) closest = { pair: `${a[0]}/${b[0]}`, apart }
+    }
+  }
+  expect(
+    'and no two wings wash out to the same floor',
+    closest.apart >= 6,
+    `${closest.pair} are ${closest.apart} apart`,
   )
 }
 
