@@ -318,7 +318,9 @@ export class Ambience {
     ctx.scale(close, close)
     ctx.translate(-L.cx, -L.cy)
     ctx.globalAlpha = 0.55
-    drawWorld(ctx, this.state, 1, this.clock, this.effects)
+    // Scenery, so no words: see `asBackdrop`. A pull nobody is watching was
+    // printing its damage numbers and its chat across the menu over the top.
+    drawWorld(ctx, this.state, 1, this.clock, this.effects, false, true)
     ctx.restore()
 
     ctx.fillStyle = 'rgba(10, 10, 15, 0.72)'

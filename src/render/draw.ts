@@ -340,6 +340,24 @@ export function drawWorld(
    * looks identical from in here.
    */
   padLit = false,
+  /**
+   * Whether this is the scenery behind a menu rather than the game.
+   *
+   * The screens before a fight do not draw a picture of one — they draw the
+   * fight itself, dimmed: `Ambience.draw` clears the glass, runs `drawWorld`
+   * at a little over half strength and lays a scrim over the top. Everything
+   * made of paint takes that dimming. Everything made of words does not, and
+   * cannot: a bubble and a damage number each set their own alpha, and setting
+   * it replaces the ambient one rather than multiplying into it — so the
+   * citadel's map came up with "-55" and "Rocketeers, reload!" printed across
+   * the room list at full strength, from a pull nobody was watching.
+   *
+   * Dimming them to match would be the wrong fix anyway. The backdrop is there
+   * to be looked past; words are there to be read, and there is nothing behind
+   * a menu worth reading. So the two layers made of words are not drawn at
+   * all, and the scenery stays scenery.
+   */
+  asBackdrop = false,
 ): void {
   // Which room this is, before anything is measured against it: the layout's
   // scale is how much world fits on the glass, and that is a fact about the
@@ -629,7 +647,21 @@ export function drawWorld(
       const lift = Math.max(0, Math.min(1, 1 - getAura(a, 'aloft')!.remaining / FLIGHT_LIFE))
       ctx.save()
       ctx.translate(0, -Math.sin(Math.min(1, lift * 2 + 0.15) * Math.PI * 0.5) * 34 * L.scale)
-      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s, a), s.seed, s.phase)
+      drawActor(
+        ctx,
+        a,
+        alpha,
+        clock,
+        false,
+        bg,
+        bossAccent(s),
+        bossBody(s, a),
+        s.seed,
+        s.phase,
+        Infinity,
+        0,
+        asBackdrop,
+      )
       ctx.restore()
       continue
     }
@@ -647,9 +679,24 @@ export function drawWorld(
         s.phase,
         s.time - s.phaseAt,
         a.id === BOSS_ID ? s.gauge : 0,
+        asBackdrop,
       )
     } else {
-      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, undefined, s.seed, s.phase)
+      drawActor(
+        ctx,
+        a,
+        alpha,
+        clock,
+        standingInFire(s, a),
+        bg,
+        COLORS.boss,
+        undefined,
+        s.seed,
+        s.phase,
+        Infinity,
+        0,
+        asBackdrop,
+      )
     }
   }
 
@@ -666,14 +713,14 @@ export function drawWorld(
   // above every body, which a per-actor draw cannot promise -- the raid is
   // drawn back to front, so a bubble drawn with its own body is covered by
   // whoever is standing in front of them.
-  drawBubbles(ctx, s, alpha, clock)
+  if (!asBackdrop) drawBubbles(ctx, s, alpha, clock)
 
   drawCarriedFlags(ctx, s, alpha)
   drawProjectiles(ctx, s, alpha)
   // Above the tokens and below the numbers: a hit should be visible on top of
   // whoever took it, and never on top of what the fight is telling you.
   effects.draw(ctx, worldToScreen, L.scale, viewAngle())
-  drawFloatingText(ctx, s, alpha)
+  if (!asBackdrop) drawFloatingText(ctx, s, alpha)
   ctx.restore()
 
   drawRaidFlash(ctx, s)
@@ -3282,6 +3329,15 @@ function drawActor(
    * or dies on the raid noticing it fill.
    */
   gauge = 0,
+  /**
+   * Whether this body is scenery behind a menu. See `drawWorld`'s own.
+   *
+   * Only one thing here reads it, and it is the one thing here made of words:
+   * a raider's name. The citadel's map came up with "Bastion" printed beside
+   * "Oratory" and "Rook" beside "Rise", because a name sets its own fill and
+   * so ignores the dimming the rest of the picture takes.
+   */
+  asBackdrop = false,
 ): void {
   const p = screenPos(a, alpha)
   // A small thing wears what it has eaten. The simulation's radius is left
@@ -3957,7 +4013,7 @@ function drawActor(
   // that twenty-five names is mush — but a name you cannot rely on being
   // there is worse than a crowded one, and picking a particular body out of
   // the crowd is exactly what the raid size makes hard.
-  if (a.faction === 'party' && a.alive) {
+  if (a.faction === 'party' && a.alive && !asBackdrop) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
     ctx.fillText(a.name, p.x, p.y - r - (hurt ? 15 : 8))
@@ -3986,14 +4042,101 @@ function drawActor(
  * it, so a bubble and its entry in the list disappear together rather than the
  * screen keeping something the log has forgotten.
  */
+/** A bubble already on the glass, so the next one can keep out of its way. */
+interface Spoken {
+  left: number
+  right: number
+  top: number
+  bottom: number
+  text: string
+}
+
+/**
+ * Put a bubble on the glass without landing it on one already there.
+ *
+ * A raid answers a mechanic together, so four raiders say the same sentence in
+ * the same tenth of a second while standing inside one huddle — and four boxes
+ * over four heads twenty pixels apart is one illegible pile. Measured in play
+ * on the first fight: five of them stacked, not one readable, which is the
+ * whole job of the one thing on screen made of words.
+ *
+ * Two rules, in this order. Words that would land on the same words already
+ * shown are not drawn twice: one bubble speaks for the raid, and the list in
+ * the corner still says who said it. Anything else is lifted clear of what is
+ * already there, and dropped rather than drawn when there is no room left
+ * above it — a bubble pushed up through the boss frame hides the fight to
+ * report on it.
+ *
+ * The width is measured in the font the box is actually drawn in, which it was
+ * not: `bubbleAt` sets `font(10)` itself, so the caller's measurement was
+ * taken in whatever font the last thing drawn happened to leave behind.
+ */
+function speak(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  text: string,
+  fade: number,
+  placed: Spoken[],
+): void {
+  const gap = 3 * L.ui
+  const ceiling = L.bossY + 54 * L.ui
+  let at = y
+  for (let tries = 0; tries <= placed.length; tries++) {
+    const box = { ...bubbleBox(ctx, x, at, text), text }
+    const hit = placed.find(
+      (one) =>
+        one.left < box.right && box.left < one.right && one.top < box.bottom && box.top < one.bottom,
+    )
+    if (hit === undefined) {
+      placed.push(box)
+      bubbleAt(ctx, x, at, text, fade)
+      return
+    }
+    if (hit.text === text) return
+    at -= box.bottom - hit.top + gap
+    if (at < ceiling) return
+  }
+}
+
+/**
+ * The glass one bubble takes up, tail included.
+ *
+ * Exported because `rendercheck` has to ask whether two of them land on each
+ * other, and a check that answers with its own copy of the numbers is a check
+ * that goes quietly wrong the first time the box changes — a colour copied
+ * into a check this week was reading a shade the renderer had already stopped
+ * using, inside the hour.
+ *
+ * Measured in the font the box is drawn in, and before the cut `bubbleAt`
+ * makes to fit a narrow screen — that only ever makes the box narrower, so
+ * this is a box that is never too small to keep the next one clear.
+ */
+export function bubbleBox(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  text: string,
+): { left: number; right: number; top: number; bottom: number } {
+  ctx.save()
+  ctx.font = font(10)
+  const w = ctx.measureText(text).width + 12 * L.ui
+  ctx.restore()
+  const h = 15 * L.ui
+  return { left: x - w / 2, right: x + w / 2, top: y - h / 2, bottom: y + h / 2 + 5 * L.ui }
+}
+
 function drawBubbles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, clock: number): void {
   const newest = new Map<number, ChatLine>()
   for (const line of s.chat) {
     const seen = newest.get(line.by)
     if (!seen || line.age < seen.age) newest.set(line.by, line)
   }
-  for (const [by, line] of newest) {
-    const who = s.actors.find((a) => a.id === by)
+  // Newest first, so the line that has just arrived keeps the spot it asked
+  // for and the ones still fading stack above it.
+  const placed: Spoken[] = []
+  for (const line of [...newest.values()].sort((a, b) => a.age - b.age)) {
+    const who = s.actors.find((a) => a.id === line.by)
     if (!who || !who.alive) continue
     const at = actorPos(who, alpha)
     const p = worldToScreen(at)
@@ -4015,14 +4158,19 @@ function drawBubbles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, 
     // hid the thing it was talking about.
     const lift = Math.max(4, who.radius * L.scale) + 26 * L.ui
     const top = L.bossY + 54 * L.ui
+    ctx.save()
+    ctx.font = font(10)
     const wide = ctx.measureText(line.text).width + 12 * L.ui
+    ctx.restore()
     const half = Math.min(L.w / 2 - 8, wide / 2)
     const x = Math.max(half + 8, Math.min(L.w - half - 8, p.x))
     const y = Math.max(top, Math.min(L.actionY - 30 * L.ui, p.y - lift))
-    bubbleAt(ctx, x, y, line.text, fade)
+    speak(ctx, x, y, line.text, fade, placed)
   }
 
-  drawBystanderTalk(ctx, s, clock)
+  // The same glass, so a greeting from somebody standing in the hall cannot
+  // land on what the raid is saying to each other.
+  drawBystanderTalk(ctx, s, clock, placed)
 }
 
 /**
@@ -4044,7 +4192,12 @@ function drawBubbles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, 
  * together from saying the same thing, and the clock turns it over slowly
  * enough to be read.
  */
-function drawBystanderTalk(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
+function drawBystanderTalk(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  clock: number,
+  spoken: Spoken[] = [],
+): void {
   const lead = s.actors.find((a) => a.isPlayer && a.alive) ?? s.actors.find((a) => a.faction === 'party' && a.alive)
   if (!lead) return
 
@@ -4072,7 +4225,7 @@ function drawBystanderTalk(ctx: CanvasRenderingContext2D, s: SimState, clock: nu
     for (let i = 0; i < one.name.length; i++) seed = (seed * 31 + one.name.charCodeAt(i)) % 9973
     const line = lines[(seed + Math.floor(clock / 6)) % lines.length]!
     const on = worldToScreen(one.pos)
-    bubbleAt(ctx, on.x, on.y - bodyHeight(PARTY_RADIUS * L.scale) - 10 * L.ui, line, 1)
+    speak(ctx, on.x, on.y - bodyHeight(PARTY_RADIUS * L.scale) - 10 * L.ui, line, 1, spoken)
   }
 }
 

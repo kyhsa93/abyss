@@ -21,7 +21,7 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { BOARDING_BEARING, boardingDoor } from '../src/sim/boss'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
@@ -11209,6 +11209,86 @@ for (const [label, w, h] of [
     landed.length > 0 && far.length === 0,
     `${far.length} of ${landed.length} landed elsewhere`,
   )
+}
+
+// --- what is made of words ---------------------------------------------------
+//
+// Two things a raid reads rather than looks at: the bubbles over its own heads
+// and the numbers coming off what it hits. Both were being drawn where they
+// could not be read -- on top of each other, and on top of the citadel's map.
+{
+  updateLayout(1440, 900)
+  const s = pulled(0x51ed, 0)
+  const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+  const together = party.slice(0, 4)
+  // A raid answers a mechanic together, which is exactly when this breaks: the
+  // same sentence from four bodies standing inside one huddle.
+  const middle = together[0]!.pos
+  for (const a of together) {
+    a.pos = { x: middle.x + (a.id % 3) * 6, y: middle.y + (a.id % 2) * 6 }
+  }
+  s.chat = together.map((a, i) => ({
+    id: 100 + i,
+    speaker: a.name,
+    text: 'Break the spike — get them out',
+    age: 0.1,
+    by: a.id,
+  }))
+
+  const said: Label[] = []
+  drawWorld(recordingCtx([], said), s, 1, s.time, new Effects())
+  const same = said.filter((l) => l.text === 'Break the spike — get them out')
+  expect(
+    'four raiders saying one thing draw one bubble',
+    same.length === 1,
+    `${same.length} bubbles for one sentence`,
+  )
+
+  // And different things, from the same huddle, are stacked rather than piled:
+  // every box is drawn, and no two of them sit on the same line.
+  s.chat = together.map((a, i) => ({
+    id: 200 + i,
+    speaker: a.name,
+    text: `line ${i}`,
+    age: 0.1,
+    by: a.id,
+  }))
+  const apart: Label[] = []
+  drawWorld(recordingCtx([], apart), s, 1, s.time, new Effects())
+  const lines = apart.filter((l) => /^line \d$/.test(l.text))
+  expect('four different lines draw four bubbles', lines.length === 4, `${lines.length}`)
+  // Not "on different rows". Two boxes side by side on one row are perfectly
+  // readable, and the first go at this promise failed on exactly that: two
+  // bubbles at y 376, twenty-five pixels apart, touching nothing. What must
+  // not happen is one box on top of another — so the box is what is asked
+  // about, measured by the renderer's own `bubbleBox` rather than by a copy of
+  // its numbers kept here.
+  const ruler = recordingCtx([])
+  const boxes = lines.map((l) => ({ text: l.text, ...bubbleBox(ruler, l.x, l.y, l.text) }))
+  const piled = boxes.flatMap((a, i) =>
+    boxes
+      .slice(i + 1)
+      .filter((b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom)
+      .map((b) => `${a.text} under ${b.text}`),
+  )
+  expect('and no two of them land on each other', piled.length === 0, piled.join(', '))
+
+  // The backdrop is scenery. The menus draw the fight itself, dimmed, and a
+  // bubble sets its own alpha rather than inheriting the dimming -- so words
+  // from a pull nobody is watching came out at full strength over the map.
+  s.texts = [{ id: 1, pos: { ...middle }, text: '-55', kind: 'damage', power: 55, age: 0.1 }]
+  const front: Label[] = []
+  const behind: Label[] = []
+  drawWorld(recordingCtx([], front), s, 1, s.time, new Effects(), false, false)
+  drawWorld(recordingCtx([], behind), s, 1, s.time, new Effects(), false, true)
+  // Names count too. The first go at this guarded the bubbles and the numbers
+  // and left the nameplates, so the map still came up with "Bastion" printed
+  // next to "Oratory" — every one of them is a word the menu did not ask for.
+  const named = new Set(party.map((a) => a.name))
+  const words = (out: Label[]): number =>
+    out.filter((l) => /^line \d$/.test(l.text) || l.text === '-55' || named.has(l.text)).length
+  expect('a fight draws its own words', words(front) > 0, `${words(front)}`)
+  expect('and a backdrop draws none of them', words(behind) === 0, `${words(behind)} drawn behind a menu`)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
