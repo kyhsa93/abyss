@@ -400,6 +400,17 @@ export function drawWorld(
   for (const cell of cells) {
     if (cell.kind === 'apse') drawApseIce(ctx, cell)
   }
+  // And the ship the deck is fighting, under the deck for the same reason the
+  // ice is: a floor's own lip has to land on top of what is beyond it.
+  //
+  // Only this fight. Two rooms in the building are platforms and the other is
+  // the frostwyrm's approach, which has no ship anywhere near it -- a hull
+  // drawn beside every disc would be scenery inventing a story.
+  if (s.mode === 'raid' && encounterAt(s.encounter).id === 'skyward') {
+    for (const cell of cells) {
+      if (cell.kind === 'platform') drawOtherShip(ctx, cell)
+    }
+  }
   const building = cells.length > 1
   if (building) {
     ctx.save()
@@ -1269,6 +1280,119 @@ const ICE_FALL = 0.32
  * drew any more, which counts nothing and reads as a missing cliff.
  */
 export const ICE_CRACK = 'rgba(148, 178, 200, 0.13)'
+
+/**
+ * What a line of the other ship's rigging is drawn in.
+ *
+ * Exported for the same reason `ICE_CRACK` is: `rendercheck` finds this by
+ * colour, because the alternative is counting line segments in a frame that
+ * also draws the floor grid a hundred times. Held as one value rather than
+ * copied into the check, which went stale within the hour the last time it
+ * was copied.
+ */
+export const RIGGING = 'rgba(148, 163, 184, 0.30)'
+
+/**
+ * How far off the rail the other ship rides, as a share of the deck's radius.
+ *
+ * An eighth of the deck's radius, which is about a hundred units of air.
+ *
+ * Measured by looking rather than chosen: at a quarter the hull read as a
+ * second thing floating nearby rather than as a ship alongside, which is the
+ * one fact the picture has to carry -- the fight is two ships in contact and
+ * everything in it crosses that gap. The source has them close enough to throw an axe across and far
+ * enough that the gap is the fight's whole geometry -- `SPELL_TELEPORT_TO_ENEMY_SHIP`
+ * exists because you cannot walk it. Near enough to read as alongside, and not
+ * so near that it crowds the deck it is drawn beside.
+ */
+const SHIP_OFF = 0.13
+
+/**
+ * The other ship, off the port rail.
+ *
+ * The fight is named for two airships and drew neither. The source has no
+ * model to take: `Orgrim's Hammer` and `The Skybreaker` are invisible stalkers
+ * in the client, because what a player sees there is a transport rather than a
+ * creature -- so there is nothing to cut out, and the tilesets this game is
+ * furnished from have river boats and no airship. It is drawn rather than
+ * fetched, which is the same answer the ice cliff got.
+ *
+ * Port, because that is the side this deck's riflemen face: the crew is placed
+ * off the source's own slot table and its rifle rank holds one rail while the
+ * mortars hold the other. A ship drawn to starboard would put eight riflemen
+ * shooting at the sky.
+ *
+ * Quiet, and that is the rule rather than a preference. It is the largest
+ * thing on the screen after the floor, and the floor's own rule -- the ground
+ * may say something and may not be read before a telegraph is -- is about area
+ * as much as colour. So it is a hull, a rail and four lines of rigging in the
+ * wall's own grey, not a picture of a ship.
+ */
+function drawOtherShip(ctx: CanvasRenderingContext2D, room: RoomShape & { kind: 'platform' }): void {
+  const r = room.radius
+  const off = r * (1 + SHIP_OFF)
+  // Every point is written in the room's frame and projected together, so the
+  // ship tips and turns with the deck it rides beside rather than only with a
+  // deck nobody has turned. Nothing here is in screen pixels: the first pass
+  // at this mixed world scale with `L.ui` in one expression and drew a mast
+  // stay as a zigzag across the hull.
+  const at = (x: number, y: number) => worldToScreen(fromRoom(room, { x, y }))
+  // A hull laid along the rail: longer than the deck is wide and a fifth of it
+  // across, which is the shape the source's own is -- forty-one yards by
+  // thirty-eight, laid down the side rather than across it.
+  const bow = -r * 0.95
+  const stern = r * 0.70
+  const beam = r * 0.19
+  const nose = r * 0.22
+  const hull = [
+    at(-off, bow),
+    at(-off + beam, bow + nose),
+    at(-off + beam, stern - nose * 0.7),
+    at(-off, stern),
+    at(-off - beam, stern - nose * 0.7),
+    at(-off - beam, bow + nose),
+  ]
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(hull[0]!.x, hull[0]!.y)
+  for (const q of hull.slice(1)) ctx.lineTo(q.x, q.y)
+  ctx.closePath()
+  // A deck rather than a silhouette. Drawn in the floor's own stone one shade
+  // down -- it is a deck somebody is standing on, just not this one -- because
+  // a hull filled with the void reads as a hole in the picture rather than as
+  // a ship, which is what the first pass at this looked like.
+  ctx.fillStyle = 'rgba(32, 34, 44, 0.92)'
+  ctx.fill()
+  ctx.strokeStyle = RIGGING
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  // The rail on the side facing this deck, in the same bright line the deck's
+  // own edge uses: that is the line the boarding party comes over, and it is
+  // the one part of the other ship worth looking at.
+  ctx.beginPath()
+  ctx.moveTo(at(-off + beam, bow + nose).x, at(-off + beam, bow + nose).y)
+  ctx.lineTo(at(-off + beam, stern - nose * 0.7).x, at(-off + beam, stern - nose * 0.7).y)
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  // Planking across the beam, which is what says deck rather than slab. Off
+  // the room rather than a seed, so the same ship rides the same way every
+  // pull and nothing shimmers when the camera moves over it.
+  ctx.strokeStyle = RIGGING
+  ctx.lineWidth = 1
+  for (let i = 1; i < 7; i++) {
+    const y = bow + nose + ((stern - nose * 0.7 - (bow + nose)) * i) / 7
+    const a = at(-off - beam * 0.9, y)
+    const c = at(-off + beam * 0.9, y)
+    ctx.beginPath()
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(c.x, c.y)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
 
 /**
  * The ice an apse's floor stops above.
@@ -2456,9 +2580,42 @@ function drawCannon(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): 
     ctx.stroke()
     ctx.setLineDash([])
     ctx.globalAlpha = 1
-    footprint(ctx, p.x, p.y, Math.max(6, a.radius * L.scale))
+    // And the gun itself, which was a filled circle and is now a gun.
+    //
+    // The ring above is the rule and stays exactly as it was -- it is
+    // `CANNON_REACH`, the distance somebody has to be inside to fire, and a
+    // player reads "am I on it" off that and nothing else. What changes is the
+    // thing in the middle: a dot says a mark on the deck, and what the source
+    // bolts there is a cannon. Drawn rather than fetched, because the tilesets
+    // this game is furnished from have no gun in them.
+    //
+    // Pointed at the other ship, which rides off the port rail: a barrel
+    // aimed anywhere else would be furniture arguing with the picture beside
+    // it.
+    const r = Math.max(6, a.radius * L.scale)
     ctx.fillStyle = iconFor('boss_cannon').colour
+    // The carriage: a low block on the deck, squashed like everything else
+    // lying on it.
+    footprint(ctx, p.x, p.y, r * 0.85)
     ctx.fill()
+    // The barrel, laid along the deck toward port and standing a little off
+    // it, which is what makes it read as a gun rather than a second circle.
+    ctx.save()
+    ctx.translate(p.x, p.y)
+    ctx.rotate(screenAngle(Math.PI))
+    ctx.beginPath()
+    ctx.moveTo(0, -r * 0.34)
+    ctx.lineTo(r * 2.1, -r * 0.22)
+    ctx.lineTo(r * 2.1, r * 0.22)
+    ctx.lineTo(0, r * 0.34)
+    ctx.closePath()
+    ctx.fill()
+    // The muzzle, one shade brighter so the end of it reads at this camera.
+    ctx.beginPath()
+    ctx.ellipse(r * 2.1, 0, r * 0.26, r * 0.26, 0, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.72)'
+    ctx.fill()
+    ctx.restore()
   }
 }
 

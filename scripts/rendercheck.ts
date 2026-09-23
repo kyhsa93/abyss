@@ -19,7 +19,7 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { ICE_CRACK, TILT, WING_COLOUR, WING_WASH, arenaPath, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
 import { walkFrame } from '../src/render/lpcimage'
@@ -11051,6 +11051,100 @@ for (const [label, w, h] of [
     closest.apart >= 6,
     `${closest.pair} are ${closest.apart} apart`,
   )
+}
+
+// --- the other ship, which the fight is named after ---------------------------
+//
+// Two airships and this drew neither. The source has no model to take -- both
+// are invisible stalkers in the client, because what a player sees there is a
+// transport rather than a creature -- and the tilesets this game is furnished
+// from have river boats and no airship, so it is drawn rather than fetched.
+//
+// Which is exactly the kind of thing that ships broken. The first pass at it
+// put world scale and `L.ui` in one expression and drew the rigging as a
+// zigzag across the hull; nothing failed, because nothing asked. Found by
+// looking at it. So this asks.
+//
+// By colour, like the ice: the planking is the only thing in the renderer
+// stroked in `RIGGING`, and the alternative is counting line segments in a
+// frame that also draws the floor grid a hundred times.
+{
+  updateLayout(1440, 900)
+
+  interface Seg {
+    x0: number
+    y0: number
+    x1: number
+    y1: number
+    style: string
+  }
+  const shipRecorder = (out: Seg[]): CanvasRenderingContext2D => {
+    const noop = () => {}
+    let from = { x: 0, y: 0 }
+    let to = { x: 0, y: 0 }
+    let style = ''
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_t, prop) {
+        if (prop === 'moveTo') {
+          return (x: number, y: number) => {
+            from = { x, y }
+            to = { x, y }
+          }
+        }
+        if (prop === 'lineTo') {
+          return (x: number, y: number) => {
+            to = { x, y }
+          }
+        }
+        if (prop === 'stroke') {
+          return () => out.push({ x0: from.x, y0: from.y, x1: to.x, y1: to.y, style })
+        }
+        if (prop === 'measureText') return () => ({ width: 10 })
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+          return () => ({ addColorStop: noop })
+        }
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return noop
+      },
+      set(_t, prop, value) {
+        if (prop === 'strokeStyle') style = String(value)
+        return true
+      },
+    }
+    return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
+  }
+  const riggingIn = (encounter: number): Seg[] => {
+    const s = pulled(0x51ed, 0, undefined, undefined, encounter)
+    const out: Seg[] = []
+    drawWorld(shipRecorder(out), s, 1, s.time, new Effects())
+    return out.filter((seg) => seg.style === RIGGING)
+  }
+
+  const gunship = ENCOUNTERS.findIndex((e) => e.id === 'skyward')
+  expect('the fight named for two ships is found', gunship >= 0, `${gunship}`)
+  const lines = riggingIn(gunship)
+  expect('and the other one is drawn beside its deck', lines.length > 0, `${lines.length} lines`)
+  // Planking runs across the hull, so no two of them may be the same line --
+  // the zigzag that shipped was several strokes from one bad point.
+  const spread = new Set(lines.map((seg) => `${Math.round(seg.y0 / 8)}`))
+  expect(
+    'and its planking is laid in ranks rather than through one point',
+    lines.length > 0 && spread.size >= 4,
+    `${spread.size} ranks from ${lines.length} lines`,
+  )
+  // And it is beside the deck rather than on it. The deck is drawn around the
+  // middle of the glass, so every line of the ship sits off to one side of it.
+  const deckHalf = (ENCOUNTERS[gunship]!.room as { radius: number }).radius * L.scale
+  const onDeck = lines.filter((seg) => Math.abs(seg.x0 - L.cx) < deckHalf * 0.5)
+  expect(
+    'and none of it is drawn across the deck the raid stands on',
+    lines.length > 0 && onDeck.length === 0,
+    `${onDeck.length} of ${lines.length}`,
+  )
+
+  // The control: no other fight grows a ship.
+  const marrow = riggingIn(0)
+  expect('and no other fight has one', marrow.length === 0, `${marrow.length} lines`)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
