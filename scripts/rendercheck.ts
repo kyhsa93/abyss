@@ -11244,6 +11244,26 @@ for (const [label, w, h] of [
     `${same.length} bubbles for one sentence`,
   )
 
+  // And the same sentence from bodies that are nowhere near each other is
+  // still one bubble. Collapsing only what overlapped left this to the order
+  // the boxes were placed in, and a raid calling one spike drew it twice.
+  const apartPos = together.map((a, i) => {
+    a.pos = { x: middle.x + (i - 1.5) * 260, y: middle.y + (i % 2) * 180 }
+    return a
+  })
+  s.chat = apartPos.map((a, i) => ({
+    id: 300 + i,
+    speaker: a.name,
+    text: 'Break the spike — get them out',
+    age: 0.1,
+    by: a.id,
+  }))
+  const spread: Label[] = []
+  drawWorld(recordingCtx([], spread), s, 1, s.time, new Effects())
+  const once = spread.filter((l) => l.text === 'Break the spike — get them out')
+  expect('and four spread across the room still draw one', once.length === 1, `${once.length}`)
+  for (const a of together) a.pos = { x: middle.x + (a.id % 3) * 6, y: middle.y + (a.id % 2) * 6 }
+
   // And different things, from the same huddle, are stacked rather than piled:
   // every box is drawn, and no two of them sit on the same line.
   s.chat = together.map((a, i) => ({
@@ -11287,6 +11307,16 @@ for (const [label, w, h] of [
   const named = new Set(party.map((a) => a.name))
   const words = (out: Label[]): number =>
     out.filter((l) => /^line \d$/.test(l.text) || l.text === '-55' || named.has(l.text)).length
+  // And the words win where they land on each other. A bubble is an
+  // instruction and a number is a receipt: the number is in the meter and on
+  // the bar as well, the sentence is nowhere else.
+  const sentence = front.findIndex((l) => /^line \d$/.test(l.text))
+  const number = front.findIndex((l) => l.text === '-55')
+  expect(
+    'and a bubble is drawn over a number, not under it',
+    sentence > number && number >= 0,
+    `number at ${number}, sentence at ${sentence}`,
+  )
   expect('a fight draws its own words', words(front) > 0, `${words(front)}`)
   expect('and a backdrop draws none of them', words(behind) === 0, `${words(behind)} drawn behind a menu`)
 }

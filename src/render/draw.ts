@@ -713,14 +713,19 @@ export function drawWorld(
   // above every body, which a per-actor draw cannot promise -- the raid is
   // drawn back to front, so a bubble drawn with its own body is covered by
   // whoever is standing in front of them.
-  if (!asBackdrop) drawBubbles(ctx, s, alpha, clock)
-
   drawCarriedFlags(ctx, s, alpha)
   drawProjectiles(ctx, s, alpha)
   // Above the tokens and below the numbers: a hit should be visible on top of
   // whoever took it, and never on top of what the fight is telling you.
   effects.draw(ctx, worldToScreen, L.scale, viewAngle())
   if (!asBackdrop) drawFloatingText(ctx, s, alpha)
+  // And the bubbles last of all, because a sentence loses to a number it is
+  // drawn under and a number loses nothing to being drawn under a sentence.
+  // Seen in play once the piling was fixed: "-42" printed straight across
+  // "Cold on the floor — off the line", which is the one line telling the raid
+  // what to do about the thing that just hit them. The number is also in the
+  // meter and on the health bar; the sentence is nowhere else on the glass.
+  if (!asBackdrop) drawBubbles(ctx, s, alpha, clock)
   ctx.restore()
 
   drawRaidFlash(ctx, s)
@@ -4127,10 +4132,21 @@ export function bubbleBox(
 }
 
 function drawBubbles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, clock: number): void {
-  const newest = new Map<number, ChatLine>()
+  // One bubble per sentence, rather than one per speaker.
+  //
+  // A raid answers a mechanic together, and the answer is the same words out
+  // of three or four bodies inside one second. Keyed by speaker that is a
+  // stack of identical boxes, and collapsing them only where they happened to
+  // land on each other leaves it to the order they were placed in: measured in
+  // play, three raiders called the same spike and two boxes saying it came out
+  // anyway, one lifted clear of its own twin by the line between them.
+  //
+  // Who said it was never read off the bubble. It is in the list in the
+  // corner, which carries every line and the name in front of it.
+  const newest = new Map<string, ChatLine>()
   for (const line of s.chat) {
-    const seen = newest.get(line.by)
-    if (!seen || line.age < seen.age) newest.set(line.by, line)
+    const seen = newest.get(line.text)
+    if (!seen || line.age < seen.age) newest.set(line.text, line)
   }
   // Newest first, so the line that has just arrived keeps the spot it asked
   // for and the ones still fading stack above it.
