@@ -39,7 +39,7 @@ import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
 import { CLASSES, RAID_SIZES, autoParty, pickFor } from '../src/sim/classes'
-import { MUSTER_HALF, fromRoom, insideRoom, type RoomShape } from '../src/sim/room'
+import { MUSTER_HALF, ROUND_ARENA, fromRoom, insideRoom, type RoomShape } from '../src/sim/room'
 import { LPC_ROW } from '../src/render/lpc'
 import type { Vec2 } from '../src/sim/types'
 import { inTerrain } from '../src/sim/battleground'
@@ -1067,6 +1067,44 @@ const everywhere = () => true
     }
     expect(
       `${CHAMBERS.reduce((n, c) => n + (c.bystanders?.length ?? 0), 0)} bystanders stand in their room and are drawn as somebody`,
+      lost.length === 0,
+      lost.slice(0, 3).join('; '),
+    )
+  }
+
+  // And the ones standing in a fight's own room, which nothing asked about
+  // until a deck was given a crew.
+  //
+  // A fight may stand people on its floor the same way a chamber may -- the
+  // renderer has read `Encounter.bystanders` for as long as the field has
+  // existed -- and for as long as that was true no fight used it, so the two
+  // ways a bystander can be nothing were never checked here: outside the room
+  // it is drawn in, or wearing a `look` the sheet has no row for, which
+  // `drawBystanders` skips in silence.
+  //
+  // The third is this one's own. A fight's floor is not dressing, it is the
+  // floor somebody fights on: the raid arrives inside `MUSTER_HALF` of the
+  // middle, so anybody standing there would be a body in the way on the first
+  // second of every pull.
+  {
+    const lost: string[] = []
+    for (const encounter of ENCOUNTERS) {
+      const folk = encounter.bystanders
+      if (folk === undefined) continue
+      const room = encounter.room ?? ROUND_ARENA
+      for (const [i, one] of folk.entries()) {
+        if (!insideRoom(room, one.pos, 40)) lost.push(`${encounter.short}#${i} stands off the floor`)
+        if (LPC_ROW[one.look] === undefined) {
+          lost.push(`${encounter.short}#${i} is drawn as "${one.look}", which is not a body`)
+        }
+        if (Math.hypot(one.pos.x, one.pos.y) < MUSTER_HALF + PARTY_RADIUS) {
+          lost.push(`${encounter.short}#${i} stands where the raid musters`)
+        }
+        if (one.guards !== undefined) lost.push(`${encounter.short}#${i} would join the fight`)
+      }
+    }
+    expect(
+      `${ENCOUNTERS.reduce((n, e) => n + (e.bystanders?.length ?? 0), 0)} bystanders stand on a fight's floor without being in it`,
       lost.length === 0,
       lost.slice(0, 3).join('; '),
     )

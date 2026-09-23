@@ -459,12 +459,18 @@ export function drawWorld(
   // is -- a fight's room is the encounter's, a room being crossed is the
   // chamber's -- so the two can never disagree about which room this is.
   {
-    // Room-local, and turned into the world's the same way the bystanders
-    // below are: a fight is built at `placeOf` so the two frames already
-    // coincide, and a walk is the whole building at once, where they do not.
-    // The throne room is the only chamber carrying furniture and its fight is
-    // not built yet, so nobody had ever seen this drawn -- which is why it
-    // could sit here wrong.
+    // Room-local, and turned into the world's by the room itself.
+    //
+    // The note that stood here said a fight's two frames already coincide
+    // because it is built at `placeOf`, and that is the wrong way round: being
+    // built at a place is what pulls them apart. `createState` keeps the room
+    // at the origin only when it is given no place -- see the `at` it takes --
+    // so a fight standing on its own is unmoved and a fight that is one room
+    // of the citadel is not. Handed through untouched, the Skyward Deck's crew
+    // drew nine thousand units from the deck, out over the entrance hall.
+    //
+    // `fromRoom` is the identity for a room with no `at`, so the fight this
+    // game shipped with is drawn exactly as it was.
     const own =
       s.mode === 'raid'
         ? encounterAt(s.encounter).props
@@ -472,13 +478,11 @@ export function drawWorld(
           ? chamberAt(s.chamber)?.props
           : undefined
     if (own && own.length > 0) {
-      const here =
+      const room: RoomShape =
         s.mode === 'raid' || !s.chamber
-          ? own
-          : (() => {
-              const room: RoomShape = { ...roomOf(s.chamber), at: placeOf(s.chamber) }
-              return own.map((one) => ({ ...one, pos: fromRoom(room, one.pos) }))
-            })()
+          ? s.room
+          : { ...roomOf(s.chamber), at: placeOf(s.chamber) }
+      const here = own.map((one) => ({ ...one, pos: fromRoom(room, one.pos) }))
       drawProps(ctx, worldToScreen, L.scale, here)
     }
   }
@@ -488,14 +492,14 @@ export function drawWorld(
   // mechanic. They are scenery with a silhouette -- see `Bystander` -- so this
   // sits beside the furniture rather than anywhere near `drawOrder`.
   {
-    // Room-local, and only a fight's room is also the world's origin.
+    // Room-local, and put into the world by the room they stand in.
     //
-    // A fight is built at `placeOf` -- `newState(placeOf(id), ...)` -- so the
-    // two frames coincide and the positions can go straight out. A walk is the
-    // whole building at once, with every room standing where the plan puts it,
-    // and handing the same numbers over there draws the great hall's forty
-    // people around the middle of the citadel instead: measured, the first of
-    // them lands eighteen hundred units from the hall it is written in.
+    // Both ways this can be got wrong have now been got wrong. Handing a
+    // walk's people through untouched drew the great hall's forty around the
+    // middle of the citadel, eighteen hundred units from the hall they are
+    // written in; handing a fight's through untouched did the same thing to
+    // the Skyward Deck's crew, which is how a deck with ten people on it
+    // reached a player as an empty disc. One room, asked once.
     const folk =
       s.mode === 'raid'
         ? encounterAt(s.encounter).bystanders
@@ -503,13 +507,11 @@ export function drawWorld(
           ? chamberAt(s.chamber)?.bystanders
           : undefined
     if (folk && folk.length > 0) {
-      const here =
+      const room: RoomShape =
         s.mode === 'raid' || !s.chamber
-          ? folk
-          : (() => {
-              const room: RoomShape = { ...roomOf(s.chamber), at: placeOf(s.chamber) }
-              return folk.map((one) => ({ ...one, pos: fromRoom(room, one.pos) }))
-            })()
+          ? s.room
+          : { ...roomOf(s.chamber), at: placeOf(s.chamber) }
+      const here = folk.map((one) => ({ ...one, pos: fromRoom(room, one.pos) }))
       drawBystanders(ctx, worldToScreen, L.scale, here)
     }
   }

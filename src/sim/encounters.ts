@@ -3719,6 +3719,62 @@ export const ENCOUNTERS: Encounter[] = [
      * died fastest.
      */
     sizeMechanic: { 10: 0.9, 25: 0.62 },
+    /**
+     * The Skybreaker's own, standing on the deck the raid is fighting on.
+     *
+     * The one thing this fight was missing that the source states outright.
+     * `boss_icecrown_gunship_battle.cpp` carries a slot table for each ship,
+     * and the Alliance side of it is riflemen down one rail, mortar soldiers
+     * down the other and sorcerers amidships -- eight, four and three, of
+     * which a ten-man sees half the riflemen and half the mortars. Without
+     * them the deck was a bare disc with a boss on it, and a player looking
+     * for the two airships the fight is named after found neither ship nor
+     * crew.
+     *
+     * The arrangement is the source's and the distances are not. The slot
+     * table is written about a hull forty-one yards long and thirty-eight
+     * across; this deck is a disc thirty-six yards in radius, and laying the
+     * yards down one for one puts two of the crew over the side. So what is
+     * taken is which rail each kind holds and in what order -- riflemen to
+     * port at even spacing, mortars to starboard, sorcerers forward -- and the
+     * rails are set at four fifths of the reach -- along it rather than across
+     * it, because a rail on a disc is an arc: laid out as the straight line
+     * the hull has, the far end of the port rank stood over the side.
+     *
+     * Forward rather than amidships, which is the source's word and not the
+     * source's spot: the raid arrives inside `MUSTER_HALF` of the middle, so
+     * three sorcerers standing where the source stands them are three bodies
+     * in the way on the first second of every pull. `dungeoncheck` says so.
+     *
+     * They are dressing and they do not fight. `guards` is what would make one
+     * answer for itself and none of these carry it: the source's crew shoot
+     * past the raid at the other ship, and a deckhand that joined in would be
+     * a body the fight was not balanced against. What they are is the answer
+     * to "whose deck is this".
+     *
+     * `look` is the nearest silhouette Liberated Pixel Cup has, not a claim
+     * about anybody's class -- the same rule the citadel's people follow.
+     */
+    bystanders: [
+      // Amidships, where the source puts its three sorcerers: one forward of
+      // the mast and two abreast behind it.
+      { pos: { x: 0, y: -430 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Skybreaker Sorcerer' },
+      { pos: { x: -300, y: -330 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Skybreaker Sorcerer' },
+      { pos: { x: 300, y: -330 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Skybreaker Sorcerer' },
+      // Port rail, firing across at the other ship. Eight in the source, and
+      // the four a ten-man sees are the first four of them.
+      { pos: { x: -559, y: 406 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
+      { pos: { x: -676, y: 144 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
+      { pos: { x: -676, y: -144 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
+      { pos: { x: -559, y: -406 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
+      // Starboard rail: the mortar soldiers, who lob over the rail rather than
+      // across it, which is why the source stands them on the far side.
+      { pos: { x: 649, y: -236 }, look: 'warrior-arms', facing: 0, name: 'Skybreaker Mortar Soldier' },
+      { pos: { x: 649, y: 236 }, look: 'warrior-arms', facing: 0, name: 'Skybreaker Mortar Soldier' },
+      // And one deckhand, which is the whole of what the source places on this
+      // deck that is not a weapon.
+      { pos: { x: -180, y: 430 }, look: 'warrior-protection', facing: Math.PI / 2, name: 'Skybreaker Deckhand' },
+    ],
     kit: ['boarding', 'mortar', 'rocket', 'axes', 'hull', 'cannon'],
     herald: null,
     accent: '#0ea5e9',
@@ -3729,15 +3785,30 @@ export const ENCOUNTERS: Encounter[] = [
       3: { swing: 1.8, slam: 13, puddleCount: 1, raid: 10, ...beats({ boarding: 32, mortar: 19.5, rocket: 27, axes: 15, hull: 22.5, cannon: 10 }) },
     },
     opening: { slam: 14, raid: 13, ...beats({ boarding: 20, mortar: 12, rocket: 26, axes: 9, hull: 17, cannon: 6 }) },
+    /**
+     * His own words, which this fight was inventing.
+     *
+     * `creature_text` gives High Overlord Saurfang fourteen lines and five of
+     * them are this fight's mechanics, one each: the boarding party, the
+     * axethrowers, the rocketeers, the battle-mages he sends when the guns
+     * start telling, and what he says when somebody sets foot on his deck.
+     * They are used as written rather than paraphrased -- a boss with the
+     * source's script and this game's sentences is a boss speaking in somebody
+     * else's voice, and these are already better than the ones they replace.
+     *
+     * The mage line is the one worth reading twice: he calls for them *because
+     * of the guns*, which is the same loop this fight already has -- somebody
+     * stands on the deck gun, the other ship answers. The line says so.
+     */
     lines: {
-      boarding: 'Boarders! Get to the rail',
+      boarding: 'Reavers, Sergeants, attack!',
       mortar: 'Mortar! Watch the deck',
-      rocket: 'Artillery — off the marks',
-      axes: 'Axes at the back line',
+      rocket: 'Rocketeers, reload!',
+      axes: 'Axethrowers, hurl faster!',
       cannon: 'The gun is loaded — somebody fire it',
-      hull: 'Pitch on the deck — off the fire',
+      hull: "We're taking hull damage, get a battle-mage out here to shut down those cannons!",
       breath: '',
-      phaseTwo: 'They are over the rail — hold the deck',
+      phaseTwo: 'You DARE board my ship? Your death will come swiftly.',
       phaseThree: 'BRING HER DOWN, ALL OF YOU',
       instability: '',
       haul: '',

@@ -1682,9 +1682,31 @@ function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
 
   // Over the rail rather than through a door: the deck has no doors, and a
   // wave that arrived in the middle would be a wave nobody had to go and meet.
-  const waves = Math.max(1, Math.round(livingParty(s).length / 6))
+  //
+  // Reavers and a sergeant, which is what the source sends and what this used
+  // to flatten into one name. `boss_icecrown_gunship_battle.cpp` fills its
+  // slot table from a teleport portal for exactly two kinds -- four reavers
+  // and two sergeants at twenty-five, half of each at ten -- and stands the
+  // axethrowers and rocketeers on the other ship's own deck instead. Those two
+  // never board: they throw and they shoot across the gap, which is what this
+  // fight already sells as `axes` and `rocket`. So the wave that lands here is
+  // the wave that lands there, and the sergeant is the one worth looking at.
+  // Off the roster rather than off who is still standing, which is how every
+  // other count in this file is taken: the source splits this wave at ten and
+  // twenty-five, and a split read off the living would quietly send fewer
+  // sergeants the worse the pull was going.
+  const size = s.party.length
+  const reavers = Math.max(1, Math.round(size / 6))
+  const sergeants = size > 15 ? 2 : 1
   const reach = roomReach(s.room)
-  for (let i = 0; i < waves; i++) {
+  const wave: Array<{ name: string; tough: number }> = [
+    ...Array.from({ length: reavers }, () => ({ name: "Kor'kron Reaver", tough: 1 })),
+    // Heavier than a reaver, and named, because the source sends half as many
+    // of them: a body that arrives one at a time and is not different is a
+    // body nobody looks at.
+    ...Array.from({ length: sergeants }, () => ({ name: "Kor'kron Sergeant", tough: 1.6 })),
+  ]
+  for (const one of wave) {
     const angle = rng.range(0, Math.PI * 2)
     const at = {
       x: middle(s).x + Math.cos(angle) * reach * 0.86,
@@ -1693,8 +1715,8 @@ function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
     pushInside(s.room, at, 9)
     const boarder = makeAdd(s.nextObjectId++, at.x, at.y)
     boarder.spawn = 'boarder'
-    boarder.name = "Kor'kron Reaver"
-    boarder.maxHp = Math.round(addHealth(s) * BOARDER_HP_SCALE)
+    boarder.name = one.name
+    boarder.maxHp = Math.round(addHealth(s) * BOARDER_HP_SCALE * one.tough)
     boarder.hp = boarder.maxHp
     s.actors.push(boarder)
     // Said out loud where it lands. A cast the build cannot see happening is a
