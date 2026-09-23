@@ -10,8 +10,10 @@ import {
   pushInside,
   roomArea,
   roomHasOutside,
+  roomAt,
   roomReach,
   wallGap,
+  MUSTER_HALF,
   type RoomShape,
 } from '../src/sim/room'
 import { FLOOR_PIECES, FLOOR_TALL, sowSurround, surroundTakes } from '../src/render/scenery'
@@ -20,6 +22,7 @@ import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { BOARDING_BEARING, boardingDoor } from '../src/sim/boss'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
 import { walkFrame } from '../src/render/lpcimage'
@@ -11145,6 +11148,67 @@ for (const [label, w, h] of [
   // The control: no other fight grows a ship.
   const marrow = riggingIn(0)
   expect('and no other fight has one', marrow.length === 0, `${marrow.length} lines`)
+}
+
+// --- the wave comes aboard where the ship is -----------------------------------
+//
+// The source does not scatter boarders round the rim: it stands a portal on
+// the other ship and an exit on yours, both visible bodies, and every reaver
+// and sergeant walks through that one exit. This game rolled a bearing per
+// body, which is six problems instead of one place to be.
+//
+// What is asked here is the agreement rather than the arithmetic. Three things
+// now read the same bearing -- where the wave lands, where the door is drawn,
+// and which side the hull is drawn on -- and the way that breaks is not a
+// crash: it is a picture that says the enemy is to port while the wave steps
+// over the starboard rail, which is the game lying to the player about the one
+// thing they act on.
+{
+  const gunship = ENCOUNTERS.findIndex((e) => e.id === 'skyward')
+  const s = pulled(0x51ed, 0, undefined, undefined, gunship)
+  s.countdown = 0
+  const door = boardingDoor(s)
+  const mid = roomAt(s.room)
+  const reach = roomReach(s.room)
+
+  // The door is on the rail rather than in the middle of the deck: a wave
+  // nobody has to go and meet is the thing this fight refused from the start.
+  const out = Math.hypot(door.x - mid.x, door.y - mid.y)
+  expect(
+    'the boarding door is out on the rail',
+    out > MUSTER_HALF + PARTY_RADIUS,
+    `${out.toFixed(0)} from the middle, muster is ${MUSTER_HALF.toFixed(0)}`,
+  )
+  expect('and still on the deck', out < reach, `${out.toFixed(0)} against a reach of ${reach}`)
+
+  // And it is the bearing the hull is drawn on. Read off the constant both
+  // sides use rather than off a number typed twice -- the copy is what goes
+  // stale, and this file has watched one do it.
+  const bearing = Math.atan2(door.y - mid.y, door.x - mid.x)
+  const apart = Math.abs(Math.atan2(Math.sin(bearing - BOARDING_BEARING), Math.cos(bearing - BOARDING_BEARING)))
+  expect(
+    'and it lies on the bearing the other ship rides',
+    apart < 0.01,
+    `${((apart * 180) / Math.PI).toFixed(1)} degrees apart`,
+  )
+
+  // Every body of a wave comes through it. Run the fight until one lands and
+  // ask where they are, which is the question a player asks.
+  const rng = new Rng(0x51ed)
+  const landed: Array<{ x: number; y: number }> = []
+  for (let i = 0; i < 30 * 90 && landed.length === 0; i++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    for (const a of s.actors) {
+      if (a.spawn === 'boarder' && a.alive) landed.push({ x: a.pos.x, y: a.pos.y })
+    }
+  }
+  expect('a wave boards at all', landed.length > 0, `${landed.length}`)
+  const far = landed.filter((p) => Math.hypot(p.x - door.x, p.y - door.y) > 260)
+  expect(
+    'and every one of it comes through the door',
+    landed.length > 0 && far.length === 0,
+    `${far.length} of ${landed.length} landed elsewhere`,
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

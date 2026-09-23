@@ -44,6 +44,7 @@ import { AURA_DURATION, dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
+import { BOARDING_BEARING, boardingDoor } from '../sim/boss'
 import { ENCOUNTERS, encounterAt } from '../sim/encounters'
 import { CHAMBERS, padAt, placeOf, type Chamber, type WingId, chamberAt, roomOf } from '../dungeon'
 import { EXIT_REACH } from '../sim/travel'
@@ -600,6 +601,7 @@ export function drawWorld(
   drawHounds(ctx, s, alpha, clock)
   drawCourt(ctx, s, alpha)
   drawBallast(ctx, s, alpha)
+  drawBoardingDoor(ctx, s)
   drawCannon(ctx, s, alpha)
   drawGifts(ctx, s, alpha, clock)
   drawHelpers(ctx, s, alpha, clock)
@@ -1331,12 +1333,25 @@ const SHIP_OFF = 0.13
 function drawOtherShip(ctx: CanvasRenderingContext2D, room: RoomShape & { kind: 'platform' }): void {
   const r = room.radius
   const off = r * (1 + SHIP_OFF)
+  // Which side it rides on is not written here. `BOARDING_BEARING` is the one
+  // place that says it, because three things have to agree about it -- the
+  // hull, the door drawn on the deck, and where the wave actually lands -- and
+  // a picture that puts the enemy to port while the wave steps over the
+  // starboard rail is the game lying about the one thing the player acts on.
+  // Held as a rotation of the hull's own frame, so moving the constant moves
+  // all three.
+  const side = { x: Math.cos(BOARDING_BEARING), y: Math.sin(BOARDING_BEARING) }
   // Every point is written in the room's frame and projected together, so the
   // ship tips and turns with the deck it rides beside rather than only with a
   // deck nobody has turned. Nothing here is in screen pixels: the first pass
   // at this mixed world scale with `L.ui` in one expression and drew a mast
   // stay as a zigzag across the hull.
-  const at = (x: number, y: number) => worldToScreen(fromRoom(room, { x, y }))
+  // `x` is across the gap toward the other ship and `y` runs along its hull,
+  // turned onto the bearing above rather than assumed to be port.
+  const at = (x: number, y: number) =>
+    worldToScreen(
+      fromRoom(room, { x: x * side.x - y * side.y, y: x * side.y + y * side.x }),
+    )
   // A hull laid along the rail: longer than the deck is wide and a fifth of it
   // across, which is the shape the source's own is -- forty-one yards by
   // thirty-eight, laid down the side rather than across it.
@@ -1345,12 +1360,12 @@ function drawOtherShip(ctx: CanvasRenderingContext2D, room: RoomShape & { kind: 
   const beam = r * 0.19
   const nose = r * 0.22
   const hull = [
-    at(-off, bow),
-    at(-off + beam, bow + nose),
-    at(-off + beam, stern - nose * 0.7),
-    at(-off, stern),
-    at(-off - beam, stern - nose * 0.7),
-    at(-off - beam, bow + nose),
+    at(off, bow),
+    at(off - beam, bow + nose),
+    at(off - beam, stern - nose * 0.7),
+    at(off, stern),
+    at(off + beam, stern - nose * 0.7),
+    at(off + beam, bow + nose),
   ]
   ctx.save()
   ctx.beginPath()
@@ -1371,8 +1386,8 @@ function drawOtherShip(ctx: CanvasRenderingContext2D, room: RoomShape & { kind: 
   // own edge uses: that is the line the boarding party comes over, and it is
   // the one part of the other ship worth looking at.
   ctx.beginPath()
-  ctx.moveTo(at(-off + beam, bow + nose).x, at(-off + beam, bow + nose).y)
-  ctx.lineTo(at(-off + beam, stern - nose * 0.7).x, at(-off + beam, stern - nose * 0.7).y)
+  ctx.moveTo(at(off - beam, bow + nose).x, at(off - beam, bow + nose).y)
+  ctx.lineTo(at(off - beam, stern - nose * 0.7).x, at(off - beam, stern - nose * 0.7).y)
   ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)'
   ctx.lineWidth = 2
   ctx.stroke()
@@ -1384,8 +1399,8 @@ function drawOtherShip(ctx: CanvasRenderingContext2D, room: RoomShape & { kind: 
   ctx.lineWidth = 1
   for (let i = 1; i < 7; i++) {
     const y = bow + nose + ((stern - nose * 0.7 - (bow + nose)) * i) / 7
-    const a = at(-off - beam * 0.9, y)
-    const c = at(-off + beam * 0.9, y)
+    const a = at(off + beam * 0.9, y)
+    const c = at(off - beam * 0.9, y)
     ctx.beginPath()
     ctx.moveTo(a.x, a.y)
     ctx.lineTo(c.x, c.y)
@@ -2568,6 +2583,46 @@ function drawCourt(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): v
  * a ring you are either inside or not -- and the gun itself is a small solid
  * thing at the middle of it rather than another silhouette to read.
  */
+/**
+ * The way the boarding party comes aboard.
+ *
+ * The source stands two bodies for this and they are the reason it is drawn at
+ * all: `EVENT_ADDS` summons a portal on the other ship and an exit on yours,
+ * both visible, both gone twenty seconds later. A wave that steps out of
+ * nowhere is a wave nobody could have been standing ready for; a wave with a
+ * door has a place to be before it opens.
+ *
+ * Drawn as ground, like the pad and the gun's ring, because that is what it is
+ * -- a patch of deck with a rule about it. It is on the rail the other ship is
+ * riding against, and it reads off the same bearing `scheduleBoarding` places
+ * them at, so the picture and the fight cannot drift apart.
+ */
+function drawBoardingDoor(ctx: CanvasRenderingContext2D, s: SimState): void {
+  if (s.mode !== 'raid' || encounterAt(s.encounter).id !== 'skyward') return
+  const on = worldToScreen(boardingDoor(s))
+  const r = 74 * L.scale
+  ctx.save()
+  footprint(ctx, on.x, on.y, r)
+  ctx.fillStyle = 'rgba(248, 113, 113, 0.10)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(248, 113, 113, 0.42)'
+  ctx.lineWidth = 2
+  ctx.setLineDash([9, 8])
+  ctx.stroke()
+  ctx.setLineDash([])
+  // A short bar across the rail, square to the bearing they come in on: the
+  // ring says where and this says which way, which is the half a circle
+  // cannot carry.
+  const a = BOARDING_BEARING + Math.PI / 2
+  ctx.beginPath()
+  ctx.moveTo(on.x + Math.cos(a) * r * 0.8, on.y + Math.sin(a) * r * 0.8 * TILT)
+  ctx.lineTo(on.x - Math.cos(a) * r * 0.8, on.y - Math.sin(a) * r * 0.8 * TILT)
+  ctx.strokeStyle = 'rgba(248, 113, 113, 0.55)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+  ctx.restore()
+}
+
 function drawCannon(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
   for (const a of s.actors) {
     if (!a.alive || a.spawn !== 'cannon') continue

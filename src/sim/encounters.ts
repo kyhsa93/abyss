@@ -3735,8 +3735,9 @@ export const ENCOUNTERS: Encounter[] = [
      * table is written about a hull forty-one yards long and thirty-eight
      * across; this deck is a disc thirty-six yards in radius, and laying the
      * yards down one for one puts two of the crew over the side. So what is
-     * taken is which rail each kind holds and in what order -- riflemen to
-     * port at even spacing, mortars to starboard, sorcerers forward -- and the
+     * taken is which rail each kind holds and in what order -- riflemen down
+     * one rail at even spacing, mortars down the other, sorcerers forward --
+     * and the
      * rails are set at four fifths of the reach -- along it rather than across
      * it, because a rail on a disc is an arc: laid out as the straight line
      * the hull has, the far end of the port rank stood over the side.
@@ -3747,10 +3748,17 @@ export const ENCOUNTERS: Encounter[] = [
      * in the way on the first second of every pull. `dungeoncheck` says so.
      *
      * They are dressing and they do not fight. `guards` is what would make one
-     * answer for itself and none of these carry it: the source's crew shoot
-     * past the raid at the other ship, and a deckhand that joined in would be
-     * a body the fight was not balanced against. What they are is the answer
-     * to "whose deck is this".
+     * answer for itself and none of these carry it: a deckhand that joined in
+     * would be a body the fight was not balanced against. What they are is the
+     * answer to "whose deck is this".
+     *
+     * An earlier draft of this note said the crew face the other ship and
+     * shoot past the raid at it. That was a guess wearing the source's voice:
+     * both ships carry troops down both beams -- Orgrim's Hammer has its
+     * axethrowers on one rail and its rocketeers on the other, exactly as the
+     * Skybreaker has riflemen and mortars -- so nothing here says which way
+     * anybody is pointed. Which rail each kind holds is the source's; what
+     * they are aiming at is not written down and is not claimed.
      *
      * `look` is the nearest silhouette Liberated Pixel Cup has, not a claim
      * about anybody's class -- the same rule the citadel's people follow.

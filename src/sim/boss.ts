@@ -647,7 +647,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleCover(s, b, timing)
   updateBuffet(s, b, timing)
 
-  scheduleBoarding(s, b, rng, timing)
+  scheduleBoarding(s, b, timing)
   scheduleMortar(s, b, rng, timing)
   scheduleRocket(s, b, rng, timing)
   scheduleAxes(s, b, rng, timing)
@@ -1673,7 +1673,7 @@ function spawnSpot(s: SimState, rng: Rng, radius: number): Vec2 {
  * keep a gun manned, keep the rail clear, and not be standing together or out
  * on the edge when the other ship fires.
  */
-function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+function scheduleBoarding(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (timing.boarding <= 0) return
   s.next.boarding -= DT
   if (s.next.boarding > 0) return
@@ -1698,7 +1698,6 @@ function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
   const size = s.party.length
   const reavers = Math.max(1, Math.round(size / 6))
   const sergeants = size > 15 ? 2 : 1
-  const reach = roomReach(s.room)
   const wave: Array<{ name: string; tough: number }> = [
     ...Array.from({ length: reavers }, () => ({ name: "Kor'kron Reaver", tough: 1 })),
     // Heavier than a reaver, and named, because the source sends half as many
@@ -1706,11 +1705,30 @@ function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
     // body nobody looks at.
     ...Array.from({ length: sergeants }, () => ({ name: "Kor'kron Sergeant", tough: 1.6 })),
   ]
-  for (const one of wave) {
-    const angle = rng.range(0, Math.PI * 2)
+  // One door, not a rolled bearing each.
+  //
+  // The source does not scatter them round the rim: `EVENT_ADDS` stands a
+  // portal on the other ship and a matching exit on yours -- both summoned as
+  // bodies, both visible, both gone twenty seconds later -- and every reaver
+  // and sergeant comes through that one exit. A wave that arrives at six
+  // bearings is six problems; a wave that arrives at one is a place to be.
+  //
+  // Where that exit stands is the one place this does not follow the source.
+  // `SkybreakerTeleportExit` is amidships on the centre line, which on this
+  // deck is inside `MUSTER_HALF` -- the raid is already standing there, and a
+  // wave nobody has to go and meet is the thing the note above this function
+  // has always refused. So the door keeps the source's shape and moves to the
+  // rail the other ship is riding against, which is also the only side of the
+  // deck the picture says anybody could come from.
+  const door = boardingDoor(s)
+  for (const [i, one] of wave.entries()) {
+    // Spread along the rail rather than stacked on the point: they come
+    // through one door and step aside for the next, which is what the source's
+    // exit looks like with six bodies going through it.
+    const spread = (i - (wave.length - 1) / 2) * 52
     const at = {
-      x: middle(s).x + Math.cos(angle) * reach * 0.86,
-      y: middle(s).y + Math.sin(angle) * reach * 0.86,
+      x: door.x + Math.cos(BOARDING_BEARING + Math.PI / 2) * spread,
+      y: door.y + Math.sin(BOARDING_BEARING + Math.PI / 2) * spread,
     }
     pushInside(s.room, at, 9)
     const boarder = makeAdd(s.nextObjectId++, at.x, at.y)
@@ -1723,6 +1741,26 @@ function scheduleBoarding(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
     // cast that fails `is something a boss actually does`, and a body arriving
     // is not by itself evidence of the mechanic that sent it.
     pushEffect(s, 'impact', at, { abilityId: 'boss_boarding', radius: 60 })
+  }
+}
+
+/**
+ * The bearing the other ship rides on, and so the side a boarder comes from.
+ *
+ * Port, in the room's own frame, which is where `drawOtherShip` puts the hull.
+ * The two have to agree: a picture that shows a ship on one side while the
+ * wave steps over the opposite rail is a picture telling the player something
+ * that is not true, and the picture is the thing they act on.
+ */
+export const BOARDING_BEARING = Math.PI
+
+/** Where the wave comes aboard: the rail the other ship is alongside. */
+export function boardingDoor(s: SimState): Vec2 {
+  const c = middle(s)
+  const out = roomReach(s.room) * 0.86
+  return {
+    x: c.x + Math.cos(BOARDING_BEARING) * out,
+    y: c.y + Math.sin(BOARDING_BEARING) * out,
   }
 }
 
