@@ -2616,6 +2616,28 @@ if (!import.meta.env.PROD) {
     screen(): string {
       return screen
     },
+    /**
+     * Whether what is on screen is a fight or a walk.
+     *
+     * `screen` cannot answer it: a corridor, a boss and a wipe are all drawn
+     * under the same one, so a driver watching it stood in a room for fifteen
+     * minutes believing a fight it had never started was still going.
+     */
+    mode(): string {
+      return state.mode
+    },
+    /** Whether that fight has ended, and which way. */
+    outcome(): string {
+      return state.outcome
+    },
+    /** How much is still standing on the other side, walk or fight. */
+    foes(): number {
+      return state.actors.filter((a) => a.faction === 'boss' && a.alive).length
+    },
+    /** And how much of the raid is not. */
+    fallen(): number {
+      return state.actors.filter((a) => a.faction === 'party' && !a.alive).length
+    },
   }
 }
 
