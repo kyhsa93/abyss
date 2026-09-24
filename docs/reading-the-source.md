@@ -1604,17 +1604,65 @@ and it is nearly all in two places:
 | where | rows | status |
 | --- | --- | --- |
 | the great hall | two forges and their coals, four anvils, four quenching barrels, eleven stacks of saronite, the runeforge | **taken** — see `vigil`'s `terrain` |
-| the frozen throne | `Doodad_IceShard_standing01`–`04` at (473.7, −2096.5), (473.7, −2152.8), (533.6, −2152.8), (533.6, −2096.5); `Arthas Platform` and `Arthas Precipice` at (503.6, −2124.7); `Frozen Lavaman` and its two pillars at (426.6, −2123.9) | **not taken** — the room has no fight yet (#13) |
+| the frozen throne | `Doodad_IceShard_standing01`–`04` at (473.7, −2096.5), (473.7, −2152.8), (533.6, −2152.8), (533.6, −2096.5); `Arthas Platform` and `Arthas Precipice` at (503.6, −2124.7); `Frozen Lavaman` and its two pillars at (426.6, −2123.9) | **not taken** — the room has no fight yet (#13), but the radius that holds them is now known: see below |
 | everywhere else | three Empowering Blood Orbs in the crimson hall, a plague sigil, two sets of tubes, a grate | not taken, and mostly not wanted: an orb is a mechanic there, not a rock |
 
-The throne's rows say one thing worth writing down before #13 is built: **the
+The throne's rows said one thing worth writing down before #13 is built: **the
 props do not fit the room as it is currently measured.** The four shards sit
 about 41 yards out from the platform's centre and the frozen throne itself 77,
 against a tile reading that makes the whole shelf 114.6 yards across — so at
 `BUILD_SCALE` the shards land inside the room and the throne lands outside it.
 There is no `DATA_THE_LICH_KING` boundary to settle it with; that is the one
-fight in the building the boundary table does not carry. Whoever builds #13
-measures that room again, and the object rows are the better ruler.
+fight in the building the boundary table does not carry.
+
+**It is settled now, and not by the object rows.** The boundary table does not
+carry that fight, but the script does carry the same fact under another name:
+
+    // boss_the_lich_king.cpp
+    Position const CenterPosition = {503.6282f, -2124.655f, 840.8569f, 0.0f};
+
+    bool IsValidPlatformTarget(Unit const* target)
+    {
+        return target->GetExactDist2dSq(&CenterPosition) < 90.0f * 90.0f
+            && target->GetPositionZ() > 840.0f && target->GetPositionZ() < 875.0f;
+    }
+
+Ninety yards from the centre, with a height band thirty-five yards deep. That is
+what a `BossBoundaryData` row would have said if the table had one — it is the
+question "is this body on the platform", asked by the fight itself — and the
+centre is the `Arthas Platform` row already in the table above, to four decimal
+places.
+
+It settles the props, which is how it is known to be the right number rather than
+merely a number. At ninety the four shards at 41 and the frozen throne at 77 are
+both inside, and the tile reading could not do that: at 57.3 the throne fell out
+of its own room. Two facts nobody reconciled now agree.
+
+So the fought room is `90 × YARD × BUILD_SCALE` = **1041**. The 1326 the chamber
+carries today is the tile, and it stays until the fight lands, by the rule two
+paragraphs up: a room with no fight is a room you only cross.
+
+**It is not the largest room in the building, and #37 assumes it is.** That issue
+calls the throne "the largest arena in the building, as the last one ought to be".
+The source disagrees: the first fight's `CircleBoundary` is 95 yards, which is the
+1099 the great hall's apse already carries, against the throne's 90. The last room
+is the *second* largest and the widest disc — the frost queen's 1012 and the other
+platform's 843 are the ones below it — and the halls are wider still in their long
+axis. Whatever this room is for, it is not for being the biggest; it is for being
+the one that gets smaller.
+
+Two other things whoever builds #13 should not re-derive:
+
+- **The engine change it asks for is already done.** #13 was written when the
+  arena was a constant and `clampToArena` enforced it, and it called making that
+  radius a state "this boss's real structural change". The rooms landed since:
+  `SimState.room` is a `RoomShape` and `pushInside` reads `room.radius` on every
+  call, so a fight that shrinks its floor assigns to it. Nothing structural is
+  left.
+- **The two issues guessed the radius, and guessed close.** #13 says 920 and #37
+  says 900, both written before anybody looked, against the 1041 the source gives.
+  #37's shrink is therefore best read as ratios rather than as units: 900 → 760 →
+  640 is 1.000 → 0.844 → 0.711, which against 1041 is 1041 → 879 → 740.
 
 ### Counted against the scripts, one boss at a time
 
