@@ -2182,6 +2182,20 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   const spillActive = livingParty(s).some((a) => getAura(a, 'spilling') !== undefined)
   const swallowActive = s.actors.some((a) => getAura(a, 'swallowed') !== undefined)
 
+  // The thing following this body, if one is. Read once rather than per
+  // candidate: it does not move while the search runs.
+  //
+  // It is the only hazard in the game that is *chasing*, and the search had no
+  // term for it at all -- `isSpotSafe` refuses a spot inside its reach, which
+  // rules out standing still and says nothing about which way to go. So the
+  // body stepped to whatever ring tile was not refused, the melee and tank
+  // terms below pulled it straight back toward the boss, and the shade closed
+  // again. Measured over two hundred seconds of the Whisper: the gap between a
+  // haunted body and the thing on it had a median of 2.8 units, and one raider
+  // spent fifty-three seconds with it standing on them. The comment on
+  // `updateShades` says it is "outrun by walking"; nothing was walking away.
+  const chasing = getAura(actor, 'haunted')?.at ?? null
+
   let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
   let bestScore = -Infinity
 
@@ -2229,6 +2243,20 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       const d = dist(candidate, g.pos)
       if (d <= g.radius + DANGER_MARGIN) score -= 1000
       else score -= Math.max(0, 200 - d) * 0.5
+    }
+
+    // And away from whatever is chasing this body.
+    //
+    // Priced above the role terms below on purpose. A tank or a melee pays
+    // three a unit for every step past two hundred from the boss, so a term
+    // worth less than that is a term the body agrees with and then walks back
+    // through -- which is what it did. Four a unit up to the ring the search
+    // samples at, so the far side of that ring beats standing next to the
+    // boss, and a body that has already outrun the thing stops paying for
+    // distance it does not need: the shade closes at most of a body's speed,
+    // so what has to be bought is a lead rather than a corner of the room.
+    if (chasing) {
+      score += Math.min(dist(candidate, chasing), SHADE_REACH * 3) * 4
     }
 
     // Somebody who has never held the gift, for whoever is holding one.

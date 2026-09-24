@@ -617,9 +617,23 @@ function floorNow(here: string): RoomShape[] {
   // Taken as an argument rather than read off `state.chamber`, which is what
   // both callers have just assigned: a floor built from a room the page has
   // moved on from is a floor with the party standing outside it.
+  // And not the lift, which is the one join in this building that is not
+  // ground. `bridge` floors a passage that has no corridor at all -- "a door
+  // with nothing behind it is still floor" -- which is right everywhere except
+  // over a hundred and thirty-seven yards of air. Seen in play: the moment the
+  // Whisper died, a floor grew out of the Oratory's east wall and stopped in
+  // mid-air, and the party could walk out onto it.
+  //
+  // Taken out of the floor rather than out of `laid`, which was the first go
+  // and was worse: the cell is the building's own skeleton as well as its
+  // picture, and dropping it there cut thirteen rooms off the map and broke
+  // six of `dungeoncheck`'s promises at once.
   const floor = storeyOf(here)
+  const lifts = new Set(
+    PASSAGES.filter((p) => p.lift === true).map((p) => `${p.from}>${p.to}`),
+  )
   return citadelWorld(new Set(run?.cleared ?? []))
-    .filter((cell) => cell.storeys.includes(floor))
+    .filter((cell) => cell.storeys.includes(floor) && !lifts.has(cell.id))
     .map((cell) => cell.room)
 }
 
@@ -2637,6 +2651,24 @@ if (!import.meta.env.PROD) {
     /** And how much of the raid is not. */
     fallen(): number {
       return state.actors.filter((a) => a.faction === 'party' && !a.alive).length
+    },
+    /**
+     * Where everything hostile is standing, in world units.
+     *
+     * A count cannot be held against a picture. Bodies were seen fighting the
+     * raid out in the black beside the Oratory, off any floor the building
+     * draws, and `foes()` says only that there were six of them -- so the
+     * thing to ask is where, and the answer has to come from the page rather
+     * than from a guess about which list they came out of.
+     */
+    foesAt(): Array<{ x: number; y: number; name: string }> {
+      return state.actors
+        .filter((a) => a.faction === 'boss' && a.alive)
+        .map((a) => ({ x: a.pos.x, y: a.pos.y, name: a.name }))
+    },
+    /** And the floor the building is drawing right now, to hold them against. */
+    floor(): Array<{ id: string }> {
+      return (state.floor ?? []).map((_, i) => ({ id: `cell${i}` }))
     },
   }
 }
