@@ -1,0 +1,30 @@
+# Fresh save, phone/touch, walking in the long way to the first boss, then
+# playing the cell playpick handed out: idle, 10-player normal, protection
+# warrior. New for this job: the front-page walk-in, a tank spec, and a
+# screen()/mode() check taken all the way from the door to a boss's own room.
+open
+targets
+ui
+shot front
+tap raid
+shot raid-setup
+tap next
+shot class-pick
+tap class:warrior:protection
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+walkto 0 -1000 8
+shot in-vigil
+state
+walkto 0 -6000 40
+shot in-spire
+state
+targets
+play idle 220
+shot after-idle
+state
+says
+targets
+ui
