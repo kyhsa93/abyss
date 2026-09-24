@@ -1,0 +1,21 @@
+# Cell from playpick: mode=daily, spec=paladin:protection, style=dodge,
+# view=1280x800 desktop, save=carried. First daily-mode session, first
+# carried-profile session (playtest/profile/ did not exist before this run),
+# first desktop viewport, first paladin tank, first FALTERING-affix pull.
+open
+targets
+shot front
+tap daily
+targets
+shot daily-screen
+tap class:2
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+play dodge 260
+shot after-fight
+state
+says
