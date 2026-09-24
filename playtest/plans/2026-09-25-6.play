@@ -1,0 +1,17 @@
+# Follow-up to plan -4: that run's `evening wander 150 5` got itself stuck at
+# THE VIGIL after two wipes in a row (fault:evening-stuck), never reaching a
+# boss room. Same --profile as plan -4 (the carried-through evening save), so
+# this is a reload and resume of that exact stuck raid -- checking whether a
+# fresh page load (README: "RAID resumes standing where you stood") clears
+# whatever left the corridor's trash still engaged on retry, or whether the
+# same pack is waiting on the far side of the reload too.
+open
+tap raid
+waitscreen fight 15
+shot resumed
+state
+targets
+evening wander 150 3
+shot after-resume
+state
+says

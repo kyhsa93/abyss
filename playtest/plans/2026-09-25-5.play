@@ -1,0 +1,21 @@
+# Not the playpick cell -- a discriminating check for plan -4's finding.
+# `evening wander` wiped the 10-player-normal substitute twice in a row inside
+# THE VIGIL corridor (mode stayed travel the whole time) and got stuck there,
+# never reaching a boss room. Before filing that, docs/playtest.md insists a
+# hostile result gets checked against `good` before it is trusted as the
+# fight's fault rather than the style's. Same seed policy as any other pull
+# (keyed off pull count from a fresh `open`), same substituted rung, same
+# spec, `good` style instead of `wander`, three rooms only -- enough to cross
+# threshold and clear the vigil once.
+open
+tap raid
+tap next
+tap class:paladin:retribution
+tap pull
+waitscreen fight 15
+shot g-arrive
+state
+evening good 150 3
+shot g-after
+state
+says

@@ -85,6 +85,43 @@ what it was checking for. Narrowed rather than dropped: the confusion may be
 the driver's problem more than the player's, but that needs a session that
 plays *naively* to say for certain.
 
+### 3. A wipe on the way between rooms cannot be retried, and stalls the evening
+
+`docs/playtest.md` and the README both say a wipe should cost the pull, not
+the night: "What you killed stays dead; a wipe costs the pull and not the
+night." That is written about the building in general, not just a boss's own
+room, and the walk between rooms is explicitly a fight too — `mode` reads
+`travel` while it runs, and the README says packs in a corridor are placed to
+punish carelessness on purpose.
+
+**2026-09-25 (first `mode=clear` session to leave a ledger line).** 10-normal
+(the open substitute for a fresh save's locked 25-heroic), paladin
+retribution, `evening wander 150 5`. Wiped in THE VIGIL corridor at 40.9s.
+Pressing PULL AGAIN (`tap outcome:retry`) did not restart it — `outcome`
+stayed `wipe` through the full 30-second wait `evening` gives a room to
+change state, so the next room began with the fight still showing `wipe`, was
+counted as a second instant wipe with `hero()` returning `null`, and the
+evening declared itself stuck: `fault:evening-stuck {"at":"vigil","rooms":3}`
+at 101.8s. Filed as #271, with the journal lines and both play scripts.
+
+A same-`--profile` reload afterward did not recover it either: `open` then
+`tap raid` landed on a brand-new raid-setup screen (default frost mage, The
+Bonegrinder at full health, "you walk in at the threshold") instead of
+`src/main.ts`'s own resume path (`if (run) { ... standIn(run.at, null) }`).
+The stuck evening was not just unretryable, it was gone.
+
+**Discriminated, not yet generalised.** The same corridor crossed cleanly
+under `good` in a separate run (0 wipes, 10/10 alive, hero hp 275/1800), so
+THE VIGIL is not unconditionally lethal — the bug is the retry, not the
+difficulty. What is not yet known is whether every travel-mode wipe fails to
+retry the same way, or whether this is specific to THE VIGIL or to the
+paladin/10-normal combination. One room, one session.
+
+**Disproved by** a travel-mode wipe, anywhere in the building, where PULL
+AGAIN does restart the room. **Sharpened toward "every travel wipe is like
+this"** by a second corridor showing the same `outcome` staying `wipe` after
+a retry tap.
+
 ## Not yet filed
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned

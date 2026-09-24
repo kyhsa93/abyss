@@ -1,0 +1,36 @@
+# Cell from playpick: mode=clear, spec=paladin:retribution, style=wander,
+# size=25, difficulty=heroic, view=844x390,touch, save=fresh. 25-heroic is
+# locked at the door on a fresh save (src/progress.ts's RUNGS chain: a fresh
+# save's `unlocked` is 0, and 25-heroic on the first boss sits at chain index
+# 3) -- substituted the setup screen's own default, 10-player normal, the
+# same substitution the three prior attempts at this cell made.
+#
+# Fourth attempt at this exact cell. The first three (plans -1, -2, -3;
+# commits 2641416, e4be536, dc57b86) all ran `evening` and none left a ledger
+# line -- two were started in the background and abandoned mid-run, the third
+# split the walk into two chunks against a shared --profile/--out but still
+# did not finish inside one turn. This session runs each chunk of the split
+# to completion in the foreground before doing anything else, and writes the
+# ledger line no matter how far the evening actually gets.
+#
+# Chunk 1: walk in, and as many rooms as fit in one blocking call. `--profile`
+# and `--out` are passed on the command line and are shared with the chunks
+# that follow, so `open` + `tap raid` below resumes exactly where this one
+# stops (README: "RAID resumes standing where you stood").
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:paladin:retribution
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening wander 150 5
+shot after-evening-1
+state
+says
