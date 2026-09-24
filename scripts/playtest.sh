@@ -50,8 +50,39 @@ log() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
 FORCE=""
 [ "${1:-}" = "now" ] && FORCE=1
 
+# **A wedged session has to be killed, not waited for.**
+#
+# The other job on this machine that runs `claude -p` under `timeout` was found
+# sitting on its lock seven days and one hour into a one-hour budget: `timeout`
+# sends SIGTERM, the process caught it and stopped somewhere in its own shutdown,
+# and `timeout` with no `-k` waits forever for a child that is never coming back.
+# Every tick after that logged "skip: previous session still going" into a file
+# nobody was reading, so the job was dead for a week and looked idle.
+#
+# So: `-k` below on the timeout itself, and this, which is the backstop for the
+# case where even SIGKILL-after-SIGTERM does not settle it.
 exec 9>"$LOGDIR/lock"
-flock -n 9 || { log "skip: previous session still going"; exit 0; }
+if ! flock -n 9; then
+  SINCE="$(cat "$LOGDIR/running.since" 2>/dev/null || echo 0)"
+  HELD=$(( $(date +%s) - SINCE ))
+  HOLDER="$(cat "$LOGDIR/running.pid" 2>/dev/null || echo 0)"
+  if [ "$SINCE" -gt 0 ] && [ "$HELD" -gt 10800 ] && [ "$HOLDER" -gt 1 ]; then
+    log "WEDGED: session $HOLDER has held the lock ${HELD}s -- killing its process group"
+    kill -9 -- "-$HOLDER" 2>/dev/null || kill -9 "$HOLDER" 2>/dev/null
+    # Not taking its turn here. The next tick gets a clean tree and a clean lock.
+    exit 1
+  fi
+  log "skip: previous session still going (${HELD}s)"
+  exit 0
+fi
+
+# Recorded so the tick after a wedge can tell how long it has been, and whom to
+# kill. No `set -m` here on purpose: job control would give each child its own
+# process group, and killing the group is the whole point -- under cron this
+# script leads its group, so `kill -- -$$` takes the `claude` underneath it too.
+echo $$ > "$LOGDIR/running.pid"
+date +%s > "$LOGDIR/running.since"
+trap 'rm -f "$LOGDIR/running.pid" "$LOGDIR/running.since"' EXIT
 
 HOUR="$(date +%Y-%m-%dT%H)"
 # Most ticks end here, without touching git or writing a log line.
@@ -139,7 +170,10 @@ English and in this repository's voice, that will be the commit subject.
 Report the cell you played, what you did in it that no session had done before,
 what you found, what you filed, and why there was not more."
 
-timeout 5400 claude -p "$PROMPT" \
+# `-k 120`: SIGTERM at the budget, SIGKILL two minutes later. Without it a child
+# that catches SIGTERM and hangs holds this job's lock forever -- which is exactly
+# what happened to the other `claude -p` job on this machine.
+timeout -k 120 5400 claude -p "$PROMPT" \
   --model claude-sonnet-5 \
   --allowedTools Bash Read Glob Grep Edit Write \
   >> "$LOG" 2>&1
