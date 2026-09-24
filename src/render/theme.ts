@@ -401,9 +401,30 @@ export const VIEW_REACH = 50 * YARD
  *
  * So the ladder reaches further in. The far end is unchanged, because a raid
  * that wants to see the whole floor still has to be able to.
+ *
+ * Two more rungs on the near end, asked for after playing it. The ladder is a
+ * geometric one -- each rung is between a third and a half again the last --
+ * and these carry that on rather than picking round numbers: 7.5, 10.2, 13.8.
+ * What they buy, measured on the bodies rather than on the multiplier: on a
+ * desktop a raider stood at 9.8% of the screen's height at the old top step
+ * and stands at 13.3% and 18.1% on the new ones. On a phone in portrait the
+ * old top was 4.8%, which is half of what the source's own camera gives you
+ * pushed all the way out -- the new rungs reach 6.5% and 8.8%, and that last
+ * one is the first framing on a phone that matches standing in a raid.
+ *
+ * The names are five letters at the most because the settings row divides a
+ * fixed three hundred and forty pixels between them: five buttons were
+ * sixty-three pixels each and seven are forty-three. `fitText` shrinks a label
+ * that does not fit its own button rather than the row, so a long name makes a
+ * small word in a line of large ones -- with seven buttons `CLOSER` came out
+ * half the height of `FAR` beside it, and it was the selected one. Shortening
+ * that one alone was not enough: `NEAR`, `CLOSE` and `TIGHT` were still being
+ * shrunk while `FAR` and `FACE` were not, which is a row of seven words in
+ * four sizes. Every name is four letters or fewer now, which is what forty-
+ * three pixels holds at the row's own size, and the ladder reads as one line.
  */
-export const ZOOM_STEPS = [1, 2.5, 3.6, 5.5, 7.5] as const
-export const ZOOM_NAMES = ['FAR', 'NEAR', 'CLOSE', 'CLOSER', 'OVER'] as const
+export const ZOOM_STEPS = [1, 2.5, 3.6, 5.5, 7.5, 10.2, 13.8] as const
+export const ZOOM_NAMES = ['FAR', 'BACK', 'MID', 'IN', 'OVER', 'TAUT', 'FACE'] as const
 
 /**
  * Where the camera starts.
