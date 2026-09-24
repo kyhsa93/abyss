@@ -117,10 +117,30 @@ difficulty. What is not yet known is whether every travel-mode wipe fails to
 retry the same way, or whether this is specific to THE VIGIL or to the
 paladin/10-normal combination. One room, one session.
 
+**2026-09-25, confirmed a second way, same room.** `mode=walk` toward `crowns`
+(the wing boss is irrelevant here -- the walk never got past the second room),
+druid restoration, `mash`, 10-normal, fresh save, 390x844 touch -- a different
+class, style, difficulty and save state than the first report, in the same
+corridor. Chased into THE VIGIL by the threshold's own watchmen (`stillAlive`
+read 185-186 `The Damned` the whole way), wiped at 26s, PULL AGAIN tapped:
+re-wiped at 0.0s with `hero.hp=0` and every ability slot `locked` -- not
+"outcome stayed wipe" this time but the party never coming back up at all.
+Tapped again: same. A brand-new `evening` call against the same stuck room
+did not recover it either. Both post-wipe screenshots
+(`after-evening-1.png`, `after-evening-2.png`, from two separate `evening`
+calls) are pixel-identical: "0.0s · 8 down", PULL AGAIN highlighted, nothing
+moving. Commented on #271 rather than filing again -- same room, and the two
+reports together already say plainly that PULL AGAIN's failure to revive the
+party is spec/style/save-independent, at least in THE VIGIL.
+
 **Disproved by** a travel-mode wipe, anywhere in the building, where PULL
 AGAIN does restart the room. **Sharpened toward "every travel wipe is like
-this"** by a second corridor showing the same `outcome` staying `wipe` after
-a retry tap.
+this"** by a wipe in a *different* corridor showing the same failure --
+the two confirmations so far are both THE VIGIL, so "every travel wipe" is
+still open. **Sharpened toward "PULL AGAIN never revives the party" itself**
+(rather than the earlier framing that only `outcome` was wrong) by this
+session's `hero.hp=0`/`locked`-bar reading -- worth checking on the next
+report whether that is the actual defect PULL AGAIN has.
 
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 

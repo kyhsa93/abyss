@@ -1,0 +1,42 @@
+# Cell from playpick: mode=walk, boss=crowns, spec=druid:restoration,
+# style=mash, size=10, difficulty=normal, view=390x844,touch, save=fresh.
+#
+# "walk" means the long way (example.play's own words): no #hash shortcut to
+# the roster, walked in from the front page. The target, crowns (The Three
+# Crowns), sits in room `crimson`, past the whole lower spire and across the
+# upper crossing -- there is no way to it that skips marrow, whisper, skyward
+# and gorged on a fresh save, so this cell is close to the `clear` mode's own
+# walk with one difference: it stops once crowns's room is reached rather than
+# pushing on. First session to walk this far while aiming at a wing boss by
+# name rather than at "as far as it goes".
+open
+targets
+ui
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:druid:restoration
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+# Chunk 1: threshold -> vigil -> spire(marrow) -> climb -> oratory(whisper) ->
+# mooring(skyward) -> rise(gorged) -> crossing. Generous budget; evening stops
+# itself early (evening-stuck) if two rooms in a row go nowhere.
+evening mash 90 9
+shot after-evening-1
+state
+says
+
+# Chunk 2: crossing -> crimson wing -> crowns's own room, and the fight.
+evening mash 110 4
+shot after-evening-2
+state
+says
+bill
+targets
+ui
