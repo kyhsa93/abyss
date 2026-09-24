@@ -90,7 +90,11 @@ export const AWARDS: Award[] = [
   {
     id: 'first_kill',
     name: 'First Blood',
-    detail: 'Kill the Drowned Warden.',
+    // Named for a boss that no longer exists, and narrower than the rule beside
+    // it: this is earned by winning anything, and it said to go and kill one
+    // particular fight. `detail` is drawn on the record screen, so the player
+    // was reading both mistakes.
+    detail: 'Kill it.',
     earned: (s) => won(s),
   },
   {

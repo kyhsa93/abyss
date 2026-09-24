@@ -7,21 +7,31 @@ import { ENCOUNTERS, encounterIndex, type MechanicId } from './sim/encounters'
  * The raid used to be three locked doors and nothing else: a boss opened when
  * the one before it died, and the size and the difficulty were free from the
  * first pull. Which meant the first thing a new player could do was walk a
- * twenty-five man heroic into the Drowned Warden, and the ladders made that
- * worse rather than better — the whole point of them is that a size and a
- * difficulty each buy a mechanic, and a game that hands you all five rungs
- * before you have seen the first two is a game that hands you the top of a
- * ladder and no rungs.
+ * twenty-five man heroic into the first fight, before having seen any of it at
+ * ten.
  *
  * So there is one chain, and it runs through every setting rather than past
- * them. Six rungs per boss, in the order the fight gets harder, and the last
+ * them. Four rungs per boss, in the order the fight gets harder, and the last
  * of one boss opens the first of the next:
  *
- *   Warden 5N → 5H → 10N → 10H → 25N → 25H → Choir 5N → …
+ *   Bonegrinder 10N → 10H → 25N → 25H → Last Whisper 10N → …
  *
  * Clearing a rung opens the one after it. Nothing else does — not reaching it,
  * not clearing something harder elsewhere — so what is open is always a prefix
  * of this list and a single number describes it.
+ *
+ * **This is the only ladder left, and it is about access rather than content.**
+ * There was a second one: a fight sold its mechanics one at a time as the raid
+ * got bigger or braver, six rungs a boss because three sizes by two
+ * difficulties is six, and a boss could own no more ideas than it had settings
+ * to sell them at. That was retired — see `gates` in `sim/encounters.ts`, which
+ * says why in one line: a fight with a mechanic taken out of it is not easier,
+ * it is emptier. Kits run from three mechanics to eight now, and what varies by
+ * setting is numbers rather than ideas, bar the four places the source itself
+ * gates a whole mechanic.
+ *
+ * So nothing on this chain buys a mechanic. What a rung opens is the next
+ * setting, and that is all it has ever needed to do.
  */
 export interface Tier {
   encounter: number
@@ -64,9 +74,9 @@ export function tierAt(index: number): Tier {
 /**
  * Where a setting sits on the chain, or -1 for one that is not on it.
  *
- * A size outside the three is not a raid setting at all — a battleground is
- * five a side and does not belong here — so it is answered with -1 rather than
- * clamped onto the nearest rung.
+ * A size that is not one of the two is not a raid setting at all — a
+ * battleground is five a side and does not belong here — so it is answered with
+ * -1 rather than clamped onto the nearest rung.
  */
 export function tierOf(encounter: number, size: number, difficulty: DifficultyId): number {
   if (!RAID_SIZES.includes(size as RaidSize)) return -1
@@ -234,7 +244,7 @@ function same(a: Setting, b: Setting): boolean {
  * somebody else's fight, from coming back out of a battleground, and from
  * pressing a boss whose top rungs are still locked. It moves the size and the
  * difficulty and, unless the boss itself is unreached, never the boss — a
- * player who pressed the Choir and got moved to the Warden because their
+ * player who pressed the second boss and got moved to the first because their
  * difficulty was locked would be reading a stranger answer than one who got
  * moved to normal.
  */

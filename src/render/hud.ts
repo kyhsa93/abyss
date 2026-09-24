@@ -187,9 +187,10 @@ export function advanceLabel(s: SimState): string {
   const here = tierOf(s.encounter, s.party.length, s.difficulty)
   if (here < 0) return 'NEXT BOSS'
   const next = tierAt(here + 1)
-  // Named by what actually changes. A player who just killed the Warden at
-  // five and is being offered the Warden at five on heroic was, before this,
-  // being offered "NEXT BOSS" — which is not what the button did.
+  // Named by what actually changes. A player who just killed the first boss at
+  // ten and is being offered it at ten on heroic was, before this, being
+  // offered "NEXT BOSS" — which is not what the button did. (The example used
+  // to say "the Warden at five": a boss renamed and a size removed since.)
   return next.encounter === s.encounter ? tierLabel(next) : 'NEXT BOSS'
 }
 
