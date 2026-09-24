@@ -145,9 +145,12 @@ this job is worth running for months instead of once.
 ## What you may change
 
 **Only files under \`playtest/\`.** Nothing else — not \`src/\`, not the docs.
-Anything you would like changed in the game is an issue, not an edit. You do not
-need to commit: whatever you leave under \`playtest/\` is committed and pushed for
-you, and anything you leave outside it is thrown away and logged as a mistake.
+Anything you would like changed in the game is an issue, not an edit.
+
+**Do not commit and do not push.** Leave the files; the runner commits what is
+under \`playtest/\`, with your ledger line's \`message\` as the subject, and pushes
+it. Anything you leave outside \`playtest/\` is put back and logged as a mistake,
+and so is anything you commit outside it.
 
 Issues are in Korean. Source and \`playtest/\` files are in English. Label them
 \`playtest\` plus \`bug\` or \`enhancement\`.
@@ -208,6 +211,28 @@ if [ -n "$STRAY" ]; then
   # This was found by doing it, by hand, to a tree in the middle of this round.
   git checkout -- . ':(exclude)playtest' 2>>"$LOG"
   git clean -fdq -e playtest 2>>"$LOG"
+fi
+
+# And the same boundary, on what it *committed*.
+#
+# The check above reads the working tree, which is the whole story only while the
+# session does as it is told. The first session ever run committed and pushed its
+# own work instead of leaving it -- harmlessly, it had only touched `playtest/` --
+# and in doing so walked straight past the guard. A session that had edited `src/`
+# and committed it would have shipped.
+#
+# Put back rather than reset: by the time this runs the commit may already be on
+# `main`, so the repair has to be a commit of its own.
+if [ "$(git rev-parse HEAD)" != "$BEFORE" ]; then
+  COMMITTED_OUT="$(git diff --name-only "$BEFORE"..HEAD -- . ':(exclude)playtest')"
+  if [ -n "$COMMITTED_OUT" ]; then
+    log "WARN: the session committed outside playtest/ -- putting it back"
+    echo "$COMMITTED_OUT" >> "$LOG"
+    git checkout "$BEFORE" -- . ':(exclude)playtest' 2>>"$LOG"
+    git commit -q -m "Put back what a playtest session changed outside playtest/" >>"$LOG" 2>&1
+  else
+    log "note: the session committed its own work ($(git rev-parse --short HEAD)), inside the boundary"
+  fi
 fi
 
 if [ "$RC" -ne 0 ]; then
