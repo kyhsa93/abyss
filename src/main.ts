@@ -606,6 +606,23 @@ let run: Run | null = loadRun()
  * Read off `run.cleared` every time it is handed over, so nothing has to
  * remember to rebuild it.
  */
+/**
+ * Which room a pack stands in, or null when it stands between two.
+ *
+ * Three shapes of key exist -- `room:<id>#n` for what is standing in a room,
+ * `warden#<id>` for the thing the room is named after, and `<a>:<b>#n` for a
+ * pack in the passage between two rooms. Only the first is answered here: the
+ * warden carries its room on itself, and a passage belongs to both storeys it
+ * joins, so filtering one out by storey would take a corridor away from
+ * whichever end the party is standing on.
+ */
+function roomOfPack(key: string | undefined): string | null {
+  if (key === undefined) return null
+  if (!key.startsWith('room:')) return null
+  const cut = key.indexOf('#')
+  return key.slice('room:'.length, cut < 0 ? undefined : cut)
+}
+
 function floorNow(here: string): RoomShape[] {
   // The floor of the storey the party is standing on, and the stairs off it.
   //
@@ -1126,7 +1143,23 @@ function standIn(
     // What is standing in the ground that exists tonight. A pack in a passage
     // that has not been laid is a pack standing on nothing, drawn in the dark
     // beyond a wall the party cannot reach.
-    packs: citadelPacks(new Set(run.cleared), run.felled),
+    //
+    // And on this storey, which is the same sentence about the other axis and
+    // was missing. `floorNow` filters the floor by storey and nothing filtered
+    // the bodies, so standing in the Oratory -- storey nought -- put the
+    // Mooring's boss and its deck crew on screen two and a half thousand units
+    // east, in the black, with no floor under them and the raid in combat with
+    // them: "3 ON YOU" became "6 ON YOU" while walking east after the Whisper
+    // died. They are up the lift, a hundred and thirty-seven yards above.
+    //
+    // Rooms and their wardens only. A passage belongs to both of the storeys
+    // it joins -- see `Cell.storeys`, and the note there about what happens to
+    // a building whose stairs belong to neither -- so what is standing in one
+    // stays where it is.
+    packs: citadelPacks(new Set(run.cleared), run.felled).filter((pack) => {
+      const room = pack.warden?.room ?? roomOfPack(pack.key)
+      return room === null || storeyOf(room) === storeyOf(id)
+    }),
     springs: citadelSprings(new Set(run.cleared)),
     // And what is standing in the rooms themselves, which is not conditional
     // on anything: furniture does not wait for a door to open.

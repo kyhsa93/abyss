@@ -364,6 +364,26 @@ function actions(): Map<string, string> {
  * a pull, so the picture cannot promise a fight the encounter does not run.
  */
 const BOSS: Record<string, Layer[]> = {
+  // "get off the rail, work the gun, and meet what comes aboard" -- the officer
+  // on the other deck. The source has no model for the ship itself: `The
+  // Skybreaker` and `Orgrim's Hammer` are invisible stalkers, and what a raid
+  // actually fights across the gap is the commander who boards it -- Muradin
+  // Bronzebeard or High Overlord Saurfang, depending which side you are. So
+  // this is a soldier rather than a vessel, in the heaviest plate the set has,
+  // with a helm and a two-handed haft: the one boss in this game a player is
+  // meant to read as *the same kind of thing they are*, on the wrong ship.
+  //
+  // It was a bare disc until this line existed -- `hasBody('boss-skyward')`
+  // was false and nothing on the deck said so, which is exactly what was
+  // reported.
+  skyward: [
+    { z: 10, dir: 'body/bodies/muscular' },
+    { z: 15, dir: 'feet/armour/plate/male' },
+    { z: 20, dir: 'legs/armour/plate/male' },
+    { z: 60, dir: 'torso/armour/plate/male' },
+    { z: 100, dir: 'head/heads/human/male' },
+    { z: 120, dir: 'hat/helmet/barbarian/adult' },
+  ],
   // "cut the shard, swap the hold, and hold off your own" — a lich. A woman
   // dead a long time, in a heavy robe, and the weight of the picture is in the
   // robe and the head rather than in anything she is holding, because the
@@ -576,6 +596,23 @@ const HAIR: Record<string, string> = {
  * come back to if a fight ever asks the question again.
  */
 const ADD: Record<string, Layer[]> = {
+  // What comes across the gap when the other ship pulls alongside. The source
+  // sends marines and sergeants through one portal -- Skybreaker Marine 36950
+  // and Sergeant 36961, or the Kor'kron pair on the other side -- and they are
+  // soldiers, not monsters: the only bodies in this game that are the same
+  // kind of thing as the raid fighting them.
+  //
+  // Legion mail rather than plate, so a boarder reads as lighter than the
+  // officer it comes with, and the human head for the same reason the officer
+  // has one.
+  boarder: [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/armour/plate/male' },
+    { z: 20, dir: 'legs/armour/plate/male' },
+    { z: 60, dir: 'torso/armour/legion/male' },
+    { z: 100, dir: 'head/heads/human/male' },
+    { z: 140, dir: 'weapon/sword/arming' },
+  ],
   thrall: [
     { z: 10, dir: 'body/bodies/male' },
     { z: 15, dir: 'feet/boots/basic/male' },

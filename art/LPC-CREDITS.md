@@ -75,6 +75,7 @@ cannot fall behind a change to them.
 - `shoulders/pauldrons` — Matthew Krohn (makrohn),Johannes Sjölund (wulax),bluecarrot16,JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `torso/aprons/apron` — Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 2.0,GPL 3.0)
 - `torso/armour/leather` — Johannes Sjölund (wulax),bluecarrot16,JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `torso/armour/legion` — Napsio (Vitruvian Studio),JaidynReiman,bluecarrot16,Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 2.0,GPL 3.0)
 - `torso/armour/plate/male` — Napsio (Vitruvian Studio),JaidynReiman,bluecarrot16,Michael Whitlock (bigbeargames),Johannes Sjölund (wulax) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `torso/bandage` — Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 2.0,GPL 3.0)
 - `torso/chainmail` — Johannes Sjölund (wulax),Napsio (Vitruvian Studio),JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
