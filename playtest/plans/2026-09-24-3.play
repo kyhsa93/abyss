@@ -1,0 +1,24 @@
+# Cell from playpick: mode=daily, boss=host, spec=paladin:protection,
+# style=dodge, view=1280x800 desktop, save=carried. First daily-mode session
+# to actually finish (a prior attempt at this same cell left a plan file with
+# no ledger line -- see commit fb7993a -- and its abandoned browser profile is
+# what "carried" resumes here, so today's attempt count may already be >=1).
+open
+targets
+shot front
+tap daily
+targets
+shot daily-screen
+tap class:2
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+play dodge 260
+shot after-fight
+state
+says
+targets
+ui
