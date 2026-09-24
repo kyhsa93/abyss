@@ -27,7 +27,8 @@
     "check": "tsc && npm run conceptcheck && npm run artcheck && npm run dungeoncheck && npm run rendercheck && npm run touchcheck && npm run balancecheck",
     "specprobe": "esbuild scripts/specprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/specprobe.mjs --log-level=error && node node_modules/.cache/specprobe.mjs",
     "playbot": "esbuild scripts/playbot.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/playbot.mjs --log-level=error && node node_modules/.cache/playbot.mjs",
-    "playpick": "esbuild scripts/playpick.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/playpick.mjs --log-level=error && node node_modules/.cache/playpick.mjs"
+    "playpick": "esbuild scripts/playpick.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/playpick.mjs --log-level=error && node node_modules/.cache/playpick.mjs",
+    "deadprobe": "esbuild scripts/deadprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/deadprobe.mjs --log-level=error && node node_modules/.cache/deadprobe.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
