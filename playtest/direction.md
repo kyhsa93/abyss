@@ -57,6 +57,45 @@ consequence. Those want different fixes.
 Related: the fun diagnosis round already found ten-player normal winning from a
 standing start. This is the same shape one difficulty up, which is worse.
 
+**2026-09-25, sharpened on the hardest cell and a third role.** The first two
+cells were a tank and a dps -- roles a twenty-five-body raid can carry without.
+A healer who presses nothing heals nobody, so The Long Cold (25-heroic, the
+hardest single cell in the game per `README.md`'s own tables, and a boss whose
+stated demand is literally "do nothing while it is on you") is the sharpest
+test available. Two separate `playbot` invocations, same fresh-save pull-one
+seed (`docs/playtest.md`'s "Re-evaluating" section: the first pull after `open`
+is the same fight to the tick), restoration shaman, `good` vs `idle`:
+
+```
+110.1s played style=good seconds=108 outcome=victory fightTime=105 phase=3
+  aliveParty=24/25 heroHp=520/1485 bossHp=down presses=22 inDanger=24%
+ 97.6s played style=idle seconds=95  outcome=victory fightTime=93  phase=3
+  aliveParty=25/25 heroHp=1267/1485 bossHp=down presses=0 inDanger=30%
+```
+
+Idle didn't just avoid losing -- it won more comfortably on every count that
+isn't itself a proxy for effort: faster kill (93s vs 105s), the whole raid
+alive instead of one down, and more than twice the healer's own health left
+over, despite taking *more* damage per minute doing it (`bill`:
+`takenPerMin=1696.9` idle vs `1276.7` good). Third role, third boss, third
+save state, still no cell where idle loses. This gap is already on
+`docs/upkeep.md`'s own "raid rewarding play" table (Long Cold: +55, measured
+under the old settings-based mechanic system) and is explicitly not proposable
+as a new issue -- it is recorded here because the shape of *how* idle wins
+(a healer, on the fight built around knowing when to do nothing) is new
+evidence for this line specifically, not because the underlying gap is new.
+
+**Driver lesson, not a game finding:** the first attempt at this comparison
+put both pulls in one script with a second `open #b=cold&s=25&h=1` mid-run to
+reset between them. It didn't reset anything -- the app clears the invite hash
+from the address bar after reading it once (`README.md`, "Sharing"), so the
+second `open` was a fragment-only difference from the already-cleared current
+URL, and Playwright (matching real browser fragment-navigation semantics)
+treated it as a same-document navigation: no reload, no new pull, just the
+first pull's own end-of-fight state read a second time. Split into two
+`playbot` invocations instead. Worth remembering before writing a multi-pull
+script that reaches for `open #hash` a second time.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

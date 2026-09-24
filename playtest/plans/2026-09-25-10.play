@@ -1,0 +1,46 @@
+# playpick: mode=raid boss=cold spec=shaman:restoration style=good size=25
+# difficulty=heroic view=844x390,touch save=fresh
+#
+# The Long Cold has never been played by this job. It is the hardest single
+# cell in the game (25-heroic, README's own words) and it is a healer's fight
+# rather than a tank's or a dps's -- the first two idle/good comparisons in
+# direction.md's #1 ("doing nothing wins") were a frost mage and a protection
+# warrior, both roles a raid can carry without. A restoration shaman who
+# presses nothing heals nobody, which is the sharpest test #1 has had yet:
+# if idle still doesn't lose here, the hypothesis gets much harder to explain
+# away as "the AI only needed a tank/dps". Fresh save, so 25-heroic is not
+# unlocked by the chain -- the invite hash gets there directly, same as the
+# doc's own example.
+open #b=cold&s=25&h=1
+targets
+ui
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+state
+shot good-open
+
+play good 200
+bill
+says
+state
+shot good-end
+
+# Second pull, same seed (fresh profile has no state to carry, so a fresh
+# `open` starts the encounter's pull count back at one) -- this time idle,
+# for the direction.md #1 comparison per docs/playtest.md's ladder section:
+# discriminate a curve by running idle and good on the same cell and reading
+# bill per minute, not just win/lose.
+open #b=cold&s=25&h=1
+targets
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+state
+shot idle-open
+
+play idle 200
+bill
+says
+state
+shot idle-end

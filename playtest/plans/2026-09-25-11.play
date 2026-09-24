@@ -1,0 +1,25 @@
+# Companion to 2026-09-25-10.play: same cell (raid, cold, shaman:restoration,
+# 25-heroic, fresh) but idle, run as its own playbot invocation. The first
+# attempt put both good and idle in one script with a second `open #hash`
+# mid-run to reset between pulls -- it didn't reset anything, because the app
+# clears the invite hash from the address bar after reading it once, so the
+# second `open #b=cold&s=25&h=1` was a fragment-only difference from the
+# already-cleared current URL and Playwright (matching real browser fragment-
+# navigation semantics) treated it as a same-document nav: no reload, no
+# re-run of the pull. The "idle" numbers that produced were the good pull's
+# own stale end-of-fight state read twice. Splitting into two invocations
+# avoids the whole problem: the first navigation of a fresh browser context is
+# never a fragment-only nav.
+open #b=cold&s=25&h=1
+targets
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+state
+shot idle-open
+
+play idle 200
+bill
+says
+state
+shot idle-end
