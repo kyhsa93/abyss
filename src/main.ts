@@ -2959,6 +2959,52 @@ if (!import.meta.env.PROD) {
       return state.chat.slice(-n).map((c) => ({ speaker: c.speaker, text: c.text }))
     },
     /**
+     * The doors out of the ground the party is standing on, in world units.
+     *
+     * A walk between two rooms ends by *walking* -- crossing the ground and
+     * taking a door -- and not by standing still until something resolves. The
+     * first thing to try driving an evening end to end stood at the way in for
+     * two hundred seconds pressing abilities at nothing, because it assumed
+     * winning the corridor was what moved the party on. The session before it had
+     * got through by dead reckoning, `walkto 0 -1000`, which works only because
+     * this building happens to run north and left a `could-not-walk-there` in its
+     * own journal.
+     *
+     * So: where the doors are, which room each leads to, and how far. The player
+     * can see them -- they are drawn on the floor -- and this is the same list the
+     * walk itself reads, so the two cannot come to disagree about where a door is.
+     */
+    ways(): Array<{
+      to: string
+      x: number
+      y: number
+      away: number
+      onX: number
+      onY: number
+    }> {
+      const corridor = state.travel?.corridor
+      if (!corridor) return []
+      const me = state.actors.find((a) => a.isPlayer)
+      return corridor.ways.map((w) => {
+        // The bearing the corridor runs on, from where the party came in to where
+        // it is going. Carried with the door because a walker needs to aim *past*
+        // it -- a citadel walk never ends by arriving -- and the line from a body
+        // to a door is not that bearing: a body that came in off to one side and
+        // extended that line walked diagonally into a wall.
+        const ax = w.at.x - corridor.entry.x
+        const ay = w.at.y - corridor.entry.y
+        const len = Math.hypot(ax, ay) || 1
+        return {
+          to: w.to,
+          x: w.at.x,
+          y: w.at.y,
+          away: me ? Math.round(Math.hypot(w.at.x - me.pos.x, w.at.y - me.pos.y)) : -1,
+          onX: ax / len,
+          onY: ay / len,
+        }
+      })
+    },
+    /**
      * The player's own bill for the pull, as the report screen gives it.
      *
      * `mechanicHits` is the number a raider argues about and the only honest way

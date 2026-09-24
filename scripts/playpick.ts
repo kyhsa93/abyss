@@ -34,7 +34,11 @@ process.stdout.on('error', () => process.exit(0))
 
 /** The things a session can differ in. Anything not here will not get varied. */
 const AXES = {
-  mode: ['raid', 'battleground', 'daily', 'walk', 'menus'],
+  // `clear` is the whole evening in one sitting, from the way in to as far as the
+  // building goes. It is the only mode that answers whether an evening can be
+  // finished, and after three sessions nothing had: the job had reached the first
+  // boss once and fought two dailies.
+  mode: ['raid', 'battleground', 'daily', 'walk', 'clear', 'menus'],
   boss: ENCOUNTERS.map((e) => e.id),
   map: ['conquest', 'flags', 'escort'],
   size: ['10', '25'],
@@ -110,12 +114,14 @@ const cell: Record<string, string> = { mode }
 // session has no style, and filling them in anyway would credit coverage for
 // something the session never touched.
 if (mode === 'raid' || mode === 'daily' || mode === 'walk') cell.boss = leanest(sessions, 'boss')
+// A clear starts at the way in and takes the building in its own order, so there
+// is no boss to choose -- the size and the difficulty are the whole setting.
 if (mode === 'battleground') cell.map = leanest(sessions, 'map')
 if (mode !== 'menus') {
   cell.spec = leanest(sessions, 'spec')
   cell.style = leanest(sessions, 'style')
 }
-if (mode === 'raid' || mode === 'walk') {
+if (mode === 'raid' || mode === 'walk' || mode === 'clear') {
   cell.size = leanest(sessions, 'size')
   cell.difficulty = leanest(sessions, 'difficulty')
 }

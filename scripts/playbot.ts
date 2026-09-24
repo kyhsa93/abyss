@@ -84,6 +84,28 @@ const entries: Entry[] = []
 const started = Date.now()
 
 /**
+ * `at` and `kind` belong to the journal, and a caller that uses one loses data.
+ *
+ * Twice now. A `walkto` called the place it ended up `at` and overwrote the
+ * clock; the fix put the clock last, and then an `evening` called the room it was
+ * in `at` and the clock overwrote the room. Picking a winner was the wrong fix
+ * either way -- one of the two values was always quietly gone. So the clash is
+ * renamed and reported, and nothing is lost while somebody gets round to it.
+ */
+function keep(fields: Record<string, unknown>): Record<string, unknown> {
+  let clash = false
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(fields)) {
+    if (k === 'at' || k === 'kind') {
+      out[`${k}_`] = v
+      clash = true
+    } else out[k] = v
+  }
+  if (clash) out.journalKeyClash = true
+  return out
+}
+
+/**
  * One line per thing that happened, and the same line on stdout.
  *
  * Both, rather than one: the file is what a later session re-reads to check
@@ -92,10 +114,7 @@ const started = Date.now()
  * how a session spends twenty minutes after the game had already stopped.
  */
 function say(kind: string, fields: Record<string, unknown> = {}): void {
-  // The two fixed fields go on last so a caller's field cannot shadow them. A
-  // `walkto` reporting where it ended up called that `at` and overwrote the
-  // clock with a pair of coordinates -- in the file a later session parses.
-  const e: Entry = { ...fields, at: Math.round((Date.now() - started) / 100) / 10, kind }
+  const e: Entry = { ...keep(fields), at: Math.round((Date.now() - started) / 100) / 10, kind }
   entries.push(e)
   appendFileSync(JOURNAL, `${JSON.stringify(e)}\n`)
   if (QUIET) return
@@ -129,7 +148,7 @@ function fault(what: string, fields: Record<string, unknown> = {}): void {
 
 function record(what: string, fields: Record<string, unknown> = {}): void {
   const e: Entry = {
-    ...fields,
+    ...keep(fields),
     at: Math.round((Date.now() - started) / 100) / 10,
     kind: `fault:${what}`,
   }
@@ -279,29 +298,44 @@ class Driver {
    */
   private fingers = new Map<number, { x: number; y: number }>()
 
-  private async touch(type: 'touchStart' | 'touchMove' | 'touchEnd'): Promise<void> {
-    await this.cdp.send('Input.dispatchTouchEvent', {
-      type,
-      touchPoints: [...this.fingers].map(([id, p]) => ({ x: p.x, y: p.y, id })),
-    })
+  private async touch(
+    type: 'touchStart' | 'touchMove' | 'touchEnd',
+    points: Array<{ x: number; y: number; id: number }>,
+  ): Promise<void> {
+    await this.cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points })
+  }
+
+  private active(): Array<{ x: number; y: number; id: number }> {
+    return [...this.fingers].map(([id, p]) => ({ x: p.x, y: p.y, id }))
   }
 
   async fingerDown(id: number, x: number, y: number): Promise<void> {
     const p = await this.toPage(x, y)
     this.fingers.set(id, p)
-    await this.touch('touchStart')
+    await this.touch('touchStart', this.active())
   }
 
   async fingerMove(id: number, x: number, y: number): Promise<void> {
     if (!this.fingers.has(id)) return
     this.fingers.set(id, await this.toPage(x, y))
-    await this.touch('touchMove')
+    await this.touch('touchMove', this.active())
   }
 
+  /**
+   * Lift one finger.
+   *
+   * The set sent with a `touchEnd` is the point that **ended**, not the ones still
+   * down -- Playwright's own tap ends with an empty list, which only makes sense
+   * that way round. Sending the survivors instead told Chromium the stick had been
+   * let go every time the other thumb pressed a button, so a walk that pressed ten
+   * abilities in three seconds covered fifteen yards in a hundred and fifty and
+   * looked for all the world like a corridor that could not be crossed.
+   */
   async fingerUp(id: number): Promise<void> {
-    if (!this.fingers.delete(id)) return
-    // The set sent is what is *still* down, which is what CDP diffs against.
-    await this.touch('touchEnd')
+    const was = this.fingers.get(id)
+    if (was === undefined) return
+    this.fingers.delete(id)
+    await this.touch('touchEnd', [{ x: was.x, y: was.y, id }])
   }
 
   /** Canvas coordinates -> the page point a click has to land on. */
@@ -759,6 +793,15 @@ async function play(
   rng: () => number,
   /** Carried between pulls by `ladder`; a single `play` starts knowing nothing. */
   learned: Learned = nothingLearntYet(),
+  /**
+   * Whether this `play` owns the feet.
+   *
+   * `cross` steers at a door and then calls in here for the presses, and every
+   * style with nothing to dodge answers by letting go of the stick -- so the two
+   * fought each other, eighteen times a second, and the party covered fifteen
+   * yards in a hundred and fifty. Whoever is steering says so.
+   */
+  steers = true,
 ): Promise<void> {
   const until = Date.now() + seconds * 1000
   let lastTick = -1
@@ -937,7 +980,9 @@ async function play(
       }
     }
 
-    if (want) {
+    if (!steers) {
+      // Somebody else has the stick. Leave it alone -- including not releasing it.
+    } else if (want) {
       await d.steer(want.x, want.y)
       steps++
     } else if (acting !== 'wander') {
@@ -961,7 +1006,7 @@ async function play(
     await sleep(acting === 'idle' ? 400 : 160)
   }
 
-  await d.release()
+  if (steers) await d.release()
   const end = await d.ask<Hud>('hud()')
   say('played', {
     style: acting === style ? style : `${style}->${acting}`,
@@ -1111,6 +1156,265 @@ async function ladder(d: Driver, pulls: number, seconds: number, rng: () => numb
   })
 }
 
+/* --------------------------------------------------------- the whole evening */
+
+/**
+ * The citadel from the way in to as far as it goes, in one sitting.
+ *
+ * Nobody had ever done this. Three sessions in, the job had reached the *first*
+ * boss once and fought two single dailies, and nothing had answered the only
+ * question the walk exists to answer: can an evening be finished at all. The
+ * history says it is the part most likely to be broken -- teleporters nobody
+ * could stand on, buildings with no way in, doorways that came out as holes in
+ * the roof, a walk that went blind for fifteen minutes -- and every one of those
+ * was found by somebody walking it.
+ *
+ * A boss's room is a fight and the ground between two rooms is a walk, and the
+ * difference is the whole of getting this right. The first attempt assumed a
+ * corridor resolved like a fight and stood at the way in for two hundred seconds,
+ * pressing six hundred and thirty-one abilities at nothing, 10/10 alive and never
+ * scratched -- because the map is explicitly not a way through the building and
+ * nothing was going to happen until somebody walked. So: in a `travel` section it
+ * walks to a door, and in a `raid` one it fights and presses NEXT.
+ *
+ * It aims at the doors `ways()` reports rather than walking north and hoping. The
+ * session that got through before this existed did the latter -- `walkto 0 -1000`
+ * -- and left a `could-not-walk-there` in its own journal for the one that missed.
+ *
+ * What it reports is where it got to and what stopped it, because that is the
+ * finding either way.
+ */
+interface Room {
+  at: string
+  mode: string
+  outcome: string
+  seconds: number
+}
+
+/**
+ * Cross a stretch of ground and take a door out of it.
+ *
+ * Walks at the nearest door that leads somewhere, in short pushes with a look at
+ * the fight in between, because the packs in a corridor wake as you pass them and
+ * a body walking through one with its back turned is how a walk becomes a wipe.
+ * It stops when the ground underfoot changes, which is the game saying the door
+ * was taken.
+ */
+async function cross(d: Driver, seconds: number, been: Set<string>): Promise<void> {
+  const from = (await d.ask<string | null>('chamber()')) ?? '?'
+  const until = Date.now() + seconds * 1000
+  let closest = Infinity
+  let pressed = 0
+  let waited = 0
+  let step = 0
+  let heading: { x: number; y: number } | null = null
+  let was: number | null = null
+
+  // Its own tight loop rather than a steer and then a `play`. Handing the slice
+  // to `play` meant re-aiming once a second at best, and a body crosses thirty
+  // yards in one: the same walk that `walkto` finishes in two and a half seconds
+  // took a hundred and fifty to get within four. The cadence is the thing.
+  while (Date.now() < until) {
+    const where = await d.where()
+    if (where.outcome !== 'ongoing') break
+    if (((await d.ask<string | null>('chamber()')) ?? '?') !== from) break
+
+    const ways = await d.ask<
+      Array<{ to: string; x: number; y: number; away: number; onX: number; onY: number }>
+    >('ways()')
+    if (ways.length === 0) {
+      fault('nowhere-to-go-from-here', { at: from })
+      break
+    }
+    // By where it leads, not by how near it is. The vigil's nearest door faces
+    // west into a wall seven hundred yards away; picking it walked there and
+    // called the evening stuck. A room that branches has more than one, and the
+    // one worth taking is the one that goes somewhere this walk has not been.
+    const fresh = ways.filter((w) => !been.has(w.to))
+    const door = (fresh.length > 0 ? fresh : ways).slice().sort((a, b) => a.away - b.away)[0]!
+    closest = Math.min(closest, door.away)
+
+    const hero = await d.ask<{ x: number; y: number } | null>('hero()')
+    if (hero) {
+      // **Through the door, not up to it.** A walk across the citadel never
+      // resolves by arriving: the code says so out loud -- "a walk across the
+      // whole building does not finish, there is nowhere it is trying to get to"
+      // -- and the chamber underfoot changes as you cross into the next room. A
+      // version of this stood on the door for a hundred and twenty seconds with
+      // a hundred and eighty-six bodies asleep around it and called the evening
+      // unfinishable. The session that got through before any of this existed
+      // aimed a thousand yards past the door, and that is why it worked.
+      // Fixed once, and on the corridor's own bearing rather than on the line
+      // from this body to the door. Recomputed each tick it reverses the moment
+      // the body is past the door and the party paces across the doorway forever;
+      // taken off the body's own line it walks diagonally, because a raid comes in
+      // off to one side. Both of those happened before this comment did.
+      // **Steer at the door, and once it is close keep that heading.**
+      //
+      // The door a corridor reports is the far end of the stretch, not the line
+      // where the next room begins -- and how far past it that line lies is not a
+      // constant: crossing out of the way in happened about six hundred yards
+      // beyond its door, and the vigil's nearest door is twenty yards off. So
+      // "the door plus k" is the wrong model whatever k is, and all four values
+      // tried for it are in the journal as failures, along with the corridor's own
+      // `entry`, which is not the axis at all on a walk across a whole building.
+      //
+      // A heading is the right thing to keep. It is taken while the door is still
+      // thirty yards off, where the subtraction is well conditioned -- taken at
+      // the door it is two nearly equal points subtracted, which is noise, and
+      // this walked twelve hundred yards west on it.
+      const dx = door.x - hero.x
+      const dy = door.y - hero.y
+      const len = Math.hypot(dx, dy) || 1
+      if (heading === null && door.away <= 30) heading = { x: dx / len, y: dy / len }
+      if (heading === null) await d.steer(dx, dy)
+      else await d.steer(heading.x, heading.y)
+      if (door.away <= 6) waited++
+    }
+
+    // **Do not cast while crossing.** Casting and walking are exclusive in this
+    // game -- a body that is casting is not moving -- so a walk that pressed an
+    // ability every three quarters of a second covered a corridor's last twenty
+    // yards in four minutes and never crossed. Pure walking does it in five
+    // seconds. The same stall happens on the keyboard, which is how it was ruled
+    // out as a driver problem: it is the rule, and a player crossing a corridor
+    // keeps their hands off the bar for the same reason.
+    //
+    // So: fight only when something is actually on us. A pack woken on the way
+    // past has to be answered, and nothing else does.
+    if (step % 4 === 0) {
+      const hud = await d.ask<Hud>('hud()')
+      const hp = hud.me?.hp ?? null
+      const hurt = hp !== null && was !== null && hp < was
+      was = hp
+      if (hurt || (hud.alive < hud.party && hud.outcome === 'ongoing')) {
+        const ready = hud.me?.bar.find((b) => b.status === 'ready')
+        if (ready) {
+          await d.ability(ready.slot)
+          pressed++
+        }
+      }
+    }
+    step++
+    await sleep(140)
+  }
+
+  await d.release()
+  const foes = await d.ask<Array<{ x: number; y: number; name: string }>>('foesAt()')
+  say('crossed', {
+    from,
+    to: (await d.ask<string | null>('chamber()')) ?? '?',
+    nearestDoorGot: closest === Infinity ? 'n/a' : closest,
+    keptHeading: heading ? [Math.round(heading.x * 100) / 100, Math.round(heading.y * 100) / 100] : null,
+    endedAt: await d.ask('hero()'),
+    presses: pressed,
+    // Seconds spent within reach of the door, and what is still alive in here.
+    secondsAtTheDoor: Math.round((waited * 140) / 1000),
+    stillAlive: foes.length,
+    nearest: foes.length > 0 ? foes.map((f) => f.name).slice(0, 4).join(',') : 'none',
+  })
+}
+
+async function evening(
+  d: Driver,
+  style: Style,
+  seconds: number,
+  fights: number,
+  rng: () => number,
+): Promise<void> {
+  const visited: Room[] = []
+  // Every chamber this evening has stood in, so a branching room is not re-entered
+  // by the door it was left through.
+  const been = new Set<string>()
+  const learned = nothingLearntYet()
+  let wipes = 0
+  let idle = 0
+
+  for (let n = 1; n <= fights; n++) {
+    const before = await d.where()
+    const at = (await d.ask<string | null>('chamber()')) ?? '?'
+    been.add(at)
+    const started = Date.now()
+    say('room', { n: `${n}/${fights}`, room: at, mode: before.mode })
+
+    if (before.mode === 'travel') {
+      // Ground to cross, not a fight to win. Walk at the door, fighting whatever
+      // wakes up on the way, until the chamber underfoot changes.
+      await cross(d, seconds, been)
+    } else {
+      await play(d, style, seconds, rng, learned)
+    }
+    const after = await d.where()
+    const standingIn = (await d.ask<string | null>('chamber()')) ?? '?'
+    visited.push({
+      at,
+      mode: before.mode,
+      outcome: after.outcome,
+      seconds: Math.round((Date.now() - started) / 1000),
+    })
+
+    if (after.outcome === 'ongoing' && before.mode === 'travel' && standingIn !== at) {
+      // Through a door and still walking: the normal way a corridor ends.
+      say('walked-on', { from: at, to: standingIn })
+      continue
+    }
+    if (after.outcome === 'ongoing') {
+      // The budget ran out with the fight still going. Not a stuck evening --
+      // a slow one -- but it is the end of this run either way.
+      fault('fight-outlasted-its-budget', { at, seconds })
+      break
+    }
+    if (after.outcome !== 'victory') {
+      wipes++
+      say('wiped', { at, outcome: after.outcome, wipes })
+      if (!(await d.tap('outcome:retry'))) {
+        fault('no-way-back-in', { at, after: after.outcome })
+        break
+      }
+    } else if (before.mode === 'raid') {
+      // A boss's report has a NEXT on it; a corridor's victory does not stop.
+      if (!(await d.tap('outcome:next'))) {
+        fault('no-next-after-a-boss', { at })
+        break
+      }
+    }
+
+    // Wait to be somewhere, or fighting, again.
+    const deadline = Date.now() + 30_000
+    for (;;) {
+      const now = await d.where()
+      const here = (await d.ask<string | null>('chamber()')) ?? '?'
+      if (now.outcome === 'ongoing' && (here !== at || now.mode !== before.mode)) break
+      if (now.outcome === 'ongoing' && before.mode === 'travel' && here !== at) break
+      if (Date.now() > deadline) break
+      await sleep(400)
+    }
+
+    const here = (await d.ask<string | null>('chamber()')) ?? '?'
+    const settled = await d.where()
+    if (here === at && settled.outcome !== 'ongoing') {
+      idle++
+      if (idle >= 2) {
+        // Twice in the same room with the fight over and no way on: this is the
+        // evening being unfinishable from here, which is the whole point of
+        // walking it.
+        fault('evening-stuck', { at, after: settled.outcome, rooms: visited.length })
+        break
+      }
+    } else idle = 0
+  }
+
+  say('evening', {
+    rooms: visited.length,
+    wipes,
+    walked: visited.map((r) => `${r.at}(${r.mode},${r.outcome},${r.seconds}s)`),
+    // Which rooms were actually reached, in order and once each: the answer to
+    // "how far in does the building go before something stops you".
+    reached: [...new Set(visited.map((r) => r.at))].join(' -> '),
+    endedAt: (await d.ask<string | null>('chamber()')) ?? '?',
+  })
+}
+
 /* ---------------------------------------------------------------- the script */
 
 /**
@@ -1193,6 +1497,12 @@ async function run(d: Driver, lines: string[], rng: () => number): Promise<void>
       case 'letgo':
         await d.release()
         break
+      // Where the doors out of here are, which is the one thing a walk needs and
+      // the map will not give: pressing a room on the map does nothing unless you
+      // are standing on a lit teleporter.
+      case 'ways':
+        say('ways', { hero: await d.ask('hero()'), doors: await d.ask('ways()') })
+        break
       case 'state':
         say('state', { ...(await d.where()), chamber: await d.ask('chamber()'), hud: await d.ask('hud()') })
         break
@@ -1219,6 +1529,15 @@ async function run(d: Driver, lines: string[], rng: () => number): Promise<void>
         break
       case 'ladder':
         await ladder(d, Number(rest[0] ?? 9), Number(rest[1] ?? 240), rng)
+        break
+      case 'evening':
+        await evening(
+          d,
+          (rest[0] as Style) ?? 'good',
+          Number(rest[1] ?? 240),
+          Number(rest[2] ?? 20),
+          rng,
+        )
         break
       // The player's own bill for the pull so far. The one comparable number
       // between a style that learns and a style that cannot: without it, the

@@ -24,8 +24,14 @@
 
 set -uo pipefail
 
-# cron's PATH is nearly empty, and node lives under nvm.
-export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+# cron's PATH is nearly empty, and node lives under nvm. Whatever the caller had
+# stays in front of it, which is the only way this file can be tested: a stubbed
+# `claude` and `git` on the front of `PATH` exercise the whole scheduler for
+# nothing, and this script has now shipped four bugs that a test would have
+# caught -- a `.git` that is a file, a revert that ate the work it was guarding, a
+# commit subject read off the wrong line, and a script that rewrote itself while
+# bash was reading it.
+export PATH="${PATH:+$PATH:}$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 if [ -d "$HOME/.nvm/versions/node" ]; then
   NODE_BIN="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)"
   [ -n "$NODE_BIN" ] && export PATH="$NODE_BIN:$PATH"
@@ -37,7 +43,9 @@ fi
 # worktree of itself.
 MAIN="${ABYSS_MAIN:-$HOME/workspace/abyss}"
 BOT="${ABYSS_PLAYTEST_DIR:-$HOME/workspace/abyss-playtest}"
-LOGDIR="$HOME/.local/state/abyss-playtest"
+# Overridable for the same reason as `PATH`: a test must not share the real job's
+# lock, log or hour-gate.
+LOGDIR="${ABYSS_PLAYTEST_STATE:-$HOME/.local/state/abyss-playtest}"
 mkdir -p "$LOGDIR"
 LOG="$LOGDIR/$(date +%Y-%m).log"
 STATE="$LOGDIR/last-hour"
@@ -70,6 +78,15 @@ FORCE=""
 # Every tick in between had logged "skip: previous session still going" into a
 # file nobody was reading, which is why the age is now in the line: a job that is
 # dead for a week must not look the same as a job that is merely busy.
+HOUR="$(date +%Y-%m-%dT%H)"
+
+# Everything from here to the hand-over belongs to the first pass only. After the
+# `exec` below the script starts again from the top with the marker set, and the
+# lock must not be released and retaken on the way through: reopening file
+# descriptor 9 would drop it for an instant, which is exactly long enough for a
+# second tick to take it.
+if [ -z "${ABYSS_PLAYTEST_FRESH:-}" ]; then
+
 exec 9>"$LOGDIR/lock"
 if ! flock -n 9; then
   SINCE="$(cat "$LOGDIR/running.since" 2>/dev/null || echo 0)"
@@ -93,9 +110,7 @@ fi
 # script leads its group, so `kill -- -$$` takes the `claude` underneath it too.
 echo $$ > "$LOGDIR/running.pid"
 date +%s > "$LOGDIR/running.since"
-trap 'rm -f "$LOGDIR/running.pid" "$LOGDIR/running.since"' EXIT
 
-HOUR="$(date +%Y-%m-%dT%H)"
 # Most ticks end here, without touching git or writing a log line.
 if [ -z "$FORCE" ]; then
   [ "$HOUR" = "$(cat "$STATE" 2>/dev/null)" ] && exit 0
@@ -129,6 +144,29 @@ if ! git pull --rebase --quiet origin main 2>>"$LOG"; then
   git rebase --abort 2>/dev/null
   git reset --hard -q origin/main
 fi
+
+# **Hand over to the copy that was just pulled.**
+#
+# bash reads a script as it goes, and the rebase above rewrites the very file it
+# is reading, from underneath it, by however many lines the change was. So a fix
+# committed at ten past the hour did not take effect at half past: the tick
+# rebased it in and then carried on executing the old text from a byte offset
+# that no longer meant anything. That is how two fixes in a row -- a rule against
+# deferring work, and the check that would have caught the deferral -- both landed
+# on `main` and both failed to run on the next session, silently.
+#
+# `exec` keeps the process, so file descriptor 9 keeps the lock and `$$` keeps
+# the pid the wedge guard records. Nothing is re-acquired and there is no window
+# for a second tick to slip in. The marker stops it looping.
+export ABYSS_PLAYTEST_FRESH=1
+exec bash "$BOT/scripts/playtest.sh" "$@"
+
+fi
+# --- the second pass: the file as it stands on `main`, with the lock inherited --
+
+cd "$BOT" || { log "fail: no worktree at $BOT"; exit 1; }
+# Traps do not survive `exec`, so the cleanup is re-armed here rather than above.
+trap 'rm -f "$LOGDIR/running.pid" "$LOGDIR/running.since"' EXIT
 
 BEFORE="$(git rev-parse HEAD)"
 # How many sessions the ledger knew about before this one. A session that writes

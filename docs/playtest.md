@@ -83,6 +83,7 @@ Commands, one per line, `#` for a comment:
 | `play <style> <secs>` | behave a given way while a fight runs |
 | `ui` | the same controls, measured: size, overlap, anything off the glass |
 | `ladder <pulls> <secs>` | the same fight repeatedly, by something trying to learn it |
+| `evening <style> <secs> <fights>` | the citadel from the way in to as far as it goes |
 | `bill` | the player's own tally for the pull: mechanic hits, damage taken, per minute |
 | `walkto <x> <y> <secs>` | steer to a world point — a pad, a door, the far corner of a room — and fault if it never gets there |
 | `letgo` | drop the stick and any held key |
@@ -110,6 +111,36 @@ would spend the fight on the desktop scheme with a phone's viewport. That is not
 hypothetical -- it is what this driver did until `ui` was asked the same question
 either side of a single keypress and the minimap and the autocast toggle were
 there and then were not.
+
+### The whole evening, once
+
+`playpick`'s `clear` mode is the evening end to end: in at the way in, and on
+until something stops it. Nothing else this job does asks the question the walk
+exists to answer, and after three sessions nothing had asked it — the job had
+reached the *first* boss once and fought two single dailies. The history says this
+is the part most likely to be broken. Teleporters nobody could stand on,
+twenty-five buildings with no way into them, doorways that came out as holes in
+the roof, a walk that went blind for fifteen minutes: every one of those was found
+by somebody walking it, and none of them by a check.
+
+`evening <style> <secs> <fights>` does the walking. It needs no map and no door
+to aim at, which was the surprise worth writing down: **a corridor between two
+rooms is itself a fight**, `mode` is `travel` while it runs, and winning it makes
+the game walk on by itself. The map is explicitly not a way through the building —
+pressing a room on it does nothing unless you are standing on a lit teleporter. So
+an evening is fights in order, and the only press between them is NEXT on a boss's
+report.
+
+Two things not to file:
+
+- **The last room has no fight in it.** `throne` carries `encounter: null`, and
+  `dungeoncheck` says so out loud and passes: 11 of 12 fights built. "There is no
+  last boss" is where the building has got to, not a bug. What is worth reporting
+  is anything that stops the evening *before* the last built fight.
+- A wipe. `evening` retries and counts them; a wipe is the fight working.
+
+What to report is where it stopped and what stopped it, with the `reached` line
+from the journal — that line is the whole finding, in one string.
 
 ### Whether the fight can be learned at all
 
