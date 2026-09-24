@@ -215,11 +215,14 @@ English and in this repository's voice, that will be the commit subject.
 ## Rules
 
 - **Do not ask questions.** Nobody is here. Decide, and report why.
-- **There is no later.** Do not start a \`playbot\` run in the background and
-  finish your turn saying you will pick it up when it is done: when you stop, the
-  session is over, the tree is committed as it stands and nothing you were waiting
-  for is ever read. Wait for the run -- poll it -- or stop it early and write up
-  what you did get. The second session ever run lost its whole hour this way.
+- **Never run \`playbot\` in the background. Not once, not briefly.** Run it in the
+  foreground and let it block. It prints as it goes and a four-minute pull costs
+  four minutes; if that is too long, pass fewer seconds.
+  **Ending your turn ends the session.** There is no later to pick anything up in:
+  the tree is committed as it stands and whatever you were waiting for is never
+  read. Four sessions have now been lost here, three of them in a row, and the last
+  one's entire output was \"I'll wait here for that background run to finish before
+  continuing\" -- which ended it.
 - **Write the ledger line even when the session went badly.** \`playpick\` counts
   lines to decide what is under-played, so a missing line makes the next session
   replay this one's cell. A line saying the run was abandoned and why is worth
@@ -326,6 +329,28 @@ if [ -n "$(git status --porcelain -- playtest)" ]; then
   else
     log "warn: the session wrote no ledger line -- it did not finish"
     SUBJECT="A session that did not finish, and what it got as far as"
+    # And a line saying so, because the next session is told to read the last few
+    # and a gap says nothing. Three sessions in a row ended with "I'll wait here
+    # for that background run to finish" and each one left the ledger looking
+    # exactly as the one before had: the failure was invisible to the only reader
+    # who could have avoided it. The cell is left empty so `playpick` credits no
+    # axis for an hour nothing was played in, while still counting the attempt.
+    node -e '
+      const fs = require("fs")
+      fs.appendFileSync("playtest/sessions.jsonl", JSON.stringify({
+        when: new Date().toISOString(),
+        cell: {},
+        plan: null,
+        new: "nothing: this session ended without writing a line",
+        faults: [],
+        saw: "the runner wrote this. The session stopped with work outstanding -- most likely it started playbot in the background and ended its turn, which ends the session. Read the rule about that before doing anything else.",
+        verified: [],
+        filed: [],
+        gate: "unknown",
+        abandoned: true,
+        message: "A session that did not finish, and what it got as far as",
+      }) + "\n")
+    ' 2>>"$LOG" || log "warn: could not write the abandoned-session line"
   fi
   git add -- playtest
   git -c user.name="abyss playtest" -c user.email="kyhsa93@naver.com" \
