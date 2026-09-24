@@ -205,37 +205,46 @@ process.stdout.write(text)
  * A band is design intent and widening one to make a run pass is the edit that
  * turns this file into decoration -- that is the last line this file prints and
  * it still means it. This is the other thing, and it is written down rather
- * than done quietly: two of them are switched off, in the open, until the thing
- * that keeps invalidating them stops moving.
+ * than done quietly: a band is switched off, in the open, until the thing that
+ * keeps invalidating it stops moving.
  *
- * What is moving is the rooms. Every fight in this game was played in one
- * circle until a few commits ago; the fights are being given their own rooms
- * now, one at a time, and a room decides how far a body walks to answer
- * anything. The Whisper's twenty-five-man cells were tuned to 65 and 83
- * percent in a circle, and reading 28 in the hall it has since been given is
- * not a regression in the fight -- it is the same fight in a different room.
- * Tuning against a room that changes next week is work thrown away twice: once
- * when it is done and once when it is undone.
+ * **Both of these were off for the rooms, and one of them comes back now.**
  *
- * So they come back when the twelve rooms in #26 through #37 are written and
- * the arena has stopped being a variable. The band definitions above are
- * untouched, so coming back is deleting this list.
+ * What was moving was the rooms. Every fight was played in one circle; the fights
+ * were given their own rooms one at a time, and a room decides how far a body
+ * walks to answer anything -- the Whisper's twenty-five-man cells were tuned to
+ * 65 and 83 percent in a circle and read 28 in the hall it was given, which is
+ * not a regression but the same fight in a different room. The exit condition
+ * written then was "the twelve rooms in #26 through #37", and it stopped being
+ * reachable when the last two of those were closed NOT_PLANNED by a sweep that
+ * has itself been reverted. See #262, which is where that was caught.
  *
- * Ten of the twelve are settled as of the tenth boss: the two left are the
- * rampart (#28) and the throne (#37), and both are waiting on the fight that
- * stands in them rather than on a measurement. Two rooms moved in that round
- * and neither moved by taste -- the dreaming hall and the frost queen's lair
- * were built off the client's map tile while they held no fight, and a room
- * with a fight in it is built off that fight's `BossBoundaryData` entry. Both
- * came out about twice what the tile said.
+ * `no spec is a trap` is switched back on, because the rooms cannot still be
+ * moving it: the lowest spec in the roster wins 95% against a floor of 50, which
+ * is forty-five points of margin on a band whose own noise is sixteen. A band
+ * that would have to be wrong by three rooms before it failed is not waiting on
+ * a room. It was off because it was listed beside one that is, and that is not a
+ * reason.
  *
- * Nothing may be added to it without the same two sentences: what is moving
- * underneath the band, and what has to settle before it is switched on again.
+ * `every fight is winnable by the ninth pull` stays off, and the exit condition
+ * is rewritten to one that can actually happen in this tree. It *passes* today,
+ * which is the problem: The Long Cold's twenty-five-man normal sits at exactly
+ * 50% against a floor of 50, where two standard errors on that cell is about
+ * sixteen points. Switched on as it stands it would not be measuring the fight,
+ * it would be flipping on the seed -- the failure mode this file's own header
+ * warns about from the other direction.
+ *
+ * So it comes on when **The Long Cold clears the floor by more than the noise at
+ * both normal cells -- 66% or better at ten and at twenty-five** -- by the fight
+ * being retuned, which is a thing somebody can do and check. Not when an issue
+ * closes. #13 and #37 are open again as of 2026-09-25 and the rooms are no longer
+ * the blocker; the cell is.
+ *
+ * Nothing may be added to this list without the same two sentences: what is
+ * moving underneath the band, and what has to settle before it is switched on
+ * again -- and the second one has to be something that can be made true.
  */
-const SUSPENDED: string[] = [
-  'no spec is a trap',
-  'every fight is winnable by the ninth pull',
-]
+const SUSPENDED: string[] = ['every fight is winnable by the ninth pull']
 
 let failed = false
 for (const band of BANDS) {
