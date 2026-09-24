@@ -1,0 +1,32 @@
+# Cell from playpick: mode=clear, spec=paladin:retribution, style=wander,
+# size=25, difficulty=heroic, view=844x390,touch, save=fresh. 25-heroic is
+# locked at the door on a fresh save (see playtest/direction.md and the
+# abandoned plan -1 for this same cell) -- the raid setup screen's own "25"
+# row carries a lock glyph and a tap on it does nothing, confirmed against
+# src/progress.ts's RUNGS chain: a fresh save's `unlocked` is 0, and
+# 25-heroic on the first boss sits at chain index 3. Substituted the nearest
+# open rung, the setup screen's own default: 10-player normal.
+#
+# Re-run of plan -1, which left no ledger line -- that Bash call likely hit
+# its own timeout before `evening` finished. This is the first session to
+# actually carry an `evening wander` walk through to a ledger line.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:paladin:retribution
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening wander 200 14
+shot after-evening
+state
+says
+targets
+ui
+bill
