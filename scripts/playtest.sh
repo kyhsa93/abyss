@@ -50,25 +50,36 @@ log() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
 FORCE=""
 [ "${1:-}" = "now" ] && FORCE=1
 
-# **A wedged session has to be killed, not waited for.**
+# **A wedged session has to be killed, not waited for -- and the lock file thrown
+# away with it.**
 #
 # The other job on this machine that runs `claude -p` under `timeout` was found
-# sitting on its lock seven days and one hour into a one-hour budget: `timeout`
-# sends SIGTERM, the process caught it and stopped somewhere in its own shutdown,
-# and `timeout` with no `-k` waits forever for a child that is never coming back.
-# Every tick after that logged "skip: previous session still going" into a file
-# nobody was reading, so the job was dead for a week and looked idle.
+# sitting on its lock seven days into a one-hour budget. The cause was not the
+# timeout: `claude` was already defunct, and one of its threads -- `Bun Pool 3`
+# -- was stuck in `D`, uninterruptible, so the process could never finish exiting
+# and `timeout` waited forever on a child that was already dead. `-k` would not
+# have saved it; there was nothing left to signal.
 #
-# So: `-k` below on the timeout itself, and this, which is the backstop for the
-# case where even SIGKILL-after-SIGTERM does not settle it.
+# A thread in `D` cannot be killed by anything, and it keeps the dying process's
+# descriptors -- including the lock -- open. So killing the holder is only half of
+# it: the other half is unlinking the lock file, which leaves the dying side
+# holding a lock on an inode nothing can reach and lets the next tick take a
+# fresh one. On the job that was actually stuck, that released it without a
+# reboot.
+#
+# Every tick in between had logged "skip: previous session still going" into a
+# file nobody was reading, which is why the age is now in the line: a job that is
+# dead for a week must not look the same as a job that is merely busy.
 exec 9>"$LOGDIR/lock"
 if ! flock -n 9; then
   SINCE="$(cat "$LOGDIR/running.since" 2>/dev/null || echo 0)"
   HELD=$(( $(date +%s) - SINCE ))
   HOLDER="$(cat "$LOGDIR/running.pid" 2>/dev/null || echo 0)"
   if [ "$SINCE" -gt 0 ] && [ "$HELD" -gt 10800 ] && [ "$HOLDER" -gt 1 ]; then
-    log "WEDGED: session $HOLDER has held the lock ${HELD}s -- killing its process group"
+    log "WEDGED: session $HOLDER has held the lock ${HELD}s -- killing it and taking a fresh lock"
     kill -9 -- "-$HOLDER" 2>/dev/null || kill -9 "$HOLDER" 2>/dev/null
+    # The half that actually releases it. See above.
+    rm -f "$LOGDIR/lock"
     # Not taking its turn here. The next tick gets a clean tree and a clean lock.
     exit 1
   fi
