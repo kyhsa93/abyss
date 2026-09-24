@@ -2958,6 +2958,30 @@ if (!import.meta.env.PROD) {
     says(n = 12): Array<{ speaker: string; text: string }> {
       return state.chat.slice(-n).map((c) => ({ speaker: c.speaker, text: c.text }))
     },
+    /**
+     * The player's own bill for the pull, as the report screen gives it.
+     *
+     * `mechanicHits` is the number a raider argues about and the only honest way
+     * to ask whether a fight is being *learned*: a win says the raid carried it,
+     * health says the healers did, and neither changes between a ninth pull and
+     * a first. This does, if anything is being learned at all.
+     *
+     * `byMechanic` is a count of hits and not an amount of damage -- the two have
+     * been confused in this repository before -- so the health lost is here
+     * beside it rather than derived from it.
+     */
+    tally(): unknown {
+      const me = state.actors.find((a) => a.isPlayer)
+      const t = me ? state.tally[me.id] : undefined
+      if (!t) return null
+      return {
+        damage: Math.round(t.damage),
+        damageTaken: Math.round(t.damageTaken),
+        mechanicHits: t.mechanicHits,
+        byMechanic: t.byMechanic,
+        died: t.deathAt !== null,
+      }
+    },
   }
 }
 

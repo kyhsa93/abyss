@@ -82,6 +82,8 @@ Commands, one per line, `#` for a comment:
 | `waitscreen <name> <secs>` | wait for a screen, and fault if it never comes |
 | `play <style> <secs>` | behave a given way while a fight runs |
 | `ui` | the same controls, measured: size, overlap, anything off the glass |
+| `ladder <pulls> <secs>` | the same fight repeatedly, by something trying to learn it |
+| `bill` | the player's own tally for the pull: mechanic hits, damage taken, per minute |
 | `walkto <x> <y> <secs>` | steer to a world point — a pad, a door, the far corner of a room — and fault if it never gets there |
 | `letgo` | drop the stick and any held key |
 | `state` / `says` / `shot <name>` / `note <text>` / `wait <secs>` | record, photograph, annotate, pause |
@@ -108,6 +110,50 @@ would spend the fight on the desktop scheme with a phone's viewport. That is not
 hypothetical -- it is what this driver did until `ui` was asked the same question
 either side of a single keypress and the minimap and the autocast toggle were
 there and then were not.
+
+### Whether the fight can be learned at all
+
+`README.md` says the thing that improves between attempts is *you*, and
+`docs/upkeep.md` holds a band saying every fight is winnable by the ninth pull.
+Neither has ever been measured against a player, because every player this repo
+can simulate is a fixed function that plays the ninth pull exactly as it played
+the first.
+
+`ladder <pulls> <secs>` runs the same encounter over and over with the `learn`
+style, which starts knowing nothing and may only learn from what a player can
+see. It walks into every telegraph it has not been burned by; a patch that takes
+health off becomes a patch it leaves early, and one that keeps hurting after it
+has run out of lead becomes one it will not stand still for. Damage taken with
+nothing underfoot is blamed on whatever **the boss** said just before — party
+chatter is filtered out by speaker, which had to be learned the hard way: a
+version without the filter decided "Moving!" was a mechanic and ran from the boss
+thirty times because a healer had said it.
+
+Nothing about a pull is replayed. A raid keys its seed off the pull count, so
+pull two is a fresh roll of the same script — which is the point, because a
+lesson that only works on one seed is memorisation.
+
+**A flat curve does not mean the learner is bad.** Discriminate it, always, by
+running the same cell under `idle` and `good` with `bill` after each, and compare
+*per minute* — the learner's own standing off lengthens the fight, and a raw count
+would credit a slow pull for being slow. If `good` is far better than the ladder's
+best pull, the learner is the problem and the run says nothing about the game. If
+`good` is no better, the fight is not rewarding play, and that is a finding.
+
+The first ladder ever run is the example. On The Bonegrinder, ten players,
+normal:
+
+| | hits/min | taken/min | fight | raid |
+|---|---|---|---|---|
+| `idle` | 7.7 | 1240 | 116s | 10/10 |
+| `good` | 11.6 | 1667 | 140s | 9/10 |
+| `learn`, pulls 1–4 | 7.1 → 9.2 → 11.1 → 9.0 | | | |
+
+Playing well was worse than doing nothing on every count, and `bonestorm` was the
+top of the bill every time. That mechanic is not a patch on the floor — it is an
+aura on the boss that hurts everything near it while the boss wanders — so
+anything that keeps you near the boss, which is to say playing, is what it bills
+for. See the open issue; do not re-file it.
 
 ### How much to script, and when to stop and look
 

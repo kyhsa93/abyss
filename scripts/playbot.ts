@@ -105,9 +105,29 @@ function say(kind: string, fields: Record<string, unknown> = {}): void {
   process.stdout.write(`${String(e.at).padStart(6)}s ${kind}${rest ? ` ${rest}` : ''}\n`)
 }
 
-/** Things that are wrong without anybody having to have an opinion. */
+/**
+ * Things that are wrong without anybody having to have an opinion.
+ *
+ * Deduplicated by what they are, because they repeat. One ladder produced a
+ * hundred and twenty-nine identical lines -- the dev server's own reload socket
+ * retrying -- and the four findings in that run were somewhere inside them. A
+ * fault that has been reported keeps its count and stops printing.
+ */
 const faults: Entry[] = []
+const faultSeen = new Map<string, number>()
+
 function fault(what: string, fields: Record<string, unknown> = {}): void {
+  const same = `${what} ${JSON.stringify(fields)}`
+  const before = faultSeen.get(same) ?? 0
+  faultSeen.set(same, before + 1)
+  if (before > 0) {
+    // Counted, not printed. The tally goes out with the summary at the end.
+    return
+  }
+  record(what, fields)
+}
+
+function record(what: string, fields: Record<string, unknown> = {}): void {
   const e: Entry = {
     ...fields,
     at: Math.round((Date.now() - started) / 100) / 10,
@@ -409,6 +429,28 @@ class Driver {
     this.stickDown = null
   }
 
+  /**
+   * Out of a fight and back to the party screen, by the route this device has.
+   *
+   * Not just `tap party`. The corner buttons hide themselves a few seconds after
+   * the fight starts, and on a phone the thing that brings them back is the
+   * minimap -- which is the game's own design and not a workaround. A ladder that
+   * tapped `party` and gave up when it was not there reported that there was no
+   * way out of a fight there plainly is a way out of.
+   */
+  async leaveFight(): Promise<boolean> {
+    const here = (await this.targets()).map((t) => t.label)
+    if (here.includes('party')) return await this.tap('party')
+    if (TOUCH) {
+      if (!(await this.tap('minimap'))) return false
+      return await this.tap('party')
+    }
+    // No keyboard cost on a device that has one: escape is the documented way.
+    await this.page.keyboard.press('Escape')
+    await sleep(120)
+    return (await this.ask<string>('screen()')) === 'roster'
+  }
+
   async hold(keys: string[]): Promise<void> {
     for (const k of keys) {
       if (this.held.has(k)) continue
@@ -556,9 +598,142 @@ class Driver {
  * stops moving, the one who does everything right. A fight that plays the same
  * under all of them is a fight that is not asking anything.
  */
-type Style = 'idle' | 'mash' | 'dodge' | 'good' | 'wander' | 'melee' | 'flee' | 'auto'
+type Style =
+  | 'idle'
+  | 'mash'
+  | 'dodge'
+  | 'good'
+  | 'wander'
+  | 'melee'
+  | 'flee'
+  | 'auto'
+  | 'learn'
 
-const STYLES: Style[] = ['idle', 'mash', 'dodge', 'good', 'wander', 'melee', 'flee', 'auto']
+const STYLES: Style[] = ['idle', 'mash', 'dodge', 'good', 'wander', 'melee', 'flee', 'auto', 'learn']
+
+/**
+ * What a player has worked out so far -- and nothing they could not have.
+ *
+ * The other styles are fixed, which is the honest limit of driving a real-time
+ * fight from code: `good` plays the ninth pull exactly as it played the first.
+ * But the README's third law says the thing that improves between attempts is
+ * *you*, and learning the fight is the whole genre -- so the one claim this game
+ * makes that no check touches is that it can be learned at all. Something has to
+ * try to learn it.
+ *
+ * The rule that makes this evidence rather than an oracle: **it may only learn
+ * from what a player can see.** A patch is respected once it has actually taken
+ * health off, never because the driver could read its radius out of the
+ * simulation. So the first pull walks into everything, exactly like somebody's
+ * first pull, and what it knows by the ninth is only what the fight taught it.
+ *
+ * A flat curve therefore means one of two things, and they are different
+ * findings: the fight has nothing to teach, or it has something to teach and no
+ * way to teach it -- a mechanic whose telegraph does not predict its damage
+ * cannot be learned by anybody. `byMechanic` in the tally names which.
+ */
+interface Lesson {
+  /** How many times this kind has taken health off, ever. */
+  burned: number
+  /** How many at the current answer -- what says the answer has stopped working. */
+  since: number
+  /**
+   * Which answer is being tried. Not a tuned number: the three are the answers a
+   * player actually has, in the order a player finds them.
+   *
+   *   0  nothing known -- move only once it has already gone off
+   *   1  leave during the telegraph, earlier with each burn
+   *   2  stop standing still while this is on the field
+   *
+   * Two answers matter because one is not enough, and finding that out is what
+   * the first run of this ladder did: `coldflame` burned the learner fifty-four
+   * times on a single pull and a hundred and eighty-five across four, while its
+   * lead sat at the two-second ceiling the whole time. Leaving earlier is simply
+   * not the answer to something that follows you -- a lesson this repository had
+   * already written down about its own AI and had not applied to a driver.
+   */
+  answer: 0 | 1 | 2
+  /** Seconds of telegraph it now leaves itself, at answer 1 and above. */
+  lead: number
+}
+
+interface Learned {
+  kinds: Map<string, Lesson>
+  /**
+   * Things the game said just before health came off, and how long to stay away
+   * from the boss afterwards.
+   *
+   * Not every mechanic is a patch on the floor. The first boss's worst one --
+   * `bonestorm`, top of the bill on every pull of the first ladder ever run --
+   * is an aura on the boss that hurts everything near it while the boss wanders,
+   * so it never appears in `ground()` and a learner watching only the floor is
+   * blind to the thing actually killing it.
+   *
+   * What a player has instead is the shout. The boss says a line when the storm
+   * starts, and the lesson a person takes is "when it says *that*, get out". So
+   * that is the lesson here: the line that was on screen when the damage started
+   * becomes a cue, and a cue that has burned us buys seconds of distance.
+   *
+   * This makes the ladder measure something better than a curve. If a fight's
+   * announcements come early enough to act on, the cue works and the curve bends.
+   * If they do not, no player could have learned it either, and the flat curve is
+   * about the game rather than about the learner.
+   */
+  cues: Map<string, { burned: number; seconds: number }>
+}
+
+function nothingLearntYet(): Learned {
+  return { kinds: new Map(), cues: new Map() }
+}
+
+/** A cue is worth a second and a half of standing off, up to a sensible ceiling. */
+function cued(learned: Learned, line: string): void {
+  const was = learned.cues.get(line) ?? { burned: 0, seconds: 0 }
+  learned.cues.set(line, {
+    burned: was.burned + 1,
+    seconds: Math.min(6, (was.burned + 1) * 1.5),
+  })
+}
+
+/**
+ * One more burn, and possibly one more idea about what to do instead.
+ *
+ * Escalation is what makes this a model of learning rather than a tuned
+ * constant: the answer changes when the current answer demonstrably is not
+ * working, and "not working" is measured the only way a player could measure it
+ * -- still being hit.
+ */
+function burnt(learned: Learned, kind: string): void {
+  const was = learned.kinds.get(kind) ?? { burned: 0, since: 0, answer: 0 as const, lead: 0 }
+  const burned = was.burned + 1
+  const since = was.since + 1
+
+  if (was.answer === 0) {
+    // First burn: now it is known to hurt, and leaving early is the obvious try.
+    learned.kinds.set(kind, { burned, since: 0, answer: 1, lead: 0.5 })
+    return
+  }
+  if (was.answer === 1) {
+    if (was.lead < 2) {
+      learned.kinds.set(kind, { burned, since, answer: 1, lead: Math.min(2, was.lead + 0.5) })
+      return
+    }
+    // Out of lead and still being hit: the answer is wrong, not too slow.
+    if (since >= 8) {
+      learned.kinds.set(kind, { burned, since: 0, answer: 2, lead: 2 })
+      return
+    }
+  }
+  learned.kinds.set(kind, { ...was, burned, since })
+}
+
+function shows(learned: Learned): string {
+  const floor = [...learned.kinds].map(
+    ([k, v]) => `${k}:${v.burned}burns/answer${v.answer}${v.answer >= 1 ? `/${v.lead}s` : ''}`,
+  )
+  const heard = [...learned.cues].map(([line, v]) => `"${line}":${v.burned}burns/${v.seconds}s away`)
+  return [...floor, ...heard].join(' ') || 'nothing'
+}
 
 interface Hud {
   time: number
@@ -577,7 +752,14 @@ interface Hud {
   boss: null | { name: string; hp: number; maxHp: number }
 }
 
-async function play(d: Driver, style: Style, seconds: number, rng: () => number): Promise<void> {
+async function play(
+  d: Driver,
+  style: Style,
+  seconds: number,
+  rng: () => number,
+  /** Carried between pulls by `ladder`; a single `play` starts knowing nothing. */
+  learned: Learned = nothingLearntYet(),
+): Promise<void> {
   const until = Date.now() + seconds * 1000
   let lastTick = -1
   let stalledSince = Date.now()
@@ -586,6 +768,19 @@ async function play(d: Driver, style: Style, seconds: number, rng: () => number)
   let inDanger = 0
   let samples = 0
   let slot = 0
+  // For spotting a burn: health at the previous sample, and what we were
+  // standing in at the time. A patch is only credited with hurting us if we were
+  // in it when the health went down.
+  let lastHp: number | null = null
+  let wasIn: string[] = []
+  const burns: string[] = []
+  // The last thing anybody said, and when. A burn with nothing underfoot is
+  // blamed on the shout that was on screen when it happened -- which is exactly
+  // what a person does, right or wrong.
+  let lastLine = ''
+  let heardAt = 0
+  let standOffUntil = 0
+  let bossName = ''
 
   // What the style actually turns out to be. `auto` cannot be played where the
   // toggle is not drawn -- there is no key for it -- and a session that spent
@@ -629,6 +824,44 @@ async function play(d: Driver, style: Style, seconds: number, rng: () => number)
       : []
     if (standing.length > 0) inDanger++
 
+    // Being hurt while standing in something is the only way the learner is
+    // allowed to find out that the something hurts. Checked before the move is
+    // decided, so a lesson counts from the next tick rather than the next pull.
+    const hp = hud.me?.hp ?? null
+    if (acting === 'learn') {
+      // Only what the *boss* said. The chat is one stream and the party talks in
+      // it -- the first ladder to learn from lines came away believing "Moving!"
+      // was a mechanic and ran from the boss thirty times because a healer had
+      // said it. A person filters by who is speaking without noticing they do.
+      if (hud.boss?.name) bossName = hud.boss.name
+      const said = await d.ask<Array<{ speaker: string; text: string }>>('says(4)')
+      const fromBoss = said.filter((c) => c.speaker === bossName)
+      const newest = fromBoss[fromBoss.length - 1]?.text ?? ''
+      if (newest !== '' && newest !== lastLine) {
+        lastLine = newest
+        heardAt = Date.now()
+        // A cue already paid for: stand off now rather than after the next hit.
+        const known = learned.cues.get(newest)
+        if (known) standOffUntil = Date.now() + known.seconds * 1000
+      }
+      if (hp !== null && lastHp !== null && hp < lastHp - 1) {
+        if (wasIn.length > 0) {
+          for (const kind of wasIn) {
+            burnt(learned, kind)
+            burns.push(kind)
+          }
+        } else if (lastLine !== '' && Date.now() - heardAt < 8000) {
+          // Nothing underfoot. Whatever was shouted just now gets the blame --
+          // and if the blame is wrong the cue simply never pays, which is itself
+          // the answer to whether the fight announces what it is doing.
+          cued(learned, lastLine)
+          burns.push(`said:${lastLine}`)
+        }
+      }
+    }
+    lastHp = hp
+    wasIn = [...new Set(standing.map((g) => g.kind))]
+
     // Where to go, in world units, per style.
     let want: { x: number; y: number } | null = null
     const foes = await d.ask<Array<{ x: number; y: number; name: string }>>('foesAt()')
@@ -663,6 +896,44 @@ async function play(d: Driver, style: Style, seconds: number, rng: () => number)
         else want = null
       } else if (acting === 'flee' && boss) {
         want = { x: hero.x - boss.x, y: hero.y - boss.y }
+      } else if (acting === 'learn') {
+        // Leave a patch only as early as it has earned. A kind never met has
+        // lead 0, which means standing in its telegraph until it goes off and
+        // then walking out of the mess -- a first pull, in other words.
+        //
+        // The most urgent thing first: what is already going off beats what is
+        // still counting down, because there is no credit for dodging the second
+        // while standing in the first.
+        const urgent = standing
+          .slice()
+          .sort((a, b) => a.telegraph - b.telegraph)
+          .find((g) => {
+            const lead = learned.kinds.get(g.kind)?.lead ?? 0
+            return g.detonated || g.telegraph <= lead
+          })
+        if (urgent) want = { x: hero.x - urgent.x, y: hero.y - urgent.y }
+        else if (Date.now() < standOffUntil && boss) {
+          // A cue is up. Away from the boss, and only until the seconds it has
+          // earned run out -- a learner that backed off permanently would stop
+          // playing the fight and its curve would mean nothing.
+          want = { x: hero.x - boss.x, y: hero.y - boss.y }
+        } else if (
+          // The second answer: something it has learnt not to stand still for is
+          // on the field. Away from the nearest of them rather than at random,
+          // because a mechanic that follows you is escaped in a direction.
+          ground.some((g) => (learned.kinds.get(g.kind)?.answer ?? 0) >= 2)
+        ) {
+          const chaser = ground
+            .filter((g) => (learned.kinds.get(g.kind)?.answer ?? 0) >= 2)
+            .sort(
+              (a, b) =>
+                Math.hypot(a.x - hero.x, a.y - hero.y) - Math.hypot(b.x - hero.x, b.y - hero.y),
+            )[0]
+          if (chaser) want = { x: hero.x - chaser.x, y: hero.y - chaser.y }
+        } else if (boss) {
+          const far = Math.hypot(boss.x - hero.x, boss.y - hero.y)
+          if (far > 24) want = { x: boss.x - hero.x, y: boss.y - hero.y }
+        }
       }
     }
 
@@ -679,7 +950,7 @@ async function play(d: Driver, style: Style, seconds: number, rng: () => number)
       slot = (slot % 5) + 1
       await d.ability(slot)
       pressed++
-    } else if (acting === 'good' || acting === 'melee') {
+    } else if (acting === 'good' || acting === 'melee' || acting === 'learn') {
       const ready = hud.me?.bar.find((b) => b.status === 'ready')
       if (ready) {
         await d.ability(ready.slot)
@@ -705,6 +976,138 @@ async function play(d: Driver, style: Style, seconds: number, rng: () => number)
     // The share of samples spent standing in something that hurts. The one
     // number that says whether a style actually played differently.
     inDanger: samples ? `${Math.round((inDanger / samples) * 100)}%` : 'n/a',
+    ...(acting === 'learn'
+      ? {
+          burntBy: burns.length > 0 ? [...new Set(burns)].join(',') : 'nothing',
+          knows: shows(learned),
+        }
+      : {}),
+  })
+}
+
+/* ------------------------------------------------------------- the nine pulls */
+
+function perMinute(n: number, seconds: number): number {
+  return seconds > 0 ? Math.round((n / seconds) * 60 * 10) / 10 : 0
+}
+
+interface Rung {
+  pull: number
+  outcome: string
+  fightTime: number
+  mechanicHits: number
+  damageTaken: number
+  died: boolean
+  worst: string
+}
+
+interface Bill {
+  damage: number
+  damageTaken: number
+  mechanicHits: number
+  byMechanic: Record<string, number>
+  died: boolean
+}
+
+/**
+ * The same fight, nine times, by something that is trying to learn it.
+ *
+ * `README.md` says what improves between attempts is you, and `docs/upkeep.md`
+ * holds a band saying every fight is winnable by the ninth pull. Neither has ever
+ * been measured against a player, because the harness's players are fixed
+ * functions that play the ninth pull exactly as they played the first.
+ *
+ * Note what does *not* need controlling for: a raid keys its seed off the pull
+ * count, so pull two is a different roll of the same script. That is the point --
+ * a lesson that only works on one seed is memorisation, and this game's claim is
+ * that the fight can be learned.
+ *
+ * The verdict is deliberately not a pass or a fail. A flat curve where `idle`
+ * already wins means the fight had nothing to teach; a flat curve where it does
+ * not means it had something to teach and no way to teach it. Only a person, or
+ * the session reading this, can tell those apart -- so it prints both the curve
+ * and the mechanic that never stopped landing, and says nothing about whether
+ * that is good.
+ */
+async function ladder(d: Driver, pulls: number, seconds: number, rng: () => number): Promise<void> {
+  const learned = nothingLearntYet()
+  const rungs: Rung[] = []
+
+  for (let pull = 1; pull <= pulls; pull++) {
+    say('pull', { of: `${pull}/${pulls}`, knows: learned.kinds.size })
+    await play(d, 'learn', seconds, rng, learned)
+
+    const bill = await d.ask<Bill | null>('tally()')
+    const hud = await d.ask<Hud>('hud()')
+    const worst = bill
+      ? (Object.entries(bill.byMechanic).sort((a, b) => b[1] - a[1])[0] ?? null)
+      : null
+    rungs.push({
+      pull,
+      outcome: hud.outcome,
+      fightTime: Math.round(hud.time),
+      mechanicHits: bill?.mechanicHits ?? 0,
+      damageTaken: bill?.damageTaken ?? 0,
+      died: bill?.died ?? false,
+      worst: worst ? `${worst[0]}x${worst[1]}` : 'none',
+    })
+
+    if (pull === pulls) break
+
+    // Back in for another go, the way a player gets there. RETRY is on the
+    // report overlay; a pull that ran out of budget still says `ongoing` and has
+    // no overlay, so that one goes out through the party screen and pulls again.
+    // Never the `r` key: on a phone a keypress turns the touch controls off.
+    if (hud.outcome !== 'ongoing') {
+      if (!(await d.tap('outcome:retry'))) {
+        fault('no-way-back-in', { after: hud.outcome, pull })
+        break
+      }
+    } else {
+      say('budget-ran-out', { pull, note: 'left through the party screen instead of RETRY' })
+      if (!(await d.leaveFight())) {
+        fault('no-way-out-of-a-fight', { pull })
+        break
+      }
+      await d.tap('pull')
+    }
+
+    const deadline = Date.now() + 20_000
+    for (;;) {
+      const now = await d.where()
+      if (now.screen === 'fight' && now.outcome === 'ongoing') break
+      if (Date.now() > deadline) {
+        fault('never-got-back-in', { pull, saw: now })
+        break
+      }
+      await sleep(250)
+    }
+  }
+
+  const first = rungs[0]
+  const last = rungs[rungs.length - 1]
+  // Which mechanics were still landing on the last pull having landed on the
+  // first: the ones the fight never managed to teach.
+  say('ladder', {
+    pulls: rungs.length,
+    // Per minute as well as raw. A pull that took longer eats more of everything
+    // for free, and the learner's own standing off lengthens the fight -- so a
+    // raw count would credit it for being slow or punish it for being thorough.
+    curve: rungs.map(
+      (r) =>
+        `#${r.pull} ${r.outcome} ${r.fightTime}s hits=${r.mechanicHits}(${perMinute(r.mechanicHits, r.fightTime)}/min) taken=${r.damageTaken}(${perMinute(r.damageTaken, r.fightTime)}/min)${r.died ? ' DIED' : ''} worst=${r.worst}`,
+    ),
+    learnt: shows(learned),
+    // Stated as two numbers rather than a verdict. Whether the difference is the
+    // game teaching or the learner guessing is a judgement, and judgement is the
+    // caller's.
+    firstPull: first
+      ? `${first.outcome} ${perMinute(first.mechanicHits, first.fightTime)}hits/min ${perMinute(first.damageTaken, first.fightTime)}taken/min`
+      : 'none',
+    lastPull: last
+      ? `${last.outcome} ${perMinute(last.mechanicHits, last.fightTime)}hits/min ${perMinute(last.damageTaken, last.fightTime)}taken/min`
+      : 'none',
+    wins: `${rungs.filter((r) => r.outcome === 'won').length}/${rungs.length}`,
   })
 }
 
@@ -814,6 +1217,27 @@ async function run(d: Driver, lines: string[], rng: () => number): Promise<void>
       case 'play':
         await play(d, (rest[0] as Style) ?? 'good', Number(rest[1] ?? 60), rng)
         break
+      case 'ladder':
+        await ladder(d, Number(rest[0] ?? 9), Number(rest[1] ?? 240), rng)
+        break
+      // The player's own bill for the pull so far. The one comparable number
+      // between a style that learns and a style that cannot: without it, the
+      // ladder's curve has nothing to be a curve *against*.
+      case 'bill': {
+        const bill = await d.ask<Bill | null>('tally()')
+        const hud = await d.ask<Hud>('hud()')
+        say('bill', {
+          fightTime: Math.round(hud.time),
+          outcome: hud.outcome,
+          hits: bill?.mechanicHits ?? 0,
+          hitsPerMin: perMinute(bill?.mechanicHits ?? 0, hud.time),
+          taken: bill?.damageTaken ?? 0,
+          takenPerMin: perMinute(bill?.damageTaken ?? 0, hud.time),
+          died: bill?.died ?? false,
+          byMechanic: bill?.byMechanic ?? {},
+        })
+        break
+      }
       default:
         fault('bad-command', { line })
     }
@@ -855,7 +1279,15 @@ async function main(): Promise<void> {
     // left to play.
     page.on('pageerror', (e) => fault('page-threw', { message: e.message.split('\n')[0] }))
     page.on('console', (m) => {
-      if (m.type() === 'error') fault('console-error', { text: m.text().slice(0, 300) })
+      if (m.type() !== 'error') return
+      const text = m.text()
+      // The dev server's own reload socket, not the game. It retries forever
+      // when vite decides its websocket port is somewhere the page cannot reach,
+      // and a ladder once turned that into a hundred and twenty-nine lines
+      // around the four that mattered. Nothing here ships to a player: the
+      // production build has no HMR at all.
+      if (/\bws:\/\/|WebSocket|\[vite\]|HMR/i.test(text)) return
+      fault('console-error', { text: text.slice(0, 300) })
     })
     page.on('requestfailed', (r) => {
       const why = r.failure()?.errorText ?? ''
@@ -885,8 +1317,17 @@ async function main(): Promise<void> {
     faults: faults.length,
   }
   writeFileSync(join(OUT, 'summary.json'), `${JSON.stringify({ ...summary, faults }, null, 2)}\n`)
-  process.stdout.write(`\n${faults.length} faults, ${entries.length} entries -- ${OUT}\n`)
-  for (const f of faults) process.stdout.write(`  ${f.kind} ${JSON.stringify({ ...f, kind: undefined, at: undefined })}\n`)
+  const repeats = [...faultSeen.values()].reduce((n, c) => n + c, 0)
+  process.stdout.write(
+    `\n${faults.length} distinct faults (${repeats} occurrences), ${entries.length} entries -- ${OUT}\n`,
+  )
+  for (const f of faults) {
+    const same = `${String(f.kind).replace(/^fault:/, '')} ${JSON.stringify({ ...f, kind: undefined, at: undefined })}`
+    const times = faultSeen.get(same) ?? 1
+    process.stdout.write(
+      `  ${f.kind}${times > 1 ? ` x${times}` : ''} ${JSON.stringify({ ...f, kind: undefined, at: undefined })}\n`,
+    )
+  }
   // A fault is a finding, not a broken run: the caller decides what it means.
   process.exit(0)
 }
