@@ -1,0 +1,78 @@
+# First mode=menus session. No boss, no spec, no style on this axis -- the
+# cell is just view (820x1180,touch) and save (carried). Nothing here is on a
+# clock, so this starts short: list the front page, look, then decide the
+# next three lines rather than scripting the whole session up front.
+open
+targets
+ui
+shot front
+
+# The reset hitbox at 408,1084 300x40 matches #266 exactly (invisible while
+# down=0, under the 44px floor) -- not new, moving on rather than re-filing.
+tap raid
+targets
+ui
+shot raidsetup
+
+tap open:difficulty
+targets
+shot difficulty-open
+
+# The 1F512 lock glyph next to "Heroic" drew as a missing-glyph box, not a
+# padlock -- this machine has no emoji font installed (fc-list confirms),
+# so this may be a test-environment artifact rather than something a real
+# phone or desktop browser would show. Noted for direction.md, not filed.
+#
+# Picking the value that is already selected (Normal, while Normal) left the
+# dropdown open on purpose -- src/main.ts's updateRaidSetup only closes it
+# `if (moved(before, next))`, with a comment explaining why a no-op press
+# should not read as having been taken. Not a bug; dismissing properly below.
+tap dismiss
+targets
+shot difficulty-closed
+
+tap next
+targets
+ui
+shot classpick
+
+tap compose
+targets
+ui
+shot compose
+
+# "tap anyone to change what they play" -- try it on a party member, not the
+# AUTO/REROLL buttons, since nothing has poked at an individual slot before.
+tap slot:1
+targets
+ui
+shot slot-tapped
+
+tap back
+targets
+shot backtoroster
+
+tap back
+targets
+shot backfromclass
+
+tap back
+targets
+shot backtohome
+
+# Settings and the record, from the front page -- neither has been looked at
+# by any prior session. (The three `back`s above landed on `raid`, not
+# `home`: the composition screen's own back doubles as CANCEL while a spec
+# picker is open, per src/render/composition.ts -- one more press than
+# expected, and my script's math, not a bug. `open` sidesteps it.)
+open
+tap settings
+targets
+ui
+shot settings
+
+open
+tap record
+targets
+ui
+shot record

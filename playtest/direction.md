@@ -169,6 +169,39 @@ after it.
 **Disproved by** a fix landing and a reload after picking escort coming back
 on BATTLEGROUND/escort rather than RAID.
 
+### 5. A `carried` save only carries within one `playbot` run, not between them
+
+`docs/playtest.md` calls `carried` "how anything about a *second* evening gets
+seen at all", and `playpick` tracks `save` as its own axis on that promise.
+
+**2026-09-25, opened.** First `mode=menus` session, carried save. Opened
+RECORD and got `0 pulls · 0 kills`, `nothing pulled yet` — on the exact
+profile (`playtest/profile/`) that a real 2026-09-24 session had already used
+to wipe The Two Flasks (`"boss":"flasks","seconds":151.7,"mechanics":244`,
+paladin protection tank, 25-normal). Read straight off the profile's own
+leveldb log rather than guessed: `abyss.history` has been written to exactly
+once, ever, by that original session, and never read back non-empty since.
+
+The cause is `scripts/playbot.ts`'s own dev-server port: `5200 +
+((process.pid + attempt * 37) % 300)`, a new value every invocation because
+`process.pid` is. `localStorage` is scoped per origin, port included, so
+`--profile` reusing the same Chromium user-data directory does not reuse the
+same storage bucket across two separate `npm run playbot` calls — only within
+one. Measured this session: seven straight `playbot` invocations against the
+same `--profile playtest/profile` printed seven different ports (5344, 5228,
+5391, 5278, 5307, 5443, 5328). Filed as #273.
+
+This does not touch #272 — that reproduction stayed inside one `playbot`
+run (`open` called twice on one page, same port throughout) — but it means
+every *other* `carried` cell in `sessions.jsonl` that relied on a previous,
+separate session's state was running on a fresh origin in disguise, and any
+session that concluded something from "the profile remembered X" needs to
+have actually stayed inside one script to say so.
+
+**Disproved by** a fix (a fixed port for a given `--profile`, or an explicit
+localStorage snapshot/restore step) landing, and a `carried` session across
+two separate `playbot` invocations actually reading back a prior one's state.
+
 ## Not yet filed
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned
@@ -213,6 +246,17 @@ party can keep up; the likely, non-buggy explanation is that the spring's
 party member is furthest back, and a straggler left behind by a sprinting
 player keeps it open. Worth a second look from a normal walking pace, not a
 scripted dash, before this is trusted as a real finding.
+
+**2026-09-25.** The raid-setup difficulty dropdown draws a lock glyph (🔒,
+`src/render/menu.ts`) next to a locked option; on this machine it rendered as
+a missing-glyph tofu box instead of a padlock, next to "Heroic" (screenshot
+`difficulty-open.png`, crop `heroic_lock_crop.png`). `fc-list` confirms this
+machine has no emoji font installed at all, so this may be purely an artifact
+of the environment `playbot` runs in rather than something a real phone or
+desktop browser -- which normally ship a color-emoji font -- would ever show.
+**Not filed.** Worth a second look if it ever turns up on a machine known to
+have an emoji font, or worth asking whether the game should draw its own
+lock shape rather than depend on a pictographic character either way.
 
 ## Tried and dropped
 
