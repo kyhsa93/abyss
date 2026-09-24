@@ -364,6 +364,28 @@ function actions(): Map<string, string> {
  * a pull, so the picture cannot promise a fight the encounter does not run.
  */
 const BOSS: Record<string, Layer[]> = {
+  // "keep it alive" -- the one fight on the roster won by filling a bar rather
+  // than emptying it, and the only body here the raid is trying to *save*.
+  //
+  // The source's is a green dragon, Valithria Dreamwalker, and this set has no
+  // dragon: eight bodies, all of them people, and nothing anywhere in it with a
+  // wing or a tail. So the picture says "not a person" the way this file
+  // already says it twice -- with a head and a colour. The lizard head is the
+  // only one in the set that reads as a scaled thing rather than as a corpse,
+  // and the green is hers.
+  //
+  // Robed rather than armoured, and lying in her own hall rather than fighting
+  // it: what the raid does here is walk *into* the wound and close it, so the
+  // thing in the middle must not read as something to hit. The robe is the
+  // female cut because that is the only one the set has -- the same reason the
+  // lich upstairs wears it.
+  saved: [
+    { z: 5, dir: 'cape/tattered/bg', half: 'behind', tint: '#166534' },
+    { z: 10, dir: 'body/bodies/female' },
+    { z: 60, dir: 'torso/clothes/robe/female', tint: '#15803d' },
+    { z: 100, dir: 'head/heads/lizard/female', tint: '#22c55e' },
+    { z: 130, dir: 'cape/tattered/fg', tint: '#166534' },
+  ],
   // "get off the rail, work the gun, and meet what comes aboard" -- the officer
   // on the other deck. The source has no model for the ship itself: `The
   // Skybreaker` and `Orgrim's Hammer` are invisible stalkers, and what a raid

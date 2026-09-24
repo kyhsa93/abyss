@@ -52,6 +52,7 @@ cannot fall behind a change to them.
 - `head/heads/human/female` — bluecarrot16,Benjamin K. Smith (BenCreating),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/human/male` — bluecarrot16,Benjamin K. Smith (BenCreating),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/lizard/child` — bluecarrot16,Benjamin K. Smith (BenCreating),Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/lizard/female` — bluecarrot16,Benjamin K. Smith (BenCreating),Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/lizard/male` — bluecarrot16,Benjamin K. Smith (BenCreating),Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/orc/male` — bluecarrot16,Matthew Krohn (makrohn),Stephen Challener (Redshrike),Zi Ye (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/skeleton` — bluecarrot16,Napsio,JaidynReiman,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
