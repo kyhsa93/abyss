@@ -1,0 +1,12 @@
+# Cell from playpick: mode=walk, boss=whisper, spec=mage:frost, style=auto,
+# size=25, difficulty=heroic, view=1280x800, save=carried.
+#
+# Probe first: carried is known (#273) to behave like a fresh origin inside a
+# single playbot invocation, so check whether 25-heroic is actually pickable
+# from the raid setup screen before committing to a longer script.
+open
+targets
+ui
+tap raid
+shot raid-setup
+targets

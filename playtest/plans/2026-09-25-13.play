@@ -1,0 +1,40 @@
+# Cell from playpick: mode=walk, boss=whisper, spec=mage:frost, style=auto,
+# size=25, difficulty=heroic, view=1280x800, save=carried.
+#
+# Probe (2026-09-25-12.play) already showed 25/heroic are locked on this
+# profile -- "1/2" on both dropdowns, "1 of 11 built rooms open here" -- because
+# #273 means `carried` behaves like a fresh origin inside a single playbot
+# invocation. Same precedent as the 2026-09-24 clear-mode session: walk on the
+# setup screen's own default (10-normal) rather than block the cell.
+#
+# "walk" means the long way: no #hash shortcut, walked in from the front page,
+# stopping once the target room (whisper, The Last Whisper, in `oratory`, past
+# marrow's `spire` and the climb) is reached rather than pushing further.
+# `style=auto` has never appeared in a ledgered session before this one --
+# it taps the autocast toggle and otherwise plays like idle (no dodge, no
+# approach), so this is also the first read on what inDanger looks like for a
+# body that casts but never moves.
+open
+targets
+tap raid
+shot raid-setup
+tap next
+targets
+tap class:mage:frost
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+
+# threshold -> vigil -> spire (marrow, a real fight) -> climb -> oratory
+# (whisper, the target). Generous budget; evening stops itself early
+# (evening-stuck) if two rooms in a row go nowhere -- which would itself
+# be worth reading given #271's known vigil bug.
+evening auto 260 2
+shot after-evening
+state
+says
+bill
+targets
+ui

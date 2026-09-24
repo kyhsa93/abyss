@@ -181,6 +181,21 @@ still open. **Sharpened toward "PULL AGAIN never revives the party" itself**
 session's `hero.hp=0`/`locked`-bar reading -- worth checking on the next
 report whether that is the actual defect PULL AGAIN has.
 
+**2026-09-25, confirmed a third way, still the same room.** `mode=walk` aimed
+at `whisper` (past `spire`'s marrow fight, never reached), frost mage (dps,
+neither of the first two roles), first-ever use of `style=auto` (autocast
+toggle on, otherwise stands still), first non-touch desktop viewport
+(1280x800, mouse) for this line, carried save (which #273 means starts fresh
+inside one `playbot` run). Wiped in THE VIGIL at 49s (`wipes=1`), tapped
+`outcome:retry`, and landed straight back on `outcome=wipe`, `hero.hp=0`,
+every ability `locked` -- `evening` called it `evening-stuck` at
+`reached: threshold -> vigil`. Screenshot (`after-evening.png`) is the same
+shape DEFEAT screen as the other two reports. Commented on #271 rather than
+filing again. Four axes (spec, style, save state, viewport) have now each
+varied across the three confirmations and the room and the symptom have not
+-- "PULL AGAIN never revives a travel-mode wipe" is the stronger of the two
+framings and "at least in THE VIGIL" is the only qualifier still standing.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
