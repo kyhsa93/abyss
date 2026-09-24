@@ -2880,7 +2880,17 @@ if (!import.meta.env.PROD) {
         boss:
           boss === null
             ? null
-            : { name: boss.name, hp: Math.round(boss.hp), maxHp: Math.round(boss.maxHp) },
+            : {
+                name: boss.name,
+                hp: Math.round(boss.hp),
+                maxHp: Math.round(boss.maxHp),
+                // With the body, because `foesAt` answers for the whole citadel
+                // and a driver that took its nearest entry as "the boss" steered
+                // at a Blighted Abomination nine thousand yards away in another
+                // wing and never engaged the one in the room.
+                x: boss.pos.x,
+                y: boss.pos.y,
+              },
       }
     },
     /**

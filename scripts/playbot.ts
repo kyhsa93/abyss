@@ -783,7 +783,7 @@ interface Hud {
     alive: boolean
     bar: Array<{ slot: number; id: string; status: string }>
   }
-  boss: null | { name: string; hp: number; maxHp: number }
+  boss: null | { name: string; hp: number; maxHp: number; x: number; y: number }
 }
 
 async function play(
@@ -907,11 +907,15 @@ async function play(
 
     // Where to go, in world units, per style.
     let want: { x: number; y: number } | null = null
+    // The one the HUD names, and only then the nearest of the rest.
+    //
+    // `foesAt` answers for the whole citadel, not the room: standing in the first
+    // boss's chamber it offered Blighted Abominations nine thousand yards away in
+    // the plagueworks, and a driver closing on "the nearest foe" walked at those
+    // for four minutes while the boss it had come for stood untouched. What the
+    // player has on screen is the health bar at the top, and that is this.
     const foes = await d.ask<Array<{ x: number; y: number; name: string }>>('foesAt()')
-    // The nearest, not the first. `foesAt` is in whatever order the actor list
-    // is, so on a trash pull the first entry can be a body across the room and
-    // `melee` would walk past the thing hitting it.
-    const boss = hero
+    const near = hero
       ? (foes
           .slice()
           .sort(
@@ -919,6 +923,7 @@ async function play(
               Math.hypot(a.x - hero.x, a.y - hero.y) - Math.hypot(b.x - hero.x, b.y - hero.y),
           )[0] ?? null)
       : (foes[0] ?? null)
+    const boss = hud.boss ?? near
 
     if (hero) {
       if (acting === 'dodge' || acting === 'good') {
@@ -989,6 +994,16 @@ async function play(
       await d.release()
     }
 
+    // **Not while moving.** Casting and walking are exclusive here, so a body with
+    // somewhere to be that presses every sixth of a second never gets there. It
+    // cost a walked-in boss fight two hundred and forty seconds at a hundred per
+    // cent: the party crossed into the room at its edge, `play` wanted to close a
+    // hundred yards, and spent the whole budget casting at nothing instead. A
+    // player runs and then casts, in that order.
+    if (want !== null) {
+      await sleep(acting === 'idle' ? 400 : 160)
+      continue
+    }
     if (acting === 'mash' || acting === 'wander') {
       // Round-robin rather than the first ready one: pressing slot 1 forever is
       // a rotation, and a rotation is not what these styles are for.
@@ -1359,9 +1374,18 @@ async function evening(
       continue
     }
     if (after.outcome === 'ongoing') {
-      // The budget ran out with the fight still going. Not a stuck evening --
-      // a slow one -- but it is the end of this run either way.
-      fault('fight-outlasted-its-budget', { at, seconds })
+      // The budget ran out with the fight still going. Not a stuck evening -- a
+      // slow one -- but it is the end of this run either way.
+      //
+      // With the bodies, because a fight that ran its whole budget at full health
+      // on both sides is not slow, it is not happening, and the only thing that
+      // tells them apart is where everybody was standing.
+      fault('fight-outlasted-its-budget', {
+        at,
+        seconds,
+        hero: await d.ask('hero()'),
+        foes: (await d.ask<Array<{ x: number; y: number; name: string }>>('foesAt()')).slice(0, 3),
+      })
       break
     }
     if (after.outcome !== 'victory') {
