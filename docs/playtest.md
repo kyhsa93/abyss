@@ -350,6 +350,14 @@ an hour.
 
 - **Do not ask questions.** This runs headless; nobody is there. Decide, act or
   do not act, and report why.
+- **There is no later.** A `playbot` run started in the background and left to
+  finish after the session ends is a run nobody reads: when the session stops, the
+  tree is committed as it stands. Wait for it, polling, or stop it early and write
+  up what there is. The second session ever run lost its hour to exactly this, and
+  left a plan file with no ledger line behind it.
+- **Write the ledger line even when the session went badly.** `playpick` counts
+  lines, so a missing one makes the next session replay this one's cell. A line
+  that says the run was abandoned and why beats no line.
 - **Do not look for other copies of yourself.** The runner holds a `flock`. The
   `playtest.sh` and `claude -p` in the process list are you.
 - **Measure before you claim.** Every number in an issue comes from a journal

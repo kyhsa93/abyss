@@ -131,6 +131,11 @@ if ! git pull --rebase --quiet origin main 2>>"$LOG"; then
 fi
 
 BEFORE="$(git rev-parse HEAD)"
+# How many sessions the ledger knew about before this one. A session that writes
+# no line is a session that did not finish, and `playpick` counts lines -- so
+# without this the second session ever run left the picker believing it was still
+# the first, and the commit below wore the previous session's subject.
+LEDGER_WAS="$(wc -l < playtest/sessions.jsonl 2>/dev/null || echo 0)"
 log "session $HOUR at $(git rev-parse --short HEAD)"
 
 PROMPT="Play this game for a while, and file what you find.
@@ -172,6 +177,15 @@ English and in this repository's voice, that will be the commit subject.
 ## Rules
 
 - **Do not ask questions.** Nobody is here. Decide, and report why.
+- **There is no later.** Do not start a \`playbot\` run in the background and
+  finish your turn saying you will pick it up when it is done: when you stop, the
+  session is over, the tree is committed as it stands and nothing you were waiting
+  for is ever read. Wait for the run -- poll it -- or stop it early and write up
+  what you did get. The second session ever run lost its whole hour this way.
+- **Write the ledger line even when the session went badly.** \`playpick\` counts
+  lines to decide what is under-played, so a missing line makes the next session
+  replay this one's cell. A line saying the run was abandoned and why is worth
+  more than no line.
 - **Do not look for other copies of yourself.** A lock guarantees one. The
   \`playtest.sh\` and \`claude -p\` in the process list are you.
 - **Two issues is the cap and 0 is a normal session.** If twelve or more
@@ -256,13 +270,25 @@ echo "$HOUR" > "$STATE"
 
 # The ledger line carries its own commit subject, so the message says what the
 # session did rather than that a session happened.
+#
+# But only if there *is* a new line. The second session ever run started a play
+# script in the background, said it would pick it up when it finished, and ended
+# -- so it left a plan file, no ledger line, and a commit wearing the previous
+# session's subject, which described work that commit did not contain. A subject
+# that lies is worse than a dull one.
+LEDGER_NOW="$(wc -l < playtest/sessions.jsonl 2>/dev/null || echo 0)"
 if [ -n "$(git status --porcelain -- playtest)" ]; then
-  SUBJECT="$(node -e '
-    const fs = require("fs")
-    const lines = fs.readFileSync("playtest/sessions.jsonl", "utf8").trim().split("\n")
-    try { process.stdout.write(JSON.parse(lines[lines.length - 1]).message ?? "") } catch {}
-  ' 2>/dev/null)"
-  [ -z "$SUBJECT" ] && SUBJECT="An hour of it, played and written down"
+  if [ "$LEDGER_NOW" -gt "$LEDGER_WAS" ]; then
+    SUBJECT="$(node -e '
+      const fs = require("fs")
+      const lines = fs.readFileSync("playtest/sessions.jsonl", "utf8").trim().split("\n")
+      try { process.stdout.write(JSON.parse(lines[lines.length - 1]).message ?? "") } catch {}
+    ' 2>/dev/null)"
+    [ -z "$SUBJECT" ] && SUBJECT="An hour of it, played and written down"
+  else
+    log "warn: the session wrote no ledger line -- it did not finish"
+    SUBJECT="A session that did not finish, and what it got as far as"
+  fi
   git add -- playtest
   git -c user.name="abyss playtest" -c user.email="kyhsa93@naver.com" \
     commit -q -m "$SUBJECT" -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>" >>"$LOG" 2>&1
