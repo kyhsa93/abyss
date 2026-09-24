@@ -15,13 +15,13 @@ import type { Encounter, MechanicId, PhaseTiming } from '../src/sim/encounters'
 import { createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
-import { autoParty, pickFor } from '../src/sim/classes'
+import { autoParty, pickFor, RAID_SIZES } from '../src/sim/classes'
 
 const RUNS = Number(process.argv[2] ?? 120)
 const host = ENCOUNTERS[0]!
 const basePhases: Encounter['phases'] = { 1: host.phases[1]!, 2: host.phases[2]!, 3: host.phases[3]! }
 const baseOpening = host.opening
-const baseLadder = host.kit
+const baseKit = host.kit
 const baseLines = host.lines
 
 /** The cadence some boss actually gives this mechanic, or null if none does. */
@@ -41,7 +41,16 @@ function pull(seed: number, attempt: number, size: number, mech: MechanicId): nu
   return party.filter((a) => !a.alive).length / party.length
 }
 
-console.log(`mechanic         5-man             10-man            25-man     (${RUNS} pairs, Warden host, heroic)`)
+// The host and the sizes are read rather than typed. Both had gone stale in one
+// line: the header said "Warden host" for a fight taken off the roster in
+// fcefd05, and the columns were a written-out `[5, 10, 25]` with a cast over it
+// -- so a third of this table measured a raid size the game cannot be played at,
+// and the cast is what let it keep compiling after the five-man went.
+console.log(
+  'mechanic         ' +
+    RAID_SIZES.map((size) => `${size}-man`.padEnd(18)).join('') +
+    `(${RUNS} pairs, ${host.name} host, heroic)`,
+)
 for (const mech of MECHANIC_IDS) {
   const donor = donorOf(mech)
   if (donor === null) {
@@ -59,10 +68,10 @@ for (const mech of MECHANIC_IDS) {
   host.lines = spoken
     ? { ...baseLines, [mech]: (donor.lines as Record<string, string>)[mech]! }
     : baseLines
-  host.kit = [mech, ...baseLadder.filter((m) => m !== mech)]
+  host.kit = [mech, ...baseKit.filter((m) => m !== mech)]
 
   const cells: string[] = []
-  for (const size of [5, 10, 25] as number[]) {
+  for (const size of RAID_SIZES) {
     const diffs: number[] = []
     let green = 0
     let vet = 0
@@ -85,5 +94,5 @@ for (const mech of MECHANIC_IDS) {
 }
 host.phases = basePhases
 host.opening = baseOpening
-host.kit = baseLadder
+host.kit = baseKit
 host.lines = baseLines

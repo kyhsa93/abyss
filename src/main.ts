@@ -391,8 +391,8 @@ function saveSetup(): void {
  * Called wherever the setting can arrive at something it has not earned: a
  * save written before the chain existed, an invitation to somebody else's
  * fight, and pressing a boss whose top rungs are still locked. It moves the
- * size and the difficulty and never the boss — a player who pressed the Choir
- * and got moved to the Warden because their difficulty was locked would be
+ * size and the difficulty and never the boss — a player who pressed the second
+ * boss and got moved to the first because their difficulty was locked would be
  * reading a stranger answer than a player who got moved to normal.
  *
  * Battlegrounds are not on the chain at all: they are five a side and there is
@@ -1495,11 +1495,17 @@ function restart(): void {
  * On to the next rung, which is usually this boss one setting harder.
  *
  * The pull count goes back to zero with it, and for a rung as much as for a
- * boss. The AI's learning is learning *this* fight — a party that has killed
- * the Warden nine times at five has not seen its rot, which is what the
- * heroic rung buys, and the roster is rolled again whenever the size changes,
- * so they are not even the same people. Carrying the progress over would hand
- * them a ninth-pull execution of a script they have never watched.
+ * boss. The AI's learning is learning *this* fight — a party that has killed a
+ * boss nine times at ten has not practised it at twenty-five, where the same
+ * mechanics arrive against a different headcount, and the roster is rolled again
+ * whenever the size changes, so they are not even the same people. Carrying the
+ * progress over would hand them a ninth-pull execution of a script they have
+ * never watched.
+ *
+ * The example here used to be "the Warden nine times at five has not seen its
+ * rot, which is what the heroic rung buys" — a fight taken off the roster, a size
+ * removed, and the mechanic-selling ladder that was retired, all in one sentence.
+ * A harder rung does not buy a mechanic any more; see `gates` in `sim/encounters`.
  */
 function advanceTier(): void {
   const next = nextSetting(setting())

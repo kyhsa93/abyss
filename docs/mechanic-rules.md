@@ -286,6 +286,9 @@ that there is no host-independent value of a mechanic at all:
     echo    48.3       6.6  on the Choir
     breath  nobody died at any size      21.4 on the Tidebreaker
 
+(Those three fights are not on the roster — see *the five names in these notes*
+at the end of this file. The measurement stands; the fights do not.)
+
 The cause is one number. `mechanicDamage` is 1.15 on the Choir, 1.7 on the
 Warden and 4.6 on the Tidebreaker, and a mechanic's own damage was tuned
 against whichever of those it was written for. The cone is built for 4.6, so
@@ -506,10 +509,14 @@ not be used to argue that a mechanic is alive, only to explain why it is not.
 - **Long-lived ground breaks the rendercheck stand-ins**, which flee anything
   within `radius + 20` and will flee forever if it never expires, pressing
   nothing.
-- **The Warden is a fixture for unrelated checks.** Spec parity, autocast
-  cadence and the mashing comparison are all measured on Warden pulls, so
-  changing a Warden rung moves three checks that have nothing to do with the
-  mechanic.
+- ~~**The Warden is a fixture for unrelated checks.**~~ **Gone, and worth keeping
+  the reason.** Spec parity, autocast cadence and the mashing comparison were all
+  measured on one boss's pulls, so changing that boss moved three checks that had
+  nothing to do with the mechanic. They read the roster now — `specprobe`,
+  `aiprobe` and `teachprobe` each loop `ENCOUNTERS` end to end, and the autocast
+  checks build their own states — so a single fight's numbers no longer carry
+  three unrelated verdicts. The Warden itself came off the roster in `fcefd05`;
+  see *the five names in these notes* below.
 - **Icon colours must not collide.** rendercheck enforces it.
 - **Removing a mechanic from a boss** breaks checks that assumed that boss
   owned two particular things at once.
@@ -549,3 +556,36 @@ not be used to argue that a mechanic is alive, only to explain why it is not.
     rendercheck.ts an entry in DRAWN, plus assertions of its own
 
 `brand` is the worked example that touches all of them.
+
+
+## The five names in these notes
+
+Five fights come up repeatedly in the comments and tables here and in the code —
+**the Warden, the Choir, the Tidebreaker, the Watcher and the Long Ledger** — and
+none of them is on the roster. A reader who goes looking will not find them, so
+this is what happened to them.
+
+They were **removed, not renamed.** `fcefd05`, 2026-09-07, "Take the five fights
+that were not from this raid off the roster": eight bosses, three of which came out
+of the tier this game is built from, and the other five were invented. Their full
+names were The Drowned Warden, The Choir Beneath, The Tidebreaker, The Unblinking
+Watch and The Long Ledger. There is no mapping from them to anything current — the
+eleven fights on the roster now are the tier's own.
+
+The twenty-seven mechanics that belonged only to those five came off one family per
+commit behind a written-down `RETIRING` list, rather than in one unreviewable diff,
+and that list is empty and gone: the retirement finished.
+
+**The measurements stay, and they are still worth reading.** The host table above is
+the clearest thing in this file about `mechanicDamage` dominating a mechanic's own
+number, and it was measured on a fight that no longer exists — which changes nothing
+about what it proves. The same goes for the findings in `sim/ai.ts`, `sim/boss.ts`,
+`sim/combat.ts`, `sim/abilities.ts`, `harness.ts` and `rendercheck.ts`: those are
+records of things that were actually found, and this repository keeps those.
+
+What does not stay is a dead name explaining *live* behaviour. Four of those were
+found and fixed on 2026-09-25 — a probe printing "Warden host" while running on
+whatever `ENCOUNTERS[0]` is, the same probe measuring a five-man that no longer
+exists behind a cast, the settle-and-rung comments in `main.ts` and `progress.ts`,
+and an award telling the player on the record screen to go and kill the Drowned
+Warden. If you find another, it is that kind and not this kind.
