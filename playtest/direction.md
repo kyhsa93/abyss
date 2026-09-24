@@ -122,6 +122,33 @@ AGAIN does restart the room. **Sharpened toward "every travel wipe is like
 this"** by a second corridor showing the same `outcome` staying `wipe` after
 a retry tap.
 
+### 4. A battleground's own setup is remembered less reliably than a raid's
+
+**2026-09-24, opened.** First battleground session this job has run (five
+sessions in, `mode` had never come up on the least-played axis before now).
+`playpick` gave conquest; the first pull was played straight — `open` ->
+BATTLEGROUND -> `map:conquest` -> priest:shadow -> PULL -> `play flee 180` on
+carried, 820x1180 touch. The Three Cairns ended in 145s at 146-400, a full
+loss, with `presses=0` and `inDanger=0%` the whole way: a flee-style body that
+never fights costs its team the match, which is the opposite shape from the
+raid `idle` findings in [[#1]] — worth returning to with a `good` comparison
+on this same map before it says anything about battlegrounds generally.
+
+While still in the same session, picked The Long Haul (escort) instead and
+left without pulling, then reloaded on the same `--profile`. The pick was
+gone: the front page came back with RAID highlighted, not BATTLEGROUND, while
+conquest had correctly survived an identical reload earlier in this same
+session (`146.6s open ... mode=battleground`). Read `src/main.ts`'s
+`loadMode()` afterward to understand why rather than guess: it accepts only
+`raw === 'conquest' || raw === 'flags'` and falls back to raid on anything
+else, while `saveSetup()` writes whatever `mode.bg` is, escort included. Filed
+as #272, with both play-script segments and the screenshots showing the
+selected-map screen before the reload and the RAID-highlighted front page
+after it.
+
+**Disproved by** a fix landing and a reload after picking escort coming back
+on BATTLEGROUND/escort rather than RAID.
+
 ## Not yet filed
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned

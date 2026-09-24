@@ -1,0 +1,47 @@
+# First battleground session this job has ever run. carried save, touch,
+# priest:shadow, flee, conquest map -- the whole mode is unexplored so this
+# starts at the front page rather than jumping in on a hash, since there is
+# no invite shortcut into a battleground to jump to.
+open
+targets
+ui
+shot front
+
+tap battleground
+targets
+ui
+shot bgsetup
+
+tap map:conquest
+targets
+ui
+shot classpick
+
+tap class:priest:shadow
+tap pull
+waitscreen fight 15
+state
+targets
+shot pulled
+
+play flee 180
+bill
+says
+state
+shot after180
+targets
+
+# Something no session has done before: pick The Long Haul (escort) and leave
+# without pulling, then come back, to see whether the mode is remembered the
+# way conquest and flags are.
+open
+tap battleground
+tap map:escort
+targets
+state
+shot escort-picked
+
+open
+targets
+state
+shot after-reload
