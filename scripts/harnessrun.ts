@@ -68,6 +68,10 @@ const SHARDS = [
   // cell: it was one shard of ten minutes, which is a shard no number of
   // runners can make finish sooner.
   ...ENCOUNTERS.map((_, i) => `mechanic:${i}`),
+  // A shard a boss, for the same reason as the two above it: ninety heroic pulls
+  // twice over is minutes rather than seconds, and a shard no number of runners
+  // can make finish sooner is the one that decides the wall clock.
+  ...ENCOUNTERS.map((_, i) => `reward:${i}`),
   'bg',
 ]
 

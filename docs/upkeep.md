@@ -62,6 +62,37 @@ boss and size, and today it often is not — see the open issue. That belongs in
 band, but a band that is red the day it lands teaches the wrong lesson: the
 first thing anybody would do is widen it. It goes in once the fight is fixed.
 
+**A raid rewarding play**, by the twenty points the battleground band asks for.
+The floor is banded — playing may not *trail* a body that does nothing by more
+than fifteen, which is the noise on the difference — but the intent is that
+playing wins, and four fights are short of it. The `raid / drive` table is in the
+harness output on every run; the gaps today are:
+
+| Fight | played | idle | gap |
+|---|---|---|---|
+| The Skyward Deck | 76% | 6% | +70 |
+| The Long Cold | 57% | 2% | +55 |
+| The Confluence | 72% | 18% | +54 |
+| The Two Flasks | 72% | 40% | +32 |
+| The Bonegrinder | 68% | 48% | +20 |
+| The Last Whisper | 94% | 78% | +16 |
+| The Bloodgorged | 87% | 72% | +15 |
+| The Three Crowns | 99% | 94% | +5 |
+| The Reeking Host | 100% | 100% | 0 |
+| The Crimson Gift | 99% | 99% | 0 |
+| The One You Save | 91% | 100% | −9 |
+
+The same rule as difficulty ordering applies: it goes in once those fights are
+fixed, not before.
+
+One caveat belongs with the number rather than with the fight. The `played` row is
+one generic policy — out of any puddle, rotation on cooldown — and a fight whose
+answer is something else reads as unrewarding when it is only *different*. The One
+You Save is the case: nothing hits the player in it and the boss ends at full
+health either way, so dodging puddles is not what winning is made of there. Before
+that row is read as a verdict on a fight, check that the policy is playing the
+fight the fight is asking about.
+
 ## What the job may change, and what it may not
 
 **It may retune numbers to bring a red band back inside.** Ability damage,

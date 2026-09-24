@@ -48,7 +48,25 @@ interface Report {
   /** Same, but only while no ground effect exists — pure wasted motion. */
   idleTravel: Record<string, number>
   deaths: Record<string, number>
+  /**
+   * The player's own bill, which is the one thing every other row here averages
+   * away. The party's numbers say whether the raid coped; these say whether the
+   * body a person steers was doing anything.
+   */
+  playerHits: number
+  playerTaken: number
+  playerDied: boolean
 }
+
+/**
+ * How the player's own slot is driven.
+ *
+ * `played` is the stand-in above: out of any puddle, rotation on cooldown. `idle`
+ * is a body that is still the player's and does nothing at all -- no movement, no
+ * presses. The pair is the only way to ask whether a fight is worth playing, and
+ * it is deliberately not `unattended`, which hands the slot to the AI.
+ */
+type RaidDrive = 'played' | 'idle'
 
 function run(
   seed: number,
@@ -56,6 +74,7 @@ function run(
   party?: Pick[],
   difficulty: DifficultyId = 'normal',
   encounter = 0,
+  drive: RaidDrive = 'played',
 ): Report {
   const s = createState(seed, attempt, party, difficulty, encounter)
   // The pull's opening countdown is skipped rather than waited out. No time
@@ -72,15 +91,17 @@ function run(
   while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
     const pressed: number[] = []
     // Fire abilities roughly on cooldown.
-    if (ticks % 45 === 0) pressed.push(0)
-    if (ticks % 360 === 0) pressed.push(1)
-    if (ticks % 540 === 0) pressed.push(2)
+    if (drive === 'played') {
+      if (ticks % 45 === 0) pressed.push(0)
+      if (ticks % 360 === 0) pressed.push(1)
+      if (ticks % 540 === 0) pressed.push(2)
+    }
 
     // A tick with nothing on the floor is a tick nobody should be running.
     const quiet = s.ground.length === 0
     const before = new Map(s.actors.map((a) => [a.id, { x: a.pos.x, y: a.pos.y }]))
 
-    step(s, playerInput(s, pressed), rng)
+    step(s, drive === 'played' ? playerInput(s, pressed) : { moveX: 0, moveY: 0, pressed }, rng)
     ticks++
 
     for (const a of s.actors) {
@@ -132,6 +153,9 @@ function run(
     idleTravel[a.name] = (walkedQuiet[a.name] ?? 0) / Math.max(1, s.time)
   }
 
+  // The player's slot, by the ledger the fight writes and never reads back.
+  const me = s.actors.find((a) => a.isPlayer)
+  const bill = me ? s.tally[me.id] : undefined
   return {
     outcome: s.outcome,
     time: Math.round(s.time * 10) / 10,
@@ -140,6 +164,9 @@ function run(
     travel,
     idleTravel,
     deaths,
+    playerHits: bill?.mechanicHits ?? 0,
+    playerTaken: Math.round(bill?.damageTaken ?? 0),
+    playerDied: me !== undefined && !me.alive,
   }
 }
 
@@ -877,6 +904,65 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
         `${(green0 - vet).toFixed(0)}pp`.padStart(9),
       )
     }
+  }
+}
+
+// --- whether a raid is worth playing ----------------------------------------
+//
+// The battleground table below has asked this since it existed -- the same match
+// with the player standing at the spawn against the player walking objectives --
+// and no raid table ever has. Every band in `balancecheck` reads a win rate, and
+// a fight that is won either way passes all of them while asking nothing.
+//
+// It came up by driving the first boss through a browser: a body that pressed
+// nothing and never moved took 7.7 mechanic hits a minute over 116 seconds with
+// the raid intact, and the same body dodging and running its rotation took 11.6
+// over 140 and lost somebody. Both were victories, so nothing noticed.
+//
+// Heroic only, and that is not a saving. At normal a raid is meant to be
+// winnable, so both rows sit near a hundred and the column has no room to say
+// anything; heroic is where the fight is supposed to be a question. The idle row
+// is a body that is still the player's -- zero movement, nothing pressed -- and
+// not `unattended`, which hands the slot to the AI and answers a different and
+// much kinder question.
+const REWARD_RUNS = 90
+const REWARD_SIZE = RAID_SIZES[0]
+if (want('reward:0')) console.log(
+  `\nraid                   drive      win%     avgTime  bossHP%  hits/min  taken/min  deaths` +
+    `\n(${REWARD_RUNS} pulls a row at ${REWARD_SIZE}-man heroic; two standard errors on a ` +
+    `difference of win rates is about ` +
+    `${(2 * Math.sqrt(0.5 / REWARD_RUNS) * 100).toFixed(0)} points)`,
+)
+for (let i = 0; i < ENCOUNTERS.length; i++) {
+  if (!want(`reward:${i}`)) continue
+  const party = autoParty(REWARD_SIZE, dps('mage'))
+  for (const drive of ['played', 'idle'] as const) {
+    let wins = 0
+    let seconds = 0
+    let left = 0
+    let hits = 0
+    let taken = 0
+    let died = 0
+    for (let n = 0; n < REWARD_RUNS; n++) {
+      const r = run(1000 + n * 137, 0, party, 'heroic', i, drive)
+      if (r.outcome === 'victory') wins++
+      seconds += r.time
+      left += r.bossPct
+      hits += r.playerHits
+      taken += r.playerTaken
+      if (r.playerDied) died++
+    }
+    const perMin = (n: number) => (seconds > 0 ? ((n / seconds) * 60).toFixed(1) : '0')
+    console.log(
+      `${ENCOUNTERS[i]!.name}`.padEnd(23) +
+        drive.padEnd(11) +
+        `${Math.round((wins / REWARD_RUNS) * 100)}%`.padEnd(9) +
+        `${Math.round(seconds / REWARD_RUNS)}`.padEnd(9) +
+        `${Math.round(left / REWARD_RUNS)}%`.padEnd(9) +
+        perMin(hits).padEnd(10) +
+        perMin(taken).padEnd(11) +
+        `${died}/${REWARD_RUNS}`,
+    )
   }
 }
 

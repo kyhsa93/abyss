@@ -57,6 +57,22 @@ const label = (line: string) => line.split(/\s{2,}/)[0].trim()
 const SPEC_FLOOR = 50
 const CELL_FLOOR = 50
 const BG_MARGIN = 20
+/**
+ * How far behind a body that does nothing the player is allowed to be.
+ *
+ * Nought would be the line anybody would write first, and it would fail on noise:
+ * two standard errors on a difference of two ninety-pull win rates is about
+ * fifteen points, so a fight where playing and not playing are genuinely equal
+ * lands anywhere in fifteen either side. Fifteen is therefore the widest this can
+ * be without measuring the seed, and the narrowest it can be without flagging a
+ * tie.
+ *
+ * It is a floor and not the intent. The intent is that playing *wins*, by twenty
+ * -- the same margin the battleground band uses -- and four fights are short of it
+ * today. See `docs/upkeep.md`: that band goes in when they are fixed, not before,
+ * because a band that is red the day it lands is a band somebody widens.
+ */
+const RAID_INVERSION = 15
 
 const BANDS: Band[] = [
   {
@@ -129,6 +145,37 @@ const BANDS: Band[] = [
         if (ai === undefined || idle === undefined) continue
         if (ai - idle < BG_MARGIN) {
           bad.push(`${map}: playing beats standing still by ${ai - idle} points (want ${BG_MARGIN})`)
+        }
+      }
+      return bad
+    },
+  },
+  {
+    name: 'a raid does not punish playing',
+    why:
+      'a fight where the body a person steers would have done better left alone has taken the ' +
+      'one decision it offers and made it a mistake',
+    check: (text) => {
+      const wins = new Map<string, Map<string, number>>()
+      const found = rows(text, /^raid {2,}drive /m).slice(1)
+      const bad = atLeast(found, ENCOUNTERS.length * 2, 'the raid reward table')
+      for (const line of found) {
+        const [, drive] = line.split(/\s{2,}/)
+        const win = percents(line)[0]
+        if (drive === undefined || win === undefined) continue
+        const map = wins.get(label(line)) ?? new Map<string, number>()
+        map.set(drive.trim(), win)
+        wins.set(label(line), map)
+      }
+      for (const [boss, drives] of wins) {
+        const played = drives.get('played')
+        const idle = drives.get('idle')
+        if (played === undefined || idle === undefined) continue
+        if (idle - played > RAID_INVERSION) {
+          bad.push(
+            `${boss}: standing still wins ${idle}% and playing wins ${played}% ` +
+              `(playing may trail by at most ${RAID_INVERSION})`,
+          )
         }
       }
       return bad
