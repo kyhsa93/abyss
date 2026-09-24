@@ -1,5 +1,5 @@
-import { Input } from './input'
-import { resetView } from './render/camera'
+import { Input, hitButton } from './input'
+import { resetView, viewAngle } from './render/camera'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld, padOnScreen } from './render/draw'
 import {
@@ -14,6 +14,7 @@ import {
   setShareLabel,
   setTrendLine,
   shareRect,
+  slotStatus,
 } from './render/hud'
 import {
   check as checkAwards,
@@ -129,7 +130,7 @@ import {
   todays,
   type DailyResult,
 } from './daily-record'
-import { SPEC_OPTIONS, specLabel } from './sim/classes'
+import { SPEC_OPTIONS, abilityBar, specLabel } from './sim/classes'
 import {
   cleared as clearedRoom,
   felled,
@@ -2630,6 +2631,93 @@ requestAnimationFrame(frame)
  * not evidence about the game. This says where things are and what the rules
  * make of that; getting there is still done by playing.
  */
+/**
+ * A hit object, as one string a driver can name a control by.
+ *
+ * Every screen answers a tap with either a bare word or a `{ kind, ... }`, and
+ * the difference is an accident of which screen was written first. Flattening
+ * both to `kind:extra` means the driver has one vocabulary instead of eleven,
+ * and a new field on a hit widens the name rather than breaking the caller.
+ */
+function hitLabel(hit: unknown): string | null {
+  if (hit === null || hit === undefined) return null
+  if (typeof hit === 'string') return hit
+  const o = hit as Record<string, unknown>
+  const parts = [String(o.kind ?? 'hit')]
+  for (const key of Object.keys(o)) {
+    if (key === 'kind') continue
+    const v = o[key]
+    if (v === null || v === undefined) continue
+    if (typeof v === 'object') parts.push(...Object.values(v as object).map(String))
+    else parts.push(String(v))
+  }
+  return parts.join(':')
+}
+
+/**
+ * What a tap at a canvas point would do, without doing it.
+ *
+ * This is the read-only twin of `frame`'s dispatch and it has to stay in that
+ * order: the fight screen tests the minimap before the corner buttons it
+ * reveals and the pad before the stick, so a probe that tested them in any
+ * other order would name a control the game would not have pressed.
+ *
+ * It is not a way to press anything. The driver takes the rectangle this finds
+ * and clicks it through the browser, on the real input path, because a check
+ * that reached in and called `updateHome` would prove only that `updateHome`
+ * can be called.
+ */
+function hitAt(x: number, y: number): string | null {
+  if (screen === 'home') return hitLabel(hitHome(x, y))
+  if (screen === 'raid') return hitLabel(hitRaidSetup(x, y, raidOpen))
+  if (screen === 'battleground') return hitLabel(hitBgSetup(x, y))
+  if (screen === 'daily') return hitLabel(hitDaily(x, y))
+  if (screen === 'settings') return hitLabel(hitSettings(x, y))
+  if (screen === 'credits') return hitLabel(hitCredits(x, y))
+  if (screen === 'composition') return hitLabel(hitComposition(x, y, composing))
+  if (screen === 'citadel') {
+    if (!run) return null
+    const allowed = new Set(CHAMBERS.filter((c) => fightBuilt(c.id)).map((c) => c.id))
+    const climb = nextDoor(unlocked, run.size, run.difficulty)
+    return hitLabel(hitCitadel(run, x, y, allowed, climb ? tierLabel(climb) : null))
+  }
+  if (screen === 'history') {
+    return hitLabel(
+      hitHistory(
+        x,
+        y,
+        history.map((e) => e.standings.length),
+        historyTab,
+        openNote,
+      ),
+    )
+  }
+  if (screen === 'roster') return hitLabel(hitRoster(x, y))
+
+  // The fight, in the order `frame` asks.
+  if (input.isTouchMode() && inside(minimapRect(), x, y)) return 'minimap'
+  const pad = padRect()
+  if (pad !== null && inside(pad, x, y)) return 'pad'
+  if (cornersShown()) {
+    if (inside(partyButton(), x, y)) return 'party'
+    if (inside(settingsButton(), x, y)) return 'settings'
+    if (walkingAnEvening() && inside(mapButton(), x, y)) return 'map'
+  }
+  if (state.outcome !== 'ongoing') {
+    const hit = hitLabel(hitOutcome(x, y, state))
+    if (hit !== null) return `outcome:${hit}`
+  }
+  if (input.isTouchMode() && Math.hypot(x - L.autoPos.x, y - L.autoPos.y) <= L.autoR * 1.3) {
+    return 'auto'
+  }
+  const slot = hitButton(x, y)
+  if (slot !== null) return `ability:${slot + 1}`
+  // The stick answers everywhere else, which is why it is not named: a driver
+  // listing controls wants the things there are a fixed number of, and a
+  // target that covers most of the glass would bury them.
+  return null
+}
+
 if (!import.meta.env.PROD) {
   ;(window as unknown as { __abyss: unknown }).__abyss = {
     /** The body the player steers, in world units. */
@@ -2702,6 +2790,173 @@ if (!import.meta.env.PROD) {
     /** And the floor the building is drawing right now, to hold them against. */
     floor(): Array<{ id: string }> {
       return (state.floor ?? []).map((_, i) => ({ id: `cell${i}` }))
+    },
+    /**
+     * What a tap at this canvas point would do, named, without doing it.
+     *
+     * The glass is the only place the game's controls exist -- they are drawn,
+     * not elements -- so something driving it either knows the layout or
+     * guesses. `visualcheck` guesses: it presses 66% across and 95% down and
+     * hopes that is still PULL. This answers instead, from the same hit tests
+     * the press itself runs.
+     */
+    probe(x: number, y: number): string | null {
+      return hitAt(x, y)
+    },
+    /**
+     * Every named control on the screen right now, with the box to hit it in.
+     *
+     * Found by walking a grid rather than by asking each screen for its layout,
+     * because the layouts are eleven different shapes and half of them are
+     * private. The cost is that a control thinner than the step is invisible
+     * here, which is a bug worth knowing about anyway: `touchcheck` holds the
+     * floor at 44px and the default step is well under it.
+     */
+    targets(step = 8): Array<{ label: string; x: number; y: number; w: number; h: number }> {
+      const box = new Map<string, { x0: number; y0: number; x1: number; y1: number }>()
+      for (let y = step / 2; y < L.h; y += step) {
+        for (let x = step / 2; x < L.w; x += step) {
+          const label = hitAt(x, y)
+          if (label === null) continue
+          const seen = box.get(label)
+          if (seen === undefined) box.set(label, { x0: x, y0: y, x1: x, y1: y })
+          else {
+            seen.x0 = Math.min(seen.x0, x)
+            seen.y0 = Math.min(seen.y0, y)
+            seen.x1 = Math.max(seen.x1, x)
+            seen.y1 = Math.max(seen.y1, y)
+          }
+        }
+      }
+      return [...box].map(([label, b]) => ({
+        label,
+        x: (b.x0 + b.x1) / 2,
+        y: (b.y0 + b.y1) / 2,
+        w: b.x1 - b.x0 + step,
+        h: b.y1 - b.y0 + step,
+      }))
+    },
+    /**
+     * What the player can see about themselves and the fight.
+     *
+     * A driver that has to read this off the picture is a driver that cannot
+     * tell a boss at 3% from a boss at 30%, and every judgement about whether a
+     * fight was close came out of squinting at a bar.
+     */
+    hud(): unknown {
+      const me = state.actors.find((a) => a.isPlayer) ?? null
+      const boss = state.actors.find((a) => a.faction === 'boss' && a.alive) ?? null
+      return {
+        time: state.time,
+        tick: state.tick,
+        phase: state.phase,
+        countdown: state.countdown,
+        outcome: state.outcome,
+        auto: input.isAuto(),
+        touch: input.isTouchMode(),
+        zoom: zoomLevel(),
+        party: state.actors.filter((a) => a.faction === 'party').length,
+        alive: state.actors.filter((a) => a.faction === 'party' && a.alive).length,
+        me:
+          me === null
+            ? null
+            : {
+                name: me.name,
+                spec: me.spec,
+                role: me.role,
+                hp: Math.round(me.hp),
+                maxHp: Math.round(me.maxHp),
+                power: Math.round(me.power),
+                maxPower: Math.round(me.maxPower),
+                alive: me.alive,
+                casting: me.castId,
+                // What the bar is lit as, which is the question a press asks.
+                bar: abilityBar({ classId: me.classId, spec: me.spec }).map((id, i) => ({
+                  slot: i + 1,
+                  id,
+                  status: slotStatus(state, me, id),
+                })),
+              },
+        boss:
+          boss === null
+            ? null
+            : { name: boss.name, hp: Math.round(boss.hp), maxHp: Math.round(boss.maxHp) },
+      }
+    },
+    /**
+     * Everything on the floor that is about to hurt, in world units.
+     *
+     * Without it a driver can only play badly on purpose. Standing in a puddle
+     * and standing where a puddle is not are the two halves of every fight in
+     * this game, and a bot that cannot tell them apart produces one number:
+     * the win rate of a body that does not move.
+     */
+    ground(): Array<{
+      kind: string
+      x: number
+      y: number
+      r: number
+      telegraph: number
+      detonated: boolean
+    }> {
+      return state.ground.map((g) => ({
+        kind: g.kind,
+        x: g.pos.x,
+        y: g.pos.y,
+        r: g.radius,
+        telegraph: g.telegraph,
+        detonated: g.detonated,
+      }))
+    },
+    /**
+     * A world-space direction, as the push on the glass that would produce it.
+     *
+     * Both controls are read on the glass and the simulation is owed a
+     * world-space vector, so `Input` undoes the camera's turn on the way in. A
+     * driver that wants to walk out of a puddle knows where the puddle is in
+     * world units and has to put the turn back, and doing that arithmetic twice
+     * in two files is how the two come to disagree about which way is north.
+     */
+    push(dx: number, dy: number): { x: number; y: number } {
+      const len = Math.hypot(dx, dy)
+      if (len === 0) return { x: 0, y: 0 }
+      const a = viewAngle()
+      return {
+        x: (dx * Math.cos(a) - dy * Math.sin(a)) / len,
+        y: (dx * Math.sin(a) + dy * Math.cos(a)) / len,
+      }
+    },
+    /**
+     * The same direction as the movement keys that would produce it.
+     *
+     * Derived from `push` rather than worked out again: the keyboard and the
+     * stick are the same push quantised differently, and two copies of the
+     * camera arithmetic is one copy too many.
+     */
+    keysFor(dx: number, dy: number): string[] {
+      const len = Math.hypot(dx, dy)
+      if (len === 0) return []
+      const a = viewAngle()
+      const x = (dx * Math.cos(a) - dy * Math.sin(a)) / len
+      const y = (dx * Math.sin(a) + dy * Math.cos(a)) / len
+      const keys: string[] = []
+      // A third of the way over counts, so a diagonal presses both and a push
+      // that is nearly straight does not press a second key it did not mean.
+      if (y < -0.35) keys.push('w')
+      if (y > 0.35) keys.push('s')
+      if (x < -0.35) keys.push('a')
+      if (x > 0.35) keys.push('d')
+      return keys
+    },
+    /**
+     * What the game has said lately, newest last.
+     *
+     * The boss and the raid announce every mechanic in words, and those words
+     * are the only record of what a fight actually did: the tally counts hits,
+     * not what threw them.
+     */
+    says(n = 12): Array<{ speaker: string; text: string }> {
+      return state.chat.slice(-n).map((c) => ({ speaker: c.speaker, text: c.text }))
     },
   }
 }

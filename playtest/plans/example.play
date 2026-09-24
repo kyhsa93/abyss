@@ -1,0 +1,31 @@
+# What a play script looks like. Kept as an example rather than as a session:
+# every real plan in this directory is named for the day it was played, and is
+# the thing an issue points at so a later session can re-run it.
+#
+#   npm run playbot -- playtest/plans/example.play --view 1280x800 --out /tmp/x
+#
+# The invite hash lands on the roster with a fight already chosen, which is the
+# short way to a particular boss. Walking there from the front page is the long
+# way, and both are worth sessions: the long way is the one a player takes.
+open #b=gorged&s=25&h=1
+
+# Always list the controls before pressing one. The labels come from the game's
+# own hit tests, so a label that is missing here is missing on the screen.
+targets
+ui
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+state
+
+# `flee` is a hypothesis about a player: the one who runs from everything. If
+# this ends the same way `good` does, the fight is not asking anything.
+shot opening
+play flee 240
+shot ending
+
+# What the fight said about itself, and what is on the glass now the pull is
+# over -- the outcome overlay has its own controls and they are worth listing.
+says
+targets
+ui

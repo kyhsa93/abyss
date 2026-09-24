@@ -333,7 +333,15 @@ const ABILITY_KEYS = new Map(
  * its neighbours. Nearest puts the boundary halfway between them, which is
  * where a person would expect it.
  */
-function hitButton(x: number, y: number): number | null {
+/**
+ * Which ability slot a point is on, or null.
+ *
+ * Exported so something outside can ask where a button is without pressing it.
+ * The play driver taps real canvas coordinates rather than calling into the
+ * game, and a driver that guessed at the bar's layout would be testing its own
+ * arithmetic -- the bar moves with the viewport.
+ */
+export function hitButton(x: number, y: number): number | null {
   let best: number | null = null
   let bestGap = Infinity
   for (let i = 0; i < BAR_SLOTS && i < L.btnPos.length; i++) {

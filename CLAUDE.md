@@ -41,6 +41,27 @@ floor is laid over a cliff, no step of the lower spire walks backwards, no two
 rooms nothing joins touch. When a promise is checked, the number that satisfies
 it can be moved by anybody without asking.
 
+## The jobs that run on their own
+
+Two things drive this repository without being asked. Both are spec-first: the
+shell script decides only when to run, and the file it points at is the job.
+
+- `scripts/upkeep.sh` -> `docs/upkeep.md`. Weekly. Asks whether this is still
+  the game the README says it is, and may retune a number a band holds.
+- `scripts/playtest.sh` -> `docs/playtest.md`. Hourly. Plays the game through a
+  real browser and files what it finds. It may write nothing outside
+  `playtest/`, and the runner reverts it if it tries.
+
+**`~/workspace/abyss-playtest` is the playtest job's own worktree. Leave it
+alone.** It is made on first run and kept, it holds the carried save the job
+plays a second evening from, and deleting it costs an `npm ci`. It is on branch
+`playtest` and pushes to `main`; the usual rule about removing a worktree when
+the work is done does not apply to it.
+
+If you are about to drive the game with Playwright yourself, the job may be
+doing the same thing right now. It holds
+`~/.local/state/abyss-playtest/lock`.
+
 ## Finishing a change
 
 `npm run check` is the gate and it is slow — the balance sweep alone runs about

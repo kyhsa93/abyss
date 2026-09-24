@@ -25,7 +25,9 @@
     "balancecheck": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error && esbuild scripts/balancecheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/balancecheck.mjs --log-level=error && node node_modules/.cache/balancecheck.mjs",
     "pwacheck": "esbuild scripts/pwacheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/pwacheck.mjs --log-level=error && node node_modules/.cache/pwacheck.mjs",
     "check": "tsc && npm run conceptcheck && npm run artcheck && npm run dungeoncheck && npm run rendercheck && npm run touchcheck && npm run balancecheck",
-    "specprobe": "esbuild scripts/specprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/specprobe.mjs --log-level=error && node node_modules/.cache/specprobe.mjs"
+    "specprobe": "esbuild scripts/specprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/specprobe.mjs --log-level=error && node node_modules/.cache/specprobe.mjs",
+    "playbot": "esbuild scripts/playbot.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/playbot.mjs --log-level=error && node node_modules/.cache/playbot.mjs",
+    "playpick": "esbuild scripts/playpick.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/playpick.mjs --log-level=error && node node_modules/.cache/playpick.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
