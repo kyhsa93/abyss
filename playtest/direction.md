@@ -92,6 +92,33 @@ up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to
 *Tried and dropped* with the reason.
 
+**2026-09-24.** First daily-mode session to finish: `mode=daily`, "The Two
+Flasks" (25 normal, FALTERING), paladin protection, `dodge`, 1280x800 desktop,
+carried save. Wiped at 152s, 24% boss, `bill` blamed nearly all of it on
+`caustic` — 242 mechanic hits in 152s (95.5/min) against a style that is
+supposed to actively dodge. Same shape as issue #267's bonestorm complaint
+(playing/moving into something that keeps hurting), but a different boss and
+only one pull with no `idle`/`good` comparison to discriminate whether the
+style or the fight is at fault — see how `docs/playtest.md`'s ladder section
+insists on that comparison before believing a flat or hostile curve. Filed
+issue #269 instead, about a real `not-a-number` fault at the same wipe. Worth
+a `ladder` run on this boss before trusting the caustic number as a complaint
+of its own.
+
+**2026-09-24.** `ui`'s overlap check compares drawn bounding boxes, not the
+game's own hit-test circles. At 1280x800 it flagged four pairs among the five
+ability buttons (`ability:5/3`, `5/2`, `4/2`, `4/1`) — worked out by hand
+against `src/render/theme.ts`'s own `btnR`/`btnGap` formula (`btnR = clamp(min(w,h)*0.031, 17, 26)`,
+`btnGap = btnR*2.2`), the closest pair sits at ~54.7px center-to-center against
+a `btnR*2` dispatch threshold of ~49.6px — a ~5px margin, not an overlap. It
+matches `touchcheck`'s own circle-radius overlap check (which passes; tested at
+1440x900, not 1280x800, but the two scale together below the radius clamp) and
+the screenshot shows no visible crowding either. **Not filed** — this is `ui`
+measuring the icon art's square footprint, not the actual clickable region,
+and would have been a wrong issue. Worth remembering next time `ui` flags
+overlap on this specific corner cluster: check the real hit-radius before
+trusting the rectangle test.
+
 **2026-09-24.** The vigil doorway's own overlay (`"N left in it"` / `"Ns till
 standing"`) was still drawn at 269.7s into the session, with the room heading
 reading `THE SPIRE` and `chamber()` agreeing — a whole room past where it

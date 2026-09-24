@@ -1,0 +1,31 @@
+# Cell from playpick: mode=daily, boss=host, spec=paladin:protection,
+# style=dodge, view=1280x800 desktop, save=carried. Two earlier attempts at
+# this exact cell (plans -2 and -3) never left a ledger line -- see commit
+# fb7993a -- so this is the first session to actually carry it through to a
+# result. The carried profile shows "no attempt yet today" on the daily
+# screen, so neither of those got as far as pressing PULL. New here: first
+# completed daily run, first desktop viewport, first paladin, first tank
+# played with `dodge`, first look at the daily screen after an attempt is on
+# the record.
+open
+tap daily
+targets
+shot daily-screen
+tap class:2
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+ui
+play dodge 300
+shot after-fight
+state
+says
+bill
+targets
+shot report
+tap daily
+shot daily-after
+state
