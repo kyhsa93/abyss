@@ -1,0 +1,52 @@
+# Cell from playpick: mode=clear, spec=paladin:retribution, style=wander,
+# size=25, difficulty=heroic, view=844x390,touch, save=fresh. 25-heroic is
+# locked at the door on a fresh save (src/progress.ts's RUNGS chain: a fresh
+# save's `unlocked` is 0, and 25-heroic on the first boss sits at chain index
+# 3) -- substituted the setup screen's own default, 10-player normal, same
+# substitution the two prior attempts at this cell made.
+#
+# Third attempt at this exact cell. The previous two (plans -1, -2, see
+# commits 2641416 and e4be536) both started `evening wander 200 14` in the
+# background and ended their own turn saying they would read the result
+# later -- the exact mistake docs/playtest.md names by name ("There is no
+# later"), and a `claude -p` session has no later: both left a plan file and
+# no ledger line.
+#
+# This is the same walk, run to completion inside this session rather than
+# handed to a background notification that a one-shot session can never
+# receive. A single evening is longer than one tool call's own timeout can
+# safely cover, so it is split into two chunks against a shared --profile and
+# --out: the first chunk walks in and plays three rooms, the second reloads
+# the page (the `open` below) and resumes with `tap raid` -- proving the
+# save-and-resume feature the README describes ("RAID resumes standing where
+# you stood") rather than working around the split in secret -- then plays
+# three more. The journal is one continuous file across both.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:paladin:retribution
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening wander 130 3
+shot after-evening-a
+state
+says
+open
+tap raid
+waitscreen fight 15
+shot resumed
+state
+evening wander 130 3
+shot after-evening-b
+state
+says
+targets
+ui
+bill
