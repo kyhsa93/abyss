@@ -312,6 +312,54 @@ desktop browser -- which normally ship a color-emoji font -- would ever show.
 have an emoji font, or worth asking whether the game should draw its own
 lock shape rather than depend on a pictographic character either way.
 
+**2026-09-25.** First-ever Ebb and Flow (flag) battleground session: hunter
+marksmanship, `melee` style, fresh save, 390x844 touch. Two things came out of
+it, filed as #278 and #279.
+
+`README.md`'s battleground table says Ebb and Flow ends at "3 captures, or
+360s". It does not: `src/sim/battleground.ts` gives each map its own constant
+(`CONQUEST_LIMIT = 300`, `FLAG_LIMIT = 180`, `ESCORT_LIMIT = 300`), and Flag's
+180 is exactly half of what the README row claims — Conquest and Escort's own
+300s do match their rows, so this is not a stale table across the board, just
+the one row. The game's own DEFEAT screen agrees with the code, not the doc:
+`Ebb and Flow · 180s · 0 — 2`, and the journal's own `fight-over
+outcome=defeat time=180` lands exactly on the code's constant. Filed as #278.
+
+Separately, `ui` flagged the `auto` toggle under the 44px floor (36x40) on
+this same screen, alongside the ability buttons' already-known false-positive
+overlap (2026-09-24, above). This one is not the same false lead: `auto` is
+tested by its own isolated circle in `src/main.ts`'s `hitAt()`
+(`Math.hypot(...) <= L.autoR * 1.3`), checked *before* the ability buttons'
+nearest-neighbor contest, so it never competes for a shared pixel the way the
+five ability buttons do. Working the same formula
+(`btnR = clamp(min(w,h)*0.031, 17, 26)`, `autoR = btnR*0.82`) that explained
+the false lead now confirms a real one: at the two narrow touch viewports
+(390x844, 844x390) `btnR` sits at its clamped floor of 17 and the toggle's
+real dispatch circle comes out to 36.2px across; at 820x1180 or on desktop it
+clears 52px. So this is real, isolated to the two phone-shaped viewports, and
+distinct from #276 (the map/party/settings corner buttons, a different
+formula). Filed as #279.
+
+**Driver lesson, not a game finding.** `playbot`'s own `play` loop treats
+`hero() === null` as `fault:not-a-number` and aborts the call — right for a
+raid wipe, wrong for a battleground death, where the README says the dead
+"come back after twelve seconds at their own base" and this is completely
+normal. A `melee`-style marksmanship hunter (a ranged spec run straight at
+five opponents) died repeatedly across this match and kept tripping the
+fault, cutting several `play` calls down to a handful of seconds; chaining
+`play melee 200` calls with a `wait` between them got all the way to the
+match's real end (`outcome=defeat` at `time=180`) despite that, but a script
+expecting one long `play` call to cover a whole battleground pull should
+expect it to be cut short by this instead, the same way the `open #hash`
+mid-script lesson under [[#1]] is worth knowing before it costs a session.
+Also observed but not yet a finding: `bill`'s `hitsPerMin` read 0 for this
+hunter across the entire 180s match under `melee` style — plausibly because a
+marksmanship kit is entirely ranged and standing in melee range is simply the
+worst thing a hunter can do, which is exactly what `melee` as a style
+hypothesis is for rather than a sign of anything broken. Worth a look if a
+future `ladder`/style comparison on a ranged spec turns up the same shape
+against `good`, per the discriminating method in `docs/playtest.md`.
+
 ## Tried and dropped
 
 Nothing yet. When a line comes off the list it lands here with the reason, so it

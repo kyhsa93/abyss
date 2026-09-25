@@ -1,0 +1,46 @@
+# cell: mode=battleground map=flags spec=hunter:marksmanship style=melee view=390x844,touch save=fresh
+# first-ever Ebb and Flow (flag) session this job has run
+open
+shot front
+targets
+tap battleground
+shot bg-menu
+targets
+tap map:flags
+shot class-pick
+targets
+tap class:hunter:marksmanship
+shot hunter-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+ui
+play melee 200
+shot mid-match
+state
+bill
+wait 13
+play melee 200
+shot mid-match2
+state
+bill
+wait 13
+play melee 200
+shot mid-match3
+state
+bill
+wait 13
+play melee 200
+shot mid-match4
+state
+bill
+wait 13
+play melee 200
+shot mid-match5
+state
+bill
+wait 13
+play melee 200
+shot mid-match6
+state
+bill
