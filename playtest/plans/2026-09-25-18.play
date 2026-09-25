@@ -1,0 +1,15 @@
+# Discriminating run for 2026-09-25-17.play: same cell (druid:guardian,
+# size=10, difficulty=normal, view=1280x800, save=fresh) but style=good
+# instead of wander, to tell apart "THE VIGIL's trash pack is just huge and
+# slow to grind down" from "wander never gets near the fight, so the player
+# contributes nothing to a fight the rest of the raid is having without them".
+open
+tap raid
+tap next
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+evening good 250 12
+shot after-evening-good
+state
+bill

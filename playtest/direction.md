@@ -402,6 +402,38 @@ steered, only recorded after the fact, so the ledger's `boss` field for
 `scripts/playpick.ts`, outside what this job may touch, so it is written down
 rather than fixed.
 
+**2026-09-25, gate was shut so held here — strong enough to file the moment
+it opens.** First `mode=clear` session on a tank spec (druid:guardian,
+10-normal, fresh save, 1280x800 desktop). `evening wander 400 12` never left
+THE VIGIL: `fault:fight-outlasted-its-budget` at 409.5s, hero parked at
+`(274.5, -1572.7)`, the nearest pursuing foe (`"The Damned"`, hp 900/900,
+unmoved the whole run) at `(69, -2651.0)` — about 1097 units away. `bill`:
+`hits=0 hitsPerMin=0 taken=0 takenPerMin=0` for the full 408s, while the HUD's
+own raid meter credited four other party members and read `raid 164 · heal
+0`, "You" at 0. A `good`-style re-run of the identical cell
+(`playtest/plans/2026-09-25-18.play`, a different RNG seed) stalled the same
+way: `fault:fight-outlasted-its-budget` at 259.1s, hero parked at `(268.1,
+-1563.2)` — 11.4 units from the wander run's stopping point — nearest foe at
+`(-2, -2614.0)`, about 1084 units off, `bill` again `hits=0 taken=0` for the
+full 257s, raid meter `raid 177 · heal 0`, "You" at 0. Two different RNG
+seeds, two different steering algorithms (`wander`'s random heading vs
+`good`'s explicit beeline to `hud.boss`), landing within 11 units of each
+other and both stopping about 1080-1100 units short of the pack that chased
+the party in from the threshold — that convergence, not just the slowness, is
+what argues for a fixed obstruction over an unusually large room. `src/
+dungeon.ts`'s own comment on `vigil` says the hall was built to have no packs
+of its own ("what the source puts in here is forty people who are not
+fighting anybody") and to be "a place a raid walks *through* rather than a
+floor it crosses" — a pursuing pack idling here for 400s+ with the player
+stuck short of it, dealing and taking nothing, is already off the room's own
+design intent on top of being a stall. Screenshots `after-evening.png` (wander)
+and `after-evening-good.png` (good) show the same landmark (the forge/
+campfire terrain feature) with the player's own cluster static beside it
+while other party icons sit far to the right, mid-fight. Not filed — twelve
+`playtest` issues were open at session start. File this first the moment the
+gate reopens; it does not need a third confirmation, the two seeds already
+converge tightly enough.
+
 ## Tried and dropped
 
 Nothing yet. When a line comes off the list it lands here with the reason, so it

@@ -1,0 +1,28 @@
+# Cell from playpick: mode=clear, spec=druid:guardian, style=wander, size=10,
+# difficulty=normal, view=1280x800, save=fresh. 10-normal is the first rung of
+# progress.ts's RUNGS chain, so it is open on a fresh save with no
+# substitution needed (unlike the only other clear session so far, #17's
+# 2026-09-25-2.play, which had to fall back to 10-normal from a locked
+# 25-heroic). First clear-mode session on a tank spec, first at desktop
+# 1280x800, second ever mode=clear session. Second-to-worst-played evening
+# axis: only one clear session exists in the whole ledger.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:druid:guardian
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening wander 400 12
+shot after-evening
+state
+says
+targets
+ui
+bill
