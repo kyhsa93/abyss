@@ -1,0 +1,53 @@
+# Cell from playpick: mode=menus, view=1280x800, save=carried.
+#
+# First menus session on a non-touch (mouse, desktop) viewport -- the four
+# prior menus sessions (2026-09-25-9, -19, -30, 2026-09-26-1/-2) were all
+# 820x1180,touch. First use of `key escape` anywhere in this job's history
+# (grepped playtest/plans/ -- no prior script has ever sent it).
+#
+# The thing worth testing: input.ts sets `menuRequested = true` on any
+# Escape/P keydown regardless of what screen is showing (the listener is
+# global, attached to `window`), but `takeMenuRequest()` -- the only place
+# that ever reads and clears that flag -- is called from exactly one call
+# site, inside the fight screen's own update function (src/main.ts:2283,
+# "leaving mid-fight is always available"). No menu screen (settings,
+# citadel, composition, record) ever calls it. So: press Escape while on a
+# plain menu screen, confirm nothing visibly happens there (expected, since
+# nothing reads the flag on that screen), then walk into a fresh pull and
+# see whether the *next* fight silently eats the stale request and bounces
+# to the roster before the player has done anything in it -- a "menu key
+# with no effect where you pressed it, and an effect where you didn't
+# expect one" bug, if it reproduces.
+
+open
+targets
+shot front
+
+tap settings
+targets
+shot settings-before-escape
+key Escape
+wait 1
+targets
+shot settings-after-escape
+state
+
+tap back
+tap raid
+tap next
+targets
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+targets
+state
+shot fight-immediately
+
+# Stuck on roster with mode already travel -- does a second PULL recover it,
+# or is the evening wedged the way THE VIGIL's wipe is in #271?
+tap pull
+waitscreen fight 15
+targets
+state
+shot fight-second-attempt
+

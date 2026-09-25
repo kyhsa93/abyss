@@ -640,6 +640,67 @@ up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to
 *Tried and dropped* with the reason.
 
+**2026-09-26, held, gate shut, but fully measured -- a real bug, twice
+confirmed.** First `mode=menus` session on a non-touch viewport (1280x800,
+mouse) -- the four prior menus sessions were all 820x1180,touch -- and the
+first use of `key` with `escape` anywhere in this job's history (checked by
+grepping every `.play` under `playtest/plans/`). That surfaced a driver
+vocabulary bug before it surfaced a game one: `docs/playtest.md`'s own table
+lists `escape` as the literal argument, but `scripts/playbot.ts`'s `key()`
+hands the string straight to Playwright's `keyboard.press()` uncapitalized,
+which throws `Unknown key: "escape"` -- `fault:driver-threw` on the first
+attempt (`2026-09-26-10.play`, first run). `key Escape`, capitalized, is what
+actually works. Driver lesson, not a game finding; `scripts/playbot.ts` is
+outside what this job may touch, so it is written down rather than fixed.
+
+The actual experiment: `src/input.ts`'s keydown listener sets
+`menuRequested = true` on Escape *or* `p` (an entirely undocumented second
+binding -- `README.md`'s own key list never mentions `p`) unconditionally,
+whatever screen is showing, since the listener is attached to `window` and
+never checks `screen` at all. But `takeMenuRequest()` -- the only place that
+ever reads and clears that flag -- is called from exactly one site in the
+whole file, inside the fight screen's own update function
+(`src/main.ts:2283`, "leaving mid-fight is always available"). No menu screen
+(settings, roster, composition, citadel, record) ever calls it.
+
+So: pressed `key Escape` once on the SETTINGS screen, confirmed nothing
+visibly changed there (`targets`/`state` identical before and after, as
+expected -- nothing on that screen reads the flag). Then walked back to the
+front page *without an intervening `open`* (an `open` mid-script reloads the
+page and would have reset the flag along with everything else -- the first
+attempt at this made exactly that mistake and the bug did not reproduce
+until `open` was removed from the path), picked a class, and pressed PULL.
+
+`tap pull` returned `screen=roster mode=travel` -- not `fight` -- in the very
+same journal line as the tap itself. `waitscreen fight 15` timed out:
+`fault:screen-never-came {"want":"fight","saw":{"screen":"roster","mode":
+"travel","outcome":"ongoing"},"seconds":15}`. `state` in the meantime showed
+the sim had genuinely moved on underneath the stuck screen -- `chamber=
+"threshold"`, the ability bar reading `"range"` instead of the pre-pull
+`"ready"` -- so pressing PULL did start the evening; the flag consumed it a
+frame later and switched `screen` back to `roster` before the fight screen
+was ever drawn, exactly the mechanism `main.ts:2283` predicts. The screenshot
+taken at that point (`fight-immediately.png`) shows PICK YOUR CLASS still on
+screen, fifteen seconds after PULL was pressed, with no error, no message,
+and no visible reason the button did nothing. A second `tap pull` on the same
+stuck roster screen recovered immediately and normally (`screen=fight`,
+`chamber=threshold`, THE THRESHOLD drawn on screen, `fight-second-attempt.png`)
+-- confirmed twice, in two separate `playbot` invocations
+(`/tmp/pt-10c`, `/tmp/pt-10d`), same shape both times.
+
+So the actual defect: **an Escape or P pressed anywhere before a player's
+first pull of a session -- on a screen where it visibly does nothing at all
+-- silently costs them their next PULL press**, with the evening already
+moving underneath a screen that never updates to show it. A player who
+reaches for Escape out of habit (to back out of settings, say) and then
+wonders why the first PULL of their session did nothing would have no way to
+learn why; the fix costs nothing to describe (either check `screen ===
+'fight'` before setting the flag, or clear it on every screen change) but
+this job edits `playtest/`, not `src/`. Fourteen open `playtest` issues held
+the gate shut at session start (unchanged from the last several sessions) --
+file this first thing once it reopens, with `playtest/plans/2026-09-26-10.play`
+and both screenshots.
+
 **2026-09-24.** First daily-mode session to finish: `mode=daily`, "The Two
 Flasks" (25 normal, FALTERING), paladin protection, `dodge`, 1280x800 desktop,
 carried save. Wiped at 152s, 24% boss, `bill` blamed nearly all of it on
