@@ -1,0 +1,30 @@
+# Cell from playpick: mode=raid, boss=gorged (The Bloodgorged), spec=paladin:holy,
+# style=wander, size=25, difficulty=heroic, view=844x390,touch, save=fresh.
+#
+# gorged is the fourth boss (encounterIndex 3, src/sim/encounters.ts) and a
+# fresh save starts at unlocked=0 -- only Bonegrinder 10N is open on the raid
+# setup screen (confirmed this session: `targets` on setup showed only
+# size/difficulty pickers, no boss row at all, matching src/progress.ts's
+# comment that the setup screen no longer names a boss). The invite hash is
+# the documented way in regardless (docs/playtest.md's own #b=marrow&s=10&h=1
+# example): src/main.ts's invite handler unlocks the tier a link names on
+# purpose ("the chain is there so a new player meets the game in order, not
+# to stop somebody being invited past it"), so #b=gorged&s=25&h=1 opens
+# straight onto the roster with that fight chosen. That hash also lands
+# directly on `roster`, not `raid` setup, so there is no `next` button there
+# -- a harmless no-such-control the first run of this script hit.
+#
+# First holy paladin this job has played, first `play wander` inside an
+# actual boss pull rather than steering an `evening` between rooms (wander
+# has only appeared twice before, both mode=clear), and the hardest cell
+# playpick has handed a healer spec into yet at 25-heroic. Extended past the
+# first run's 150s (which left the boss at 9%, ongoing) to see an outcome.
+open #b=gorged&s=25&h=1
+tap class:paladin:holy
+tap pull
+waitscreen fight 20
+state
+play wander 220
+state
+bill
+shot end

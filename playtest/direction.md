@@ -172,6 +172,51 @@ first pull's own end-of-fight state read a second time. Split into two
 `playbot` invocations instead. Worth remembering before writing a multi-pull
 script that reaches for `open #hash` a second time.
 
+**2026-09-25, sharpened by the first in-fight `wander` and the hardest cell a
+healer has faced.** `wander` had only ever steered an `evening` between rooms
+before now (two `mode=clear` appearances); this session ran it inside an
+actual boss pull for the first time, on the first holy paladin this job has
+played, at 25-heroic Bloodgorged -- the top rung of the door's own chain and
+the hardest single-boss cell a healer spec has been given yet. The invite
+hash is what got there at all: a fresh save's raid setup screen shows no boss
+row and `unlocked=0` (only Bonegrinder 10N open, per `src/progress.ts`'s
+chain), but `src/main.ts`'s invite handler deliberately unlocks whatever tier
+a link names ("the chain is there so a new player meets the game in order,
+not to stop somebody being invited past it"), so `open #b=gorged&s=25&h=1`
+lands straight on the roster with that fight chosen.
+
+`wander` presses a random ability slot round-robin every cycle and picks a
+new random heading every twelve steps -- it does not target, does not react
+to the game's own on-screen prompt ("THE TANK NEEDS YOU", screenshot
+`mid.png`), and spent much of the fight out of healing range entirely ("Out
+of range" on screen; `hits=28` at the 147s mark against 542 presses). A
+second, longer run of the same pull through to a finish
+(`playtest/plans/2026-09-25-36.play`) killed the boss at 159s: KILL, boss 0%,
+21/25 raid alive (four members died), the player itself never once in danger
+(`inDanger=0%` in both runs) and healing least of any healer on the board (14
+hps, against 61-62 hps for the two AI healers). The two invocations of the
+nominally same pull-1 fight produced different bills (`hits=28
+taken=2833` through 147s vs `hits=4 taken=971` for the whole 159s) --
+consistent with this line's existing caution that a style's own actions
+consume draws from the shared RNG stream, so two runs of one script are not
+bit-identical even on pull 1.
+
+This is a sharper case than the idle-only readings so far: it is not merely
+that pressing nothing costs nothing, it is that pressing something --
+wrongly, out of range, ignoring the one prompt the game aimed at this
+specific role -- still costs nothing at the hardest single difficulty the
+game has. Four raid deaths did not turn the kill into a wipe. **Not a clean
+disprove-by-`good`** (wander is not `good`), so this sharpens rather than
+replaces the line's existing form; a `good`-style pass at the same cell would
+say whether competent healing actually saves those four bodies or whether the
+AI would have covered for them regardless.
+
+Separately: the KILL screen reproduced the already-tracked banner/report
+overlap (#275/#283's family) again -- four earned banners (First Blood,
+Heroic, Full Raid, A Clean Board) stacked over the damage board with a "died
+13s" line bleeding through underneath (screenshot `end.png`). Not filed
+again; both issues are already open.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
