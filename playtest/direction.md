@@ -556,6 +556,53 @@ druid:guardian/10-normal/fresh cell before trusting that those two styles
 cross any cell cleanly rather than this one in particular being unusually
 open to them.
 
+**2026-09-26, eighth confirmation, and the first clean `good` crossing --
+on a much harder cell.** `mode=clear`, shaman:elemental, `good`, 25-heroic,
+fresh (`carried` behaves as fresh per #273), 844x390 touch
+(`playtest/plans/2026-09-26-13.play`). `good` had stalled THE VIGIL twice
+before (2026-09-25-18, and again above under `flee`/`wander` on the same
+10-normal druid:guardian cell); here it crossed in about 30 seconds
+(`7.9s` at the door to `37.5s` at the boss's own room, `presses=6`), then
+went straight into a live Bonegrinder-heroic pull. **This is the first
+`mode=clear`/`mode=walk` session in this job's history to actually reach
+25-heroic** rather than silently falling back to the fresh save's
+10-normal default -- see the driver-lesson entry below on how. So the one
+style that reliably stalled on a 10-normal cell crossed clean on a
+25-heroic one, on the same run of `evening`'s own fixed corridor-steering
+code (`cross()`, which -- per the 2026-09-25 note above -- ignores style
+entirely and walks every corridor the same fixed way regardless of what is
+assigned). That argues harder still against "style" being the operative
+variable at all, and for size/difficulty (or whatever `cross()`'s own
+steering does differently with a bigger, more heroic-tuned party in tow)
+being what actually separates a clean crossing from a stall -- worth a
+`good` or `wander` repeat on 25-heroic specifically, and a `melee`/`idle`
+repeat on 10-normal, before this reads as "size/difficulty is the real
+axis" rather than "two more coincidences."
+
+Same session, pushed further (`playtest/plans/2026-09-26-14.play`,
+identical script, a second fresh browser/pull): the first script's
+Bonegrinder-heroic pull was still going at its 130s room budget
+(`fight-outlasted-its-budget`, boss at 19%, phase 3, aliveParty 24/25,
+heroHp 1081/1440), so a second, independent run of the *exact same script*
+was given 200s for the fight instead and killed it in 49s flat
+(`boss-down`, phase 1, aliveParty 25/25, heroHp 1012/1440) -- nearly three
+times faster, one phase further behind if anything, with nobody down at
+all. Both are nominally "pull 1" of Bonegrinder 25-heroic under `good`:
+`src/main.ts`'s `rngFor` keys any `mode==='raid'` fight off
+`BASE_SEED + attempt*7919`, not off `run.seed` (which is `Date.now()` and
+only feeds the *travel*-mode corridor rolls per `roomSeed`), so the boss's
+own timeline should be bit-identical at attempt 0 in both runs -- the
+entire spread is `docs/playtest.md`'s already-documented "the number of
+ticks inside a real second is not fixed" jitter in when `good`'s own
+presses and dodges land, at a scale (a heroic pull that is not obviously
+finishing within budget vs. one that ends with a perfect raid) this job
+has not previously put a number on. Consistent with README's own claim
+that heroic survival is "a cliff, not a slope": a millisecond of
+press-timing drift that would be noise on normal apparently compounds into
+pass/fail on heroic. Not a bug and not filed -- the cause is already known
+and written down -- but worth remembering before reading any single
+heroic `good`/`ladder` pull as representative of the cell without a repeat.
+
 **Also resolves the 2026-09-24 "vigil overlay" note under *Not yet filed*,
 below.** The `"N left in it"` text that note worried was a VIGIL-specific
 overlay bugged into persisting past its own room turns out, on reading
@@ -656,6 +703,31 @@ Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to
 *Tried and dropped* with the reason.
+
+**2026-09-26, driver lesson, not a game finding.** How to get a `mode=clear`
+or `mode=walk` cell to actually test the size/difficulty `playpick` assigns,
+rather than silently falling back to a fresh save's locked 10-normal default
+the way every prior session on this axis has (`#273` means `carried` behaves
+as fresh, and a fresh save only has Bonegrinder 10-normal open). An invite
+hash unlocks a tier but also sets `visiting = true`
+(`src/main.ts:2136`), which makes the class screen's button start that one
+fight directly (`atTheDoor()` returns false while `visiting`, so `walkIn()`
+calls `startFight()` -- "one boss, one setting, and no evening around it")
+rather than opening the door an `evening` script needs to walk through. The
+fix is one extra round trip: `open #b=marrow&s=<size>&h=<0|1>` (any
+first-boss id works, since the chain opens every rung *below* the one named
+too), then `tap back` (roster's `back` reads `visiting` and returns to
+`home`), then `tap raid` -- pressing RAID from home unconditionally sets
+`visiting = false` and resettles the door's size/difficulty against the
+tier just unlocked (`src/main.ts:1695`), landing on a real raid-setup screen
+already showing the requested pair (confirmed by screenshot,
+`playtest/plans/2026-09-26-12-probe4.play`, `RAID SIZE 25`, `DIFFICULTY
+Heroic`, "you walk in at the threshold"). From there PICK YOUR CLASS reads
+"WALK IN -- 25 player heroic," not "PULL," and `evening` behaves normally.
+Used this session to run the first `mode=clear` session ever to actually
+reach 25-heroic (see [[#6]] above). Worth reusing on any future `mode=clear`/
+`mode=walk` cell that draws a size/difficulty a fresh save has not opened,
+until #273 itself is fixed.
 
 **2026-09-26, held, gate shut, but fully measured -- a real bug, twice
 confirmed.** First `mode=menus` session on a non-touch viewport (1280x800,

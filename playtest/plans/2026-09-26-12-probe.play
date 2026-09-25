@@ -1,0 +1,13 @@
+# Probe: unlock 25-heroic Bonegrinder via invite, back out to home, then
+# open RAID and see whether the setup screen now offers 25/heroic for a
+# whole-evening walk (mode=clear), rather than the single-fight "visiting"
+# framing the invite itself lands on.
+open #b=marrow&s=25&h=1
+state
+targets
+tap back
+state
+targets
+tap raid
+state
+targets

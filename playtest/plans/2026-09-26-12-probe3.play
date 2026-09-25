@@ -1,0 +1,14 @@
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap open:size
+tap choose:size:1
+state
+tap open:difficulty
+tap choose:difficulty:1
+state
+tap next
+targets
+tap class:shaman:elemental
+state
+targets

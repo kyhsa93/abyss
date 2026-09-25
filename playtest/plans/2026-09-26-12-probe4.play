@@ -1,0 +1,15 @@
+# The invite (#b=marrow&s=25&h=1) sets party.length=25, difficulty=heroic and
+# unlocked=tierOf(marrow,25,heroic) before we ever see a screen. Backing out to
+# home and pressing RAID re-settles the door setting against the now-open
+# tier, which should already read 25/heroic without touching the dropdowns --
+# confirm by screenshot rather than guessing from a label with no value in it.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raidsetup
+tap next
+targets
+shot classpick
+tap class:shaman:elemental
+state
+targets

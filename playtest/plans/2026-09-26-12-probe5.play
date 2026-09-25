@@ -1,0 +1,10 @@
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:shaman:elemental
+state
+tap pull
+waitscreen fight 15
+state
+shot atdoor

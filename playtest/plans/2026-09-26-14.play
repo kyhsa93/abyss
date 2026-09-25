@@ -1,0 +1,14 @@
+# Same cell and same unlock trick as -13.play, with a longer fight budget to
+# see whether the good-style 25-heroic Bonegrinder pull (already at 19% boss,
+# 127s in, when -13.play's 130s room budget cut it off) actually finishes.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+evening good 200 3
+state
+bill
+shot end2

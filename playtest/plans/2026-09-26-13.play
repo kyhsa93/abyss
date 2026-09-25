@@ -1,0 +1,21 @@
+# playpick cell: mode=clear spec=shaman:elemental style=good size=25
+# difficulty=heroic view=844x390,touch save=carried (behaves as fresh, #273).
+# carried/fresh only opens Bonegrinder 10-normal by default, so #b=marrow&s=25&h=1
+# unlocks the whole Bonegrinder chain (a kill's-worth of prefix, docs/progress.ts)
+# before backing out to a real RAID->WALK IN at the door, rather than landing
+# on the invite's own "visiting" single-fight framing (visiting=true skips the
+# door and starts one pull directly, per src/main.ts:2136 & atTheDoor()).
+# This is the first mode=clear/walk session in this job's history to actually
+# reach 25-heroic rather than falling back to 10-normal (#273 means a `carried`
+# save behaves as fresh, and no prior clear/walk session worked around that).
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+state
+evening good 130 4
+state
+shot end
