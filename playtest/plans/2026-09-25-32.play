@@ -1,0 +1,24 @@
+# Cell from playpick: mode=raid, boss=gorged, spec=paladin:holy, style=auto,
+# size=25, difficulty=heroic, view=844x390,touch, save=fresh.
+#
+# 2026-09-25-31.play already showed the size/difficulty dropdowns read 1/2 on
+# a fresh save and the door text names The Bonegrinder, 10-normal -- the
+# chain in src/progress.ts gates The Bloodgorged at 25-heroic behind every
+# rung of every earlier boss, so that part of the cell cannot be reached in
+# one sitting on a fresh save. Playing the floor that is actually open
+# instead (docs/playtest.md: "the cell is a floor, not a ceiling"), which is
+# still new on two axes nothing has covered before: no session has played
+# paladin:holy (a healer paladin -- only protection and retribution have been
+# played), and `auto` has only ever been used inside `evening`/mode=walk, never
+# inside a `play` call against an actual boss pull.
+open
+tap raid
+tap next
+targets
+tap class:paladin:holy
+tap pull
+waitscreen fight 15
+play auto 150
+bill
+shot pull-end
+state

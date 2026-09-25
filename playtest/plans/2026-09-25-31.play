@@ -1,0 +1,11 @@
+# Cell from playpick: mode=raid, boss=gorged, spec=paladin:holy, style=auto,
+# size=25, difficulty=heroic, view=844x390,touch, save=fresh.
+#
+# A fresh save starts with unlocked=0 (src/main.ts), and prior sessions found
+# that a locked size/difficulty/boss on a locked cell just falls back to the
+# setup screen's own default rather than refusing outright. Probe first to see
+# what is actually selectable before committing to a pull script.
+open
+tap raid
+targets
+shot raid-setup
