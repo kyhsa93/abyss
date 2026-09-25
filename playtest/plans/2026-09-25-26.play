@@ -1,0 +1,45 @@
+# Cell from playpick: mode=battleground map=escort spec=shaman:elemental
+# style=dodge view=820x1180,touch save=carried.
+#
+# First time this job has actually pulled The Long Haul (escort). The one
+# prior escort visit (2026-09-25-7) picked map:escort in setup and reloaded
+# without pulling, purely to catch the mode-memory bug that became #272 --
+# nobody has fought a cart match yet. README's own "A cart is neither of the
+# other two" section describes it as the map where individual fighting
+# matters most, ending at "a cart arriving, or 300s", with no attacker/
+# defender split -- worth seeing played out rather than taken on the doc's
+# word.
+open
+targets
+ui
+shot front
+tap battleground
+shot bg-menu
+targets
+tap map:escort
+shot escort-picked
+targets
+tap class:shaman:elemental
+shot class-picked
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+ui
+play dodge 100
+shot mid1
+state
+bill
+wait 5
+play dodge 100
+shot mid2
+state
+bill
+wait 5
+play dodge 100
+shot mid3
+state
+bill
+says
+targets

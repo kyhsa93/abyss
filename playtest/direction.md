@@ -236,10 +236,10 @@ sessions in, `mode` had never come up on the least-played axis before now).
 `playpick` gave conquest; the first pull was played straight — `open` ->
 BATTLEGROUND -> `map:conquest` -> priest:shadow -> PULL -> `play flee 180` on
 carried, 820x1180 touch. The Three Cairns ended in 145s at 146-400, a full
-loss, with `presses=0` and `inDanger=0%` the whole way: a flee-style body that
-never fights costs its team the match, which is the opposite shape from the
-raid `idle` findings in [[#1]] — worth returning to with a `good` comparison
-on this same map before it says anything about battlegrounds generally.
+loss, with `presses=0` and `inDanger=0%` the whole way. The passive-body
+finding from that pull now has its own line, [[#7]], sharpened by a second
+map and style — it isn't about setup memory, so it doesn't belong on this
+one.
 
 While still in the same session, picked The Long Haul (escort) instead and
 left without pulling, then reloaded on the same `--profile`. The pick was
@@ -356,6 +356,52 @@ once -- `heroHp=0/1530` (the player dead) on all eight wipes while
 finding at its most literal: a melee body cannot leave the aura's reach the
 way a frost mage's `good` can choose to, so there was no `idle`-side win to
 even compare against. Commented on #267 rather than filing a duplicate.
+
+### 7. A battleground does not carry a passive body the way a raid does
+
+Two battlegrounds now, two different maps, two different styles that never
+press an ability, same shape: a body that only avoids and never fights costs
+its own team the match. That is the mirror of [[#1]]'s raid `idle` findings,
+where a body that presses nothing still wins comfortably because the AI party
+carries it — here the AI party does not.
+
+**2026-09-24, opened.** First battleground session this job ran: The Three
+Cairns (conquest), priest:shadow, `flee`, carried, 820x1180 touch. `play flee
+180`: `presses=0 inDanger=0%` the whole way, and the match ended in 145s at
+146-400, a full loss.
+
+**2026-09-25, second map, second style, same shape.** The Long Haul (escort),
+the first pull this job has ever taken on this map — the one prior visit
+(2026-09-25-7) only picked it in setup and reloaded, to catch #272, and never
+fought it. shaman:elemental, `dodge`, carried, 820x1180 touch, three chunks of
+`play dodge 100`:
+
+```
+104.9s played style=dodge seconds=100 outcome=ongoing bossHp=56% presses=0 inDanger=0%
+210.2s played style=dodge seconds=100 outcome=ongoing bossHp=97% presses=0 inDanger=0%
+307.6s fight-over outcome=defeat time=300
+307.6s played style=dodge seconds=92  outcome=defeat  bossHp=0%  presses=0 inDanger=0%
+```
+
+`bill` read `hits=0 taken=0` in every one of the three chunks — `dodge` never
+presses an ability at all (`scripts/playbot.ts`: only `mash`/`wander`/`good`/
+`melee`/`learn` ever call `d.ability()`), so this is a body that both dealt
+and took nothing for the full 300 seconds, finished at full health
+(1440/1440) while three of its four AI teammates cycled through repeated
+deaths (final board: `Wren died 11s`, `Bastion died 17s`, `Kestrel died 28s`,
+`Vale died 34s` — respawn-timer readings, not first deaths; the minimap
+already read `2 v 5` for our side at 97s), and the match still ended in
+defeat. `hud().boss` in a battleground reads the contested cart's own
+progress rather than a boss's health here: it fell from 100% to 56% in the
+first 100 seconds, climbed back to 97% in the next 100 (pushed back, nearly
+reversed), then collapsed to 0% and defeat in the last 92 — the four bodies
+that were actually fighting could not hold that final push with a fifth
+standing off untouched.
+
+**Disproved by** a battleground where a style that presses nothing wins, at
+any map. **Sharpened by** a `good`-style run on either map, to see whether
+active play actually turns one of these around rather than merely trailing
+less badly.
 
 ## Not yet filed
 
