@@ -85,6 +85,39 @@ as a new issue -- it is recorded here because the shape of *how* idle wins
 (a healer, on the fight built around knowing when to do nothing) is new
 evidence for this line specifically, not because the underlying gap is new.
 
+**2026-09-25, complicated by a fourth boss and the first genuine mixed
+result.** First idle/good pair on The Two Flasks played as a plain raid pull
+(not the `daily` framing the two prior sessions on this boss used, so no
+affix riding it), 10-player normal, warlock:destruction, fresh save, pull 1
+both times (two separate `playbot` invocations, 390x844 touch, per the
+driver-lesson below — never a second `open #hash` in one script). Both won:
+
+```
+idle style=idle seconds=180 outcome=victory fightTime=121 aliveParty=9/10  heroHp=973/1485 presses=0  inDanger=30% takenPerMin=1314.4 byMechanic={gather:3,caustic:554}
+good style=good seconds=180 outcome=victory fightTime=122 aliveParty=10/10 heroHp=434/1485 presses=89 inDanger=6%  takenPerMin=1678.0 byMechanic={gather:3,hound:598,reagent:1}
+```
+
+For the first time this does not cleanly go idle's way. Idle finished
+healthier in its own body (973/1485, 65%, against good's 434/1485, 29%) and
+the kill took about the same time either way (121s vs 122s) — but idle's raid
+lost a member (9/10) that good's raid did not (10/10), and good took more
+total damage doing it (`takenPerMin` 1678 vs 1314). Three prior cells all had
+idle ahead on every axis at once; this one trades a body for a death instead.
+**Not a disproof** — the fight was still won both ways, so idle did not
+*lose* by the line's own test — but the first cell where idle's cost shows up
+instead of reading as zero.
+
+**Same pair also overturns a "Not yet filed" guess rather than confirming
+it.** `caustic` went from 554 hits under idle to 0 under good, and `hound`
+went from 0 under idle to 598 under good — only `gather` (3, both runs)
+landed the same way. That is the opposite of the 2026-09-24/2026-09-25
+daily-mode note below, which guessed `caustic` was "an unavoidable raid-wide
+tick... rather than anything a style choice touches" off one coincidence — the
+same hit count, 242, showing up in two different daily pulls. This pair says
+caustic is exactly as avoidable as hound is: a body that never moves just
+sits in whichever puddle lands on it for the rest of the fight. The daily-mode
+guess was wrong, not merely unconfirmed, and is struck rather than carried.
+
 **Driver lesson, not a game finding:** the first attempt at this comparison
 put both pulls in one script with a second `open #b=cold&s=25&h=1` mid-run to
 reset between them. It didn't reset anything -- the app clears the invite hash
@@ -301,6 +334,13 @@ it needs the `idle`/`good` discrimination the ladder section asks for before
 it says anything about the fight rather than about the style. Still worth
 a `ladder` run on this boss; now specifically watch `hound`, not `caustic`.
 
+**Superseded, 2026-09-25.** The "unavoidable raid-wide tick" guess above was
+wrong, not just unconfirmed — see [[#1]]'s idle/good pair on the same boss,
+which got 554 `caustic` hits under idle and 0 under good. `caustic` is
+avoidable by moving, exactly like `hound`; the 242-both-times coincidence
+this note leaned on was two daily pulls that happened to stand still in the
+same place, not a raid-wide tick.
+
 **2026-09-24.** `ui`'s overlap check compares drawn bounding boxes, not the
 game's own hit-test circles. At 1280x800 it flagged four pairs among the five
 ability buttons (`ability:5/3`, `5/2`, `4/2`, `4/1`) — worked out by hand
@@ -477,6 +517,27 @@ browser context can offer rather than something a real phone or desktop
 browser — which do have a share sheet or a permitted clipboard — would hit.
 Not filed. Worth a second look only if a session can first confirm the
 CDP context actually has clipboard-write and still sees `NO LUCK`.
+
+**2026-09-25, gate was shut so held here — strong enough to file the moment
+it opens.** Both pulls of [[#1]]'s idle/good pair (The Two Flasks, 10-normal,
+warlock:destruction, fresh save — this profile's first-ever kill) landed on a
+KILL screen with every earned banner drawn at the same anchor, stacked on top
+of each other instead of laid out. `idle-end.png`: "First Blood" boxed over
+"OPENED: 25-man normal" over a gold "Heroic / Kill it on heroic" teaser, with
+#275's already-reported undimmed "DOWN" floating text cutting through the
+party rows underneath all three. `good-end.png` — a second, independent pull,
+different driver seed, run second — adds a fourth banner, "Nobody Felt It /
+Kill it without losing anyone" (earned because that pull kept the whole raid
+alive, unlike the idle pull), and a fifth, "Blood Price", piled the same way.
+Two different pulls with two different banner sets landed on the same
+illegible stack both times, so this is not one unlucky pairing — it is what a
+fresh save's first kill looks like. #275 reported the "DOWN" text specifically
+and only on a 25-heroic kill; this is the same undimmed-text family but at
+10-normal, and it is bigger than one stray string — every banner a kill earns
+competes for the same spot on screen with no sequencing and no offset between
+them. Not filed — twelve `playtest` issues were open at session start. File
+the moment the gate reopens; two independent reproductions already agree, it
+does not need a third.
 
 ## Tried and dropped
 

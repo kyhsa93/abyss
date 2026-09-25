@@ -1,0 +1,20 @@
+# playpick discrimination pair for 2026-09-25-20.play: same cell (flasks,
+# warlock:destruction, 10-normal, fresh, 390x844 touch) but style=good instead
+# of idle, separate playbot invocation on purpose (a second `open #hash`
+# inside one script is a same-document fragment nav and never reloads --
+# see direction.md's driver-lesson note under #1). Fresh save means pull 1,
+# same seed as the idle run. This is the direction.md #1 discrimination the
+# ladder section asks for: does idle actually win, or does everything win
+# because the fight is easy at 10-normal.
+open #b=flasks&s=10&h=1
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+state
+shot good-open
+
+play good 180
+bill
+says
+state
+shot good-end

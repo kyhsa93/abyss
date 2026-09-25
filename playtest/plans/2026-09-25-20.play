@@ -1,0 +1,25 @@
+# playpick: mode=raid boss=flasks spec=warlock:destruction style=idle size=10
+# difficulty=normal view=390x844,touch save=fresh
+#
+# The Two Flasks has only been seen in mode=daily so far (25-normal, with an
+# affix riding it both times), never as a plain raid pull and never at
+# 10-normal. direction.md's #1 ("doing nothing wins") has three cells now
+# (Marrowgar, Bonegrinder, Long Cold) but no caster dps and no affix-free look
+# at this specific boss, whose own idle/good gap is already on
+# docs/upkeep.md's table (+32) from the harness -- this checks whether a
+# played session actually shows that shape, not just the harness average.
+# First warlock this job has played.
+open #b=flasks&s=10&h=1
+targets
+ui
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+state
+shot idle-open
+
+play idle 180
+bill
+says
+state
+shot idle-end
