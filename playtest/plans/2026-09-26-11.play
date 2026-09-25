@@ -1,0 +1,34 @@
+# Cell from playpick: mode=walk, boss=whisper, spec=priest:shadow,
+# style=mash, size=10, difficulty=normal, view=390x844,touch, save=fresh.
+#
+# First playpick target ever aimed at whisper by name (0 hits for
+# "boss":"whisper" in sessions.jsonl) and first priest:shadow pull this job
+# has logged at all (0 hits for "spec":"priest:shadow"). whisper sits in
+# room `oratory`, past marrow and THE CLIMB -- the walk has to cross THE
+# VIGIL first, where #271/#281 already live; mash has stalled/wiped there
+# once before (2026-09-24, druid:restoration, boss=crowns). This session
+# is not chasing that bug again on purpose -- it is a new spec and a new
+# target, and whatever happens in the VIGIL happens on the way.
+open
+targets
+ui
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:priest:shadow
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+# Chunk 1: threshold -> vigil -> spire(marrow) -> climb -> oratory(whisper).
+# Generous budget; evening stops itself early (evening-stuck) if two rooms
+# in a row go nowhere, which is exactly the failure mode being watched for.
+evening mash 200 5
+shot after-evening-1
+state
+says
+bill

@@ -349,6 +349,23 @@ varied across the three confirmations and the room and the symptom have not
 -- "PULL AGAIN never revives a travel-mode wipe" is the stronger of the two
 framings and "at least in THE VIGIL" is the only qualifier still standing.
 
+**2026-09-26, a fifth confirmation, first shadow priest and a second `mash`
+run.** `mode=walk` aimed at `whisper` again (the only repeat target this line
+has had), this time priest:shadow (this job's first shadow priest pull of any
+kind -- the one prior priest:shadow session was a battleground), `mash`,
+10-normal, fresh save, 390x844 touch. Chased into THE VIGIL by the
+threshold's watchmen exactly as the druid:restoration/`crowns` walk was,
+wiped at 33.9s, `outcome:retry` tapped, re-wiped instantly with `hero.hp=0`
+and every ability slot `locked`, and a second `evening` call over the same
+stuck room produced the identical shape a room later --
+`fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}`. Screenshot
+(`after-evening-1.png`) is the same DEFEAT-screen shape as every prior
+report. Not commented on #271 again -- five specs, four styles, two save
+states and both touch and desktop viewports have now hit this exact wall the
+same way, and this session adds a target boss (`whisper`, for the second
+time) and a second `mash` reproduction rather than a new axis or a sharper
+mechanism; the issue already says plainly what this confirms.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
