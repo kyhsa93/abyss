@@ -1,0 +1,34 @@
+# Cell from playpick: mode=menus, view=820x1180,touch, save=carried.
+#
+# No prior menus session (2026-09-25-9, 2026-09-25-19) or any other session
+# this job has run has ever opened THE CITADEL map screen -- it needs a walk
+# in first, since it is reached from a pad or, mid-evening on touch, by
+# revealing the corner group and pressing `map`. Built up in short bursts:
+# raid setup -> classpick -> pull -> into the door (a pad, so the corner
+# group is already up) -> the map itself -> survey it -> then test README's
+# claim that a GIVE UP press on this screen "ends it and puts the next one
+# back at the door" against the only button actually on it, BACK.
+open
+tap raid
+tap next
+tap class:hunter:marksmanship
+tap pull
+waitscreen fight 15
+tap map
+targets
+shot citadel
+
+# BACK is the only control `targets` finds with nothing cleared yet (RESET
+# only appears once down > 0, and there is no GIVE UP anywhere on this
+# screen). Press it and see what actually happens to the evening.
+tap back
+targets
+shot after-back
+state
+
+# If BACK ended the evening, reopening RAID should land at the door. It
+# doesn't -- see direction.md.
+open
+tap raid
+targets
+shot raid-reopened

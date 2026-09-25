@@ -640,6 +640,40 @@ where the report starts, and two (or the `openedLine` unlock text on top)
 push further into it. Filed with the corrected mechanism rather than the
 original "no offset" description.
 
+**2026-09-25.** First session ever to open THE CITADEL map screen
+(`playtest/plans/2026-09-25-30.play`) — no prior session in
+`sessions.jsonl` or this file had reached it; it is only accessible by
+standing on a pad or, mid-evening on touch, by revealing the corner group
+and pressing `map`. `ui` found it clean (one control, `back` at exactly
+120x44, no overlap, nothing off the glass) and the room layout, passage
+colours and "10-man normal — where you are, and what is still shut"
+subtitle all match `README.md`'s own description.
+
+What does not match: `README.md`'s "Getting in" section says "GIVE UP on
+the map ends it and puts the next one back at the door." There is no
+button on this screen called GIVE UP, or anything that behaves like it.
+The only button present with nothing cleared yet is `BACK`
+(`src/render/menu.ts:1309`), and pressing it does not end the evening —
+measured directly: `tap back` took `screen` from `citadel` to `home` while
+`mode` stayed `travel` and the run was left untouched (`targets`/`state`
+before and after), and a fresh `open` -> `tap raid` afterward landed
+straight back on `screen=fight mode=travel` at the same chamber
+(`threshold`) rather than at any door. That is the same "RAID resumes
+standing where you stood" behaviour the README documents as the *default*
+two sentences earlier in the same paragraph, not the separate
+ending-and-reset behaviour it claims for GIVE UP. The button that actually
+matches "ends it and puts the next one back at the door" is `RESET`
+(`layout.reset`, armed via a second press, "stands this evening's dead
+back up" per its own comment) — but it only appears once at least one room
+is cleared (`down > 0`), is not labelled GIVE UP anywhere, and *restarts*
+the rung from scratch rather than merely ending the current sitting. So the
+README describes a control this screen does not have, on a screen this job
+had never opened before this session. **Held, gate shut** (14 open
+`playtest` issues at session start) — a menu describing behaviour the code
+does not have belongs in `playtest.md`'s "what is worth an issue" list
+("a menu that says something untrue about the game behind it"); file it
+first thing once the gate reopens, with this session's script.
+
 ## Tried and dropped
 
 Nothing yet. When a line comes off the list it lands here with the reason, so it
