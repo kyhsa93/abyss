@@ -217,6 +217,38 @@ Heroic, Full Raid, A Clean Board) stacked over the damage board with a "died
 13s" line bleeding through underneath (screenshot `end.png`). Not filed
 again; both issues are already open.
 
+**2026-09-26, complicated by the first tank spec on the daily's own recurring
+boss, and a mixed mechanism.** `mode=daily` gave The Two Flasks again (25
+normal, SWARMING, its fourth prior appearance on this axis), for the first
+time as warrior:protection, `melee` style, fresh save. Wiped at 126.4s, boss
+at 6% -- closer than every other active-style pull this job has logged on
+this exact boss (`good` 14%, `mash` 19%, `dodge` 24%), though still short of
+the one `idle` pull that killed it outright at 147s. `bill`:
+`byMechanic={"gather":5,"caustic":986,"reagent":2}` -- no `hound` entry at
+all, where every non-tank pull of this boss on record took 300-1400 hound
+hits. Read `src/sim/boss.ts:2987` afterward to see why: the hound's target
+pool is `livingParty(s).filter(a => a.role !== 'tank' && ...)` -- tanks are
+excluded from the mechanic outright, by role, not by anything a style chooses.
+This is the first time that exclusion has been confirmed live rather than
+just read off the source.
+
+But the same pull's death was still self-inflicted, and by the driver, not
+the game: 986 of the tank's own 993 mechanic hits were `caustic`, a ground
+puddle, and the end screen's damage board shows why -- `You` took 8.2k damage
+against the next-highest body's 4.6k, and finished last on the board at 38
+dps despite tanking the entire fight. `scripts/playbot.ts`'s `melee` branch
+(`acting === 'melee' && boss`) only ever computes a vector toward the boss; unlike
+`dodge`/`good`, it has no `away`-from-standing-ground term at all, so a melee
+body beelines straight through every puddle between it and the boss rather than
+around it. So this one pull cannot cleanly separate two different effects
+that both happened to land on the same body: a real game fact (tanks cannot be
+hounded) that plausibly helped, and a driver-side gap (melee never dodges
+ground hazards) that plausibly hurt, pulling the same pull in opposite
+directions at once. A `good`-style pull on protection warrior specifically
+(which does compute the away-from-standing term) would isolate the role
+effect from the steering gap; worth running before this reads as evidence
+either for or against line 1 on tank specs.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

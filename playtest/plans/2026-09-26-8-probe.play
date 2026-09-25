@@ -1,0 +1,10 @@
+# playpick: mode=daily boss=gift(unreachable, see direction.md's driver-lesson
+# note -- a daily's boss is drawn from the UTC date, not a control on this
+# screen) spec=warrior:protection style=melee view=820x1180,touch save=fresh
+#
+# Probe only: find today's actual daily boss/size/affix and which class:N
+# tile is Warrior Protection before committing to the full script.
+open
+tap daily
+targets
+shot daily-setup

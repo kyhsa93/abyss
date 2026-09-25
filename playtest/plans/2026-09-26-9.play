@@ -1,0 +1,40 @@
+# playpick: mode=daily boss=gift(unreachable, see direction.md's driver-lesson
+# note -- a daily's boss is drawn from the UTC date, not a control on this
+# screen) spec=warrior:protection style=melee view=820x1180,touch save=fresh
+#
+# Probed first (2026-09-26-8-probe.play): today's actual daily is The Two
+# Flasks, 25-player normal, SWARMING -- the fifth pull of this exact recurring
+# instance this job has logged (dodge/24%, mash/19%, good/14%+kill,
+# auto/49%-wipe), now the first tank spec and the first melee-style pull on
+# it. src/sim/boss.ts:2987 excludes role==='tank' from the hound's target
+# pool outright, so this is also a live test of whether that exclusion holds
+# up in play rather than just in the source: a melee-closing protection
+# warrior should never be hounded, and being a tank on a fight most other
+# specs lost to the hound may be a very different pull. class:0 = Warrior
+# Tank, confirmed by the probe's screenshot.
+open
+tap daily
+tap class:0
+targets
+ui
+shot setup
+tap start
+waitscreen fight 15
+state
+shot open
+
+play melee 90
+bill
+state
+shot mid1
+
+play melee 90
+bill
+state
+shot mid2
+
+play melee 90
+bill
+says
+state
+shot end
