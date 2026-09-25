@@ -86,6 +86,7 @@ import {
   updateLayout,
   zoomLevel,
 } from './render/theme'
+import { bossOrNone } from './sim/combat'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
@@ -2851,7 +2852,15 @@ if (!import.meta.env.PROD) {
      */
     hud(): unknown {
       const me = state.actors.find((a) => a.isPlayer) ?? null
-      const boss = state.actors.find((a) => a.faction === 'boss' && a.alive) ?? null
+      // `bossOrNone`, not the first living body on the boss's side. Those are two
+      // different things the moment an evening is walked: a raid that crossed the
+      // citadel leaves scores of corridor bodies alive behind it, and the first one
+      // the actor list happens to hold is whichever of them was made first. A
+      // driver steering at this walked nine thousand units at a Blighted Abomination
+      // in the plagueworks while the boss it had come for stood untouched two
+      // hundred away, and the fight was reported as one that does not start (#268).
+      // The bar over the screen reads the fight's own boss; so does this.
+      const boss = bossOrNone(state) ?? null
       return {
         time: state.time,
         tick: state.tick,

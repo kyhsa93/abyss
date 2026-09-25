@@ -927,15 +927,28 @@ async function play(
 
     if (hero) {
       if (acting === 'dodge' || acting === 'good') {
-        // Straight out of the nearest thing standing on, and nowhere otherwise:
-        // a bot that keeps walking cancels its own casts, which is a bug this
-        // repo has already shipped once.
+        // Out of the nearest thing standing on, and toward the boss if it is out
+        // of reach -- **both at once when both apply**, which is what a person
+        // does: you run to the fight and go around the fire on the way.
+        //
+        // Dodging used to win outright, and that cost a whole issue. Walking into
+        // the first boss's room leaves a body about two hundred and eighty units
+        // out; with something on the floor most of the time, a dodge-first policy
+        // never closes, and a melee spec at that range deals nothing at all. The
+        // fight was reported as one that does not start (#268) on the strength of
+        // it, and the fight was fine -- put the same body on top of the boss by
+        // hand and the same sixty seconds take it from 95% to 46%.
         const worst = standing[0]
-        if (worst) want = { x: hero.x - worst.x, y: hero.y - worst.y }
-        else if (acting === 'good' && boss) {
-          const far = Math.hypot(boss.x - hero.x, boss.y - hero.y)
-          if (far > 24) want = { x: boss.x - hero.x, y: boss.y - hero.y }
-        }
+        const away = worst ? { x: hero.x - worst.x, y: hero.y - worst.y } : null
+        const far = boss ? Math.hypot(boss.x - hero.x, boss.y - hero.y) : 0
+        // Twenty-four is melee; anything past a caster's reach is out of reach for
+        // everybody, and closing matters more than a patch at that distance.
+        const toward = acting === 'good' && boss && far > 24 ? { x: boss.x - hero.x, y: boss.y - hero.y } : null
+        if (away && toward) {
+          const a = Math.hypot(away.x, away.y) || 1
+          const t = Math.hypot(toward.x, toward.y) || 1
+          want = { x: away.x / a + toward.x / t, y: away.y / a + toward.y / t }
+        } else want = away ?? toward
       } else if (acting === 'melee' && boss) {
         const far = Math.hypot(boss.x - hero.x, boss.y - hero.y)
         if (far > 4) want = { x: boss.x - hero.x, y: boss.y - hero.y }
@@ -1373,6 +1386,15 @@ async function evening(
       say('walked-on', { from: at, to: standingIn })
       continue
     }
+    if (after.outcome === 'ongoing' && before.mode === 'raid' && after.mode === 'travel') {
+      // A boss died and the building went back to being a building. There is no
+      // report and no NEXT on a walked evening -- the code says a walk across the
+      // whole citadel does not finish -- so the only thing that says the fight is
+      // over is the mode going back. This read as "the fight outlasted its budget"
+      // and stopped the evening one room in.
+      say('boss-down', { room: at })
+      continue
+    }
     if (after.outcome === 'ongoing') {
       // The budget ran out with the fight still going. Not a stuck evening -- a
       // slow one -- but it is the end of this run either way.
@@ -1380,11 +1402,20 @@ async function evening(
       // With the bodies, because a fight that ran its whole budget at full health
       // on both sides is not slow, it is not happening, and the only thing that
       // tells them apart is where everybody was standing.
+      const hud = await d.ask<Hud>('hud()')
+      const here = await d.ask<{ x: number; y: number } | null>('hero()')
       fault('fight-outlasted-its-budget', {
-        at,
+        room: at,
         seconds,
-        hero: await d.ask('hero()'),
-        foes: (await d.ask<Array<{ x: number; y: number; name: string }>>('foesAt()')).slice(0, 3),
+        hero: here,
+        // What it was steering at, and how far away it ended up. A stall with the
+        // boss named and a hundred units away is a fight that will not start; the
+        // same stall with the boss a thousand away is a driver that cannot walk.
+        boss: hud.boss,
+        away:
+          hud.boss && here
+            ? Math.round(Math.hypot(hud.boss.x - here.x, hud.boss.y - here.y))
+            : null,
       })
       break
     }
