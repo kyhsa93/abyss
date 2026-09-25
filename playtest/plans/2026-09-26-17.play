@@ -1,0 +1,42 @@
+# Follow-up to -16.play. That run's own `state` calls (already close to bare
+# polling -- one per play/wait chunk) showed "You" dead with an unmoving
+# "up in 6s"/"up in 7s" respawn readout (src/render/hud.ts:1548, the player's
+# own respawn clock) across two screenshots 25 real/game seconds apart on The
+# Three Cairns. "Tried and dropped" already closed a similar-looking report as
+# a chained-play sampling artifact, but that retest used bare `wait`/`state`
+# polling with no play() in between and found clean ~10s revivals every time.
+# This repeats that exact bare-polling method on the same cell that just
+# showed the stuck-looking shape, to tell an actual stall from another
+# sampling coincidence.
+open
+tap battleground
+tap map:conquest
+tap class:druid:balance
+tap pull
+waitscreen fight 15
+state
+shot t0
+
+wait 5
+state
+shot t5
+
+wait 5
+state
+shot t10
+
+wait 5
+state
+shot t15
+
+wait 5
+state
+shot t20
+
+wait 5
+state
+shot t25
+
+wait 5
+state
+shot t30

@@ -730,7 +730,42 @@ like on a battleground map so far, on a second class and a second map. Still
 no `good`-style battleground run that survives long enough to test whether
 active play actually helps; both attempts so far have been the body dying
 before that question could be asked.
-## Not yet filed
+
+**2026-09-26, third map (conquest), and the first same-session bare-idle
+control on a battleground.** `playpick` gave The Three Cairns (conquest),
+druid:balance, `good`, 820x1180 touch, carried (behaves as fresh per #273) --
+conquest had only ever seen `flee` before (2026-09-24). `good` (`-16.play`)
+died at fightTime~9s (`aliveParty` 4/5), a third map and third spec where an
+active style dies almost immediately (flags/druid:feral ~15s, escort/
+warlock:destruction ~13s, now conquest/druid:balance ~9s) -- still no
+`good`-style battleground pull that has survived long enough to test whether
+active play actually helps.
+
+What is new this time is a same-cell, same-session control: `-17.play`
+reran the identical pull with no `play` call at all -- pure `wait`/`state`
+polling, so no ability presses and no steering, the closest thing to `idle`
+this vocabulary can express on a battleground -- and the player stayed
+`alive:true` at full health (1485/1485) for the full 30 seconds polled,
+completely untouched. Same cell, same session: doing nothing survived
+cleanly, doing something died in nine seconds. That is the sharpest
+single-session contrast this line has produced, and it says the same thing
+[[#1]] says about raids: the body dies from what it does, not from what is
+done to it.
+
+A third script on the same cell (`-18.play`) chased down what looked, in
+`-16.play`, like a stuck respawn -- three post-death `state` reads all showed
+the player's own "up in Ns" respawn clock (`src/render/hud.ts:1548`) sitting
+at 6-7s without reaching zero, across two screenshots 25 game-seconds apart.
+Getting the player killed with one short `play good 15` and then polling with
+nothing but bare `wait`/`state` afterward (no further `play` at all) showed a
+clean revival instead: dead at fightTime~8.7s, still dead at ~13.8s, alive
+again by ~19s -- about ten seconds, squarely inside `RESPAWN_EARLY=6`/
+`RESPAWN_LATE=11`, and the player then stayed alive for the remaining ~20s
+observed since nothing was asking it to fight again. Same conclusion as
+*Tried and dropped*'s battleground-respawn note below, now confirmed on a
+third map/spec: `-16.play`'s stuck-looking reads were an unlucky run of
+re-dying between samples while still actively playing, not a stall in the
+respawn itself.
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
@@ -1232,3 +1267,14 @@ bare-polling run. Two clean bare-polling revivals against zero clean-polling
 stalls: the appearance of a stall was `playbot`'s own abort-on-`hero()===null`
 quirk missing the revival between samples, not a game bug. Driver lesson, not
 a game finding -- nothing to fix in `src/`.
+
+**2026-09-26, a third confirmation, on a third map.** [[#7]]'s conquest entry
+above (`-16.play`/`-18.play`, druid:balance, The Three Cairns) looked stuck
+the same way on first read -- three `state` calls that were already close to
+bare, not buried in a long `play`, still showed dead with an unmoving "up in
+Ns" readout. Getting the player killed once and then polling with nothing but
+bare `wait`/`state` afterward (no `play` at all past the kill) showed the same
+clean ~10s revival the first two confirmations found. Worth remembering that
+even near-bare sampling can still land inside the abort-on-death gap if a
+`play` call runs anywhere nearby -- only a `play` call followed by pure
+`wait`/`state` settles it.

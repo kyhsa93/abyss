@@ -1,0 +1,41 @@
+# Second follow-up to -16/-17. -16 (good, chained play/wait/state) died at ~9s
+# and looked stuck dead for the next ~33s across three near-bare state reads.
+# -17 (no play at all) never died, so it could not test revival. This gets the
+# player killed with one short play call, then polls with nothing but bare
+# wait/state after -- no play() at all past that point -- to separate a real
+# stall from another unlucky sampling run of a fast re-death loop.
+open
+tap battleground
+tap map:conquest
+tap class:druid:balance
+tap pull
+waitscreen fight 15
+state
+
+play good 15
+shot died
+state
+
+wait 5
+state
+shot p1
+
+wait 5
+state
+shot p2
+
+wait 5
+state
+shot p3
+
+wait 5
+state
+shot p4
+
+wait 5
+state
+shot p5
+
+wait 5
+state
+shot p6

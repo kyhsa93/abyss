@@ -1,0 +1,46 @@
+# playpick gave mode=battleground map=conquest spec=druid:balance style=good
+# view=820x1180,touch save=carried. direction.md's #7 ("a battleground does not
+# carry a passive body the way a raid does") has an open question: two prior
+# good-style/auto-fallback attempts (flags/druid:feral, escort/warlock:destruction)
+# both died within 15s and never got to test whether active play helps, because
+# the body couldn't survive contact at all. This is the third map (conquest,
+# The Three Cairns -- hold ground, clock does the rest) and the first `good`
+# attempt on it. druid:balance is ranged/caster like the two priors, not melee,
+# so if it also dies immediately that is a third data point toward "good dies
+# fast on a battleground regardless of map," and if it survives, this is the
+# first chance to see whether active play actually turns one of these losses
+# around.
+open
+targets
+shot front
+
+tap battleground
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:druid:balance
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play good 100
+shot mid1
+state
+bill
+
+wait 5
+play good 100
+shot mid2
+state
+bill
+
+wait 5
+play good 100
+shot mid3
+state
+bill
+says
+targets
