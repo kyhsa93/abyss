@@ -434,6 +434,50 @@ while other party icons sit far to the right, mid-fight. Not filed — twelve
 gate reopens; it does not need a third confirmation, the two seeds already
 converge tightly enough.
 
+**2026-09-25, gate was shut so held here — strong enough to file the moment
+it opens.** Second `mode=menus`/carried/820x1180-touch session (first was
+2026-09-25-9, which covered the front page through composition and glanced
+at settings without touching it). This one went where that one didn't: the
+front page's own SHARE button, the settings screen's name field and camera
+row, the BATTLEGROUND setup screen and the DAILY screen, all via `targets`
+and `ui`.
+
+README's own "How close the camera sits" section says the game has "four
+settings, from the arena fitted to the screen out to nearly twice that,"
+with "the default \[as\] the closest step." The settings screen disagrees
+with its own doc: this session's `targets` on `settings` listed seven camera
+controls, not four — `camera:0` through `camera:6` — and the screenshot
+(`settings.png`) shows them labelled `FAR BACK MID IN OVER TAUT FACE`, with
+`IN` (the fourth of seven) drawn selected, not `FAR` (the first, "the arena
+fitted to the screen"). `src/render/theme.ts:426-427` confirms the live
+values: `ZOOM_STEPS = [1, 2.5, 3.6, 5.5, 7.5, 10.2, 13.8]`, topping out at
+nearly *fourteen* times the fitted radius, not "nearly twice." `DEFAULT_ZOOM
+= 3` (line 443) matches the `IN` selection seen on screen, and the code's
+own comment on it says so explicitly, in words that directly contradict the
+doc: "Not the closest step and not the fitted one... Written as an index
+rather than 'the last one', because the last one is now closer than a raid
+wants to fight at and it should still be reachable." The doc describes an
+earlier four-step camera that the code has since grown past on both ends —
+same shape as #278 (Ebb and Flow's README time limit going stale against
+`src/sim/battleground.ts`), just in prose rather than a table. Not filed —
+twelve `playtest` issues were open at session start. File the moment the
+gate reopens; code, doc and screenshot all already agree with each other
+and disagree with the same doc section, so this does not need a second look.
+
+**2026-09-25, driver lesson, not a game finding.** The front page's own
+SHARE button (`README.md`'s "Sharing" section: "the button says `COPIED`
+for a moment afterwards") read `NO LUCK` after being tapped this session
+(`front-shared.png`), which `src/main.ts` only sets when `src/share.ts`'s
+`share()` returns `'failed'` — neither `navigator.share` nor
+`navigator.clipboard.writeText` succeeded. `scripts/playbot.ts` never grants
+its browser context clipboard permissions and the CDP session has no share
+sheet to hand off to, so this reads as the same class of thing as the
+2026-09-25 emoji-lock-glyph note above: an artifact of what this driver's
+browser context can offer rather than something a real phone or desktop
+browser — which do have a share sheet or a permitted clipboard — would hit.
+Not filed. Worth a second look only if a session can first confirm the
+CDP context actually has clipboard-write and still sees `NO LUCK`.
+
 ## Tried and dropped
 
 Nothing yet. When a line comes off the list it lands here with the reason, so it

@@ -1,0 +1,56 @@
+# Cell from playpick: mode=menus, view=820x1180,touch, save=carried.
+#
+# The one prior menus/carried/820x1180 session (2026-09-25-9) covered the
+# front page -> raid setup -> difficulty dropdown -> classpick -> compose ->
+# an individual slot tap -> back x3 -> settings (viewed, not touched) ->
+# record. What that session never touched: any of the three SHARE buttons
+# (front page, daily, results) described in README.md's "Sharing" section,
+# the settings screen's name field and volume stepper (viewed but not
+# pressed), the DAILY screen's own layout (only ever visited mid-fight
+# script, never surveyed with `ui`), and the BATTLEGROUND setup screen
+# (map picker + composition), which has only ever been passed through on
+# the way to a pull, never listed and measured on its own. This session
+# does those four, short block at a time.
+
+open
+targets
+ui
+shot front
+
+# The front page's own share is "about the game", no fragment -- README says
+# it carries one line naming the record's furthest boss. Never pressed.
+tap share
+shot front-shared
+note the front page's own SHARE button, first time this job has pressed it
+targets
+
+open
+tap settings
+targets
+ui
+shot settings
+
+# Name field: README says an on-canvas field can't be typed into, so a real
+# <input> is laid over the row. First time this job has focused it (no
+# `type` verb in the driver vocabulary, so text entry itself is out of
+# scope for a scripted session).
+tap name
+shot name-focused
+
+# The camera row: never surveyed with `ui`, and README's own "How close the
+# camera sits" section describes it as four settings with the closest as
+# default -- worth checking the live control count against that claim.
+targets
+
+tap back
+open
+tap battleground
+targets
+ui
+shot bg-setup
+
+open
+tap daily
+targets
+ui
+shot daily-screen
