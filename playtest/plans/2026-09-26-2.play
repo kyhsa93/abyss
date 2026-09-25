@@ -1,0 +1,14 @@
+# mode=menus cell, continued: the RECORD/history screen, never screenshotted
+# by any prior menus session (2026-09-25-9 only read "0 pulls" as text off
+# window.__abyss, never looked at the page).
+open
+targets
+shot home
+tap record
+targets
+shot record-kills
+ui
+tap tab:awards
+shot record-awards
+tap back
+shot back-at-home

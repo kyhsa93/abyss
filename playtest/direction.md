@@ -865,6 +865,71 @@ never checked for the fallback line. Worth knowing before a future `playpick`
 cell pairs `style=auto` with a non-touch `view`: it will play, but as `good`,
 not as the thing the cell name promises.
 
+**2026-09-26.** First session to actually type into the name field
+(`src/render/nameinput.ts`) rather than read it off the code -- no prior
+session had, since the `.play` vocabulary has no generic text-entry command.
+Went around it with a one-off Playwright script
+(`playtest/plans/2026-09-26-1-name-field.mjs`), on the assigned menus cell
+(820x1180 touch, carried), driving the real `<input>` through real
+`insertText` and real clipboard-paste keystrokes rather than calling into the
+game.
+
+Plain-text behaviour all held exactly as `README.md`'s "A name of your own"
+describes: fifteen ASCII characters clipped to twelve
+(`"aaaaaaaaaaaaaaa"` -> stored `"aaaaaaaaaaaa"`), mixed whitespace/tabs
+collapsed and trimmed (`"  a\tb\n\nc  "` -> stored `"a b c"`), and a
+whitespace-only field fell back to the default (`"    "` -> stored `"You"`).
+
+The one hypothesis this was actually written to test -- whether the native
+`<input maxlength=12>` (`src/render/nameinput.ts:50`), which the browser
+enforces in UTF-16 *code units*, could split a surrogate pair before
+`cleanName`'s own code-point-based slicing (`src/name.ts:42`) ever saw the
+string, exactly the bug class `README.md` says was already caught and fixed
+once -- did not reproduce. Tried four ways: typing 11 ASCII chars then one
+astral emoji (13 units against the 12-unit cap), typing thirteen whole emoji
+one at a time, and the same two shapes again via clipboard paste
+(`page.keyboard.press('Control+v')`, with the context granted
+`clipboard-read`/`clipboard-write`). All four: Chromium rejects the entire
+overflowing insertion outright rather than truncating it, so the field's own
+value never contained a lone surrogate in any of the four
+(`hasLoneSurrogate` checked after every insert). Screenshots
+(`name-2-emoji-boundary.png` through `name-6-paste-thirteen.png`) show a
+clean field throughout, never a broken glyph.
+
+**But it surfaced a real, smaller gap instead.** Because the DOM's
+`maxLength=12` counts UTF-16 units and every emoji tried (`\u{1F600}`, an
+astral character) costs two, the field silently stops accepting more emoji at
+*six* characters (12 units / 2), not the twelve the "twelve characters"
+promise names and `cleanName`'s own code-point cap would allow -- confirmed
+both by typing and by pasting thirteen straight (`name-4-thirteen-emoji.png`,
+`name-6-paste-thirteen.png`, both landing on exactly six, stored as six code
+points, `[...s].length === 6`). A player who wants an all-emoji name can never
+get further than six through the one control that offers it, with no message
+saying why, on a screen the game presents as a plain twelve-character field
+(screenshot `name-1-settings.png`). Not filed -- fourteen open `playtest`
+issues held the gate shut this session too -- but worth an issue once it
+reopens: `src/render/nameinput.ts`'s `field.maxLength = NAME_MAX` should
+probably not be set at all (or set higher), since `cleanName` already owns
+the real cap and does it correctly by code point.
+
+Also observed, not a bug: `cleanName`'s newline-to-space handling
+(`src/name.ts:38`, "so `a\nb` stays two words") can never actually be
+exercised through this field, because a single-line `<input type="text">`
+does not accept a literal `\n` on insertion at all -- typed or pasted, the
+browser drops it before `value` ever sees it. The behaviour is dead code from
+the real input path's point of view; it would only matter if a name ever
+reached `cleanName` from somewhere other than this field.
+
+Same session, briefly: the RECORD screen's AWARDS tab, never screenshotted by
+either of the two prior menus sessions that opened it
+(`playtest/plans/2026-09-26-2.play`, `record-awards.png`) -- "0 of 18 earned,"
+matches a fresh-reading carried profile (still `#273`, re-confirmed rather
+than re-filed). "The Whole Roster: Pull as all 9 classes" checked against
+`src/sim/classes.ts`'s own `ClassId` union (nine: warrior, mage, warlock,
+priest, paladin, hunter, rogue, shaman, druid) -- correct, not the
+inconsistency it first looked like against `README.md`'s "one class in eight
+tanks" line, which is a rough tank-odds phrase rather than a class count.
+
 ## Tried and dropped
 
 Nothing yet. When a line comes off the list it lands here with the reason, so it
