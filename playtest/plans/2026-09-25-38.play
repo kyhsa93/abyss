@@ -1,0 +1,31 @@
+# Cell from playpick: mode=clear, spec=druid:guardian, style=flee, size=10,
+# difficulty=normal, view=1280x800, save=fresh. This exact spec/size/difficulty/
+# view/save was already run under wander (2026-09-25-17.play, stalled in THE
+# VIGIL at 400s, hero=(274.5,-1572.7)) and under good (2026-09-25-18.play,
+# stalled the same way at 250s, hero=(268.1,-1563.2)). flee has stalled at
+# VIGIL once before (direction.md #6, priest:discipline, 25-heroic, carried,
+# touch) but never at this size/difficulty/save/viewport. Running it here asks
+# whether the stall is size/difficulty-independent the way wander vs good
+# already showed it to be, or whether the easier, fresh 10-normal cell (same
+# one wander and good both stalled on) behaves differently under a style that
+# runs from every pack instead of standing to fight or beelining the boss.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:druid:guardian
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening flee 400 12
+shot after-evening
+state
+says
+targets
+ui
+bill

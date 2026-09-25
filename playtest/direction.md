@@ -487,6 +487,26 @@ rather than something about THE VIGIL's watchmen. One room, one session,
 same caveat every new corridor gets here: not yet three cells, so not yet a
 sharper claim than "seen once, somewhere else."
 
+**2026-09-25, seventh confirmation, and the first cell to see three styles
+run against it.** `mode=clear`, druid:guardian, `flee`, 10-normal, fresh,
+1280x800 desktop -- the exact cell `wander` (2026-09-25-17.play) and `good`
+(2026-09-25-18.play) already stalled on in THE VIGIL, now run a third way.
+`flee` stalled too, at 411.1s: `fault:fight-outlasted-its-budget
+{"room":"vigil","hero":{"x":267.97,"y":-1561.16}}` -- 2 units from `good`'s
+stall on this same cell (268.1,-1563.2) and 12 from `wander`'s
+(274.5,-1572.7). The screenshot (`after-evening.png`) shows the same shape
+every prior stall made: raid clustered by the campfire, a couple of members
+fighting alone to the east, near-zero damage on the board (top parser line
+44 dps), `189 left in it` not falling. Not new evidence that this cell
+stalls -- that was already shown twice -- but the tightest convergence yet:
+three different steering behaviours, one spec/size/difficulty/save, landing
+within about a dozen units of each other. Still holds against `melee` and
+`idle`, the only two styles that have ever crossed THE VIGIL clean, both on
+*different* cells -- worth a `melee` or `idle` run on this specific
+druid:guardian/10-normal/fresh cell before trusting that those two styles
+cross any cell cleanly rather than this one in particular being unusually
+open to them.
+
 **Also resolves the 2026-09-24 "vigil overlay" note under *Not yet filed*,
 below.** The `"N left in it"` text that note worried was a VIGIL-specific
 overlay bugged into persisting past its own room turns out, on reading
