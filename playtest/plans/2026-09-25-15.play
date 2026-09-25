@@ -1,0 +1,41 @@
+# Cell from playpick: mode=daily, boss=gift, spec=warrior:arms, style=mash,
+# view=844x390,touch, save=carried.
+#
+# Probe (open + tap daily) showed the daily screen itself: today's actual run
+# is "The Two Flasks", 25-player normal, SWARMING -- not "gift". playpick's
+# `boss` axis for mode=daily is drawn from ENCOUNTERS the same way it is for
+# mode=raid (scripts/playpick.ts line 116), but a daily's boss is picked by
+# the date (src/sim/daily.ts dailyFor(), keyed off dailyKey()), never by the
+# player -- there is no control on this screen that could ever make "gift"
+# come up. Playing the cell as assigned is therefore impossible; playing
+# whatever the daily actually is, honestly, is the only option. Worth writing
+# into direction.md as a driver-tooling note once this session is done.
+#
+# What is new here regardless of boss: first warrior:arms this job has ever
+# played (warrior:protection has, arms has not -- class:1 on the daily grid,
+# confirmed against src/sim/classes.ts's spec list), and the first mash-style
+# pull of any daily. The Two Flasks was played once before (2026-09-24,
+# paladin protection, dodge, carried) and wiped at 152s/24% boss blaming
+# `caustic` at 95.5 hits/min -- direction.md flagged that as worth a second
+# data point under a different style before trusting it as its own complaint.
+# This is that second point.
+open
+targets
+tap daily
+shot daily-screen
+targets
+tap class:1
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+ui
+play mash 260
+shot after-fight
+state
+says
+bill
+targets
+shot report

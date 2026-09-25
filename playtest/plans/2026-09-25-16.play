@@ -1,0 +1,7 @@
+# Probe only -- not a session script. Finding labels for the daily screen's
+# class picker and start button before writing the real script.
+open
+targets
+tap daily
+targets
+shot daily-screen

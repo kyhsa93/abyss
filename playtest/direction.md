@@ -276,6 +276,31 @@ issue #269 instead, about a real `not-a-number` fault at the same wipe. Worth
 a `ladder` run on this boss before trusting the caustic number as a complaint
 of its own.
 
+**2026-09-25, second data point, same boss, still no ladder.** `playpick`
+gave `mode=daily`; today's actual run (the daily boss is not a choice — see
+the driver-lesson entry below) was again The Two Flasks, this time 25 normal
+SWARMING, played as warrior:arms on `mash` (first arms warrior this job has
+played), 844x390 touch, carried save. Wiped at 106s, boss at 19% (further
+along than the dodge run's 24% at 152s, so mash actually out-damaged dodge
+before dying, not just died faster). `bill`: `hits=556 hitsPerMin=315.7
+taken=3095 takenPerMin=1757.4 byMechanic={"gather":2,"caustic":242,
+"reagent":1,"hound":311}`. Two things worth flagging rather than filing:
+`caustic` landed exactly 242 times in *both* pulls, a different day's seed
+and a different style apart — consistent with `caustic` being an unavoidable
+raid-wide tick (per `src/sim/encounters.ts`, `mechanicDamage`/`raidDamage`
+apply regardless of position) rather than anything a style choice touches, so
+the earlier "blamed nearly all of it on caustic" framing underweighted what
+a non-dodging style actually eats. This pull's real story is `hound` —
+`src/sim/constants.ts` describes it as "a thing that cannot be killed,
+walking at one body" — at 311 hits, 40% more than caustic and never
+mentioned in the dodge-style report at all. A style that only reacts to
+countdown telegraphs (`mash`'s own "urgent" check) and never runs from a
+persistent chaser eating nearly three hound-hits a second for 106 seconds is
+exactly what `mash` is a hypothesis about, so this is not yet a complaint —
+it needs the `idle`/`good` discrimination the ladder section asks for before
+it says anything about the fight rather than about the style. Still worth
+a `ladder` run on this boss; now specifically watch `hound`, not `caustic`.
+
 **2026-09-24.** `ui`'s overlap check compares drawn bounding boxes, not the
 game's own hit-test circles. At 1280x800 it flagged four pairs among the five
 ability buttons (`ability:5/3`, `5/2`, `4/2`, `4/1`) — worked out by hand
@@ -359,6 +384,23 @@ worst thing a hunter can do, which is exactly what `melee` as a style
 hypothesis is for rather than a sign of anything broken. Worth a look if a
 future `ladder`/style comparison on a ranged spec turns up the same shape
 against `good`, per the discriminating method in `docs/playtest.md`.
+
+**2026-09-25, driver lesson, not a game finding.** `scripts/playpick.ts` gives
+`mode=daily` cells a `boss`, drawn the same way a `mode=raid` cell's is
+(`leanest(sessions, 'boss')`, line 116) — but a daily's boss is never a
+choice. `src/sim/daily.ts`'s `dailyFor()` draws the encounter from
+`new Rng(dailyKey(date))`, keyed off the UTC date; there is no control on the
+daily screen (confirmed by `targets` on it this session: seventeen `class:N`
+tiles, `back`, `share`, `start`, nothing that names a boss) that could ever
+make the assigned boss come up. This session was handed `boss=gift` and
+played whatever the day actually was (The Two Flasks) instead, the same way
+past sessions played the setup screen's default when a cell's `size`/
+`difficulty` turned out to be locked. Worth knowing before a future session
+loses time trying to reach a specific `boss` on a `daily` cell: it cannot be
+steered, only recorded after the fact, so the ledger's `boss` field for
+`mode=daily` lines is closer to a coincidence than a target. This lives in
+`scripts/playpick.ts`, outside what this job may touch, so it is written down
+rather than fixed.
 
 ## Tried and dropped
 
