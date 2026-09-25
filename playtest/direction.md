@@ -249,6 +249,39 @@ directions at once. A `good`-style pull on protection warrior specifically
 effect from the steering gap; worth running before this reads as evidence
 either for or against line 1 on tank specs.
 
+**2026-09-26, sharpened by the first `flee`-style pull run directly against a
+boss (`play flee`, `mode=raid`, not a battleground or an evening's corridor
+steering — checked the ledger, `flee` had only ever appeared in `battleground`
+or `clear` mode before now) and the first Long Cold pull at its easiest
+setting.** The Long Cold's only prior appearance on record was 25-heroic,
+restoration shaman, `good` vs `idle` — this session ran it at the opposite
+end, 10-normal, warrior:arms, fresh save, 390x844 touch
+(`playtest/plans/2026-09-26-15.play`). A dps spec that presses nothing and
+only moves away from danger (`flee` never calls an ability, same as `dodge`)
+killed it in 86s with the raid at 10/10 and its own health at 592/1890 (31%),
+`presses=0 inDanger=4%`. A fourth style now joins `idle`, `good`-as-healer and
+`wander` in winning a cell outright while contributing zero of its own damage
+or healing — the shape holds on a DPS role, a new boss, and the easiest
+difficulty this line has tried it on, against the one time this boss has been
+measured before at its hardest.
+
+`bill` read `hits=436 hitsPerMin=304.5 taken=1298 takenPerMin=906.6
+byMechanic={"chill":12,"cover":1,"instability":2,"flight":421}` — 421 of 436
+mechanic hits were `flight`, which looked at first like a style effect worth
+chasing (`flee` eating the most avoidable-looking mechanic by far). Reading
+`src/sim/boss.ts`'s `updateFlight` first, rather than guessing, closed that
+question immediately: it loops `livingParty(s)` unconditionally and applies
+damage to every living member every tick the boss is aloft, no position check
+at all (`landFlight`'s own impact does check distance, but that is the
+landing, not the duration tick this bill is mostly counting) — the opposite of
+`hound`'s `rng.pick(free)`-off-position targeting and `caustic`'s puddle. So
+`flight`'s hit count says nothing about how `flee` steered; it is a fixed cost
+every player in the raid pays alike, exactly as its own comment says ("off the
+floor, and out of reach of everything... what it costs is not the damage: it
+is fourteen seconds of a raid's damage"). Worth remembering before reading a
+high mechanic-hit count as a style finding on this specific boss: check which
+mechanic it actually was first.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

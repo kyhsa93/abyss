@@ -1,0 +1,17 @@
+# The assigned cell: mode=raid, boss=cold (The Long Cold), warrior:arms,
+# flee, 10-normal, fresh save, 390x844 touch.
+# First flee-style pull inside mode=raid itself (flee has only ever been used
+# in a battleground or steering a whole-evening walk before) and the first
+# Long Cold pull below its one prior appearance (25-heroic, restoration
+# shaman, good style).
+open #b=cold&s=10&h=0
+targets
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+state
+shot start
+play flee 150
+state
+bill
+shot end

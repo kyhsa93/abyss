@@ -1,0 +1,6 @@
+# Probe: confirm the invite hash lands on the roster with The Long Cold
+# chosen, at 10-normal, and find the real label for warrior:arms.
+open #b=cold&s=10&h=0
+targets
+state
+shot roster
