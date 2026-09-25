@@ -107,6 +107,49 @@ idle ahead on every axis at once; this one trades a body for a death instead.
 *lose* by the line's own test — but the first cell where idle's cost shows up
 instead of reading as zero.
 
+**2026-09-25, sharpened again: the same daily instance, three styles, and the
+first outright idle kill against an active-style wipe.** `mode=daily` handed
+druid:balance to a fresh save, and today's actual daily (confirmed by `targets`
+on the daily screen before committing to a script — `daily.boss` is not
+reachable as a `playpick` axis at all, see the driver-lesson note below) turned
+out to be The Two Flasks, 25-player normal, SWARMING — the same boss and the
+same day-key as 2026-09-25's earlier `mash` daily session, so this is a third
+style on the literal same fight instance (identical party rolls and mechanic
+timings; only the player's own actions differ), not just the same boss on a
+different day:
+
+```
+mash (earlier session): wiped 106s, boss 19%, byMechanic={gather:2,caustic:242,reagent:1,hound:311}
+good (2026-09-25-27.play): wiped 112.3s, boss 14%, aliveParty=12/25, byMechanic={gather:4,hound:620,reagent:2,caustic:114}
+idle (2026-09-25-28.play): KILL 147.2s, aliveParty=9/25, byMechanic={gather:2,caustic:484}
+```
+
+`idle` is the only one of three styles that actually finished the fight —
+`good` pressed 56 abilities and dodged, and still wiped worse than `mash`,
+which pressed nothing but countdown-telegraph reactions. This is the first
+mode=daily session in this job's history to run the idle/good discrimination
+`docs/playtest.md`'s ladder section asks for, closing the gap the "Not yet
+filed" section flagged on 2026-09-24 and again on 2026-09-25.
+
+**Not filed — this is already the harness's own number.** `docs/upkeep.md`'s
+balance table has The Two Flasks at idle 72% / good 40%, a +32 idle-over-good
+gap, under "A raid rewarding play." A played session landing in the same
+direction is confirmation of a number the upkeep job already owns, not a new
+finding — same reasoning this file already applied to the Long Cold pair.
+
+**Caution before reading too much into `hound`.** `good` ate 620 hound hits
+and `idle` ate 0; it is tempting to read that as "standing still dodges the
+hound" the way #267 reads bonestorm, but it likely is not. The hound's target
+is `rng.pick(free)` (`src/sim/boss.ts:2989`) off the same shared, deterministic
+RNG stream the whole fight draws from — same seed, since both runs are pull 1
+of the same daily key — but every action either body takes (a cast's own
+crit roll, an AI reaction) consumes a draw from that stream, so two runs that
+behave differently arrive at the hound-target roll having consumed a different
+number of prior draws and can land on a different name through no positional
+cause at all. Worth a same-day pair where both styles are `good`-like (or both
+`idle`) before trusting hound-targeting as a style effect rather than a
+coincidence of which draw the two runs happened to be on.
+
 **Same pair also overturns a "Not yet filed" guess rather than confirming
 it.** `caustic` went from 554 hits under idle to 0 under good, and `hound`
 went from 0 under idle to 598 under good — only `gather` (3, both runs)
@@ -561,35 +604,12 @@ rather than fixed.
 two further confirmations (a third seed post-0f03ad9, and a fourth under
 `flee`). Filed as #281.
 
-**2026-09-25, gate was shut so held here — strong enough to file the moment
-it opens.** Second `mode=menus`/carried/820x1180-touch session (first was
-2026-09-25-9, which covered the front page through composition and glanced
-at settings without touching it). This one went where that one didn't: the
-front page's own SHARE button, the settings screen's name field and camera
-row, the BATTLEGROUND setup screen and the DAILY screen, all via `targets`
-and `ui`.
-
-README's own "How close the camera sits" section says the game has "four
-settings, from the arena fitted to the screen out to nearly twice that,"
-with "the default \[as\] the closest step." The settings screen disagrees
-with its own doc: this session's `targets` on `settings` listed seven camera
-controls, not four — `camera:0` through `camera:6` — and the screenshot
-(`settings.png`) shows them labelled `FAR BACK MID IN OVER TAUT FACE`, with
-`IN` (the fourth of seven) drawn selected, not `FAR` (the first, "the arena
-fitted to the screen"). `src/render/theme.ts:426-427` confirms the live
-values: `ZOOM_STEPS = [1, 2.5, 3.6, 5.5, 7.5, 10.2, 13.8]`, topping out at
-nearly *fourteen* times the fitted radius, not "nearly twice." `DEFAULT_ZOOM
-= 3` (line 443) matches the `IN` selection seen on screen, and the code's
-own comment on it says so explicitly, in words that directly contradict the
-doc: "Not the closest step and not the fitted one... Written as an index
-rather than 'the last one', because the last one is now closer than a raid
-wants to fight at and it should still be reachable." The doc describes an
-earlier four-step camera that the code has since grown past on both ends —
-same shape as #278 (Ebb and Flow's README time limit going stale against
-`src/sim/battleground.ts`), just in prose rather than a table. Not filed —
-twelve `playtest` issues were open at session start. File the moment the
-gate reopens; code, doc and screenshot all already agree with each other
-and disagree with the same doc section, so this does not need a second look.
+**Filed, 2026-09-25, as #282.** The settings camera-row/README mismatch above
+(2026-09-25, first raised while the gate was shut) reproduced clean on a fresh
+run once the gate reopened — same seven `camera:0..6` controls, `IN` selected,
+`ZOOM_STEPS`/`DEFAULT_ZOOM` unchanged — and was filed with a fresh script and
+screenshot, since the original session's shot was never committed (`playtest/`
+keeps no shots directory).
 
 **2026-09-25, driver lesson, not a game finding.** The front page's own
 SHARE button (`README.md`'s "Sharing" section: "the button says `COPIED`
@@ -605,26 +625,20 @@ browser — which do have a share sheet or a permitted clipboard — would hit.
 Not filed. Worth a second look only if a session can first confirm the
 CDP context actually has clipboard-write and still sees `NO LUCK`.
 
-**2026-09-25, gate was shut so held here — strong enough to file the moment
-it opens.** Both pulls of [[#1]]'s idle/good pair (The Two Flasks, 10-normal,
-warlock:destruction, fresh save — this profile's first-ever kill) landed on a
-KILL screen with every earned banner drawn at the same anchor, stacked on top
-of each other instead of laid out. `idle-end.png`: "First Blood" boxed over
-"OPENED: 25-man normal" over a gold "Heroic / Kill it on heroic" teaser, with
-#275's already-reported undimmed "DOWN" floating text cutting through the
-party rows underneath all three. `good-end.png` — a second, independent pull,
-different driver seed, run second — adds a fourth banner, "Nobody Felt It /
-Kill it without losing anyone" (earned because that pull kept the whole raid
-alive, unlike the idle pull), and a fifth, "Blood Price", piled the same way.
-Two different pulls with two different banner sets landed on the same
-illegible stack both times, so this is not one unlucky pairing — it is what a
-fresh save's first kill looks like. #275 reported the "DOWN" text specifically
-and only on a 25-heroic kill; this is the same undimmed-text family but at
-10-normal, and it is bigger than one stray string — every banner a kill earns
-competes for the same spot on screen with no sequencing and no offset between
-them. Not filed — twelve `playtest` issues were open at session start. File
-the moment the gate reopens; two independent reproductions already agree, it
-does not need a third.
+**Filed, 2026-09-25, as #283 — narrowed on the way in.** The banner-pile note
+above (2026-09-24/25, warlock:destruction pair, held while the gate was shut)
+reproduced independently on a third, unrelated cell (daily mode, druid:balance,
+25-player, "First Blood" + "Full Raid" together) once the gate reopened, but
+reading the actual draw code first changed the framing: `drawAwardBanners`
+(`src/render/history.ts`) does offset each earned banner from the last
+(`y = L.h * 0.22 + i * (h + 8)`) — the banners are not literally stacked on one
+anchor. What overlaps is the banner *column* against the damage/healing
+report below it: `drawOutcome`'s `reportTop` (`src/render/hud.ts`,
+`Math.max(96, L.h * 0.26)`) is a fixed position that does not grow with how
+many banners are showing, so even one earned banner's bottom edge reaches past
+where the report starts, and two (or the `openedLine` unlock text on top)
+push further into it. Filed with the corrected mechanism rather than the
+original "no offset" description.
 
 ## Tried and dropped
 

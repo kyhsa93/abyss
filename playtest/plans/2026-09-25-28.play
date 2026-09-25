@@ -1,0 +1,20 @@
+# playpick: mode=daily boss=confluence(unreachable, see 2026-09-25-27.play's
+# note) spec=druid:balance style=idle view=390x844,touch save=fresh
+#
+# Second half of the idle/good discrimination pair started in
+# 2026-09-25-27.play, same daily (The Two Flasks, 25-player normal,
+# SWARMING), same day-key, same class -- a separate playbot invocation per
+# direction.md's #1 driver lesson (never a second `open` mid-script).
+open
+tap daily
+tap class:9
+tap start
+waitscreen fight 15
+state
+shot idle-open
+
+play idle 180
+bill
+says
+state
+shot idle-end

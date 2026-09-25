@@ -1,0 +1,28 @@
+# playpick: mode=daily boss=confluence(unreachable, see direction.md's own
+# driver-lesson note -- a daily's boss is drawn from the UTC date and the
+# daily screen has no control that could ever pick one) spec=druid:balance
+# style=good view=390x844,touch save=fresh
+#
+# Confirmed today's actual daily via a short probe first (targets on the
+# daily screen, shot daily-setup.png): The Two Flasks, 25-player normal,
+# SWARMING -- the same boss as both prior mode=daily sessions this job has
+# run (2026-09-24 dodge/24%, 2026-09-25 mash/19%), and the same day-key as
+# the second of those, so this is the identical daily instance, now with the
+# idle/good discrimination direction.md's "Not yet filed" section has been
+# asking for since 2026-09-24. class:9 = Druid Balance, confirmed by shot.
+# First druid:balance played anywhere in this job.
+open
+tap daily
+tap class:9
+targets
+ui
+tap start
+waitscreen fight 15
+state
+shot good-open
+
+play good 180
+bill
+says
+state
+shot good-end

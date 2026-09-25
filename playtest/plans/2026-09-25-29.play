@@ -1,0 +1,10 @@
+# Re-run to get fresh evidence for the settings camera-row finding that
+# 2026-09-25-19.play first turned up (held in direction.md, gate was shut
+# then) -- that session's own screenshot never made it into a commit
+# (playtest/ keeps no shots dir), so this reproduces just the settings-screen
+# leg to file it with a fresh journal line and a fresh shot.
+open
+tap settings
+targets
+ui
+shot settings
