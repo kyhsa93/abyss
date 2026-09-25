@@ -137,6 +137,18 @@ export type AuraId =
    * looking up.
    */
   | 'crowned'
+  /**
+   * A station that has just given the crown up, and is not drinking yet.
+   *
+   * Without it the fight's own instruction is a trap: the moment the crown
+   * leaves, the body a raid was told to stand on becomes one of the two that
+   * drink, and everybody standing on it is the nearest thing to a mouth until
+   * they have walked out of `THIRST_REACH`. Measured, following the crown lost
+   * seventeen points of win rate against ignoring it, and reading the four-second
+   * warning and moving early lost the same -- because the body being moved *to*
+   * is also still drinking until the crown lands on it. See issue #277.
+   */
+  | 'ceded'
   /** Being drunk from by one of the two that cannot be hurt. */
   | 'drained'
   /** Holding a grain, which is worth most of the drinking. */

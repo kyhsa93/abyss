@@ -2592,8 +2592,15 @@ function drawCourt(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): v
       ctx.stroke()
       continue
     }
-    ctx.strokeStyle = '#57534e'
-    ctx.lineWidth = 1.5
+    // A station without the crown is not automatically a mouth any more: the one
+    // the crown just left holds off for a beat and a half, and the one it has been
+    // promised to stops the moment it is named. So what gets the warm ring is what
+    // is actually drinking, rather than everything that is not the wearer -- a
+    // player told to follow the crown has to be able to see which of the two other
+    // places would bill them for arriving. See `ceded`, and issue #277.
+    const drinking = a.id !== going && getAura(a, 'ceded') === undefined
+    ctx.strokeStyle = drinking ? iconFor('boss_thirst').colour : '#57534e'
+    ctx.lineWidth = drinking ? 2.5 : 1.5
     ctx.stroke()
     if (a.id !== going) continue
     ctx.beginPath()

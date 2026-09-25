@@ -304,6 +304,14 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // It does not expire: it moves. What ends one body's crown is the next
   // body's, which is the whole shape of the fight.
   crowned: 3600,
+  // Long enough to walk out of the mouth the station has just become.
+  //
+  // `THIRST_REACH` is 170 and a body walks 158 a second, so clearing the radius
+  // is 1.08 seconds; a beat and a half is that plus the change, and it is the
+  // whole of what the fight was missing. Not longer: the two that do not wear the
+  // crown are supposed to be dangerous, and a grace that covered the walk between
+  // stations would make all three of them safe all the time.
+  ceded: 1.5,
   // Refreshed every tick by whoever is drinking, so it ends when the body
   // walks out rather than on a clock of its own.
   drained: 0.2,

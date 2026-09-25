@@ -3403,6 +3403,11 @@ function scheduleRotation(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
   s.next.rotation = timing.rotation
   const next = s.actors.find((a) => a.id === mark.bearer && a.alive)
   wearer.auras = wearer.auras.filter((au) => au.id !== 'crowned')
+  // A beat and a half before the station it just left starts drinking. See
+  // `ceded`: without it the raid is told to stand somewhere that turns into a
+  // mouth underneath it, and the fight's own instruction loses seventeen points
+  // of win rate against ignoring it.
+  addAura(wearer, 'ceded', b.id)
   if (!next) return
   addAura(next, 'crowned', b.id)
   pushEffect(s, 'impact', next.pos, { abilityId: 'boss_rotation', power: 400, crit: true })
@@ -3422,8 +3427,21 @@ function scheduleRotation(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
 function updateThirst(s: SimState, timing: PhaseTiming): void {
   if (timing.thirst <= 0) return
   const bar = boss(s)
+  // The body the crown has been promised to, which stops drinking the moment it
+  // is named rather than when the crown lands. Arriving on the warning is the
+  // play this fight is built to ask for, and it was the losing one: a body that
+  // reads the four-second call and walks is inside the heir's reach about two
+  // thirds of a second before the crown gets there, every rotation, and it was
+  // billed for the walk it was told to make.
+  const heir = (() => {
+    const wearer = crowned(s)
+    const mark = wearer ? getAura(wearer, 'crowned') : undefined
+    return mark?.bearer
+  })()
   for (const body of court(s)) {
     if (getAura(body, 'crowned')) continue
+    if (getAura(body, 'ceded')) continue
+    if (heir !== undefined && body.id === heir) continue
     let nearest: Actor | null = null
     let best = THIRST_REACH
     for (const a of livingParty(s)) {
