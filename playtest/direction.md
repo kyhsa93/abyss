@@ -445,6 +445,60 @@ finding at its most literal: a melee body cannot leave the aura's reach the
 way a frost mage's `good` can choose to, so there was no `idle`-side win to
 even compare against. Commented on #267 rather than filing a duplicate.
 
+**2026-09-25, sixth confirmation of a clean crossing, and the first stall
+found in a room that is not THE VIGIL.** `mode=walk`, `boss=skyward` (a
+coverage label only -- `evening` steers at no boss, so this walked in at the
+door same as any other), paladin:retribution, `idle`, 25-heroic on a
+`carried` save that behaved as fresh per #273's still-open port bug (setup
+showed the locked default, 10-normal), 844x390 touch
+(`playtest/plans/2026-09-25-37.play`). First `idle`-style evening this job
+has ever run inside `mode=walk` or `mode=clear` at all -- checked the ledger
+directly, `idle` had only appeared twice before this, both single `mode=raid`
+pulls -- and worth running because `scripts/playbot.ts`'s `evening()` hands a
+travel-mode room to `cross()`, and `cross()` takes no `style` argument at
+all: a corridor is walked the same way whatever style was assigned, and only
+a room in `raid` mode ever reads it. THE VIGIL crossed clean in 33.1s
+(`9.7s` in to `42.8s` out, `presses=9`) -- a second clean crossing after
+`melee`'s 26s one, and exactly what "corridors ignore style" predicts, since
+an idle player is still walked by `cross()`'s own fixed-heading steering
+regardless. The evening then killed The Bonegrinder inside the walk itself,
+still under pure `idle`: `fightTime=178` of a `300`s budget, `aliveParty=10/10
+heroHp=1800/1800 presses=0 inDanger=5%`, boss down, no report screen (the
+evening reads the `raid`→`travel` mode drop and carries straight on, which
+matches the README's "no report, no meter over the screen" description of a
+walked boss kill) -- a fourth spec now on record for [[#1]]'s idle-wins
+shape, and the first time it has been seen mid-evening rather than as a
+standalone pull.
+
+Two rooms later, `THE WEST CLIMB` -- ground between the first boss and the
+second, per its own dungeon.ts entry, not a room with a boss in it --
+burned its entire 300s budget without the chamber ever changing:
+`fault:fight-outlasted-its-budget {"room":"westclimb", hero:
+(-483.4,-7954.4)}`, `nearestDoorGot=12` (closest approach twelve units, never
+inside the six-unit "waited" band `cross()` tracks -- `secondsAtTheDoor=0`).
+The screenshot (`after-evening.png`) shows the same shape THE VIGIL's four
+stalls made: all ten party members clustered together on the walkway, every
+health bar full and green, nothing fighting or dying, `486s` on the clock and
+no progress. This is the first time this job has seen the "evening parks
+itself near a door and stops" failure anywhere other than THE VIGIL, which
+argues #6/#281's mechanism is not specific to that one corridor -- it may be
+a property of `cross()`'s own fixed-heading steering wherever it fires,
+rather than something about THE VIGIL's watchmen. One room, one session,
+same caveat every new corridor gets here: not yet three cells, so not yet a
+sharper claim than "seen once, somewhere else."
+
+**Also resolves the 2026-09-24 "vigil overlay" note under *Not yet filed*,
+below.** The `"N left in it"` text that note worried was a VIGIL-specific
+overlay bugged into persisting past its own room turns out, on reading
+`src/render/hud.ts:1568`, to be exactly what its own comment says it is: the
+whole citadel's remaining living-boss-faction count, drawn throughout any
+`s.travel.building === true` walk -- i.e. every room of a whole-building
+evening, by design, not a leftover from THE VIGIL specifically. This
+session's own journal shows the same count falling as the evening kills
+things (`186` at the door, `173` two rooms and one dead boss later at THE
+WEST CLIMB), which is the counter working, not sticking. No further look
+needed; struck below.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
@@ -590,6 +644,17 @@ party can keep up; the likely, non-buggy explanation is that the spring's
 party member is furthest back, and a straggler left behind by a sprinting
 player keeps it open. Worth a second look from a normal walking pace, not a
 scripted dash, before this is trusted as a real finding.
+
+**Resolved, 2026-09-25 — not a bug, struck.** `src/render/hud.ts:1568`
+answers it directly: `"N left in it"` is not a vigil overlay at all, it is
+the whole citadel's remaining living-boss-faction count, drawn throughout
+*any* whole-building walk (`s.travel.building === true`), by the code's own
+comment ("what is left of the building, rather than what is left of the
+stretch"). It is supposed to keep showing in every later room of the same
+evening. A normal-pace, non-dash `evening` run this session (see [[#6]])
+shows the same count falling as things die (`186` at the door, `173` two
+rooms and a dead boss later, at THE WEST CLIMB) rather than sticking — the
+counter working as designed, not the straggler bug this note guessed at.
 
 **2026-09-25.** The raid-setup difficulty dropdown draws a lock glyph (🔒,
 `src/render/menu.ts`) next to a locked option; on this machine it rendered as

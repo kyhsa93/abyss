@@ -1,0 +1,51 @@
+# Cell from playpick: mode=walk, boss=skyward, spec=paladin:retribution,
+# style=idle, size=25, difficulty=heroic, view=844x390,touch, save=carried.
+#
+# skyward (The Skyward Deck) is the last built encounter before the throne
+# (src/sim/encounters.ts order: marrow, whisper, host, gorged, confluence,
+# flasks, crowns, gift, saved, cold, skyward) and carries the single widest
+# played-vs-idle gap in the whole balance table (docs/upkeep.md: 76% played /
+# 6% idle, +70). An `evening` does not steer toward a named boss though --
+# "it needs no map and no door to aim at" -- so `boss` here is a coverage
+# label, not a target: this walks in at the door in whatever order the
+# building gives, same as every other mode=walk session so far.
+#
+# What is actually new: no prior session has run `idle` inside `evening` at
+# all (checked the ledger directly -- `idle` has only ever been used twice,
+# both single mode=raid pulls, never mode=walk or mode=clear). Style only
+# matters once inside a boss room though: `scripts/playbot.ts`'s `evening()`
+# calls `cross()` for a travel-mode room and `cross()` takes no style
+# argument at all -- corridors, including THE VIGIL (direction.md #6/#281),
+# are walked exactly the same way regardless of what style was assigned.
+# So this session doubles as a check of that reading: if VIGIL stalls again,
+# it should stall at essentially the same spot the wander/good/wander trio
+# in #281 already found, since idle's corridor behaviour is not idle at all
+# -- only its behaviour once inside an actual fight room is.
+#
+# carried is very likely to behave as fresh here regardless (open bug #273:
+# a new port every separate playbot invocation means a new localStorage
+# origin), so size/difficulty are expected to come up locked and the setup
+# screen's own default (10-normal) substituted, the same way every earlier
+# session on a fresh-acting save has gone.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+targets
+tap next
+tap class:paladin:retribution
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening idle 300 10
+shot after-evening
+state
+says
+targets
+ui
+bill
