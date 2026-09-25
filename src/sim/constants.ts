@@ -1518,8 +1518,22 @@ export const THIRST_REACH = 170
  *
  * What the mechanic is for is the *heal* it gives the boss, not this: this is
  * only what stops the raid ignoring it.
+ *
+ * **Repriced when holding a mouth became a job rather than a mistake.** The heal
+ * used to fire only on a tick that had drained somebody, so nobody ever stood
+ * there on purpose and this was the price of an accident; it fires on a mouth
+ * that found nobody now, so somebody has to hold each one and 150 was lethal for
+ * the body doing it -- twenty-four seeds of a grain-carrying body answering a
+ * mouth won 42% against 83% for ignoring the whole system.
+ *
+ * Forty-five, which with `NUCLEUS_GUARD` is eighteen a second while carrying a
+ * grain -- a drain a healer can cover, so the job is survivable while the grain
+ * lasts -- and forty-five while not, which is the thing that says fetch the next
+ * one. The pressure to answer is `THIRST_HEAL`, and it is untouched: the two
+ * knobs are now what not answering costs and what answering costs, and they are
+ * turned separately.
  */
-export const THIRST_TICK = 150
+export const THIRST_TICK = 45
 /**
  * What a second of drinking gives back, as a share of the whole bar.
  *

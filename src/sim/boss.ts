@@ -3451,7 +3451,26 @@ function updateThirst(s: SimState, timing: PhaseTiming): void {
         nearest = a
       }
     }
-    if (!nearest) continue
+    // **A mouth nobody answered is what gives the fight back, not a mouth that
+    // found somebody.**
+    //
+    // The heal used to sit at the bottom of this loop, after the bill, so it only
+    // ever fired on a tick that had drained a body -- and `THIRST_HEAL`'s own note
+    // says the opposite in as many words: "a minute of nobody noticing is about an
+    // eighth of the fight given back". Nobody noticing produced no heal at all, so
+    // standing a hundred and seventy away was free *and* stopped the giving back,
+    // and every policy measured against this fight converged on exactly that:
+    // stand off, shoot, ignore all of it. That is why `deadprobe` read 27 of 27
+    // windows as asking nothing. See issue #277.
+    //
+    // The party's AI refuses a spot inside this reach -- see `ai.ts`, and it was
+    // right to, given the code -- so answering a mouth is the player's to do and
+    // nobody else's. Two mouths and one of you: you can halve what it gives back,
+    // not stop it, and a grain is how long you can keep doing it.
+    if (!nearest) {
+      if (bar.alive) bar.hp = Math.min(bar.maxHp, bar.hp + bar.maxHp * THIRST_HEAL * DT)
+      continue
+    }
     // A grain is worth most of it, which is why fetching one is worth the
     // walk into the very place the raid is trying not to stand.
     const guard = getAura(nearest, 'carrying') ? 1 - NUCLEUS_GUARD : 1
@@ -3468,7 +3487,6 @@ function updateThirst(s: SimState, timing: PhaseTiming): void {
     if (Math.floor(s.time) !== Math.floor(s.time - DT)) {
       pushEffect(s, 'impact', nearest.pos, { abilityId: 'boss_thirst', power: bill * TICK_RATE })
     }
-    if (bar.alive) bar.hp = Math.min(bar.maxHp, bar.hp + bar.maxHp * THIRST_HEAL * DT)
   }
 }
 
