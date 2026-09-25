@@ -1,0 +1,42 @@
+# Discriminating companion to 2026-09-26-5.play, not the assigned cell itself
+# (playpick gave style=dodge; this adds a good-style pull on the same map and
+# spec to test direction.md's #7 open question -- "a good-style run on either
+# map, to see whether active play actually turns one of these around rather
+# than merely trailing less badly" -- which flags/druid:feral answered only
+# by accident (auto fell back to good) and escort has never answered at all.
+# Same map (escort), same spec (warlock:destruction), same viewport as -5.play
+# so the only variable that changes is the style.
+open
+targets
+shot front
+
+tap battleground
+tap map:escort
+targets
+shot escort-picked
+
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play good 100
+shot mid1
+state
+bill
+
+wait 5
+play good 100
+shot mid2
+state
+bill
+
+wait 5
+play good 100
+shot mid3
+state
+bill
+says
+targets

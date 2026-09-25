@@ -1,0 +1,38 @@
+# Follow-up to -6.play, not the assigned cell -- that run's `good`-style
+# warlock died at fightTime~13s and then read hp=0/alive=false/bar=[locked]
+# across two more chained `play good 100` chunks spanning fightTime 13s to
+# 38s (25+ seconds), well past src/sim/battleground.ts's RESPAWN_LATE=11.
+# That is the same shape as the "possible player-respawn stall" note already
+# sitting under direction.md's Not yet filed section (seen once on druid:feral/
+# Ebb and Flow, 2026-09-25) -- but that note's own two stalled sightings both
+# used chained `play` calls, which the abort-on-hero()===null quirk can cut
+# short mid-respawn, and its one clean revival used bare `state` polling
+# instead. Repeating that clean method here, on a different spec and map
+# (warlock:destruction, escort), to see whether the stall is real or just
+# chained-play sampling gaps.
+open
+tap battleground
+tap map:escort
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+state
+
+play good 40
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+bill
+shot after

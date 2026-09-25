@@ -1,0 +1,50 @@
+# Cell from playpick: mode=battleground map=escort spec=warlock:destruction
+# style=dodge view=844x390,touch save=carried.
+#
+# The Long Haul (escort) has been pulled once before (2026-09-25-26.play,
+# shaman:elemental, dodge, 820x1180 touch, defeat) -- same map and same style
+# this cell repeats. What's new here: a different spec (warlock:destruction,
+# a ranged DoT caster never played on this map) and a landscape phone
+# viewport (844x390) nobody has used on escort before (the prior escort visit
+# was 820x1180 portrait). carried save is known-fresh-in-disguise per #273
+# (still open, playbot's port is keyed off process.pid), so no attempt is
+# made to rely on anything actually carrying.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:escort
+targets
+shot escort-picked
+
+tap class:warlock:destruction
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play dodge 100
+shot mid1
+state
+bill
+
+wait 5
+play dodge 100
+shot mid2
+state
+bill
+
+wait 5
+play dodge 100
+shot mid3
+state
+bill
+says
+targets

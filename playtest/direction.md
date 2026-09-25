@@ -588,6 +588,19 @@ survives before reading this as the disproof-by-good the line's own condition
 names, since dying immediately is not the same experiment as playing well and
 still losing.
 
+**2026-09-26, third map, dodge and good both tried on the same cell.** The
+Long Haul (escort), warlock:destruction, 844x390 touch, carried (behaves as
+fresh per #273). `dodge` (`-5.play`) repeated the shape this line already has
+two examples of: `hits=0` for the full 300s, presses=0, `inDanger=0%`, full
+health throughout, and the match still ended `outcome=defeat`. A `good`-style
+companion pull on the identical map/spec/viewport (`-6.play`) went the same
+way the flags feral druid did rather than turning the loss around: dead
+within 13 seconds, and dead again by 38s -- a second confirmation that "dying
+immediately" rather than "surviving but still losing" is what `good` looks
+like on a battleground map so far, on a second class and a second map. Still
+no `good`-style battleground run that survives long enough to test whether
+active play actually helps; both attempts so far have been the body dying
+before that question could be asked.
 ## Not yet filed
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned
@@ -854,6 +867,22 @@ is not yet even a one-cell observation by the letter of it. Worth a repeat
 using `-34.play`'s bare-`state`-polling method specifically, on a body that
 dies again, before this goes anywhere further.
 
+**Dropped, 2026-09-26.** Ran the repeat this note asked for, on a second spec
+and map: The Long Haul (escort), warlock:destruction. A `good`-style pull
+(`-6.play`) died at fightTime~13s and read `hp=0 alive=false bar=[...locked]`
+across two more chained `play good 100` calls out to fightTime 38s -- the same
+stuck-looking shape as `-33`/`-35`'s stalls, and the screenshot at that point
+(`mid1.png`) even shows the game's own "up in 6s" respawn countdown on
+screen, proving the state was mid-countdown, not stuck. The bare-polling
+repeat (`-7.play`, `state` every 5s, one `play good 40` up front and no
+chained `play` after) died at fightTime~14s and was back to `hp=1485/1485
+alive=true` with a fresh, unlocked ability bar by the very next sample at
+fightTime~24s -- a clean ten-second respawn, landing inside
+`RESPAWN_EARLY=6`/`RESPAWN_LATE=11` same as `-34`'s. Two bare-polling runs now
+agree (clean revival, ~10s, both times) against two chained-`play` runs that
+each looked stuck at least once -- the stall was the chained-`play` sampling
+gap the note already suspected, not a game bug. Moved to *Tried and dropped*.
+
 **2026-09-25, driver lesson, not a game finding.** `style=auto` silently
 becomes `style=good` (`scripts/playbot.ts`'s own `no-autocast-toggle` note)
 on any `view` without a `,touch` suffix, because `src/main.ts`'s `hitAt()`
@@ -975,5 +1004,16 @@ the game's own AUTO feature rather than about a body that never moves.
 
 ## Tried and dropped
 
-Nothing yet. When a line comes off the list it lands here with the reason, so it
-does not get re-raised in a fortnight.
+**A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
+filed" observation (druid:feral, Ebb and Flow) after two chained-`play` runs
+both showed a dead body reading `hp=0 alive=false bar=[...locked]` well past
+`RESPAWN_LATE=11`, against one bare-`state`-polling run that revived cleanly
+in ~10s. Dropped 2026-09-26 after a second spec and map (warlock:destruction,
+The Long Haul) reproduced the same shape: a chained-`play` run looked stuck
+(and its own screenshot showed the game's "up in 6s" respawn countdown mid-
+capture, proof it was never actually stuck), while a bare-`state`-polling
+rerun on the identical death revived cleanly in ~10s, same as the first
+bare-polling run. Two clean bare-polling revivals against zero clean-polling
+stalls: the appearance of a stall was `playbot`'s own abort-on-`hero()===null`
+quirk missing the revival between samples, not a game bug. Driver lesson, not
+a game finding -- nothing to fix in `src/`.
