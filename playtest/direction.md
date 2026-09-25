@@ -930,6 +930,49 @@ priest, paladin, hunter, rogue, shaman, druid) -- correct, not the
 inconsistency it first looked like against `README.md`'s "one class in eight
 tanks" line, which is a rough tank-odds phrase rather than a class count.
 
+**2026-09-26, driver lesson, not a game finding.** First `style=auto` session
+ever run on a genuine touch viewport (390x844,touch) where the AUTO toggle
+could actually be pressed rather than silently falling back to `good` --
+confirmed directly in the journal (`"auto":true` in the post-tap `state`, and
+the restoration shaman's own power draining from 1050 to 412 over the fight,
+proof the toggle really cast spells on the player's behalf) for the first time
+in this job's history. The two prior `style=auto` ledger lines (2026-09-24
+mage:frost, 2026-09-25 druid:feral) were both 1280x800 desktop, where
+`src/main.ts`'s `isTouchMode()` gate forces the `good` fallback before the
+movement question ever comes up at all.
+
+Read `scripts/playbot.ts`'s own movement branch afterward to see why the pull
+went so badly (below): `acting === 'auto'` matches none of the
+`dodge`/`good`/`melee`/`wander`/`flee`/`learn` branches from line 929 on, so
+`want` stays `null` and the driver calls `d.release()` every tick -- `auto`
+never once steers, exactly like `idle`. But `README.md`'s own description of
+AUTO says the feature exists precisely so a real player keeps steering while
+AUTO handles the button presses ("the other thumb is about position, which is
+the half of the game the screen is actually showing"). So every `auto`-style
+session this job has ever run, and any future one under the current
+vocabulary, tests "a body that casts automatically and never moves at all,"
+not the thing the feature is actually for -- a gap in the driver's own
+vocabulary, not a bug in the game.
+
+On today's daily (The Two Flasks, 25-normal, SWARMING -- the third time this
+job's `mode=daily` cell has drawn this exact boss -- shaman:restoration,
+fresh, 390x844 touch, probed first via `2026-09-26-3-probe.play` to read the
+class grid and confirm the day before committing): the stationary auto-cast
+healer wiped at 68.1s with the boss still at 49%, the earliest and
+least-progressed of every Two Flasks pull this job has logged (`good` reached
+14% before its own wipe, `mash` 19%, and one `idle` run actually killed it at
+147s) -- entirely on `hound` ("It has picked one of you — keep walking"),
+which hit the stationary player 1,079 times in 68 seconds against every other
+raid member's single-to-double-digit mechanic count. The end screen's own
+healing board shows it directly: `You ... died 68s` next to a bolded, outlier
+`1409` in the "taken mechanics" column, against teammates reading `3`, `11`,
+`12`, `23` (`bill`: `hits=1409 hitsPerMin=1241.4 taken=4739
+takenPerMin=4175.3`). This lives in `scripts/playbot.ts`, outside what this
+job may touch, so it is written down rather than fixed. Worth a real fix (an
+`auto` movement policy, e.g. reusing `dodge`'s steer-away-from-danger logic)
+before trusting any past or future `auto`-style ledger line as evidence about
+the game's own AUTO feature rather than about a body that never moves.
+
 ## Tried and dropped
 
 Nothing yet. When a line comes off the list it lands here with the reason, so it

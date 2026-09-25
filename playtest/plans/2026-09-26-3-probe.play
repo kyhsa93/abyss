@@ -1,0 +1,9 @@
+# playpick: mode=daily boss=host(unreachable per direction.md's driver-lesson
+# note) spec=shaman:restoration style=auto view=390x844,touch save=fresh
+#
+# Probe only: find today's actual daily boss and which class:N tile is
+# shaman:restoration before committing to the full script.
+open
+tap daily
+targets
+shot daily-setup

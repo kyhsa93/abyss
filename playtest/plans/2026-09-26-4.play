@@ -1,0 +1,40 @@
+# playpick: mode=daily boss=host(unreachable, see direction.md's own
+# driver-lesson note -- a daily's boss is drawn from the UTC date and the
+# daily screen has no control that could ever pick one) spec=shaman:restoration
+# style=auto view=390x844,touch save=fresh
+#
+# Probed first (2026-09-26-3-probe.play): today's actual daily is The Two
+# Flasks, 25-player normal, SWARMING -- the same boss this job's mode=daily
+# cell has drawn twice before (2026-09-24 dodge/24%, 2026-09-25 mash/19%,
+# SWARMING both times on the second), so this is a fourth pull of the same
+# recurring instance, now with a healer and, because the view is a real touch
+# viewport, the FIRST style=auto session where the autocast toggle can
+# actually be pressed rather than silently falling back to good (both prior
+# auto sessions were 1280x800 desktop, where main.ts's isTouchMode() gate
+# forces the good fallback every time). class:11 = Shaman Heal, confirmed by
+# the probe's screenshot.
+open
+tap daily
+tap class:11
+targets
+ui
+tap start
+waitscreen fight 15
+state
+shot open
+
+play auto 90
+bill
+state
+shot mid1
+
+play auto 90
+bill
+state
+shot mid2
+
+play auto 60
+bill
+says
+state
+shot end
