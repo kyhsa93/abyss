@@ -331,6 +331,32 @@ different stopping point under a fifth style or a different spec/size --
 so far spec, style and seed have all varied and the point has not moved by
 more than about a dozen units.
 
+**2026-09-25, complicated by a fifth style that did not stall at all.**
+`mode=walk` aimed at `saved`, rogue:assassination, `melee`, 10-normal, fresh
+save, 844x390 touch, walked from the front door (`evening melee 200 10`).
+THE VIGIL took 26 seconds, not 250-400: `7.5s crossed from=threshold to=vigil
+... presses=0` then `33.9s crossed from=vigil to=spire ... presses=2
+stillAlive=1 nearest=The Bonegrinder`, walking straight past the four prior
+runs' stopping point (y≈-1560 to -1573) into the boss's own room (y≈-5873).
+Commented on #281 rather than rewriting it outright -- the issue's own
+disproof condition names re-trying wander/good/flee, not a new style, so
+this is not a clean disproof by the letter of it, but "regardless of style"
+is not what a clean 26-second crossing looks like either. Worth a repeat of
+`melee` specifically before touching the wording further: one clean pass
+against four convergent stalls could be a real style effect or could be the
+corridor's own seed-rolled watchmen placement missing this run entirely by
+chance. Not dropping the line -- four stalls are still four stalls -- but it
+no longer gets to say "any style, any seed" without a footnote.
+
+Same session, same party, moved the finding downstream instead: past THE
+VIGIL clean, the evening spent its entire ten-room budget wiping on the very
+first boss, The Bonegrinder, eight times running, without ever winning
+once -- `heroHp=0/1530` (the player dead) on all eight wipes while
+`aliveParty=9/10` held. This is issue #267's bonestorm-punishes-proximity
+finding at its most literal: a melee body cannot leave the aura's reach the
+way a frost mage's `good` can choose to, so there was no `idle`-side win to
+even compare against. Commented on #267 rather than filing a duplicate.
+
 ## Not yet filed
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned

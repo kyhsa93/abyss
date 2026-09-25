@@ -1,0 +1,35 @@
+# Cell from playpick: mode=walk, boss=saved, spec=rogue:assassination,
+# style=melee, size=10, difficulty=normal, view=844x390,touch, save=fresh.
+#
+# First rogue this job has ever played (no prior session touches any
+# rogue spec) and first melee-style walk in raid/clear mode -- melee has
+# only been used on a battleground hunter before (direction.md's 2026-09-24
+# note). The target, saved (The One You Save), sits in `dream`, deep in the
+# frostwing wing past the whole lower spire and the crossing -- on a fresh
+# save this walk cannot skip THE VIGIL, and four separate runs this job has
+# made (mash, auto in mode=walk; wander, good, flee in mode=clear) all
+# either wiped there (#271, unretryable) or stalled at the same fixed point
+# a dozen units apart (#6/#281). melee is the one style that stands and
+# fights rather than running past or beelining through -- the README's own
+# claim about the passage is that "standing at the door trading with
+# whatever comes out... is the wrong answer; the answer is to walk into
+# it," so this is close to the literal wrong answer, on purpose: does
+# actively fighting the watchmen get further than avoiding them, die
+# faster, or converge on the same spot anyway?
+open
+tap raid
+shot raid-setup
+tap next
+tap class:rogue:assassination
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening melee 200 10
+shot after-evening
+state
+says
+bill
