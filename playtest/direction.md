@@ -446,6 +446,29 @@ any map. **Sharpened by** a `good`-style run on either map, to see whether
 active play actually turns one of these around rather than merely trailing
 less badly.
 
+**2026-09-25, sharpened by the first active-style run, third map.** `playpick`
+gave `mode=battleground map=flags spec=druid:feral style=auto view=1280x800
+save=carried`. `README.md` says AUTO is "touch only", and reading
+`src/main.ts`'s `hitAt()` confirmed why: the toggle only answers a tap when
+`input.isTouchMode()` is true, so a desktop/mouse view has no control for
+`style=auto` to press at all. `scripts/playbot.ts`'s own `play()` already
+knows this (`no-autocast-toggle`, "no toggle on screen and no key for it --
+playing good instead") but no prior session had actually confirmed the
+fallback firing in a journal -- this one did, five times over two runs
+(`playtest/plans/2026-09-25-33.play`, `-35.play`). So this cell became, in
+effect, the first `good`-style attempt on any battleground map this line has
+asked for. It did not turn the loss around: the feral druid went down within
+15 seconds of the pull both times (`bossHp` in the journal is a red-team
+member's name/hp, not a boss -- `src/sim/state.ts`'s `RED_NAMES`, not a
+mechanic reading) and spent most of two ~40-45s windows dead, `hits=0` the
+whole time in the second run. Effort did not help here because the body could
+not survive contact at all, which is a different failure shape from the two
+passive-style losses already on this line (flee/dodge, which never engaged
+and never died) -- worth a same-map comparison against a style that actually
+survives before reading this as the disproof-by-good the line's own condition
+names, since dying immediately is not the same experiment as playing well and
+still losing.
+
 ## Not yet filed
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned
@@ -673,6 +696,44 @@ had never opened before this session. **Held, gate shut** (14 open
 does not have belongs in `playtest.md`'s "what is worth an issue" list
 ("a menu that says something untrue about the game behind it"); file it
 first thing once the gate reopens, with this session's script.
+
+**2026-09-25.** A possible player-respawn stall in a battleground, seen once
+and not confirmed. `playtest/plans/2026-09-25-33.play` (druid:feral, Ebb and
+Flow) showed `me` reading `hp=0 alive=false bar=[...locked]` continuously
+across three `state` calls spanning fightTime 16s to 30s -- 14+ seconds after
+the death that caused it, past both `src/sim/battleground.ts`'s
+`RESPAWN_EARLY=6` and `RESPAWN_LATE=11` -- while the party's own `alive`
+count recovered in the same window (3/5 -> 4/5). A dedicated follow-up
+(`-34.play`, `state` polled directly every 5s with no `play` call in between,
+so the driver's own abort-on-null quirk could not be cutting the observation
+short) showed a clean, normal revival instead: dead at fightTime 12s, full
+health and `alive:true` by fightTime 22s, about 10 seconds later, right where
+the constants say it should land. A third run (`-35.play`) went back the
+other way: dead at fightTime 15s and still reading `hp=0 alive=false
+bar=[...locked]` at fightTime 39s, 24 seconds later, with no `alive:true`
+sample caught in between despite two `state` reads in that span. Two runs
+show the stall, one shows a clean respawn, and the two stalled runs both used
+chained `play` calls (which can miss a respawn-then-redie cycle between
+samples) while the clean one used bare `state` polling -- so this could be a
+real intermittent stall, or it could be a body dying again within seconds of
+every respawn against a battleground this small (5v5) and this rough on a
+melee dps, and the chained-`play` runs simply never sampled the live window.
+Not filed -- one clear methodology-clean revival is a disproof of "never
+respawns" and there is no clean-polling run yet that shows the stall, so this
+is not yet even a one-cell observation by the letter of it. Worth a repeat
+using `-34.play`'s bare-`state`-polling method specifically, on a body that
+dies again, before this goes anywhere further.
+
+**2026-09-25, driver lesson, not a game finding.** `style=auto` silently
+becomes `style=good` (`scripts/playbot.ts`'s own `no-autocast-toggle` note)
+on any `view` without a `,touch` suffix, because `src/main.ts`'s `hitAt()`
+only answers the AUTO toggle when `input.isTouchMode()` is true and the
+toggle is documented (`README.md`) as touch-only. Confirmed in a journal for
+the first time this session (`-33.play`, `-35.play`) -- a prior `style=auto`
+session on a desktop view (`2026-09-24T23:40Z`, mode=walk toward whisper)
+never checked for the fallback line. Worth knowing before a future `playpick`
+cell pairs `style=auto` with a non-touch `view`: it will play, but as `good`,
+not as the thing the cell name promises.
 
 ## Tried and dropped
 

@@ -1,0 +1,41 @@
+# Cell from playpick, run to completion: mode=battleground map=flags
+# spec=druid:feral style=auto view=1280x800 save=carried. 33.play already
+# confirmed style=auto falls back to good on this non-touch viewport
+# (no-autocast-toggle) and 34.play ruled out a suspected respawn-stall false
+# lead (the player's own body revives at full health ~10s after death, same
+# as the party). This run chases the match to its own end (FLAG_LIMIT=180s,
+# src/sim/battleground.ts) -- direction.md's #7 asks for a good-style result
+# on either battleground map to see whether active play (which this
+# effectively is, via the auto->good fallback) turns the passive-body loss
+# around rather than merely trailing less badly. Chained play calls with a
+# short wait between, per the driver lesson already on record: a battleground
+# death trips play()'s own hero-null fault and cuts a long call short, so
+# several shorter calls get further than one long one would.
+open
+tap battleground
+tap map:flags
+tap class:druid:feral
+tap pull
+waitscreen fight 15
+shot start
+play auto 40
+state
+bill
+wait 3
+play auto 40
+state
+bill
+wait 3
+play auto 40
+state
+bill
+wait 3
+play auto 40
+state
+bill
+wait 3
+play auto 40
+state
+bill
+shot end
+says

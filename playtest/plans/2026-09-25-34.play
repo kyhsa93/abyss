@@ -1,0 +1,33 @@
+# Follow-up to 2026-09-25-33.play, same cell (mode=battleground map=flags
+# spec=druid:feral view=1280x800 save=carried), style forced to `good`
+# instead of `auto` for this probe.
+#
+# 33.play's `me` hud entry read hp=0/alive=false for the entire back half of
+# the script -- 14s+ after the death that ended the first play() chunk, well
+# past src/sim/battleground.ts's own RESPAWN_EARLY=6/RESPAWN_LATE=11, while
+# the party's own alive count recovered in the same window (3/5 -> 4/5). That
+# could be a real hud/respawn bug on the player's own slot specifically, or it
+# could be the driver's own play()-aborts-on-hero-null quirk (already a known
+# driver lesson) simply resampling too early each time. `state` alone never
+# aborts on a null hero the way `play` does, so polling it directly, without
+# a `play` call in between, is the only way to watch a respawn (or the lack
+# of one) happen without the driver's own abort cutting the observation off.
+open
+tap battleground
+tap map:flags
+tap class:druid:feral
+tap pull
+waitscreen fight 15
+play good 25
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+wait 5
+state
+shot after-probe

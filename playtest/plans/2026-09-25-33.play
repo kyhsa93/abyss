@@ -1,0 +1,49 @@
+# Cell from playpick: mode=battleground map=flags spec=druid:feral
+# style=auto view=1280x800 save=carried.
+#
+# First druid:feral this job has played, and the first mode=battleground
+# session on a non-touch (desktop/mouse) viewport. `src/main.ts`'s hitAt()
+# only answers `auto` when `input.isTouchMode()` is true (checked by reading
+# the code before writing this), and README says the AUTO toggle is "touch
+# only" -- so on 1280x800 there is no control for `style=auto` to tap, and
+# playbot's own play() (scripts/playbot.ts:833-839) is written to notice that
+# and fall back to playing `good` instead rather than waste the pull. That
+# fallback has never been confirmed against an actual journal line before
+# (the one prior style=auto/desktop session, 2026-09-24's mode=walk toward
+# whisper, never checked for it) -- watching for `no-autocast-toggle` in the
+# journal is the point of this script as much as the match itself. If it
+# fires, this also incidentally becomes the good-style Ebb and Flow data
+# point direction.md's #7 asks for ("a good-style run on either map, to see
+# whether active play actually turns one of these around").
+open
+targets
+shot front
+tap battleground
+shot bg-menu
+targets
+tap map:flags
+shot flags-picked
+targets
+tap class:druid:feral
+shot feral-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+state
+ui
+play auto 60
+shot mid1
+state
+bill
+wait 5
+play auto 60
+shot mid2
+state
+bill
+wait 5
+play auto 60
+shot mid3
+state
+bill
+says
+targets
