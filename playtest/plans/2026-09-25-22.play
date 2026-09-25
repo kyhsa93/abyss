@@ -1,0 +1,17 @@
+# Re-verifying #268 ("문으로 걸어 들어간 첫 보스방에서 전투가 시작되지 않는다"),
+# closed 2026-09-25T05:09Z by 0f03ad9 (after the last ledger line at 04:20Z).
+# Verbatim repro from the issue's own "시작되는 쪽" script.
+open
+tap raid
+waitscreen raid 10
+tap next
+waitscreen roster 10
+tap class:paladin:protection
+tap pull
+waitscreen fight 20
+walkto 0 -1000 15
+walkto 0 -6000 60
+state
+play good 20
+state
+says

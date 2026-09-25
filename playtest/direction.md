@@ -289,6 +289,48 @@ have actually stayed inside one script to say so.
 localStorage snapshot/restore step) landing, and a `carried` session across
 two separate `playbot` invocations actually reading back a prior one's state.
 
+### 6. THE VIGIL stalls any evening at one fixed point, win or lose
+
+An `evening` walked into THE VIGIL does not reliably cross it. It is not a
+wipe -- the party stays alive, at full health, dealing and taking nothing --
+it simply stops making progress, converged on the same few square units
+regardless of style, spec or seed. Filed as #281.
+
+**2026-09-25, opened, three convergent runs.** `wander` (druid:guardian,
+seed A): `fault:fight-outlasted-its-budget` at 400s, hero=(274.5,-1572.7).
+`good` (same cell, seed B, a different steering algorithm entirely -- an
+explicit beeline to the boss rather than a random heading): same fault at
+259.1s, hero=(268.1,-1563.2), 11.4 units from the first. A third run, after
+0f03ad9 landed (the unrelated `hud().boss`/`evening` fix for #268, which
+touches this exact fault and the `good`-style steering code): `wander` again,
+same fault at 400s, hero=(272.50,-1573.07) -- within a few units of both
+priors, and unaffected by that fix (vigil has no boss, so `boss`/`away` on the
+fault both read null -- this is a different bug one layer up).
+
+**2026-09-25, fourth confirmation, `flee`.** First flee-style evening
+anywhere in raid/clear mode (flee had only been used in a battleground
+before) and first mode=clear session on a healer spec (priest:discipline).
+Same fault at 300s, hero=(267.88,-1561.31) -- again within a few units of the
+other three. `bill`: `hits=0 taken=0` for the full 300s, hero hp 1350/1350
+start to finish. A style built to run from every pack converges on the exact
+same spot as one that beelines the boss and one that wanders randomly, which
+argues the stall is positional, not a survival or engagement problem.
+
+Screenshots across all runs show the same shape: a fraction of the raid
+clustered by a campfire on the near side, a straggler alone to the west, and
+two or three members fighting alone far to the east -- the party split and
+static, the minimap's "N left in it" count not falling toward zero (191,
+189 seen). `src/dungeon.ts`'s own comment says this hall was built to have no
+packs of its own and to be walked through, not fought in; the README says the
+chasing watchmen stop "when the raid is most of the way up the passage." None
+of the four runs got there.
+
+**Disproved by** an evening crossing THE VIGIL under any of these styles from
+a fresh save at this size/difficulty. **Narrowed by** a run that reaches a
+different stopping point under a fifth style or a different spec/size --
+so far spec, style and seed have all varied and the point has not moved by
+more than about a dozen units.
+
 ## Not yet filed
 
 Findings with nowhere to go yet: either the issue gate was shut when they turned
@@ -442,37 +484,10 @@ steered, only recorded after the fact, so the ledger's `boss` field for
 `scripts/playpick.ts`, outside what this job may touch, so it is written down
 rather than fixed.
 
-**2026-09-25, gate was shut so held here — strong enough to file the moment
-it opens.** First `mode=clear` session on a tank spec (druid:guardian,
-10-normal, fresh save, 1280x800 desktop). `evening wander 400 12` never left
-THE VIGIL: `fault:fight-outlasted-its-budget` at 409.5s, hero parked at
-`(274.5, -1572.7)`, the nearest pursuing foe (`"The Damned"`, hp 900/900,
-unmoved the whole run) at `(69, -2651.0)` — about 1097 units away. `bill`:
-`hits=0 hitsPerMin=0 taken=0 takenPerMin=0` for the full 408s, while the HUD's
-own raid meter credited four other party members and read `raid 164 · heal
-0`, "You" at 0. A `good`-style re-run of the identical cell
-(`playtest/plans/2026-09-25-18.play`, a different RNG seed) stalled the same
-way: `fault:fight-outlasted-its-budget` at 259.1s, hero parked at `(268.1,
--1563.2)` — 11.4 units from the wander run's stopping point — nearest foe at
-`(-2, -2614.0)`, about 1084 units off, `bill` again `hits=0 taken=0` for the
-full 257s, raid meter `raid 177 · heal 0`, "You" at 0. Two different RNG
-seeds, two different steering algorithms (`wander`'s random heading vs
-`good`'s explicit beeline to `hud.boss`), landing within 11 units of each
-other and both stopping about 1080-1100 units short of the pack that chased
-the party in from the threshold — that convergence, not just the slowness, is
-what argues for a fixed obstruction over an unusually large room. `src/
-dungeon.ts`'s own comment on `vigil` says the hall was built to have no packs
-of its own ("what the source puts in here is forty people who are not
-fighting anybody") and to be "a place a raid walks *through* rather than a
-floor it crosses" — a pursuing pack idling here for 400s+ with the player
-stuck short of it, dealing and taking nothing, is already off the room's own
-design intent on top of being a stall. Screenshots `after-evening.png` (wander)
-and `after-evening-good.png` (good) show the same landmark (the forge/
-campfire terrain feature) with the player's own cluster static beside it
-while other party icons sit far to the right, mid-fight. Not filed — twelve
-`playtest` issues were open at session start. File this first the moment the
-gate reopens; it does not need a third confirmation, the two seeds already
-converge tightly enough.
+**Promoted, 2026-09-25.** The druid:guardian vigil-stall note that stood here
+(wander/good, both parking within 11 units of each other) is now [[#6]], with
+two further confirmations (a third seed post-0f03ad9, and a fourth under
+`flee`). Filed as #281.
 
 **2026-09-25, gate was shut so held here — strong enough to file the moment
 it opens.** Second `mode=menus`/carried/820x1180-touch session (first was

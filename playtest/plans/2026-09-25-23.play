@@ -1,0 +1,10 @@
+# Cell from playpick: mode=clear, spec=priest:discipline, style=flee, size=25,
+# difficulty=heroic, view=1280x800, save=carried. First mode=clear session on a
+# healer spec, first flee-style evening (flee has only been used in a
+# battleground before), first attempt at 25/heroic clear (carried save --
+# #273 says carried behaves like fresh across separate playbot runs, so this
+# also tests whether that still locks 25/heroic on this profile).
+open
+tap raid
+shot raid-setup
+targets

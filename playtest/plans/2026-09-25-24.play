@@ -1,0 +1,24 @@
+# Cell from playpick: mode=clear, spec=priest:discipline, style=flee, size=25,
+# difficulty=heroic, view=1280x800, save=carried. 25/heroic is locked on this
+# carried profile (raid-setup screen shows 1/2 on both dropdowns, same
+# carried-behaves-fresh shape #273 already reports), so this runs on the
+# setup default, 10-normal. First mode=clear session on a healer spec, and
+# first flee-style evening anywhere in raid/clear mode (flee has only been
+# used in a battleground before) -- flee avoids all engagement, which is the
+# opposite hypothesis from wander/good on the just-filed Vigil-stall issue:
+# does a style that runs from every pack fare better, worse, or the same in
+# that corridor?
+open
+tap raid
+tap next
+tap class:priest:discipline
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+evening flee 300 12
+shot after-evening
+state
+says
+bill
