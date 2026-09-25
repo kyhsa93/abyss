@@ -178,7 +178,7 @@ import {
   padAt,
   padsLit,
 } from './dungeon'
-import { EXIT_REACH, marchReach, type Corridor } from './sim/travel'
+import { EXIT_REACH, marchReach, standingIn, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
 import { savedKeys, wipeSaves } from './saves'
 import { reloadFresh } from './cache'
@@ -2746,6 +2746,21 @@ if (!import.meta.env.PROD) {
     padLit(): boolean {
       return padHere()
     },
+    /**
+     * Every room whose pad is powered tonight, which is where a walk can end up
+     * that no door leads to.
+     *
+     * The building is not a tree of doors. The Oratory's only way on is the lift
+     * to the Mooring, and a lift draws no door at either end -- so from the west
+     * climb, with both its doors leading to rooms already walked, there is no
+     * onward door anywhere and the way up is back through the Oratory and off
+     * its teleporter. Something crossing this building has to be able to ask
+     * which rooms those are, and `padHere` only answers for the one underfoot.
+     */
+    padded(): string[] {
+      if (!run) return []
+      return padsLit(new Set(run.cleared)).map((c) => c.id)
+    },
     /** Whether the player is standing on it -- what the floor knows. */
     onPad(): boolean {
       return onPad()
@@ -2999,10 +3014,45 @@ if (!import.meta.env.PROD) {
      * can see them -- they are drawn on the floor -- and this is the same list the
      * walk itself reads, so the two cannot come to disagree about where a door is.
      */
+    /**
+     * What is still asleep in the room the party is standing in.
+     *
+     * A door is not the only way on out of a room, and in one room it is not a
+     * way on at all: the Oratory's only onward passage is the lift to the
+     * Mooring and that is held shut by the Oratory's own boss, so the way on is
+     * the thing standing in the middle. A driver that only ever steers at doors
+     * walks in, finds two doors both leading back to the climbs, and walks out
+     * again -- which is what an evening did, eastclimb to oratory to westclimb,
+     * with the Watcher asleep and untouched between them.
+     *
+     * The same list the walk wakes things off, so the two cannot disagree about
+     * where a body is standing. `pulls` comes with each one because that is the
+     * distance the answer changes at, and the player can see all of it: these
+     * are bodies drawn on the floor.
+     */
+    asleep(): Array<{ room: string | null; fight: string | null; x: number; y: number; pulls: number }> {
+      const travel = state.travel
+      if (!travel) return []
+      return travel.corridor.packs.flatMap((pack, i) => {
+        if (travel.woken[i] === true) return []
+        if (standingIn(pack, state.party.length) === 0) return []
+        return [
+          {
+            room: pack.warden?.room ?? roomOfPack(pack.key),
+            fight: pack.warden?.fight ?? null,
+            x: pack.pos.x,
+            y: pack.pos.y,
+            pulls: pack.pulls,
+          },
+        ]
+      })
+    },
     ways(): Array<{
       to: string
       x: number
       y: number
+      roomX: number
+      roomY: number
       away: number
       onX: number
       onY: number
@@ -3019,10 +3069,23 @@ if (!import.meta.env.PROD) {
         const ax = w.at.x - corridor.entry.x
         const ay = w.at.y - corridor.entry.y
         const len = Math.hypot(ax, ay) || 1
+        // And the middle of the room it leads to, which is the thing a walker
+        // actually wants. A door is a point on this room's wall, and a party that
+        // has crossed a doorway is past it: standing in the west climb, having
+        // come up from the Oratory, its Oratory door is four hundred and
+        // ninety-five units *behind* -- so steering at the door walks north,
+        // through it, and out of the room's other door into the Spire. Both of
+        // its doors are on the same bearing from there, which is the case
+        // `doorsOf` already names: "a narrow room whose two doors face the same
+        // way". A room's own middle is on the far side of its doorway from either
+        // side, so it is the one aim that is right from both.
+        const there = placeOf(w.to)
         return {
           to: w.to,
           x: w.at.x,
           y: w.at.y,
+          roomX: there.x,
+          roomY: there.y,
           away: me ? Math.round(Math.hypot(w.at.x - me.pos.x, w.at.y - me.pos.y)) : -1,
           onX: ax / len,
           onY: ay / len,

@@ -1228,15 +1228,76 @@ interface Room {
  * It stops when the ground underfoot changes, which is the game saying the door
  * was taken.
  */
-async function cross(d: Driver, seconds: number, been: Set<string>): Promise<void> {
+/**
+ * Onto this room's teleporter and up it, which is three presses and a walk.
+ *
+ * The gesture is the one a player tries: stand on the ring, press it -- that
+ * opens the map, because the map is where the destination is -- and press a room
+ * that is lit. Nothing else on that screen travels: "only a lit pad answers" is
+ * `hitCitadel`'s own rule, and everywhere else on it is somewhere to walk to.
+ *
+ * Returns whether the party ended up somewhere else.
+ */
+async function pad(d: Driver, been: Set<string>): Promise<boolean> {
+  const at = await d.ask<{ x: number; y: number } | null>('pad()')
+  if (!at) return false
+  const from = (await d.ask<string | null>('chamber()')) ?? '?'
+  // Walked to rather than jumped to: standing on it is what the floor knows and
+  // a lit pad in the room is what the evening knows, and the two are different
+  // facts -- see `onPad` against `padHere`.
+  const until = Date.now() + 60_000
+  while (!(await d.ask<boolean>('onPad()')) && Date.now() < until) {
+    const hero = await d.ask<{ x: number; y: number } | null>('hero()')
+    if (!hero) break
+    await d.steer(at.x - hero.x, at.y - hero.y)
+    await sleep(250)
+  }
+  await d.release()
+  if (!(await d.ask<boolean>('onPad()'))) {
+    fault('could-not-stand-on-the-pad', { at: from, pad: at })
+    return false
+  }
+  if (!(await d.tap('pad'))) return false
+  if ((await d.where()).screen !== 'citadel') {
+    fault('the-pad-did-not-open-the-map', { at: from })
+    return false
+  }
+  // Somewhere new if there is one. A pad reaches every other lit pad, so without
+  // this the evening jumps back to the room it came from.
+  const rooms = (await d.targets())
+    .filter((t) => t.label.startsWith('room:'))
+    .map((t) => ({ id: t.label.slice('room:'.length), label: t.label }))
+    .filter((r) => r.id !== from)
+  const want = rooms.find((r) => !been.has(r.id)) ?? rooms[0]
+  if (!want) {
+    fault('no-lit-room-on-the-map', { at: from })
+    await d.tap('back')
+    return false
+  }
+  if (!(await d.tap(want.label))) return false
+  const there = (await d.ask<string | null>('chamber()')) ?? '?'
+  say('took-the-pad', { from, to: there, wanted: want.id, lit: rooms.map((r) => r.id) })
+  return there !== from
+}
+
+async function cross(
+  d: Driver,
+  seconds: number,
+  been: Set<string>,
+  /** Rooms whose pad this evening has already ridden, so it does not ride back. */
+  rode: Set<string>,
+): Promise<void> {
   const from = (await d.ask<string | null>('chamber()')) ?? '?'
   const until = Date.now() + seconds * 1000
   let closest = Infinity
   let pressed = 0
   let waited = 0
   let step = 0
-  let heading: { x: number; y: number } | null = null
   let was: number | null = null
+  // What `closest` was measured to. A crossing steers at a door; a crossing that
+  // has the room's own boss to wake steers at the boss, and the same number
+  // labelled "nearest the door got" in both cases is a journal that lies.
+  let aimedAt = 'door'
 
   // Its own tight loop rather than a steer and then a `play`. Handing the slice
   // to `play` meant re-aiming once a second at best, and a body crosses thirty
@@ -1245,11 +1306,67 @@ async function cross(d: Driver, seconds: number, been: Set<string>): Promise<voi
   while (Date.now() < until) {
     const where = await d.where()
     if (where.outcome !== 'ongoing') break
+    // The room handed itself over to its own fight, which is a crossing that
+    // ended without the chamber underfoot changing. Without this the walk keeps
+    // pushing at a door through the whole boss fight.
+    if (where.mode !== 'travel') break
     if (((await d.ask<string | null>('chamber()')) ?? '?') !== from) break
 
+    // **This room's own boss, if it is still asleep, before any door.** A door is
+    // not always the way on: the Oratory's only onward passage is the lift to the
+    // Mooring and that is held shut by the Oratory's own boss, so the two doors
+    // it draws both lead back to the climbs. Steering at the nearest of them
+    // walked eastclimb -> oratory -> westclimb with the Watcher untouched a
+    // hundred and five yards away, and would have done it all night.
+    //
+    // A boss is a point to arrive at rather than a door to aim past, so this
+    // skips the heading trick below: a pack notices at twenty yards and the walk
+    // stops being the thing on screen the moment it does.
+    const asleep = await d.ask<
+      Array<{ room: string | null; fight: string | null; x: number; y: number; pulls: number }>
+    >('asleep()')
+    const own = asleep.find((a) => a.fight !== null && a.room === from)
+    if (own) {
+      const hero = await d.ask<{ x: number; y: number } | null>('hero()')
+      if (hero) {
+        await d.steer(own.x - hero.x, own.y - hero.y)
+        closest = Math.min(closest, Math.round(Math.hypot(own.x - hero.x, own.y - hero.y)))
+        aimedAt = `boss:${own.fight ?? '?'}`
+      }
+      step++
+      await sleep(250)
+      continue
+    }
+
     const ways = await d.ask<
-      Array<{ to: string; x: number; y: number; away: number; onX: number; onY: number }>
+      Array<{
+        to: string
+        x: number
+        y: number
+        roomX: number
+        roomY: number
+        away: number
+        onX: number
+        onY: number
+      }>
     >('ways()')
+    // **The room's teleporter, when no door goes anywhere new.** A lift is not a
+    // door and must not be drawn as one -- `dungeoncheck` holds that, because the
+    // opening the Oratory used to draw in its east wall was onto a
+    // hundred-and-thirty-seven yard drop -- so the way up out of the Oratory is
+    // its pad and nothing else. An evening that only ever walks gets as far as
+    // killing the Whisper and then goes round the two climbs forever: measured,
+    // oratory -> westclimb -> spire, all three already visited, and three hundred
+    // seconds of pushing at a door in a room whose boss was already dead.
+    //
+    // Last rather than first, and only when the doors are spent: a pad is a walk
+    // you earned the right not to make again, so taking one while there is still
+    // ground to cross is skipping the game rather than playing it.
+    const spent = ways.every((w) => been.has(w.to))
+    if ((ways.length === 0 || spent) && (await d.ask<boolean>('padLit()'))) {
+      rode.add(from)
+      if (await pad(d, been)) break
+    }
     if (ways.length === 0) {
       fault('nowhere-to-go-from-here', { at: from })
       break
@@ -1258,45 +1375,69 @@ async function cross(d: Driver, seconds: number, been: Set<string>): Promise<voi
     // west into a wall seven hundred yards away; picking it walked there and
     // called the evening stuck. A room that branches has more than one, and the
     // one worth taking is the one that goes somewhere this walk has not been.
+    //
+    // And when none of them does, by whether it leads to a room with a lit pad
+    // in it -- because the building is not a tree of doors. Standing in the west
+    // climb with the Whisper dead, both doors lead to rooms already walked and
+    // there is no onward door anywhere in the building: the way up is back
+    // through the Oratory and off its teleporter. Without this the evening picked
+    // the nearest of the two and spent three hundred seconds two units from a
+    // door it had already been through.
     const fresh = ways.filter((w) => !been.has(w.to))
-    const door = (fresh.length > 0 ? fresh : ways).slice().sort((a, b) => a.away - b.away)[0]!
+    const lit = new Set(await d.ask<string[]>('padded()'))
+    const onward = ways.filter((w) => lit.has(w.to) && !rode.has(w.to))
+    const pick = fresh.length > 0 ? fresh : onward.length > 0 ? onward : ways
+    const door = pick.slice().sort((a, b) => a.away - b.away)[0]!
+    // Once, on the first turn of the loop, because which door this is and why is
+    // the whole of what a crossing decides -- and an evening that went round the
+    // same three rooms could not be told from one that had nowhere to go without
+    // it.
+    if (step === 0) {
+      say('door', {
+        room: from,
+        took: door.to,
+        why: fresh.length > 0 ? 'unvisited' : onward.length > 0 ? 'toward a lit pad' : 'nearest, all visited',
+        ways: ways.map((w) => `${w.to}@${w.away}`),
+        lit: [...lit],
+        rode: [...rode],
+        padHere: await d.ask<boolean>('padLit()'),
+      })
+    }
     closest = Math.min(closest, door.away)
 
     const hero = await d.ask<{ x: number; y: number } | null>('hero()')
     if (hero) {
-      // **Through the door, not up to it.** A walk across the citadel never
-      // resolves by arriving: the code says so out loud -- "a walk across the
+      // **At the room, not at the door.** A walk across the citadel never
+      // resolves by arriving -- the code says so out loud, "a walk across the
       // whole building does not finish, there is nowhere it is trying to get to"
-      // -- and the chamber underfoot changes as you cross into the next room. A
-      // version of this stood on the door for a hundred and twenty seconds with
-      // a hundred and eighty-six bodies asleep around it and called the evening
-      // unfinishable. The session that got through before any of this existed
-      // aimed a thousand yards past the door, and that is why it worked.
-      // Fixed once, and on the corridor's own bearing rather than on the line
-      // from this body to the door. Recomputed each tick it reverses the moment
-      // the body is past the door and the party paces across the doorway forever;
-      // taken off the body's own line it walks diagonally, because a raid comes in
-      // off to one side. Both of those happened before this comment did.
-      // **Steer at the door, and once it is close keep that heading.**
+      // -- and the chamber underfoot changes as you cross into the next room, so
+      // what a walker needs is an aim that is still right once the doorway is
+      // behind it. A door is not that. It is a point on *this* room's wall, and
+      // five models of "past the door" all failed on it: the door itself (paces
+      // across the doorway forever), the door plus each of four constants (the
+      // distance from a door to where the next room begins is not a constant --
+      // six hundred yards out of the way in, twenty at the vigil), the corridor's
+      // own `entry` (not the axis at all on a walk across a whole building), the
+      // nearest door (the vigil's faces a wall seven hundred yards away), and a
+      // heading taken at thirty yards and kept.
       //
-      // The door a corridor reports is the far end of the stretch, not the line
-      // where the next room begins -- and how far past it that line lies is not a
-      // constant: crossing out of the way in happened about six hundred yards
-      // beyond its door, and the vigil's nearest door is twenty yards off. So
-      // "the door plus k" is the wrong model whatever k is, and all four values
-      // tried for it are in the journal as failures, along with the corridor's own
-      // `entry`, which is not the axis at all on a walk across a whole building.
+      // That last one is the one this replaces, and here is what killed it. In
+      // the west climb, having walked up from the Oratory, the party stands four
+      // hundred and ninety-five units *past* that room's Oratory door: both its
+      // doors are then on the same bearing, the Oratory's at 495 and the Spire's
+      // at 733, which is the case `doorsOf` names as "a narrow room whose two
+      // doors face the same way". Steering at the nearer walked through it and
+      // out of the far one into the Spire -- three evenings in a row, and the
+      // journal said `took=oratory` every time.
       //
-      // A heading is the right thing to keep. It is taken while the door is still
-      // thirty yards off, where the subtraction is well conditioned -- taken at
-      // the door it is two nearly equal points subtracted, which is noise, and
-      // this walked twelve hundred yards west on it.
-      const dx = door.x - hero.x
-      const dy = door.y - hero.y
-      const len = Math.hypot(dx, dy) || 1
-      if (heading === null && door.away <= 30) heading = { x: dx / len, y: dy / len }
-      if (heading === null) await d.steer(dx, dy)
-      else await d.steer(heading.x, heading.y)
+      // The middle of the room being walked to is on the far side of the doorway
+      // from either side of it. It is a measurement rather than a constant, and
+      // it is the same aim the session that worked before any of this had -- it
+      // aimed a thousand yards past the door, which is roughly where the next
+      // room's middle was.
+      const dx = door.roomX - hero.x
+      const dy = door.roomY - hero.y
+      await d.steer(dx, dy)
       if (door.away <= 6) waited++
     }
 
@@ -1332,8 +1473,8 @@ async function cross(d: Driver, seconds: number, been: Set<string>): Promise<voi
   say('crossed', {
     from,
     to: (await d.ask<string | null>('chamber()')) ?? '?',
-    nearestDoorGot: closest === Infinity ? 'n/a' : closest,
-    keptHeading: heading ? [Math.round(heading.x * 100) / 100, Math.round(heading.y * 100) / 100] : null,
+    aimedAt,
+    closestGot: closest === Infinity ? 'n/a' : closest,
     endedAt: await d.ask('hero()'),
     presses: pressed,
     // Seconds spent within reach of the door, and what is still alive in here.
@@ -1354,6 +1495,9 @@ async function evening(
   // Every chamber this evening has stood in, so a branching room is not re-entered
   // by the door it was left through.
   const been = new Set<string>()
+  // And every pad it has ridden, which `been` cannot stand in for: the room a pad
+  // is in is walked to and walked through, and riding it is a separate act.
+  const rode = new Set<string>()
   const learned = nothingLearntYet()
   let wipes = 0
   let idle = 0
@@ -1365,10 +1509,25 @@ async function evening(
     const started = Date.now()
     say('room', { n: `${n}/${fights}`, room: at, mode: before.mode })
 
+    // Whether a boss was fought in this room, which is not the same question as
+    // "did this slice start in a fight". A crossing that walks up to the room's
+    // own boss becomes one, in the same room, with no screen in between -- so the
+    // mode this slice started on cannot be used to read what happened in it.
+    let fought = before.mode === 'raid'
     if (before.mode === 'travel') {
-      // Ground to cross, not a fight to win. Walk at the door, fighting whatever
-      // wakes up on the way, until the chamber underfoot changes.
-      await cross(d, seconds, been)
+      // Ground to cross, not a fight to win. Walk at the door -- or at the thing
+      // asleep in the middle, when the room's own fight is the way on -- fighting
+      // whatever wakes up on the way, until the chamber underfoot changes or the
+      // room hands itself over.
+      await cross(d, seconds, been, rode)
+      const handed = await d.where()
+      if (handed.mode === 'raid' && handed.outcome === 'ongoing') {
+        fought = true
+        // The room the fight is in, not the one the slice began in. A boss woken
+        // through a doorway hands over its own room, which is the next one along.
+        say('boss-woken', { room: (await d.ask<string | null>('chamber()')) ?? '?', from: at })
+        await play(d, style, seconds, rng, learned)
+      }
     } else {
       await play(d, style, seconds, rng, learned)
     }
@@ -1381,12 +1540,12 @@ async function evening(
       seconds: Math.round((Date.now() - started) / 1000),
     })
 
-    if (after.outcome === 'ongoing' && before.mode === 'travel' && standingIn !== at) {
+    if (after.outcome === 'ongoing' && !fought && standingIn !== at) {
       // Through a door and still walking: the normal way a corridor ends.
       say('walked-on', { from: at, to: standingIn })
       continue
     }
-    if (after.outcome === 'ongoing' && before.mode === 'raid' && after.mode === 'travel') {
+    if (after.outcome === 'ongoing' && fought && after.mode === 'travel') {
       // A boss died and the building went back to being a building. There is no
       // report and no NEXT on a walked evening -- the code says a walk across the
       // whole citadel does not finish -- so the only thing that says the fight is
@@ -1426,7 +1585,7 @@ async function evening(
         fault('no-way-back-in', { at, after: after.outcome })
         break
       }
-    } else if (before.mode === 'raid') {
+    } else if (fought) {
       // A boss's report has a NEXT on it; a corridor's victory does not stop.
       if (!(await d.tap('outcome:next'))) {
         fault('no-next-after-a-boss', { at })
