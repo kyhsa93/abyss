@@ -1826,6 +1826,45 @@ deliberately late ability-press timed against a kill, and a check of whether
 the same overlap exists at other touch viewports, before filing once the gate
 reopens.
 
+**2026-09-26, first true `mode=raid` pull of The Confluence this job has ever
+run.** The boss id had appeared once before (2026-09-25, `mode=daily`), but a
+daily's `boss` label is unreachable and that session's actual daily turned out
+to be The Two Flasks -- so every number here is new. `spec=druid:restoration`,
+`style=mash`, 10-normal, fresh, 390x844 touch
+(`playtest/plans/2026-09-26-41.play`). Worth the read first: `docs/upkeep.md`'s
+own "raid rewarding play" table has Confluence at played=72%/idle=18%, a +54
+gap in *playing's* favour -- the opposite direction from nearly every entry on
+[[#1]], and `src/sim/boss.ts`'s own comment says why: this is "the one boss on
+this roster whose demand is not about where the raid is standing... it asks
+about the geometry between the fight's own bodies" (an `infection` mark that
+must not be allowed to end up near another one).
+
+Wiped at 84.2s with the boss at 23% (a 77% pull), three of ten dead including
+the player itself (`aliveParty=7/10`, `heroHp=0/1440`), `presses=308
+inDanger=82%`. `bill`: `hits=9 hitsPerMin=6.4 taken=2088 takenPerMin=1487.3
+byMechanic={"spray":2,"infection":6,"engulf":1}` -- only nine mechanic hits
+total, so the death reads as raid/boss-melee attrition piling up under a
+healer that could not out-heal it, not a single dodgeable mistake. `says`
+caught the mechanic's own vocabulary for the first time: "Carrying — taking it
+wide" (an infected body correctly walking off, matching the source comment
+that infection should never be dragged toward another mark) and "It is eating
+them — swap before eight" (a numeric countdown before a merge, not yet seen
+written down anywhere in this file). Not a clean instance of anything on
+[[#1]] -- `mash` is not `idle` or `good`, so this cannot disprove or confirm
+that line -- but it is suggestive in the opposite direction every other entry
+there points: an active-ish style still lost most of the raid and the fight,
+on the one boss the harness's own numbers already say rewards playing well.
+Worth an `idle`/`good` pair on this specific boss before it goes further --
+if `idle` loses here too (plausible, since nothing about the fight favours
+standing still) this would be the second boss on record, after gorged's
+fester mechanic, where the roster's usual shape flips.
+
+The end screen also reproduced the already-tracked `DOWN`-text-over-report
+overlap (#275's family) a fourth way -- a WIPE at normal difficulty, not a
+heroic KILL -- exactly as the 2026-09-25 note on this same issue already
+confirmed happens on every outcome, not just heroic kills. Not commented
+again; nothing new about the mechanism.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

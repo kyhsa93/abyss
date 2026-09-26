@@ -1,0 +1,46 @@
+# Cell from playpick: mode=raid, boss=confluence (The Confluence),
+# spec=druid:restoration, style=mash, size=10, difficulty=normal,
+# view=390x844,touch, save=fresh.
+#
+# First true mode=raid pull of The Confluence this job has ever run. The one
+# prior appearance of this boss id (2026-09-25, mode=daily, druid:balance,
+# good/idle/mash comparison) never actually landed on Confluence -- playpick's
+# boss label for a daily is unreachable and the real daily that day turned out
+# to be The Two Flasks. So every number below is the first this job has on
+# this specific fight.
+#
+# Worth playing carefully because docs/upkeep.md's own "raid rewarding play"
+# table has Confluence at played=72%/idle=18%, a +54 gap in playing's favour --
+# the opposite direction from every entry direction.md's line 1 has found so
+# far, and the second-largest gap on the whole table after Skyward Deck and
+# Long Cold. Read src/sim/boss.ts's confluence section first (per
+# docs/reading-the-source.md's spirit -- know what a fight asks before playing
+# it): its own comment says this is "the one boss on this roster whose demand
+# is not about where the raid is standing... it asks about the geometry
+# between the fight's own bodies" -- an infection/ooze mark that must not be
+# allowed to end up near another one, never placed on the tank, never twice on
+# the same body. mash reacts to countdown telegraphs but does not deliberately
+# separate marked bodies from each other, so this cell is also a look at
+# whether a style with no explicit "keep marks apart" logic can still clear a
+# fight built specifically to ask that question.
+#
+# The boss is index 4 in src/sim/encounters.ts, well past a fresh save's
+# default unlock (Bonegrinder 10N only per #273), so reached the documented
+# way: an invite hash unlocks the tier it names and everything below it.
+open #b=confluence&s=10&h=0
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+state
+shot open
+
+play mash 130
+bill
+state
+shot mid1
+
+play mash 130
+bill
+state
+says
+shot end
