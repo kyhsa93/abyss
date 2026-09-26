@@ -1,0 +1,33 @@
+# playpick cell: mode=clear spec=shaman:restoration style=flee size=25
+# difficulty=heroic view=820x1180,touch save=carried (behaves as fresh, #273).
+# carried/fresh only opens Bonegrinder 10-normal by default, so #b=marrow&s=25&h=1
+# unlocks the whole chain up to 25-heroic before backing out to a real
+# RAID -> WALK IN at the door (direction.md's 2026-09-26 driver-lesson recipe),
+# rather than landing on the invite's own single-fight "visiting" framing.
+#
+# Checked against sessions.jsonl and direction.md first: `flee` has appeared
+# in exactly two evenings before (priest:discipline and druid:guardian, both
+# 10-normal, both stalled in THE VIGIL as part of [[#6]]'s convergence
+# evidence) and never at 25-heroic, and never on a healer spec. [[#6]] already
+# has two styles (good, dodge) that stalled at 10-normal but crossed THE
+# VIGIL clean at 25-heroic, with an open question of whether size/difficulty
+# is the real axis rather than style -- this is the first chance to test that
+# with a style that has already shown the 10-normal stall shape twice. It is
+# also a healer, so a clean or stalled crossing here also feeds [[#1]] and
+# [[#7]]'s question of what a body that only flees costs a raid, this time
+# across a whole evening rather than one pull.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening flee 260 5
+state
+shot end
+says
+bill

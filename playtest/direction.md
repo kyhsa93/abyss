@@ -521,6 +521,23 @@ large even without moving at all. Worth a `good`-style pull on The Last
 Whisper specifically before reading 32%-in-200s as anything about the boss
 rather than about a body meleeing air from two hundred units away.
 
+**2026-09-26, sharpened by the first `flee`-style evening at 25-heroic and
+the first healer given one.** `mode=clear`, shaman:restoration, 25-heroic,
+carried (behaves as fresh per #273), 820x1180 touch
+(`playtest/plans/2026-09-26-47.play`), reached via the driver-lesson unlock
+recipe. `flee` had appeared in exactly two evenings before this, both
+priest/druid at 10-normal (both stalled in THE VIGIL, [[#6]]'s own evidence);
+this is the first at this size/difficulty and the first on a healer. Bonegrinder
+heroic died at `fightTime=107` with `presses=0 inDanger=2%`, the healer's own
+hp finishing untouched at `1485/1485`, and the raid at `24/25` (one dead) --
+one heal never cast, one press never made, the boss down anyway, and only one
+raid casualty against a room this line has already seen a `wander` healer cost
+eight lives in at the same size and difficulty (2026-09-26, priest:discipline,
+above). A sixth style/role pairing now joins idle, `good`-as-healer, `wander`,
+`flee`-as-dps and `dodge` in carrying a body that contributes nothing, and the
+first time a healer under a style that never even threatens to heal has still
+cost the raid this little at heroic.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -1049,6 +1066,47 @@ Bloodgorged) has been priced in raid deaths on a real heroic kill rather than
 in the healer's own missed heals. Consistent with the line's standing
 argument -- the body survives regardless of what it does -- but this is the
 sharpest case yet of the raid, not the player, paying for it.
+
+**2026-09-26, twelfth confirmation, a third style crossing clean specifically
+at 25-heroic, and a much harder stall found downstream of it.** `mode=clear`,
+shaman:restoration, `flee`, 25-heroic, carried (behaves as fresh per #273),
+820x1180 touch (`playtest/plans/2026-09-26-47.play`). `flee` had stalled THE
+VIGIL twice before, both times at 10-normal (priest:discipline and
+druid:guardian, both above); here it crossed in about 29 seconds (door at
+9.2s, out at 38.4s, `presses=9`) -- a third style, after `good` and `dodge`,
+to cross THE VIGIL clean specifically at 25-heroic where four of five styles
+tried at 10-normal have stalled. Another point for size/difficulty, not
+style, being what actually separates a clean crossing from a stall here.
+
+But the evening did not get away clean: past a Bonegrinder-heroic kill (see
+[[#1]]'s new entry above), THE WEST CLIMB stalled for the entire 260s budget
+given it, worse than the one other stall this line has on record for this
+room -- but read `scripts/playbot.ts`'s `cross()` (line 1283) before crediting
+`flee` for it, per this repo's own rule about not guessing what a source
+would say. `cross()` steers with one fixed `d.steer()` call per loop and never
+branches on `acting`/style at all -- confirming in code what the 2026-09-25
+idle-style entry above already established by inference ("corridors ignore
+style"). So whatever pushed `closestGot` to 553 (against a
+`westclimb`-to-`westclimb` self-loop, `stillAlive=167`) was not `flee`'s own
+away-from-boss term; that term only ever runs inside `play()`'s in-fight
+branches, which `cross()` never calls.
+
+The comparison to the one other WEST CLIMB stall on record (`nearestDoorGot=12`,
+above) also is not the controlled pair it first looks like: that session's own
+text says its `carried` save "behaved as fresh per #273's still-open port bug
+(setup showed the locked default, 10-normal)" -- it was never actually
+25-heroic despite the cell asking for it. So `553` vs `12` compares a real
+25-heroic corridor (25 bodies, `stillAlive=167`) against a 10-normal one that
+silently downgraded, not two runs of the same size and difficulty. The more
+grounded reading, tying back to the `roomUnderfoot()`/`partyMiddle()` centroid
+mechanism already read from source this session (above): more raiders in a
+bigger, harder pull mean more bodies peeling off to fight rather than walk,
+which is exactly what that mechanism says drags the crossing check's own
+measure of "closest" (whatever it is keyed to) further from the door. Worth a
+`flee` or any other style's West Climb crossing at 10-normal on a save that
+has genuinely reached that size/difficulty, and a same-size/difficulty repeat
+at 25-heroic under a different style, before trusting 553-vs-12 as anything
+more than the size difference this pairing failed to control for.
 
 ### 7. A battleground does not carry a passive body the way a raid does
 
