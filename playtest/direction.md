@@ -825,6 +825,50 @@ Driver lesson, not a game finding -- the evening finished normally (5/5 rooms,
 0 wipes, no further faults) and this is entirely inside `scripts/playbot.ts`,
 outside what this job may touch.
 
+**2026-09-26, tenth confirmation, a second style crossing on the same class,
+and the tightest style-independence pairing this line has produced.**
+`mode=clear`, rogue:assassination, `mash`, 10-normal, fresh, 820x1180 touch
+(`playtest/plans/2026-09-26-32.play`). The only other clean 10-normal VIGIL
+crossing on record (the fifth-style entry above) was this exact class under
+`melee`, 26 seconds door-to-door. This run, same class and cell, different
+style, crossed in almost the same time: door at 22.1s, out at 48s, 25.9
+seconds, `presses=3`. Two different steering algorithms (`melee`'s beeline
+and `mash`'s urgent-telegraph-reactive movement), same class, same
+size/difficulty/save, landing within a second of each other -- a tighter
+match than either of the two 25-heroic clean crossings (`good`/`dodge`, on
+two different classes) managed against the 10-normal stalls. That argues for
+something about rogue:assassination specifically (its own move speed, a
+racial, or simply this class's starting position relative to the corridor)
+rather than size/difficulty being the deciding variable after all -- **not
+settled**, since a fresh save's roomSeed is keyed off `Date.now()` per
+`docs/playtest.md`'s own note, so two rogue pulls landing close could still
+be two lucky rolls of the watchmen's placement rather than a class effect.
+Worth a `wander`, `good` or `flee` pull on rogue:assassination specifically
+(the three styles that have stalled on *other* classes at this exact cell)
+before trusting "the class" over "the seed."
+
+Same session, the evening went far past THE VIGIL for the first time in this
+job's history: eight distinct chambers across eleven of a twelve-room budget
+(`threshold -> vigil -> spire -> westclimb -> oratory -> eastclimb -> mooring
+-> rise`), two bosses killed clean under `mash` (Bonegrinder at 400.2s of
+play, phase 1; The Last Whisper at 400.1s of play, phase 1), and the first
+mid-evening wipe this job has seen happen *inside* an actual boss room rather
+than in a travel corridor -- The Skyward Deck, 62s into the pull, phase 2,
+`heroHp=0/1530` (the player dead), `aliveParty=9/10`, boss at 63%. That
+matters for [[#3]]: `outcome:retry` was tapped on this wipe and it worked
+completely normally -- `mode` read `raid` (not `travel`) on the very next
+journal line, the room counter advanced (`room n=9/12`), and the retried pull
+went on to kill the boss cleanly 400 seconds later. [[#3]]'s own reports have
+all been travel-mode wipes (a corridor pack catching the party before a boss
+room); this is the first same-job evidence that a *boss-room* wipe's own
+PULL AGAIN works exactly as advertised, which narrows [[#3]] toward "travel
+wipes specifically," not "wipes in general," rather than broadening it.
+
+The evening ultimately did stop, at a room this line has never named before:
+THE RISE, past the door the boss room (`mooring`) let out through. See
+*Not yet filed*, below, for the mechanism and why it is not yet a standing
+hypothesis.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
@@ -992,6 +1036,40 @@ Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to
 *Tried and dropped* with the reason.
+
+**2026-09-26, held, gate shut, a new stall shape and a new fault.** The
+[[#6]] evening above (rogue:assassination, `mash`, 10-normal, fresh,
+820x1180 touch, `playtest/plans/2026-09-26-32.play`) got further than any
+prior evening -- past two boss kills and a boss-room wipe-and-recover -- and
+then stopped for the first time in a room this line has never named: THE
+RISE, past THE MOORING. First `scripts/playbot.ts`'s own pad-approach
+(`pad()`, line 1241) failed to reach the room's teleporter inside its 60-
+second budget and logged a fault this job's journals have never carried
+before: `fault:could-not-stand-on-the-pad
+{"at":"rise","pad":{"x":3356.12,"y":-11401.07}}`. `cross()`'s fallback then
+tried the ordinary door-steering path instead (`"why":"toward a lit pad"`)
+and also failed to close the distance in the room's full 400-second budget --
+`closestGot=50`, ending 400 units from where it started -- so the evening
+declared `fault:fight-outlasted-its-budget {"room":"rise", ...}` and stopped
+at 11 of its 12-room budget. The screenshot (`after-evening.png`) shows the
+exact shape every VIGIL/West Climb stall has shown: the whole ten-body party
+clustered together and untouched near a landmark (a pair of tall pillars),
+full green health bars, the damage meter reading `1 You / raid 0`, `662s` on
+the clock, nothing happening.
+
+Read `pad()`'s own code before guessing: it walks a straight line at the
+pad's raw coordinate with no obstacle awareness at all, the same
+blind-beeline shape `cross()`'s own door-steering already has (the mechanism
+[[#6]] has been narrowing toward all session). So this could be the same
+class of thing -- a straight line from wherever the party happened to be
+that a hazard or a gap in THE RISE's own ground sits across -- or it could be
+a genuinely unreachable pad, and only one pull has ever reached this room to
+say. Fourteen open `playtest` issues held the gate shut; worth a repeat evening
+that reaches THE RISE by a different route or class before filing, since a
+single pull is what [[#6]]'s own history says not to trust yet, and worth
+checking `src/dungeon.ts`'s own entry for `rise` first per this repo's
+`docs/reading-the-source.md` rule, rather than guessing further from one
+screenshot.
 
 **2026-09-26, driver lesson, not a game finding.** How to get a `mode=clear`
 or `mode=walk` cell to actually test the size/difficulty `playpick` assigns,

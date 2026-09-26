@@ -1,0 +1,35 @@
+# Cell from playpick: mode=clear, spec=rogue:assassination, style=mash,
+# size=10, difficulty=normal, view=820x1180,touch, save=fresh. 10-normal is
+# open on a fresh save by default, no unlock recipe needed.
+#
+# This deliberately pairs the one class that crossed THE VIGIL clean under
+# `melee` (rogue:assassination, 2026-09-25-25.play, 26s, presses=2) with a
+# different style (`mash`) on the same size/difficulty/save. [[#6]] in
+# direction.md has since argued size/difficulty matters more than style
+# (both 25-heroic clean crossings vs four 10-normal stalls under
+# wander/good/flee/mash), which predicts this 10-normal rogue pull stalls
+# like the other 10-normal mash run (priest:shadow, 2026-09-26) rather than
+# crossing clean the way this same class did under melee. If it crosses
+# clean instead, that argues something about the class/spec itself
+# (rogue:assassination's own movement, not the style) explains the one prior
+# clean 10-normal crossing.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:rogue:assassination
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening mash 400 12
+shot after-evening
+state
+says
+targets
+ui
+bill
