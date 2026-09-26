@@ -482,6 +482,33 @@ same way, and this session adds a target boss (`whisper`, for the second
 time) and a second `mash` reproduction rather than a new axis or a sharper
 mechanism; the issue already says plainly what this confirms.
 
+**2026-09-26, a sixth confirmation, first ranged dps class, and the first
+`mode=clear` reproduction of the retry-wipe shape rather than [[#6]]'s no-wipe
+stall.** `mode=clear`, mage:frost, `wander`, 10-normal, fresh, 1280x800 desktop
+(`playtest/plans/2026-09-26-23.play`) -- deliberately the same
+size/difficulty/style triple as the cell that first opened [[#6]]/#281 on
+druid:guardian, to see whether the VIGIL wall is class-independent the way
+`cross()`'s spec-blind steering predicts. It is, but not in the same shape:
+the threshold's watchmen chased this pull down and killed it
+(`crossed from=vigil to=vigil ... wiped at=vigil outcome=wipe wipes=1` at
+56.3s), not the no-wipe stall the identical cell produced on druid:guardian.
+PULL AGAIN was tapped and re-wiped instantly (`hero.hp=0`, every ability slot
+`locked`), a second `evening` call over the same stuck room produced the
+identical shape a room later, and the evening declared itself stuck at
+118.5s: `fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}`. Not
+commented on #271 again -- five specs, four styles and two save states had
+already nailed down "PULL AGAIN never revives a travel-mode wipe"; this adds
+a sixth spec (the first ranged pure-dps one) and the first confirmation under
+`wander` specifically, where every prior #271 report used `mash`, `auto` or a
+plain walk. Gate held shut (14 open `playtest` issues, unchanged), so nothing
+filed.
+
+Worth folding into [[#6]]'s own picture: the same size/difficulty/style triple
+that stalled druid:guardian in place without ever wiping instead wiped and got
+stuck here. Which of the two happens looks like it depends on whether the
+threshold's watchmen actually catch the party this particular run, not on
+anything about class, size or difficulty measured so far.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five

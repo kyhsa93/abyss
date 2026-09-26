@@ -1,0 +1,33 @@
+# Cell from playpick: mode=clear, spec=mage:frost, style=wander, size=10,
+# difficulty=normal, view=1280x800, save=fresh. 10-normal is open on a fresh
+# save by default, no unlock recipe needed. First mode=clear/walk evening on
+# mage:frost (its one prior appearance was mode=walk/style=auto/25-heroic,
+# 2026-09-24) and the first ranged dps class run through the whole-evening
+# corridor test at all -- every prior clear/walk cell on record is a tank
+# (warrior:protection, druid:guardian x2, paladin:protection), a healer
+# (priest:discipline, druid:restoration), or a melee dps (paladin:retribution
+# x2, rogue:assassination). This is also a repeat of the exact
+# size/difficulty (10-normal) and style (wander) that first opened [[#6]]/#281
+# on druid:guardian, so it tests whether that VIGIL stall is class-independent
+# the way the corridor-steering code (cross(), which reads no spec at all)
+# predicts, or whether it was coincidental to that one class.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:mage:frost
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening wander 400 12
+shot after-evening
+state
+says
+targets
+ui
+bill
