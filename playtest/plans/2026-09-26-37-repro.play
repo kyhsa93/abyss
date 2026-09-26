@@ -1,0 +1,12 @@
+# Clean isolation of -34.play's anomaly: settings + key p + back + raid,
+# nothing else. -35/-36 confirmed settings+back alone (no key) shows the
+# normal raid-setup screen. This checks whether `key p` alone is what makes
+# `tap raid` skip straight to roster/travel.
+open
+tap settings
+key p
+tap back
+tap raid
+targets
+state
+shot after-raid-tap

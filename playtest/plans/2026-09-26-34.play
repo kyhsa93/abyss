@@ -1,0 +1,29 @@
+# Same question as -33.play, corrected: RAID needs a size/difficulty screen
+# tapped through before class:* targets exist (my first attempt skipped it
+# and only proved home has no class controls, not the actual question).
+# src/input.ts sets menuRequested on Escape *or* p unconditionally, but only
+# the fight screen's own update loop ever reads it -- the escape version of
+# this bug is already held in direction.md/queued as an issue. This checks
+# whether the undocumented `p` binding shares the exact same silent-first-
+# PULL defect (same mechanism predicts yes, since the listener does not
+# distinguish which key set the flag).
+open
+tap settings
+key p
+tap back
+tap raid
+targets
+tap next
+targets
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+state
+shot after-pull
+
+# Confirm recovery matches the escape report: a second press on the same
+# stuck screen should work normally this time.
+tap pull
+waitscreen fight 15
+state
+shot second-attempt

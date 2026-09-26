@@ -1,0 +1,9 @@
+# Second control: settings visit and back, but no key press at all. Isolates
+# whether visiting settings alone (without the p/escape flag) is enough to
+# make `tap raid` skip the setup screen, or whether the key press is required.
+open
+tap settings
+tap back
+tap raid
+targets
+shot after-raid-tap

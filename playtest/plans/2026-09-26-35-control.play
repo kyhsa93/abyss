@@ -1,0 +1,8 @@
+# Control for -34.play's surprise: does `tap raid` from home skip straight to
+# roster/travel on a plain fresh session with no settings visit and no key
+# press at all, or only after the p-key flag is set? No settings, no key.
+open
+targets
+tap raid
+targets
+shot after-raid-tap

@@ -1157,6 +1157,51 @@ the gate shut at session start (unchanged from the last several sessions) --
 file this first thing once it reopens, with `playtest/plans/2026-09-26-10.play`
 and both screenshots.
 
+**2026-09-26, confirmed a second way -- `p` shares the bug exactly, and a
+second, unconfirmed anomaly turned up alongside it.** Same cell
+(`mode=menus`, 1280x800 mouse, carried), no prior session had tried the
+undocumented `p` binding specifically (only `Escape`). `open` -> `tap
+settings` -> `key p` -> `tap back` -> `tap raid` -> `tap next` -> `tap
+class:mage:frost` -> `tap pull` (`playtest/plans/2026-09-26-34.play`,
+`/tmp/pt-34`) reproduced the identical shape: `tap pull` returned
+`screen=roster mode=travel`, never `fight`; `state` showed the evening
+already moving underneath (`chamber:"threshold"`, ability bar `"range"`);
+the screenshot (`after-pull.png`) shows PICK YOUR CLASS still on screen with
+the button reading "WALK IN -- 10 player normal" and the green line
+underneath already reporting "The Threshold -- nothing left alive in it". A
+second `tap pull` on the same stuck screen, appended to the same script
+and re-run, recovered normally into `screen=fight`. `p` and `Escape` are the
+same defect, not two.
+
+Chasing the recovery run further turned up something this note cannot yet
+explain: re-running the *entire* script from `open` (not a second tap in the
+same session -- a fresh `playbot` invocation, a different port, a different
+travel-mode seed, confirmed by the journal's own `seed=` line differing
+between runs) had `tap raid` land straight on `screen=roster mode=travel`,
+skipping the raid-setup screen entirely, and `tap pull` immediately returned
+`outcome=wipe` at `chamber=vigil` -- an evening that had already been walked
+into THE VIGIL and lost, with no setup screen, no class pick and no pull
+ever knowingly pressed by the script for it. The DEFEAT screen
+(`playtest/plans/2026-09-26-34.play` rerun, second invocation) matches
+[[#3]]'s already-documented shape exactly. This is not #273's port-collision
+mechanism -- the two invocations used different ports (5312 and 5447) and
+different seeds, which #273's own test already treats as proof of separate
+origins with no shared `localStorage`. Two follow-up controls on fresh
+invocations -- `open` -> `tap raid` alone, and `open` -> `tap settings` ->
+`tap back` -> `tap raid` with no key press at all -- both showed the normal
+setup screen (`playtest/plans/2026-09-26-35-control.play`,
+`-36-control2.play`), isolating the trigger to the `p` press specifically.
+But a third attempt at the exact same sequence that produced the anomaly
+(`open` -> `tap settings` -> `key p` -> `tap back` -> `tap raid`,
+`-37-repro.play`) came back normal on the very next try. One anomalous run
+out of two attempts at the identical script is not yet a finding -- it reads
+as wall-clock timing jitter in when the stale flag gets consumed relative to
+the `raid` tap, the same class of thing this file already documents for
+heroic pull outcomes, but on a screen transition instead of a boss timeline.
+Not filed regardless (gate shut) and not promoted to a standing hypothesis --
+worth a repeat that captures `says`/`state` on every intervening frame if it
+turns up a third time, before trusting a mechanism rather than a coincidence.
+
 **2026-09-24.** First daily-mode session to finish: `mode=daily`, "The Two
 Flasks" (25 normal, FALTERING), paladin protection, `dodge`, 1280x800 desktop,
 carried save. Wiped at 152s, 24% boss, `bill` blamed nearly all of it on
