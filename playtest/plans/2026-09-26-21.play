@@ -1,0 +1,44 @@
+# playpick: mode=daily boss=flasks(unreachable -- see direction.md's
+# driver-lesson note, a daily's boss is drawn from the UTC date, not a
+# control on this screen) spec=hunter:marksmanship style=melee
+# view=844x390,touch save=carried(behaves as fresh per #273)
+#
+# Probed first (2026-09-26-20-probe.play): today's actual daily is The Three
+# Crowns, 25-player normal, SWARMING -- a boss this job has never actually
+# fought (its two prior "crowns" appearances were both mode=walk, where the
+# name is only a coverage label and the evening never reaches the room).
+# Hunter has one spec, so its class tile just reads "Hunter" (class:15 in
+# this grid) -- src/sim/classes.ts's specLabel drops the spec suffix when a
+# class has only one, which is why marksmanship never appears as a choice.
+#
+# The point of this pull: hunter:marksmanship is a pure-ranged kit, and
+# `melee` style has only ever been run against it once before, in a
+# battleground (Ebb and Flow), where bill read hitsPerMin=0 for the whole
+# match -- direction.md flagged that as worth a repeat against a real
+# raid/daily pull rather than a battleground where the body kept dying.
+open
+tap daily
+tap class:15
+targets
+ui
+shot setup
+tap start
+waitscreen fight 15
+state
+shot open
+
+play melee 80
+bill
+state
+shot mid1
+
+play melee 80
+bill
+state
+shot mid2
+
+play melee 60
+bill
+says
+state
+shot end

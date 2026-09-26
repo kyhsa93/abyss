@@ -312,6 +312,59 @@ suggestive rather than a controlled pair -- a second `dodge` pull, or a
 a tank who never taunts costs a heroic raid specifically, rather than one
 unlucky roll.
 
+**2026-09-26, sharpened by the first pull of The Three Crowns this job has
+ever fought (its two prior appearances were both `mode=walk` coverage labels
+that never reached the room) and the sharpest case yet of "wrong still costs
+nothing."** `mode=daily` (today's actual run, confirmed by probe: 25-player
+normal, SWARMING), hunter:marksmanship, `melee`, 844x390 touch, carried
+(behaves as fresh per #273). Two independent pulls of the same daily instance
+(`2026-09-26-21.play`, three chunks to 218s; `2026-09-26-22-finish.play`, one
+straight 257s pull) both landed on the same shape.
+
+The Three Crowns puts the crown -- the one of three otherwise-identical
+bodies that can actually be hurt -- on a rotating body, and the other two
+"drink" (`thirst`) from whichever living party member stands nearest them;
+`src/sim/boss.ts`'s own `untouchable()` makes a press against a body that
+does not currently hold the crown do *nothing at all*, and its `updateThirst`
+skips the crowned body and whichever was just ceded it, draining only the
+rest. `src/sim/ai.ts` has the AI refuse a spot inside that drain radius
+outright, so answering it (or falling into it) is the player's to do alone.
+`melee`'s own steering (`scripts/playbot.ts`) just walks the player onto
+`hud().boss`'s raw coordinate and swings there, with no idea whether that
+body currently holds the crown -- and `hud().boss` (`src/main.ts:2910`)
+exposes only one boss actor's name/hp/position, nothing about which of the
+three bodies is real or where the other two stand, so the driver has no way
+to do better even if the style were rewritten to try.
+
+Both pulls of this daily instance spent effectively the *entire* fight this
+way: `byMechanic` never carried a single `rotation`, `ballast`, `nuclei` or
+`adds` hit despite `says` logging all four calls firing on schedule --
+`thirst` was the only entry recorded, climbing from 1067 hits at 82.5s
+(829/min) to 5274 hits by 257s (1230/min, still climbing) in the longer run.
+The player's own hp fell to 662/1620 (41%) and it finished 18th-to-last of 25
+on the damage meter at ~26-27 dps against a top line near 128 -- consistent
+with most of its own presses landing on an untouchable target. And despite
+an entire pull of a ranged dps parked on the one thing the raid is built to
+keep clear of, dealing next to nothing and taking a mechanic meant to be
+split or avoided entirely: `aliveParty` held at 25/25 both times and the
+boss dropped cleanly to 10-20% on schedule. The raid did not merely survive
+one body doing nothing (the shape every other entry on this line has); it
+absorbed one body doing something *continuously wrong*, on the one fight in
+the roster built specifically to bill wrongness, without so much as an
+`inDanger` reading above 0% for that body's own health finishing the pull
+alive both times.
+
+**Not a clean instance of this line's own disprove-by-`good` condition**,
+and worth flagging plainly rather than filing: `src/render/draw.ts`'s
+`drawCourt` gives a real player an unambiguous visual (a filled disc under
+the crowned body, a warm ring under whichever one is actively drinking) that
+`melee`'s steering simply cannot see, so this is a demonstrated driver
+vocabulary gap on this specific fight, not evidence a human would make the
+same mistake. What it still shows cleanly is the raid's own tolerance for a
+body executing about as wrong as this vocabulary can produce, for an entire
+fight, on the one encounter that is explicitly a test of exactly that -- see
+the matching driver-lesson note below.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -1311,6 +1364,32 @@ job may touch, so it is written down rather than fixed. Worth a real fix (an
 `auto` movement policy, e.g. reusing `dodge`'s steer-away-from-danger logic)
 before trusting any past or future `auto`-style ledger line as evidence about
 the game's own AUTO feature rather than about a body that never moves.
+
+**2026-09-26, driver lesson, not a game finding.** `melee` (and by the same
+logic, `good`'s own toward-boss term) steers at `hud().boss`'s raw
+coordinate and nothing else -- fine on every fight that has one hittable
+body, and silently wrong on The Three Crowns, the first fight in the roster
+where the body the health bar names can be the *wrong* one to stand at or
+hit. `src/main.ts:2910`'s `hud()` exposes only `bossOrNone(state)` (name, hp,
+maxHp, x, y) -- nothing about `src/sim/boss.ts`'s `crowned()`/`untouchable()`
+state, and nothing about the other two court bodies at all, so there is no
+richer `window.__abyss` read that would let a smarter style avoid this
+either; the gap is in what the driver's read-only window shows, not only in
+how `melee` uses what it has. Measured directly this session (see [[#1]]'s
+new Three Crowns entry above): two full pulls where a `melee`-style hunter's
+`byMechanic` tally was 100% `thirst`, hitsPerMin climbing past 1200, own
+health down to 41%, and 18th of 25 on the damage meter, despite `rotation`,
+`ballast`, `nuclei` and `adds` all firing on schedule per `says`. `src/render/
+draw.ts`'s `drawCourt` gives a real player a clean visual read on the same
+question (a filled disc under the crowned body, a warm ring under whichever
+decoy is actively drinking) that this driver vocabulary has no way to check,
+so a human playing this fight would not make the mistake `melee` makes here.
+Worth remembering before trusting a `melee`- or `good`-style ladder/bill
+reading on this specific boss as evidence about the fight rather than about
+the style's blind spot -- and worth an enhancement issue, once the gate
+reopens, proposing `hud()` expose which court body currently holds the
+crown (or the untouchable flag on the named boss), the same class of gap
+`mode()` was added to close for travel-vs-fight.
 
 ## Tried and dropped
 

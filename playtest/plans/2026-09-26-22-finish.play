@@ -1,0 +1,14 @@
+# Follow-up to 2026-09-26-21.play: same daily instance (The Three Crowns,
+# 25n SWARMING), same class/style, deterministic pull-1 replay, just played
+# straight through to the finish this time to see how the pull actually
+# resolves after the earlier three-chunk run left it at 218s/phase3/20%.
+open
+tap daily
+tap class:15
+tap start
+waitscreen fight 15
+play melee 260
+bill
+says
+state
+shot end

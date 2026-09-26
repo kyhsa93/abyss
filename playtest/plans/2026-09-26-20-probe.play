@@ -1,0 +1,16 @@
+# playpick: mode=daily boss=flasks(unreachable, see direction.md's
+# driver-lesson note -- a daily's boss is drawn from the UTC date, not a
+# control on this screen) spec=hunter:marksmanship style=melee
+# view=844x390,touch save=carried(behaves as fresh per #273)
+#
+# Probe only: find today's actual daily boss/size/affix and which class:N
+# tile is Hunter Marksmanship before committing to the full script. This
+# cell is worth playing straight: hunter:marksmanship is a pure-ranged spec
+# and melee style has never been run against it in an actual raid/boss pull
+# before (the one prior marksmanship+melee session was a battleground, Ebb
+# and Flow, where bill read hitsPerMin=0 for the whole match -- direction.md
+# flagged this as worth a repeat on a ranged spec against a real fight).
+open
+tap daily
+targets
+shot daily-setup
