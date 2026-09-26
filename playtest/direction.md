@@ -1900,6 +1900,46 @@ heroic KILL -- exactly as the 2026-09-25 note on this same issue already
 confirmed happens on every outcome, not just heroic kills. Not commented
 again; nothing new about the mechanism.
 
+**2026-09-26, held, gate shut, a third under-44px control found by source
+math as well as by `ui`.** First `mode=menus` session honestly labelled
+`save=fresh` -- every prior menus session (2026-09-24-9, -19, -30,
+2026-09-26-1, -10, -24, -34) passed `--profile playtest/profile`, but #273
+already showed a carried run only ever sees its own invocation's port, so
+every one of those was actually playing a fresh origin without the ledger
+saying so; this is the first to skip `--profile` outright and the first
+`mode=menus` session on a desktop/mouse viewport with no carried-desktop
+history to compare against a genuinely fresh one
+(`playtest/plans/2026-09-26-44.play`, 1280x800, `/tmp/pt-44`). The front
+page, raid setup (both dropdowns read `1/2`, matching a fresh save's single
+open rung), settings, RECORD (`0 pulls . 0 kills`, `nothing pulled yet`),
+DAILY and BATTLEGROUND setup screens all matched `README.md` and prior
+reports; the front page's SHARE still read `NO LUCK` (already-known CDP
+clipboard-permission artifact, not filed).
+
+What is new: `ui` on the settings screen flagged `camera:3 40x52` under the
+44px floor (`under44=["camera:3 40x52"]`, `journal.jsonl:25`) -- the same
+seven-button camera-zoom row #282 already covers for a stale README (four
+steps described, seven built), but nobody had run `ui` against that row and
+read the `under44` field before. Read `src/render/menu.ts`'s own layout math
+rather than trust one viewport's rounding: `settingsLayout()`'s `spread()`
+divides a row of width `w = min(340, L.w - 2*pad())` into `ZOOM_NAMES.length`
+(7) equal buttons with a fixed 6px gap between them -- `cw = (w - 6*6) / 7`.
+`w` caps at 340 on every viewport wide enough to matter (anything much past
+360px), so `cw = (340 - 36) / 7 ≈ 43.43px`, under 44 by construction, for
+all seven buttons, not only the one `ui` happened to round down this run.
+The screenshot (`settings.png`) shows why only one got flagged in practice --
+antialiasing/rounding puts some right at the 44px edge and only the
+narrowest label ("IN", the default step) under it on this exact run -- but
+the source math says the whole row is built one pixel-and-a-bit under the
+floor the rest of the game holds to, at `docs/playtest.md`'s own "facts
+rather than taste" standard. Distinct from #276 (fight-screen corner
+buttons) and #279 (the AUTO toggle) -- a third screen, a third control,
+same floor. Fourteen open `playtest` issues held the gate shut at session
+start (unchanged); file first thing once it reopens, with this script and
+the `settings.png` shot, and reference the `cw≈43.43` derivation alongside
+the live `under44` reading so the report does not rest on one run's
+rounding alone.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

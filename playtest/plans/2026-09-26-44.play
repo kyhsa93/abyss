@@ -1,0 +1,70 @@
+# Cell from playpick: mode=menus, view=1280x800, save=fresh.
+#
+# Every mode=menus session so far (2026-09-25-9, -19, -30, 2026-09-26-1,
+# -10, -24, -34) used --profile playtest/profile, i.e. save=carried -- but
+# #273 already established that a carried run only ever sees its own
+# invocation's port, so every one of those sessions actually played a fresh
+# origin without the ledger ever saying so explicitly. This is the first
+# menus session to be honestly labelled fresh (no --profile at all) and the
+# first on a desktop/mouse viewport with no prior carried-desktop baggage
+# (2026-09-26-10/-34 were both carried at this same 1280x800). Surveying
+# the front page's own share line (README: "a player who has done nothing
+# yet claims nothing"), the raid setup screen's lock state, and the record
+# screen's zero-state, on a save that is actually, unambiguously new.
+
+open
+targets
+ui
+shot front
+
+tap share
+shot front-shared
+targets
+
+open
+tap raid
+targets
+ui
+shot raid-setup
+
+tap difficulty
+shot difficulty-open
+targets
+
+key Escape
+tap next
+targets
+shot classpick
+
+tap back
+tap back
+open
+tap settings
+targets
+ui
+shot settings
+
+tap name
+shot name-focused
+targets
+
+tap back
+open
+tap record
+targets
+ui
+shot record
+
+tap back
+open
+tap daily
+targets
+ui
+shot daily
+
+tap back
+open
+tap battleground
+targets
+ui
+shot bg-setup
