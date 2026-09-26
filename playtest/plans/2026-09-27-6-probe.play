@@ -1,0 +1,19 @@
+# playpick: mode=daily boss=saved (unreachable -- a daily's boss is drawn from
+# the UTC date, not choosable) spec=warlock:destruction style=auto
+# view=1280x800 save=fresh.
+#
+# First mode=daily session on a non-touch/non-carried viewport (all eight
+# prior daily sessions used a touch view; this is desktop/mouse) and the
+# first warlock on any daily. style=auto on a non-",touch" view is already a
+# known driver-lesson fallback (src/main.ts's isTouchMode() gate) -- it will
+# silently play as `good` instead, per two prior confirmations
+# (2026-09-24 mage:frost, 2026-09-25 druid:feral, both non-touch). Not
+# re-deriving that mechanism; just noting it applies here too and playing the
+# cell as it will actually run.
+#
+# Probe only: find today's actual boss and confirm which class:N tile is
+# warlock:destruction before committing to the full script.
+open
+tap daily
+targets
+shot daily-setup

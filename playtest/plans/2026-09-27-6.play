@@ -1,0 +1,53 @@
+# Cell from playpick: mode=daily, boss=saved (coverage label only -- a daily's
+# boss is drawn from the UTC date, not choosable), spec=warlock:destruction,
+# style=auto, view=1280x800, save=fresh.
+#
+# Probe (2026-09-27-6-probe.play) found today's daily is The Three Crowns,
+# 25-player normal, SWARMING -- the same boss+affix combination this line has
+# already fought four times on 2026-09-26 (two melee, one idle, one good, all
+# on touch views) plus a direct mode=raid dodge pull. Not chasing the crown
+# mechanic again for its own sake -- direction.md already has that story from
+# every style except wander. What is actually new here: this is the first
+# mode=daily session on a non-touch viewport (all eight prior daily sessions
+# used a touch view) and the first warlock on any daily.
+#
+# style=auto on a view without ",touch" is a known driver-lesson fallback:
+# src/main.ts's isTouchMode() gate means the AUTO toggle can never be tapped,
+# so scripts/playbot.ts's own no-autocast-toggle rule plays it as `good`
+# instead. Confirmed twice before (mage:frost, druid:feral) but never yet
+# inside mode=daily specifically -- this fills that gap rather than
+# re-deriving the mechanism.
+#
+# The daily's class grid is index-only (class:0..class:16, not named specs);
+# probe's targets/screenshot confirms class:14 is "Warlock" (Warlock has one
+# spec, destruction, per src/sim/classes.ts's SpecId list) and its button is
+# "start", not "pull".
+open
+tap daily
+tap class:14
+tap start
+waitscreen fight 15
+state
+shot open
+
+play auto 90
+bill
+state
+shot mid1
+
+play auto 90
+bill
+state
+shot mid2
+
+play auto 90
+bill
+state
+says
+shot end
+
+play auto 30
+bill
+state
+says
+shot finish

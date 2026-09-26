@@ -643,6 +643,58 @@ distinct from both: Bloodgorged needed a specific action (healing) withheld,
 this needed raw damage output withheld, and the cost landed on the clock
 rather than on a dodgeable mistake.
 
+**2026-09-27, sharpened by the first Three Crowns pull to actually resolve
+rather than run out of its own script budget, and a probable overturn of an
+earlier "wall-clock jitter" guess.** `mode=daily` (today's actual run,
+probed first: The Three Crowns again, 25-player normal, SWARMING — the same
+boss/affix pairing this line has now seen five times; the system clock read
+UTC 2026-09-26 for the whole session, the same calendar day as the four
+prior Three Crowns dailies logged above, so this is very likely the same
+daily instance/seed as those, not a fresh roll — a same-instance comparison
+this note leans on below, not a coincidence across two different days),
+warlock:destruction, `style=auto`, fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-27-6.play`) — the first `mode=daily` session on a
+non-touch viewport (all eight priors were `,touch`) and the first warlock on
+any daily. `style=auto` on a non-touch view hit the already-known fallback
+(`fault:no-such-control {"want":"auto"}`, then `no-autocast-toggle ... playing
+good instead`, four times, once per `play` call) — a third context for that
+driver-lesson (mode=walk, mode=battleground, now mode=daily) rather than a
+new mechanism.
+
+What is new: this run played long enough in one continuous pull
+(four chunks summing past 290s) to catch something no prior Three Crowns
+session's shorter or differently-timed chunks ever recorded —
+`fight-over outcome=enrage time=287 phase=2`, boss at 36% (121,670/341,700),
+`aliveParty=24/25`, the player itself the only death
+(`heroHp=0/1485`, `died:true`). The end screen names it outright: "ENRAGE
+WIPE — The Three Crowns · 287.3s · boss at 36% · pull 1" (`finish.png`), and
+an earlier checkpoint (`mid1.png`, ~88s into the pull) shows a countdown
+already ticking in the minimap corner — "enrage 162s" — that no script in
+this vocabulary reads or reports on. The parked-on-the-decoy shape held
+exactly as every prior style has shown it (`byMechanic={"thirst":3388}`, 100%
+of the player's own mechanic hits, `end.png`/`finish.png` both show it
+finishing last on damage among bodies that engaged at all).
+
+This bears directly on the 2026-09-26 `good`-style protection warrior pull of
+this same fight (above), whose second run lost four raid members between
+269s and 300s and which this line credited to "wall-clock press-timing
+jitter" for lack of a better explanation, having found no named mechanism at
+the time. Given this session's own probe found the same boss/affix still
+running under the same UTC calendar day, that earlier pull is plausibly the
+*same* daily instance this one just watched resolve at 287s — a hard enrage
+landing right inside that pull's own 269-300s death window is a much better
+explanation than jitter for deaths clustering exactly there. **Not certain**:
+the earlier session used a different spec in a different slot of the same
+pool, which still reshuffles who else fills the raid, so it is a same-day,
+likely-same-seed comparison rather than a byte-identical rerun. The earlier
+guess should be read as superseded rather than standing, though — "jitter"
+alone no longer explains the 2026-09-26 deaths as well as a named
+`outcome=enrage` a few seconds later on what looks like the same fight does.
+
+Gate held shut at 14 open `playtest` issues; not filed, and this is a
+sharpening of the existing Three Crowns thread under this line rather than an
+eighth standing hypothesis of its own.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
