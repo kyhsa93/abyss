@@ -600,6 +600,49 @@ or a broader limit on what any driver style can do here. Still worth the
 crown-visibility enhancement already flagged, once the gate reopens — this
 sharpens the existing note rather than closing it.
 
+**2026-09-26, sharpened by the first flee-style loss this line has ever
+recorded, on a boss its own upkeep table already flags as rewarding play.**
+`mode=walk` (`boss=flasks`, a coverage label only), hunter:marksmanship,
+`flee`, 25-heroic, fresh save, 390x844 touch
+(`playtest/plans/2026-09-26-48.play`) — the first evening this line has given
+a pure ranged dps under `flee` (every prior flee evening was a healer or a
+tank), and the first at 25-heroic on any dps role at all. THE VIGIL and every
+corridor after it crossed clean and fast (8.3s, then 26s, 16s, 11s — see
+[[#6]]'s new entry below), and Bonegrinder heroic died at `fightTime=117s`
+with the whole raid untouched: `aliveParty=25/25 heroHp=1620/1620 presses=0
+inDanger=2%` — exactly this line's usual shape, a fourth boss now for a
+flee-style clean carry.
+
+Then, for the first time ever under `flee`, the shape broke. The Last Whisper
+(25-heroic) woke at the door of THE ORATORY and wiped at 150s with the boss at
+49%, the player's own `heroHp=0/1620` — flee's first recorded death — and
+`aliveParty=24/25`. `outcome:retry` worked normally (this room stayed
+`mode=raid`, not `travel`, matching [[#3]]'s existing read that boss-room
+retries are fine and only travel-mode ones are broken) and the second attempt
+ran the boss down to 11% before ending in `outcome=enrage` at 251s,
+`aliveParty=21/25` (4 dead), the player dead again. The evening's 6-room
+budget ran out mid-third-attempt, boss back near full (a fresh pull, as
+expected).
+
+Read `src/sim/combat.ts:915` before guessing why avoidance alone stopped
+working: the enrage aura is "a boss damage amplifier" that "only doubles what
+the raid is taking" and, per its own comment, "grows" the longer the fight
+runs past the timer. That is not a telegraph to sidestep — it is a
+multiplier on whatever the boss's existing attacks already land, so a body
+that only ever moves away from danger has nothing to dodge once the boss's
+ordinary hits alone are lethal. `docs/upkeep.md`'s own "raid rewarding play"
+table already has The Last Whisper at played 94% / idle 78%, the smallest
+positive gap on the list after Bloodgorged's — this is the first time this
+line has actually played out that gap rather than read it off a table: 24
+AI-only raiders can carry a zero-damage passive dps to 11% on their own, but
+not through an enrage that keeps compounding, and a style built entirely
+around not getting hit cannot survive a mechanic that isn't a hazard to avoid
+in the first place. A third boss now joins Bloodgorged's fester and The Two
+Flasks' mixed result as a case where [[#1]]'s shape does not hold —
+distinct from both: Bloodgorged needed a specific action (healing) withheld,
+this needed raw damage output withheld, and the cost landed on the clock
+rather than on a dodgeable mistake.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -1169,6 +1212,25 @@ measure of "closest" (whatever it is keyed to) further from the door. Worth a
 has genuinely reached that size/difficulty, and a same-size/difficulty repeat
 at 25-heroic under a different style, before trusting 553-vs-12 as anything
 more than the size difference this pairing failed to control for.
+
+**2026-09-26, thirteenth confirmation, a second style crossing clean at
+25-heroic and the first dps role to do it.** `mode=walk`, hunter:
+marksmanship, `flee`, 25-heroic, fresh save, 390x844 touch
+(`playtest/plans/2026-09-26-48.play`) -- every prior 25-heroic clean crossing
+was a healer (shaman:restoration, above) or steered by a beeline/away-from-
+danger term on a tank (`good`, `dodge`); this is the first ranged pure-dps
+body to try it, and the first genuinely fresh (not carried-behaving-as-fresh)
+25-heroic evening on this axis. Every corridor this evening touched crossed
+without a single stall: THE VIGIL in 8.3s total (door to boss-room), then
+26s to THE SPIRE, 16s to THE EASTCLIMB, 11s to THE ORATORY -- four crossings,
+zero faults, the cleanest run of corridors this line has recorded in one
+evening. A second style now confirms clean 25-heroic crossings alongside
+`good` and `dodge`, on a fourth spec entirely, which keeps stacking evidence
+for size/difficulty over style as the variable that separates a clean
+crossing from a [[#6]] stall -- though the West Climb stall two entries above
+(same 25-heroic, a different corridor) says the correlation is not absolute
+either way, so "cleaner at 25-heroic" reads more true than "never stalls at
+25-heroic."
 
 ### 7. A battleground does not carry a passive body the way a raid does
 

@@ -1,0 +1,40 @@
+# playpick cell: mode=walk boss=flasks spec=hunter:marksmanship style=flee
+# size=25 difficulty=heroic view=390x844,touch save=fresh. `boss=flasks` is a
+# coverage label only -- `evening` steers at no boss, the walk starts at the
+# door same as any other.
+#
+# A fresh save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before, checked against sessions.jsonl and
+# direction.md first: hunter:marksmanship has only ever appeared in
+# battleground and daily-mode pulls (grep confirms), never inside an evening
+# at all. flee has been given to an evening three times before (priest:
+# discipline and druid:guardian at 10-normal, both stalling THE VIGIL; shaman:
+# restoration at 25-heroic, crossing THE VIGIL clean then stalling THE WEST
+# CLIMB) -- all three were healer or tank roles. This is the first flee-style
+# evening on a pure ranged dps, and the first at 25-heroic on any dps role at
+# all. flee never calls an ability (only ever moves away from danger), so a
+# marksmanship hunter under it deals zero damage the whole evening by
+# construction -- the question is only what that costs the raid at heroic/25,
+# where direction.md's line 1 has so far shown a tank and two healers getting
+# carried for free but never a dps specifically inside a full evening walk
+# (only inside single mode=raid pulls).
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:hunter:marksmanship
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening flee 260 6
+state
+shot end
+says
+bill
