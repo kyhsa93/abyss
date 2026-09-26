@@ -1,0 +1,23 @@
+# playpick cell: mode=walk boss=crowns spec=paladin:protection style=dodge
+# size=25 difficulty=heroic view=1280x800 save=fresh.
+# Fresh save only opens Bonegrinder 10-normal by default, so #b=marrow&s=25&h=1
+# unlocks the chain up to 25-heroic (any first-boss id works, per direction.md's
+# 2026-09-26 driver-lesson note) before backing out to a real RAID -> WALK IN at
+# the door, rather than the invite's own "visiting" single-fight framing.
+# `boss=crowns` is a coverage label only -- evening steers at no boss, the walk
+# starts at the door same as any other -- so it is not aimed at directly.
+# First tank spec (paladin:protection) in mode=walk/clear at all, and the first
+# `dodge`-style evening: every prior VIGIL crossing/stall on record used
+# wander, good, flee, melee or idle, never dodge.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:paladin:protection
+tap pull
+waitscreen fight 15
+state
+shot start
+evening dodge 200 5
+state
+shot end

@@ -282,6 +282,36 @@ is fourteen seconds of a raid's damage"). Worth remembering before reading a
 high mechanic-hit count as a style finding on this specific boss: check which
 mechanic it actually was first.
 
+**2026-09-26, sharpened by the first tank spec and the first `dodge`-style evening,
+and the costliest raid outcome this line has had to still call a win.**
+`mode=walk`, `boss=crowns` (a coverage label only -- see [[#6]]'s note below on
+what that means -- the walk started at the door same as any other),
+paladin:protection, `dodge`, 25-heroic, fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-26-19.play`). A fresh save opens nothing above
+Bonegrinder 10-normal by itself (#273), so the 2026-09-26 driver-lesson recipe
+(`open #b=marrow&s=25&h=1` -> `tap back` -> `tap raid`) reached a real
+25-heroic WALK IN. Presses stayed at 0 for the whole evening -- `dodge` never
+calls an ability, and a tank standing off cooldowns has nothing else pressing
+it to -- and `inDanger` read 0% throughout: the player's own body took not one
+hit.
+
+Bonegrinder heroic still died in 48 seconds (`played style=dodge seconds=200
+outcome=ongoing fightTime=48 phase=1 aliveParty=16/25 heroHp=2745/2745
+bossHp=down presses=0 inDanger=0%`) -- close to the fastest heroic kill this
+line has on record (`good`, 49s, 2026-09-26-14) -- but the raid paid for that
+speed where the `good` kill did not: 9 of 25 dead (16/25 alive) against that
+run's 25/25. Same boss, same difficulty, a comparable clear time, and the one
+body that pressed nothing finished untouched while more than a third of the
+party it was meant to be tanking for was on the floor. Every prior idle-shaped
+win on this line kept the raid close to intact (10/10, 25/25, 24/25); this is
+the first to trade real raid casualties for the free ride. Worth the same
+caveat 2026-09-26's heroic-jitter note already raised: this cell is already
+shown to have high run-to-run variance under active play, so one pull is
+suggestive rather than a controlled pair -- a second `dodge` pull, or a
+`good`-style tank pull at the same cell, would say whether nine deaths is what
+a tank who never taunts costs a heroic raid specifically, rather than one
+unlucky roll.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -647,6 +677,36 @@ session's own journal shows the same count falling as the evening kills
 things (`186` at the door, `173` two rooms and one dead boss later at THE
 WEST CLIMB), which is the counter working, not sticking. No further look
 needed; struck below.
+
+**2026-09-26, ninth confirmation, a fifth style crossing clean and a second
+clean crossing at 25-heroic specifically.** Same driver-lesson unlock recipe
+as the shaman:elemental session above, this time paladin:protection, `dodge`,
+fresh save, 1280x800 desktop, aimed at `crowns` -- a coverage label only, since
+`evening` steers at no boss and this walked in at the door same as any other.
+THE VIGIL crossed in about 31 seconds (`8.8s` at the door to `39.8s` in
+`spire`, `presses=14`) -- the second style, after `good`, to cross clean
+specifically at 25-heroic, where four of five styles tried so far have stalled
+at 10-normal. Another data point for size/difficulty over style being what
+actually separates a clean crossing from a stall. (What happened once inside
+Bonegrinder's room is [[#1]]'s finding, not this one: the crossing was free,
+the kill was not free for the raid.)
+
+A fault fired mid-crossing and resolved itself one journal line later without
+changing the outcome: `fault:nowhere-to-go-from-here {"at":"vigil"}` at 39.7s,
+immediately followed by a normal `crossed from=vigil to=spire` and
+`boss-woken` at 39.8s. Read `scripts/playbot.ts:1290-1373` afterward rather
+than guess (own driver code, not `src/`): the fault fires when `ways()` comes
+back empty for the room `cross()` still believes it is in, but the chamber had
+evidently already changed underneath that check within the same 140ms tick --
+the guard that would normally catch a chamber change runs once at the top of
+the loop, before `ways()` is queried a few lines later, so a crossing that
+completes mid-iteration can still trip the empty-`ways()` branch on stale
+information. The line also carried `journalKeyClash: true`
+(`scripts/playbot.ts:95`'s own collision-rename for a caller that reused
+`at`/`kind` as a field name), working exactly as its own comment describes.
+Driver lesson, not a game finding -- the evening finished normally (5/5 rooms,
+0 wipes, no further faults) and this is entirely inside `scripts/playbot.ts`,
+outside what this job may touch.
 
 ### 7. A battleground does not carry a passive body the way a raid does
 
