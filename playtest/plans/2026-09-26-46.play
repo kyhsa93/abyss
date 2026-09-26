@@ -1,0 +1,39 @@
+# playpick cell: mode=walk boss=host spec=priest:discipline style=wander
+# size=25 difficulty=heroic view=1280x800 save=fresh. `boss=host` is a
+# coverage label only -- `evening` steers at no boss, the walk starts at the
+# door same as any other.
+#
+# A fresh save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before, checked against sessions.jsonl and
+# direction.md first: `wander` has been run inside `evening` before (druid:
+# guardian, 10-normal, stalled THE VIGIL) but never at 25-heroic, and no
+# healer spec has ever been given a `wander`-style evening at all -- every
+# prior evening healer used `idle` (paladin:holy) or was a dps/tank. `wander`
+# presses a random ability slot round-robin with no target awareness, so a
+# discipline priest under it will cast heals and shields at whatever the
+# round-robin lands on, not at whoever is low -- direction.md's existing
+# wander note (holy paladin at Bloodgorged) already showed a healer under
+# this style spending most of a fight "Out of range" and healing least of
+# anyone on the board. This is the first chance to see whether that holds at
+# heroic/25, where direction.md's own line 1 has only ever shown idle/good
+# healers, never a wandering one, carrying a raid.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:priest:discipline
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening wander 260 6
+state
+shot end
+says
+bill

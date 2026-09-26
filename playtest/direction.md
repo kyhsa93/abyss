@@ -988,6 +988,68 @@ THE RISE, past the door the boss room (`mooring`) let out through. See
 *Not yet filed*, below, for the mechanism and why it is not yet a standing
 hypothesis.
 
+**2026-09-26, eleventh confirmation, and a mechanism read straight off the
+source rather than guessed at.** `mode=walk` (`boss=host`, a coverage label
+only), priest:discipline, `wander`, 25-heroic, fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-26-46.play`) -- the first `wander`-style evening at
+25-heroic (its one prior evening appearance, druid:guardian, was 10-normal)
+and the first healer given a `wander` evening at all. THE VIGIL and the
+crossing after it both went clean and fast (5.7s, then 30.9s to THE SPIRE),
+and Bonegrinder heroic died at fightTime=87s -- but then, after killing it,
+the evening spent the rest of its 6-room budget going nowhere: THE SPIRE ->
+THE WEST CLIMB crossed forward in 7.8s, but the very next door-to-door hop,
+aimed squarely at the one unvisited door (`took=oratory why=unvisited
+ways=["oratory@253","spire@50"]`), reported `crossed from=westclimb to=spire`
+3.9 seconds later -- backward, into the room it had just left, despite the
+driver steering the player at oratory's own centre the whole time. The next
+room (back in THE SPIRE, aimed at `eastclimb`) then burned its entire 260s
+budget without changing chambers at all (`closestGot=160`), ending the
+evening at `fault:fight-outlasted-its-budget` after 5 of 6 rooms.
+
+Read `src/main.ts` before guessing why a crossing would go backward: the room
+the evening thinks it is in (`state.chamber`, what `chamber()` and every door
+decision in `cross()` are keyed off) is set by `roomUnderfoot()`
+(`src/main.ts:994`), and that function tests not the player's own position but
+`partyMiddle()` -- the centroid of every living party body. `partyMiddle`'s own
+comment, three functions up (`src/main.ts:939`), already describes exactly
+this failure for a different check that used to have it: "the raid walks in a
+huddle around whoever is leading it, so the huddle's centre trails the player
+by most of its own width... driven straight at the Oratory's pad for a
+minute, the middle closed to a hundred and twenty-nine units and then settled
+at a hundred and fifty-five" -- which is why `padHere()` was rewritten to ask
+the player's own body instead. `roomUnderfoot()` was not: it still asks the
+huddle. A corridor with packs actually fighting the raid (West Climb's own
+watchmen; this run's `crossed` lines counted over a hundred foes still up) is
+exactly the case where the centroid lags worst, because bodies peel off to
+fight rather than walking, and a lagging centroid reads as the room not
+having changed, or -- if enough stragglers are still on the near side of a
+shared boundary -- as having changed *backward*.
+
+This gives [[#6]]'s existing shape (stalls at VIGIL, at WEST CLIMB once
+before under `idle`, now at SPIRE/WEST CLIMB under `wander`) a mechanism with
+a source citation and a proven precedent, rather than "cross()'s fixed
+heading" or "an unreachable pad" as the two live guesses. **Not yet the
+full answer** -- this run never confirmed the player's own body was actually
+past the door while the centroid lagged, which would need a script that reads
+`hero()` and a party-position hook side by side while stuck, and no such hook
+is in the driver's current vocabulary. Worth one before promoting "the
+centroid, not the player, decides the room" from a read of the source to a
+measured fact.
+
+**Same session, sharpens [[#1]].** The Bonegrinder-heroic kill above is the
+first heroic pull on record where a *healer* under a non-idle, non-good style
+carried real raid casualties rather than a clean sweep: `aliveParty=17/25`
+(8 dead) at the kill, `heroHp=1350/1350` (the healer itself untouched),
+`presses=1079`, `inDanger=3%`. Every prior heroic idle/passive-shaped win on
+this line (the two [[#1]] tank/dps cases, the wandering holy paladin at
+Bloodgorged) either kept the raid intact or was measured on a different boss
+entirely; this is the first time a `wander` healer's own flailing (round-robin
+presses with no target awareness, the same blind spot already measured on
+Bloodgorged) has been priced in raid deaths on a real heroic kill rather than
+in the healer's own missed heals. Consistent with the line's standing
+argument -- the body survives regardless of what it does -- but this is the
+sharpest case yet of the raid, not the player, paying for it.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
