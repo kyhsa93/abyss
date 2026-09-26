@@ -2138,6 +2138,45 @@ the `settings.png` shot, and reference the `cw≈43.43` derivation alongside
 the live `under44` reading so the report does not rest on one run's
 rounding alone.
 
+**2026-09-27, driver lesson, not a game finding, and the first `mash`-style
+battleground pull this job has run.** Read `scripts/playbot.ts`'s own movement
+branch before running the cell (`mode=battleground`, `map=conquest`,
+`spec=druid:balance`, `style=mash`, 844x390 touch, carried), same as the
+existing `auto` driver-lesson note above did: `mash` is not among the
+`dodge`/`good`/`melee`/`wander`/`flee`/`learn` branches that ever set `want`, so
+it never steers at all -- it only presses an ability every tick, round-robin,
+same press logic as `wander` minus `wander`'s own random heading. Confirmed
+live rather than trusted off the read: the player never moved from its pull
+position the entire match (`me.x/y` absent from every `state` line but the
+boss/cart-progress reading `Corvin` walked from `(1028,-68)` to `(-14,-232)`
+relative to it while the player's own ability bar read `"range"` on every
+offensive slot at every one of four checkpoints, 4.5s through 183.2s, without
+ever once clearing). 595 presses total (`354+241+0` across three `bill`
+windows) connected with literally nothing: `hits=0 hitsPerMin=0 taken=0
+byMechanic={}` in all three, `heroHp=1485/1485 inDanger=0%` unbroken start to
+finish. The match still ended `outcome=defeat` at `fightTime=171` -- short of
+conquest's own 300s clock, meaning the other side reached the point cap while
+this body contributed to neither offense nor defense.
+
+**Why this reads differently from every prior `mash` ledger line.** Every
+earlier `mash` pull on record is `mode=raid`, where the walk-in already stands
+the player within range of the boss before a fight starts, so round-robin
+presses land regardless of whether `mash` ever steers (`The Two Flasks`,
+warrior:arms: `hits=556 hitsPerMin=315.7`). A battleground has no such walk-in
+-- README's own conquest description is "hold ground," which is somewhere on
+the map, not at the spawn -- so the one style whose driver code has never had a
+reason to steer is the one style a battleground was always going to expose.
+**Not the same finding as [[#7]]'s own flee/dodge entries**, which press
+nothing on purpose and read as a deliberate hypothesis about a player who only
+avoids; this is a body trying to fight (595 presses, an ability queued
+every tick) that cannot, because the vocabulary that presses buttons and the
+vocabulary that decides where to stand never overlap for this one style. Not
+filed -- gate shut, and the mechanism is entirely inside `scripts/playbot.ts`,
+outside what this job may touch -- but worth remembering before reading any
+`mash`-style battleground bill as a finding about the fight rather than about
+this gap: it will read `hits=0` on every map, the same way `auto` does, unless
+`mash` is given the same kind of steering term `dodge`/`good` already have.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

@@ -1,0 +1,48 @@
+# playpick gave mode=battleground map=conquest spec=druid:balance style=mash
+# view=844x390,touch save=carried. direction.md's #7 has never seen mash on any
+# battleground: reading scripts/playbot.ts's movement branch (line ~928-959)
+# first showed mash has no steer term at all -- it is not among the
+# dodge/good/melee/wander/flee/learn branches, so `want` stays null and mash
+# never moves, but it does press an ability every tick, round-robin, same as
+# wander's press logic without wander's own random heading. So this cell tests
+# a shape #7 has not: a body that stands still at its starting position (like
+# flee/dodge, which never die) but keeps mashing an untargeted ability into
+# whatever is nearby (unlike flee/dodge, which never press at all, and unlike
+# good/melee, which walk into the fight and die within 15s on every map tried
+# so far). Conquest (The Three Cairns) is "hold ground, clock does the rest" --
+# a stationary body is at least standing where a capture fight would happen,
+# so mashing from a fixed spot might land hits nobody has measured yet.
+open
+targets
+shot front
+
+tap battleground
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:druid:balance
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play mash 100
+shot mid1
+state
+bill
+
+wait 5
+play mash 100
+shot mid2
+state
+bill
+
+wait 5
+play mash 100
+shot mid3
+state
+bill
+says
+targets
