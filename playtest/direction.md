@@ -282,6 +282,33 @@ is fourteen seconds of a raid's damage"). Worth remembering before reading a
 high mechanic-hit count as a style finding on this specific boss: check which
 mechanic it actually was first.
 
+**2026-09-27, sharpened by the first `dodge`-style pull of The Long Cold at
+any difficulty, and the closest same-cell style pairing this line has
+produced.** `mode=raid`, warrior:arms, `dodge`, 10-normal, fresh save, 390x844
+touch (`playtest/plans/2026-09-27-1.play`) — the exact spec/size/difficulty
+the `flee` entry above already killed, now run under the other never-presses
+style. `dodge` killed it in 84s (against `flee`'s 86s), raid at 10/10,
+`presses=0 inDanger=15%` (against `flee`'s 4%). `bill`: `hits=446
+hitsPerMin=316.8 taken=1208 takenPerMin=858.1
+byMechanic={"chill":24,"cover":1,"flight":421}` — the same 421 `flight` hits
+`updateFlight`'s unconditional every-tick damage already explains, `chill`
+roughly doubled (24 against 12, consistent with `dodge` staying closer to
+whatever it is steering away from than `flee`'s outright retreat), and the
+end screen ranked the player last on the damage board at 10 dps
+(`end.png`) — auto-attack swings with no ability ever pressed. The one real
+divergence is the player's own finishing health: 1108/1890 (59%) under
+`dodge` against 592/1890 (31%) under `flee`, despite `dodge` reading the
+higher `inDanger` share — a fifth style now confirms [[#1]]'s shape on this
+boss at its easiest setting, and the two never-press styles tried on the
+identical cell land within two seconds of each other on everything that
+matters (raid intact, boss dead, presses=0) while still disagreeing on how
+comfortable the win felt for the one body being played. Same end screen
+reproduced the already-tracked banner/report overlap (#275/#283's family) a
+further way — two banners ("Kill it without losing anyone.", "Kill it in
+under 110 seconds.") bleeding over the "OPENED" line and Orin's own damage
+row respectively; not commented again, nothing new about the mechanism.
+Fourteen open `playtest` issues held the gate shut; nothing filed.
+
 **2026-09-26, sharpened by the first tank spec and the first `dodge`-style evening,
 and the costliest raid outcome this line has had to still call a win.**
 `mode=walk`, `boss=crowns` (a coverage label only -- see [[#6]]'s note below on

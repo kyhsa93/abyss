@@ -1,0 +1,20 @@
+# The assigned cell: mode=raid, boss=cold (The Long Cold), warrior:arms,
+# dodge, 10-normal, fresh save, 390x844 touch.
+# First dodge-style pull of The Long Cold at any difficulty, and the second
+# style tried on this exact spec/size/difficulty combination -- the only
+# prior appearance of warrior:arms on 10-normal Long Cold was flee
+# (2026-09-26-15.play, killed in 86s, presses=0 inDanger=4%). dodge also
+# never calls an ability but steers away from standing hazards rather than
+# fleeing outright, so this checks whether that steering difference changes
+# anything on a fight already shown to fall to a body that presses nothing.
+open #b=cold&s=10&h=0
+targets
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+state
+shot start
+play dodge 150
+state
+bill
+shot end
