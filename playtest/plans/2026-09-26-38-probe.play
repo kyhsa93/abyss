@@ -1,0 +1,6 @@
+open
+waitscreen home 10
+tap daily
+targets
+state
+shot daily-screen

@@ -1,0 +1,42 @@
+# playpick: mode=daily boss=marrow(coverage label only -- a daily's boss
+# comes off the UTC date, not a pickable control; see direction.md's
+# driver-lesson note) spec=paladin:holy style=idle view=390x844,touch
+# save=fresh
+#
+# Probed first (2026-09-26-38-probe.play): today's actual daily is The Three
+# Crowns, 25-player normal, SWARMING -- the same instance two prior sessions
+# today already fought under hunter:marksmanship/melee (2026-09-26-21,
+# -22-finish), both of which spent nearly the whole fight hitting the
+# untouchable decoy bodies because melee's steering only knows hud().boss's
+# raw coordinate, with no idea which of the three court bodies currently
+# holds the crown. This pull is a third style on the same daily instance,
+# and the first healer role and first idle-style run The Three Crowns has
+# ever seen -- worth it because idle never swings at all, so it cannot make
+# melee's specific mistake, and direction.md line 1 (idle wins because the AI
+# carries a passive body) has never been tested on a healer against this
+# specific fight shape.
+open
+tap daily
+targets
+tap class:3
+targets
+ui
+shot setup
+tap start
+waitscreen fight 15
+state
+shot open
+
+play idle 130
+bill
+state
+shot mid1
+
+play idle 130
+bill
+state
+shot mid2
+
+says
+state
+shot end

@@ -402,6 +402,40 @@ specifically requires acting -- which is itself worth knowing: the game
 already knows how to write a mechanic idle cannot answer, it has simply only
 done it once so far.
 
+**2026-09-26, sharpened by the first idle-style healer against a fight
+already measured under an actively-wrong style, same daily instance, same
+day.** `mode=daily` gave paladin:holy, `idle`, fresh save, 390x844 touch
+(`playtest/plans/2026-09-26-39.play`); today's actual run (probed first,
+`-38-probe.play`) was The Three Crowns, 25-player normal, SWARMING -- the
+identical instance a same-day session already fought twice under
+hunter:marksmanship/`melee` (`-21.play`/`-22-finish.play`, both landing the
+whole fight on the untouchable decoy body and still finishing with
+`aliveParty=25/25` and the boss at 10-20% by 218-257s). This is the first
+healer role and the first idle-style run this fight has seen, and it tracked
+the melee pulls closely rather than diverging from them: boss at 56% by
+127s, 15% by 258s (against melee's 10-20% by 218-257s), `aliveParty=25/25`
+throughout both checkpoints, `presses=0`, `inDanger=0%`.
+
+The healing board on screen (`mid1.png`, `end.png`) makes the shape
+unambiguous in a way `bill` alone would not: "healing per second" ranks four
+AI healers at 32-88 hps each and lists the player's own row at a flat `0`
+from the 127s mark to the 258s mark, while `THE TANK NEEDS YOU` sits on
+screen at the end unanswered (`holy_shock`/`holy_light`/`beacon_of_light`
+never left `"ready"` in any `state` call -- not one heal was ever cast). The
+player's own hp did fall, 1530 to 1107 to 1063, entirely from `thirst`
+(`byMechanic={"thirst":456}`, unchanged between the two checkpoints -- all of
+it landed in the first 127s, then the crown's rotation moved the drain
+elsewhere and never came back), and the three AI healers kept the idle body
+alive despite it never healing anyone back -- the same one-way carry [[#1]]
+has already shown a tank and a dps getting, now shown for a healer that
+contributes literally nothing to the raid's own healing total. A fourth
+boss, a third style, and the first time this line has caught the raid
+carrying a body across a fight another style had already measured as
+"actively wrong" rather than merely "passive" -- idle did not do better than
+wrong-melee here, but it did not do worse either, which is its own point:
+on this fight, healing at all is optional for the healer's own survival and
+for the raid's.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
