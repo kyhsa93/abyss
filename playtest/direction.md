@@ -1284,6 +1284,55 @@ crossing from a [[#6]] stall -- though the West Climb stall two entries above
 either way, so "cleaner at 25-heroic" reads more true than "never stalls at
 25-heroic."
 
+**2026-09-27, fourteenth confirmation, and the "class vs seed" question the
+2026-09-26 `mash` entry left open is answered from source rather than by
+another repeat.** `mode=clear`, rogue:assassination, `melee`, 25-heroic,
+carried (behaves as fresh per #273), 844x390 touch
+(`playtest/plans/2026-09-27-7.play`), via the driver-lesson unlock recipe.
+THE VIGIL crossed in 24.5s (door at 8.2s, out at 32.7s, `presses=3`) --
+within a second of this same class's two 10-normal crossings on record
+(`melee` 26s, `mash` 25.9s) despite a fourteen-point jump in difficulty and
+a two-and-a-half-times bigger raid. Read `src/sim/classes.ts` rather than
+run a fourth repeat: every class has its own flat `moveSpeed`, and rogue's
+is 178 -- the highest in the roster, against 158 for warrior/paladin/
+priest/warlock, 167 for druid/shaman/mage, and 173 for hunter. `cross()`
+steers in a straight line at a fixed target regardless of style (already
+established under this line), so a flat speed stat that is highest of any
+class explains a consistently fast straight-line crossing directly, on any
+size or difficulty, without needing the size/difficulty a stalled cell
+happened to be measured at. This settles the specific "not settled" note
+from 2026-09-26 -- it is the class, not the seed -- and it means rogue's own
+three-for-three clean-crossing record should not be read as further
+evidence for "size/difficulty separates clean from stall" the way the
+2026-09-26 entries above do, since a faster class would cross clean at
+10-normal too by the same mechanism (and, per the two 10-normal entries
+already on record, does).
+
+The rest of the evening: Bonegrinder heroic died at `fightTime=56`
+(phase 1, `aliveParty=25/25 heroHp=1530/1530 presses=44 inDanger=2%`) --
+full raid, full health, the fastest heroic kill this line has logged under
+`melee` and a clean sweep on the one boss whose bonestorm aura this job's
+own #267 already measured as reversing melee's hits-to-damage ratio at
+10-normal. **Not a contradiction of #267, checked against source rather
+than assumed:** `byMechanic` carried no `bonestorm` entry at all, but
+`src/sim/encounters.ts`'s own `opening` table schedules Bonegrinder's
+first-ever bonestorm cast at 47.5s into the pull (`openingTimers`'s own
+comment: "every mechanic's first cast, read off a boss's opening table")
+-- eight and a half seconds before this kill landed. The storm never got a
+second cast (phase 1's own recurrence is 92.5s), so a fast heroic kill
+avoiding it here says nothing about melee and bonestorm's own relationship,
+only that this particular pull ended before the mechanic had time to bite
+more than once. Worth remembering alongside the existing `flight`/`hound`
+driver-lessons: check a mechanic's own timing before reading a zero count
+as a style (or difficulty) effect. Past Bonegrinder, `spire -> eastclimb ->
+oratory` crossed clean and fast too (9s, 11s), and the evening's 5-room
+budget ended mid-pull on The Last Whisper at `fightTime=197`, boss at 12%,
+`heroHp=1158/1530 presses=41 inDanger=0%`,
+`fault:fight-outlasted-its-budget` -- real progress cut short by the
+script's own budget, not a stall of [[#6]]'s shape (the fault fired with
+the fight still closing on the boss, not parked motionless near a door).
+Fourteen open `playtest` issues held the gate shut; nothing filed.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

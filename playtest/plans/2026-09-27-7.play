@@ -1,0 +1,39 @@
+# playpick cell: mode=clear spec=rogue:assassination style=melee size=25
+# difficulty=heroic view=844x390,touch save=carried (behaves as fresh, #273 --
+# carried never actually carries across separate playbot invocations because
+# the dev-server port is derived from the process pid).
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: rogue:assassination has crossed THE VIGIL
+# clean twice under `melee`/`mash`, but only ever at 10-normal -- this is the
+# first rogue:assassination evening at 25-heroic and the first `melee`-style
+# evening at 25-heroic of any class. direction.md's #6 line has been
+# narrowing toward "size/difficulty, not style" separating a clean VIGIL
+# crossing from a stall (good/dodge/flee all crossed clean at 25-heroic where
+# they, or others, stalled at 10-normal) -- this either adds a fourth style to
+# that 25-heroic-clean pile on the one class that already crosses fast at
+# 10-normal too, or breaks the pattern. `melee`'s own beeline-at-boss steering
+# (no away-from-hazard term) also makes this a fresh read on whether a pure
+# melee dps can survive Bonegrinder heroic's bonestorm aura (#267) at 25-man
+# scale, where the only prior melee-vs-bonestorm data point is a 10-normal
+# eight-wipe streak.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening melee 200 5
+state
+shot end
+says
+bill
