@@ -436,6 +436,57 @@ wrong-melee here, but it did not do worse either, which is its own point:
 on this fight, healing at all is optional for the healer's own survival and
 for the raid's.
 
+**2026-09-26, sharpened by the first `good`-style pull of The Three Crowns and
+the first tank spec on it, two independent pulls.** `mode=daily` gave
+warrior:protection, `good`, carried (behaves as fresh per #273), 844x390
+touch. Probed first (`-45-probe.play`): today's daily is still the same
+instance -- The Three Crowns, 25-player normal, SWARMING -- a fourth style on
+the identical fight this same day, after two `melee` pulls and one `idle`
+pull. Driver lesson on the way in: the daily screen's class grid is indexed
+(`class:0`..`class:16`), not named like the raid-setup screen's
+`class:<spec>` tiles, and its button is `start`, not `pull` -- the first
+attempt at `-45.play` used the raid-setup vocabulary and got two
+`no-such-control` faults and a `screen-never-came` without ever starting a
+fight; fixed and re-run clean.
+
+Same shape as every prior style on this fight: `byMechanic` was 100%
+`thirst` in both pulls (1338/3162/5585 hits across three 90s chunks in the
+first pull; 1378/3052/4667/5590 across four chunks in the second, extended to
+300s), `hitsPerMin` in the 900-1250 range throughout, and the end screen's
+damage-per-second board ranked the player 21st of 25 at 14 dps in the second
+pull's `finish.png` -- parked on the untouchable decoy for the entire fight,
+exactly like the two `melee` pulls and the one `idle` pull already on record.
+`good`'s away-from-standing-ground steering term made no difference here,
+confirming direction.md's own read of `melee`'s code applies to `good` too:
+`hud()` exposes only one boss body's position, so neither style can ever
+learn which of the three is currently real.
+
+What is new: `good` pushed the boss further than any prior style on this
+fight (1% by 268s in the first pull, 6% by 300s in the second, against
+melee's 10-20% by 218-257s and idle's 15% by 258s) -- the other 24 raid
+bodies' own output, not this one, since a single parked tank cannot explain a
+raid-wide DPS swing. And the second pull is the first time this fight has
+shown any raid casualties across four pulls this session's history:
+`aliveParty` held 25/25 through 178s then read 20/25 at 269s and 21/25 at
+300s, while the first pull's `aliveParty` held 25/25 the whole 268s -- two
+`good`-style pulls of the same daily key diverging this much by the far end
+is consistent with the wall-clock press-timing jitter this file already
+documents (RESULT: not a claim that `good` caused the deaths, since the
+parked body's own position never changed between the two pulls and the dying
+bodies were teammates it never touched). The player's own hp fell further
+than any prior style too, 2790 to 882 (32%) in the second pull against
+idle's healer holding 1063/1530 (69%) -- a tank standing in the drain radius
+the whole fight pays for it in its own health where a healer or dps parked in
+the same spot paid less, which tracks a tank's usual job of standing in
+things rather than saying anything new about the crown mechanic itself.
+
+Not filed -- fourteen open `playtest` issues held the gate shut all session --
+and this is the fourth confirmation of a gap [[#1]]'s enhancement note (below,
+"a real player has a clean visual read `hud()` cannot give a script") already
+covers, not a new mechanism. Worth a `wander` or `dodge` pull on this fight
+before treating "every driver style loses the crown puzzle" as complete --
+those are the only two vocabulary styles this fight has not seen yet.
+
 **2026-09-26, sharpened by the first `auto`-style evening and the first melee
 dps on this line inside `mode=walk`.** `mode=walk` (`boss=skyward`, a coverage
 label only), druid:feral, `auto`, 25-heroic, carried (behaves as fresh per

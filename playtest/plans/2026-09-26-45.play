@@ -1,0 +1,65 @@
+# Cell from playpick: mode=daily, boss=saved (coverage label only -- a daily's
+# boss is drawn from the UTC date, not choosable; direction.md's driver-lesson
+# note says record it after the fact, don't aim for it), spec=warrior:
+# protection, style=good, view=844x390,touch, save=carried (behaves as fresh
+# per #273).
+#
+# Probe (2026-09-26-45-probe.play) found today's actual daily is The Three
+# Crowns, 25-player normal, SWARMING -- the same instance a same-day session
+# already fought three times: hunter:marksmanship/melee twice
+# (2026-09-26-21/-22-finish, both landed the whole fight on the untouchable
+# decoy body, aliveParty=25/25, boss 10-20% by 218-257s) and paladin:holy/idle
+# once (2026-09-26-39, tracked the melee pulls closely, aliveParty=25/25,
+# boss 15% by 258s). Both prior styles never once solved the crown puzzle
+# because src/main.ts:2910's hud() exposes only one boss actor's position,
+# nothing about which of the three court bodies currently holds the crown --
+# direction.md flagged this as a real driver-vocabulary gap, not yet tested
+# under `good` or on a tank spec.
+#
+# This session is both: the first `good`-style pull of The Three Crowns (good
+# does compute an away-from-standing-ground term, unlike melee's pure beeline,
+# so this checks whether that term does anything for a fight whose danger is
+# who-is-marked rather than where-the-ground-hurts) and the first tank spec on
+# this fight (a protection warrior has taunt/threat tools a real player would
+# use to pull the crown deliberately, that `good`'s scripted style does not
+# call). Expect the same blind spot direction.md already predicts -- worth
+# confirming on a fourth style/first tank rather than guessing it generalises.
+#
+# Reached via the daily screen directly (no invite hash needed -- the daily is
+# open to any class/spec on any save state, per README's "the day picks the
+# fight, you pick the class"). Unlike the raid setup screen, the daily's class
+# grid exposes only indexed tiles (class:0..class:16), not named ones -- the
+# probe's targets/screenshot confirmed class:0 is "Warrior Tank" -- and its
+# button is named "start", not "pull" (both learned the hard way: the first
+# attempt at this script used the named/pull forms from the raid-setup
+# vocabulary and got two no-such-control faults plus a screen-never-came,
+# never actually starting a fight).
+open
+tap daily
+tap class:0
+tap start
+waitscreen fight 15
+state
+shot open
+
+play good 90
+bill
+state
+shot mid1
+
+play good 90
+bill
+state
+shot mid2
+
+play good 90
+bill
+state
+says
+shot end
+
+play good 30
+bill
+state
+says
+shot finish

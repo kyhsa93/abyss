@@ -1,0 +1,12 @@
+# playpick: mode=daily boss=saved (unreachable per direction.md's driver-lesson
+# note -- a daily's boss is drawn from the date, not choosable) spec=warrior:
+# protection style=good view=844x390,touch save=carried (behaves as fresh per
+# #273: a carried run only shares localStorage with the invocation that wrote
+# it, so this plays a fresh origin same as every other carried cell so far).
+#
+# Probe only: find today's actual daily boss and which class:N tile is
+# warrior:protection before committing to the full script.
+open
+tap daily
+targets
+shot daily-setup
