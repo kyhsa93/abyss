@@ -1,0 +1,66 @@
+# Assigned cell: mode=menus, view=1280x800, save=carried (menus has no
+# boss/spec/style axis). #273 means carried behaves as fresh here (own port,
+# own localStorage), so this is really a fresh save on desktop/mouse.
+#
+# This exact view/save pairing has been hit twice before (2026-09-26T05:00,
+# 2026-09-26T18:45), both chasing the Escape/p key bug. Trying new ground
+# instead: README's "Getting in" section claims the party (composition)
+# screen draws a locked entry for anything past the tank/healer caps ("a
+# third tank or a fourth healer cannot be selected on the party screen at
+# all -- the entry is drawn locked"). No prior menus session has actually
+# pressed a spec tile on this screen to test that claim; only slot:1 was
+# ever tapped once (2026-09-25-9), to open a picker and look, never to
+# change anything. Reading src/render/composition.ts first: drawComposition
+# draws every spec tile identically (only `chosen` gets a highlight) --
+# there is no per-tile disabled/locked visual state in the draw code at all,
+# and `hitComposition` answers every tile the same way regardless of
+# legality. The actual gate is downstream, in `compose.ts`'s `pressSpec` ->
+# `selectInto`: an illegal pick sets `c.refused` to a sentence drawn on the
+# note line *after* the tap, not before it. So the claim to test is not
+# "does a bad pick get refused" (it should) but "is the entry drawn locked
+# beforehand", which this screen's own source says it is not.
+#
+# Start short and look before committing to which slot to press.
+open
+tap raid
+targets
+shot raidsetup
+tap next
+targets
+shot classpick
+tap compose
+targets
+ui
+shot compose-initial
+
+# Default roster already sits at the tank cap: Nara (slot:6, warrior tank)
+# and Pike (slot:8, druid tank) are two tanks, matching "2 tanks" in the
+# summary line. Open the player's own dps slot and look at the spec list
+# before pressing anything -- if README's "drawn locked" claim holds, a
+# tank spec tile should look different (dimmed/disabled) from here.
+tap slot:0
+targets
+shot compose-slot0-open
+
+# Press a tank spec anyway. If the game truly draws locked entries, this
+# tap should not even register as that tile (or should be a no-op with no
+# visible change). If instead it registers, refuses, and only *then* prints
+# a sentence, that is the opposite of "cannot be selected... drawn locked".
+tap spec:warrior:protection
+targets
+shot compose-after-3rd-tank
+
+# Confirm the slot itself did not change (still Mage), then try the same
+# thing on a second dps slot with the other tank-capable pick to see if the
+# refusal is a one-off or the same every time.
+tap slot:2
+targets
+shot compose-slot2-open
+tap spec:paladin:protection
+targets
+shot compose-after-3rd-tank-again
+
+# Close the picker and confirm the refused pick never touched the slot.
+tap dismiss
+targets
+shot compose-dismissed

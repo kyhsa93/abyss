@@ -2212,6 +2212,68 @@ outside what this job may touch -- but worth remembering before reading any
 this gap: it will read `hits=0` on every map, the same way `auto` does, unless
 `mash` is given the same kind of steering term `dodge`/`good` already have.
 
+**2026-09-27, held, gate shut, a real mismatch confirmed by pressing the
+thing rather than reading it off the source.** `mode=menus`, `view=1280x800`,
+`save=carried` (which #273 means this played as a genuinely fresh, honest
+desktop/mouse session). This exact view/save pair had been hit twice before
+(2026-09-26T05:00, T18:45), both chasing the Escape/`p` key bug; the
+composition ("THE RAID") screen had been opened and its trade rule exercised
+once (2026-09-26, battleground version, #titlecheck session) but no session
+had ever pressed a spec tile specifically to provoke a legality refusal on
+the raid's own composition screen and watch what the screen looked like
+right before the tap.
+
+README's "Getting in" section states the caps are enforced visually: "a
+third tank or a fourth healer cannot be selected on the party screen at
+all — the entry is drawn locked." Reading `src/render/composition.ts`'s
+`drawComposition` first: every spec tile in the picker is drawn by the same
+loop with the same `tile()` call, and the only per-tile state is `chosen`
+(a highlight on the currently-picked one) — there is no locked/disabled
+visual branch anywhere in the file, and `hitComposition` answers every tile
+identically regardless of whether picking it would be legal.
+
+Confirmed live: reached a fresh 10-man roster already sitting at the
+tank cap (`Nara`/warrior and `Pike`/druid, "2 tanks · 2 healers · 6 damage"),
+opened the player's own dps slot, and pressed a tank spec
+(`spec:warrior:protection`). The tile looked exactly like every other tile
+before the press (screenshot `compose-slot0-open.png`) and exactly like every
+other tile after it (`compose-after-3rd-tank.png`) — nothing dims, nothing
+locks, nothing changes about the tile itself. What changes is the note line
+underneath the summary, which switches from "what does You play?" to a red
+"10 fields at most 2 tanks" — `compose.ts`'s `refusal()` message, drawn only
+*after* the tap, not a pre-emptive lock. A second tank spec
+(`spec:paladin:protection`) on the same open slot produced the identical
+shape. The slot itself never changed (confirmed by dismissing and reading
+the board back unchanged). So the mechanism README describes (a locked
+entry, visible before you press it) and the mechanism the code has (a
+uniform tile, a refusal sentence after) are different things, and the
+screen a player is actually looking at is the second one. Falls under
+`docs/playtest.md`'s "a menu that says something untrue about the game
+behind it." Fourteen open `playtest` issues held the gate shut all session;
+file once it reopens, with `playtest/plans/2026-09-27-4.play` and the three
+screenshots (`compose-slot0-open.png`, `compose-after-3rd-tank.png`,
+`compose-dismissed.png`).
+
+**2026-09-27, seen once, not reproduced, not a finding.** While running the
+above script the *first* time (same cell, `--profile playtest/profile`), the
+composition board read back completely different after `tap dismiss` than
+it had before the picker was ever opened — every non-player slot's class and
+spec changed (`Bastion` from `H Priest Heal` to `D Rogue`, `Nara` from
+`T Warrior Tank` to `H Paladin Heal`, and so on), while the role *counts*
+held at "2 tanks · 2 healers · 6 damage" throughout and the action log showed
+only `tap slot:0`, two refused spec presses, one faulted `tap slot:2` (no
+click reached the page), and `tap dismiss` — no `reroll`, no `auto`, nothing
+that source-reading says should touch `composing.party`. Three follow-up
+scripts built to isolate it — the identical tap sequence with and without
+`--profile`, one with only a single refusal, one with the exact fault
+included — all read the board back byte-for-byte unchanged after dismiss.
+One sighting against three clean non-reproductions is not a cell by this
+file's own standard (`docs/playtest.md`'s "a thing seen once is an
+observation"); recorded rather than chased further, in case it recurs on a
+`--profile` run specifically (the one condition that differed between the
+sighting and two of the three failed repros) and becomes worth a fourth
+attempt.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
