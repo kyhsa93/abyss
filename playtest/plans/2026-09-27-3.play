@@ -1,0 +1,27 @@
+# The Three Crowns, 10-player normal, paladin:protection, style=dodge, fresh save.
+# dodge is one of the two vocabulary styles (with wander) that have not yet been
+# tried on this fight -- direction.md #7's melee/good/idle pulls all beeline at
+# hud().boss (the one named body), which is sometimes the untouchable decoy, and
+# spend the whole fight parked in its thirst radius. dodge never presses an
+# ability and has no toward-boss term at all (only away-from-danger), so this
+# checks whether a style with no reason to walk at the boss actually avoids the
+# drain the beelining styles couldn't see, or parks in it anyway some other way.
+open #b=crowns&s=10&h=0
+targets
+tap class:paladin:protection
+tap pull
+waitscreen fight 15
+state
+shot start
+play dodge 90
+bill
+shot mid1
+state
+play dodge 90
+bill
+shot mid2
+state
+play dodge 90
+bill
+shot end
+state

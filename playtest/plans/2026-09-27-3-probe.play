@@ -1,0 +1,5 @@
+# probe: reach The Three Crowns (10-normal) as paladin:protection via invite hash,
+# confirm the class tile label and the pull control before committing to a full script.
+open #b=crowns&s=10&h=0
+targets
+shot setup

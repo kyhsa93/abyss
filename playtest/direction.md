@@ -565,6 +565,41 @@ above). A sixth style/role pairing now joins idle, `good`-as-healer, `wander`,
 first time a healer under a style that never even threatens to heal has still
 cost the raid this little at heroic.
 
+**2026-09-27, sharpened by the first `dodge` pull of The Three Crowns, answering
+the open question its own prior entries left standing.** `mode=raid` (a direct
+invite-hash pull, `open #b=crowns&s=10&h=0`, not a `daily` instance), the first
+mode=raid, first 10-player and first non-`daily` appearance of this fight on
+record, paladin:protection, `dodge`, fresh save
+(`playtest/plans/2026-09-27-3.play`). `dodge` and `wander` were the only two
+vocabulary styles this fight had never seen; this fills one of the two, and
+the answer is not "loses the crown puzzle a fifth way" — it does not engage
+with the puzzle at all. `byMechanic` read `{}` — empty — across all three
+`bill` checkpoints (88s, 178s, 268s), the first Three Crowns pull on record
+with zero mechanic hits of any kind, where every prior style (two `melee`
+pulls, one `idle`, one `good`) spent the *entire* fight at 100% `thirst`.
+`inDanger` held 0% throughout, `heroHp` finished at a full 2745/2745, and the
+boss dropped from 100% to 5% over 268s with `aliveParty=10/10` the whole way.
+The screenshots (`mid1.png`, `end.png`) show why: the player stands alone,
+well clear of the court's drain rings, while "Out of its reach" fires
+repeatedly for the *other* nine bodies caught in them — the same message the
+2026-09-26 `wander` healer session read as the game correctly refusing to let
+AI stand in the drain radius, now read from the one body that never walks
+toward anything at all.
+
+The mechanism is exactly what [[#1]]'s own prior Three Crowns entries already
+named from source: `melee`/`good` steer at `hud().boss`'s raw coordinate, which
+is sometimes the untouchable decoy, and walk straight onto it every time.
+`dodge` has no toward-boss term in `scripts/playbot.ts` at all — only
+away-from-danger — so it never has a reason to approach the crown, the decoys,
+or the drain either. This is not the disprove-by-`good` condition (`dodge`
+is not `good`), and it is not a new mechanism, just the other half of the one
+already on record: the earlier pulls' 100%-`thirst` bill was purely a function
+of a style that walks at a named target, not something intrinsic to the fight
+or a broader limit on what any driver style can do here. Still worth the
+`wander` pull to fill the second untried style, and still worth the `hud()`
+crown-visibility enhancement already flagged, once the gate reopens — this
+sharpens the existing note rather than closing it.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
