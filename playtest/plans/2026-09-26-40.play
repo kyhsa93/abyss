@@ -1,0 +1,40 @@
+# playpick cell: mode=walk boss=skyward spec=druid:feral style=auto
+# size=25 difficulty=heroic view=844x390,touch save=carried (behaves as
+# fresh, #273 -- carried never actually carries across separate playbot
+# invocations because the dev-server port is derived from the process pid).
+# `boss=skyward` is a coverage label only: evening steers at no boss, the
+# walk starts at the door same as any other.
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: `style=auto` has only ever been run
+# inside a standalone raid pull, a daily pull, or a battleground -- never
+# inside `evening`/mode=walk, and never on a melee class at all (every prior
+# auto session was a caster: mage:frost, druid:feral(desktop, fell back to
+# good), druid:restoration, paladin:holy). direction.md's 2026-09-26 note
+# already read scripts/playbot.ts and confirmed `auto` never steers -- it
+# releases movement every tick and lets the toggle cast for it -- which cost
+# a restoration druid every heal on a battleground because nothing held
+# still in range. `cross()` steers every corridor itself regardless of style,
+# so the corridors should behave the same as any other evening; the open
+# question is what a *melee* dps that never approaches anything does inside
+# an actual boss room, on real 25-heroic numbers, across more than one fight.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:druid:feral
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening auto 200 5
+state
+shot end
+says
+bill

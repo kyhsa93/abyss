@@ -436,6 +436,40 @@ wrong-melee here, but it did not do worse either, which is its own point:
 on this fight, healing at all is optional for the healer's own survival and
 for the raid's.
 
+**2026-09-26, sharpened by the first `auto`-style evening and the first melee
+dps on this line inside `mode=walk`.** `mode=walk` (`boss=skyward`, a coverage
+label only), druid:feral, `auto`, 25-heroic, carried (behaves as fresh per
+#273), 844x390 touch (`playtest/plans/2026-09-26-40.play`). The unlock recipe
+reached a real 25-heroic evening and the run got through Bonegrinder heroic
+clean (43s, `aliveParty=24/25`, `heroHp=1575/1575` -- full health,
+`presses=0 inDanger=8%`) and partway through The Last Whisper (the first time
+this line has any real numbers on that boss at 25-heroic) before the room's
+200s budget ran out at 32% boss hp (`fault:fight-outlasted-its-budget`, phase
+3, `aliveParty` still 24/25, `heroHp=1007/1575`, `inDanger=45%`). Across the
+whole evening `bill` read `hits=22 hitsPerMin=6.7 taken=3976
+takenPerMin=1208.7` -- a melee dps that (per the `auto` driver-lesson note
+under *Not yet filed*, below) never steers, and stood roughly 207 units off
+the boss for the entire second fight, dealt next to nothing (single-digit
+hitsPerMin, on a spec whose whole kit is melee-range) and still never came
+close to dying, on real heroic numbers rather than a normal-mode or
+standalone-pull reading. A fifth shape now joins idle, `good`-as-healer,
+`wander` and `flee` in carrying a body that contributes nothing, and the first
+time this line's own shape has been measured inside `evening`/`mode=walk`
+rather than a single `raid`/`daily`/`battleground` pull -- the raid killed one
+heroic boss outright and cut a second to a third of its own health with the
+one body meant to be meleeing it parked two hundred-odd units away the whole
+time.
+
+The two boss rooms did not cost the player evenly, though: `inDanger` was 8%
+against Bonegrinder and 45% against The Last Whisper, and `heroHp` only
+actually fell in the second fight (full to full across the first, 1575->1007
+across the second). Consistent with the `auto` driver-lesson's account of
+*why* -- a body that never moves is only as safe as whatever mechanics do not
+care where it stands -- but this is the first reading to show the gap can be
+large even without moving at all. Worth a `good`-style pull on The Last
+Whisper specifically before reading 32%-in-200s as anything about the boss
+rather than about a body meleeing air from two hundred units away.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -1629,6 +1663,19 @@ job may touch, so it is written down rather than fixed. Worth a real fix (an
 `auto` movement policy, e.g. reusing `dodge`'s steer-away-from-danger logic)
 before trusting any past or future `auto`-style ledger line as evidence about
 the game's own AUTO feature rather than about a body that never moves.
+
+**2026-09-26, confirmed a fourth way, and the first inside `evening`.**
+`mode=walk`, druid:feral, 25-heroic (`playtest/plans/2026-09-26-40.play`, see
+[[#1]]'s new entry above for the numbers). `cross()` still steers every
+corridor itself regardless of style, so the gap only ever shows once a room's
+own boss wakes and `play()` starts reading `auto` -- confirmed again here: a
+melee dps standing ~207 units off the boss for an entire fight, dealing
+single-digit hitsPerMin. Same mechanism, fourth context (raid, daily,
+battleground, now evening) and fourth class shape (caster dps, healer, healer,
+now melee dps) -- nothing left to learn from a fifth confirmation of the same
+missing movement policy; further sessions should spend an `auto` cell on
+whatever the assigned spec/mode is and simply note the shape holds, rather
+than re-deriving the mechanism each time.
 
 **2026-09-26, driver lesson, not a game finding.** `melee` (and by the same
 logic, `good`'s own toward-boss term) steers at `hud().boss`'s raw
