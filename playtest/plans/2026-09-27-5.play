@@ -1,0 +1,23 @@
+# playpick cell: mode=clear spec=mage:frost style=melee size=25
+# difficulty=heroic view=844x390,touch save=carried (behaves as fresh, #273).
+# carried/fresh only opens Bonegrinder 10-normal by default, so #b=marrow&s=25&h=1
+# unlocks the chain before backing out to a real RAID->WALK IN at the door,
+# same recipe as 2026-09-26-13.play.
+# New this session: melee style has been run inside an evening once before
+# (rogue:assassination, an actual melee class -- 2026-09-25, THE VIGIL clean
+# crossing). This is the first evening to pair melee style with a pure ranged
+# caster -- direction.md's own melee/hunter and melee/warrior:protection
+# entries already show a ranged kit forced into melee range dealing near-zero
+# damage or beelining through hazards, but only as single boss pulls, never
+# across a whole walked evening with corridors in between.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+state
+evening melee 300 6
+state
+shot end
