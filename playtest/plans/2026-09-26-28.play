@@ -1,0 +1,23 @@
+# Comparison pull for direction.md line 1's own disprove condition: "any cell
+# where idle loses and good wins, at the same boss, size and difficulty."
+# 2026-09-26-27.play (this session, style=idle) just wiped this exact cell --
+# mode=raid, boss=gorged (The Bloodgorged), spec=priest:discipline, size=25,
+# difficulty=heroic, fresh save -- at 134s, boss 6%, from the player's own
+# death to `fester` (26 hits). src/sim/boss.ts's own comment on scheduleFester
+# calls it "the only mechanic on this boss aimed squarely at the healers...
+# the one dot in this game that must not be ridden out" -- exactly what an
+# idle healer cannot answer. Running `good` on the identical cell, separate
+# playbot invocation (never a second open #hash -- the fragment-clears-after-
+# read lesson from 2026-09-25), to see whether active healing actually saves
+# the pull rather than merely reading better.
+open #b=gorged&s=25&h=1
+tap class:priest:discipline
+tap pull
+waitscreen fight 20
+state
+shot opening
+play good 200
+state
+shot ending
+says
+bill

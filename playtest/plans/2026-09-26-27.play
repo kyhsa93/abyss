@@ -1,0 +1,23 @@
+# Cell from playpick: mode=raid, boss=gorged (The Bloodgorged), spec=priest:discipline,
+# style=idle, size=25, difficulty=heroic, view=390x844,touch, save=fresh.
+#
+# priest:discipline has been played once before (2026-09-25T05:54Z, mode=clear,
+# flee) but never pulled straight into a boss room, and gorged has only ever
+# seen paladin:holy (wander, 2026-09-25) as a healer -- this is the third
+# healer spec and the first idle-style pull of this specific boss. The fresh
+# save only opens Bonegrinder 10N (src/progress.ts); the invite hash unlocks
+# the tier a link names on purpose, so #b=gorged&s=25&h=1 lands straight on
+# the roster with this fight chosen, same recipe every prior gorged session
+# used.
+open #b=gorged&s=25&h=1
+targets
+tap class:priest:discipline
+tap pull
+waitscreen fight 20
+state
+shot opening
+play idle 200
+state
+shot ending
+says
+bill

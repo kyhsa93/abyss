@@ -365,6 +365,43 @@ body executing about as wrong as this vocabulary can produce, for an entire
 fight, on the one encounter that is explicitly a test of exactly that -- see
 the matching driver-lesson note below.
 
+**2026-09-26, the first clean disprove-by-`good` this line has ever produced,
+and a mechanism instead of a coincidence.** Two independent `playbot`
+invocations of the assigned cell (`mode=raid`, `boss=gorged`/The Bloodgorged,
+`spec=priest:discipline`, 25-heroic, fresh, 390x844 touch) -- the third
+healer spec on this line and the first idle-style pull of this specific
+boss -- split cleanly instead of agreeing: `idle`
+(`playtest/plans/2026-09-26-27.play`) wiped at 134s with the boss at 6%, from
+the healer's own death (`hero.hp=0/1350`); `good` (`-28.play`, separate
+invocation, same cell) killed it at 157s (`outcome=victory`, boss 0%). `bill`:
+idle `hits=30 taken=3087 takenPerMin=1383.3 died=true
+byMechanic={"spill":2,"fester":26,"adds":2}` against good's `hits=9
+taken=2918 takenPerMin=1114.9 died=false
+byMechanic={"spill":1,"gorge":6,"champion":2}` -- zero `fester` hits under
+`good`, 26 under `idle`.
+
+Read `src/sim/boss.ts`'s `scheduleFester` afterward rather than guess: its own
+comment calls this "the only mechanic on this boss aimed squarely at the
+healers... the one dot in this game that must not be ridden out" -- it lands a
+stacking wound (`AURA_TICK.festering`: 90 damage/second for 12 seconds,
+`combat.ts`) on a non-tank at random, and it only comes off if a healer
+answers it; a healer that never casts cannot ever close it, and a wound left
+running its full term is exactly the failure the comment says the mechanic
+was built to punish. This is not another boss where idle happens to win by
+more than good does -- it is the one mechanic in the roster written by name to
+require the specific thing idle refuses to do.
+
+This meets line 1's own "disproved by" condition for the first time: idle
+lost, good won, same boss, size and difficulty. **Narrowed rather than
+dropped** -- every other boss/spec pairing on this line so far (Marrowgar,
+The Bonegrinder, The Long Cold, The Two Flasks, and gorged itself under a
+different healer and style on 2026-09-25) still shows idle winning or trading
+evenly, so the fair reading is that the hypothesis holds for most of the
+roster and fails exactly where a fight was written with a mechanic that
+specifically requires acting -- which is itself worth knowing: the game
+already knows how to write a mechanic idle cannot answer, it has simply only
+done it once so far.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -1497,6 +1534,49 @@ on screen that says what the group in front of you is called says the wrong
 one. Falls under `docs/playtest.md`'s own "a menu that says something untrue
 about the game behind it." Fourteen open `playtest` issues held the gate
 shut; file once it reopens, with both screenshots side by side.
+
+**2026-09-26, held, gate shut, a real bug measured by source geometry as well
+as by the journal.** The [[#1]] idle/good pair above (`-28.play`, `good`,
+victory on The Bloodgorged 25-heroic, 390x844 touch) surfaced a second thing
+on the way: the instant the boss died, `state` read `screen=roster` (the
+class-pick screen, "PICK YOUR CLASS") rather than the fight screen's own
+end-of-fight overlay -- no KILL banner, no damage/healing board, no "OPENED"
+tier line, nothing -- even though the script never issued a `tap` after `play
+good 200` finished (only `state`/`shot`/`says`/`bill`). The companion `idle`
+pull, run identically apart from style, stayed on the fight screen with its
+WIPE overlay exactly as expected (screenshot `ending.png`, `/tmp/pt-27`), so
+this is not a mode/chamber quirk shared by both -- `state` showed
+`chamber:null` in both journals, so this is a standalone raid pull reached by
+the usual invite-hash recipe, not an evening room.
+
+`scripts/playbot.ts`'s own `ability()` never journals its presses (by its own
+comment: "a four-minute fight is a thousand presses and the interesting
+number is the count"), so the exact tap that did this is not directly in the
+log -- but the geometry explains it without needing to guess further. On this
+exact viewport (390x844, portrait, touch), `src/render/theme.ts`'s
+ability-button layout (`btnR=17, btnX=359, btnGap=37.4, btnBottom=801,
+row=32.5`) puts ability slots 4 and 5 at `(340.3, 768.5)` and `(302.9,
+768.5)`; `src/render/hud.ts`'s `outcomeButtons(next=true)` (three buttons,
+since a fresh-save gorged kill opens the next tier) puts the `party`/CHANGE
+PARTY button at `x:264-378, y:743.6-797.6` on the same viewport -- both
+ability points sit inside that rectangle. `main.ts`'s own fight-update code
+(`if (state.outcome !== 'ongoing' && tap) { const hit = hitOutcome(...); if
+(hit === 'party') { screen = 'roster'; ... } }`) runs on any tap once the
+outcome is no longer `ongoing`, with no check for whether the tap was actually
+meant for the overlay. `good`/`mash`/`melee`/`learn` all call `d.ability()`
+every tick or so; `idle`/`dodge`/`flee` never do -- exactly the styles that
+have shown this and the styles that have not.
+
+So: on this viewport, an ability press that lands in the same frame a fight
+ends in victory can be read as a tap on CHANGE PARTY and silently skip the
+entire report -- the banners, the damage board, the "OPENED" line -- straight
+back to class-select, for the one outcome (a kill worth reading) the screen
+exists to show. A real player mashing an ability right as the boss dies would
+hit this exactly the same way, not just a driver. Not filed -- fourteen open
+`playtest` issues held the gate shut this session -- but worth a repeat with a
+deliberately late ability-press timed against a kill, and a check of whether
+the same overlap exists at other touch viewports, before filing once the gate
+reopens.
 
 ## Tried and dropped
 
