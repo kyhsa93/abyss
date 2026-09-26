@@ -944,6 +944,50 @@ third map/spec: `-16.play`'s stuck-looking reads were an unlucky run of
 re-dying between samples while still actively playing, not a stall in the
 respawn itself.
 
+**2026-09-26, sharpened by the first healer-role battleground pull and the
+first genuine-touch `auto` attempt on any battleground.** Every prior
+battleground session on this line was a DPS spec (priest:shadow, hunter:
+marksmanship, shaman:elemental, druid:feral, warlock:destruction, druid:
+balance); `playpick` gave `map=flags` (Ebb and Flow), `spec=druid:
+restoration`, `style=auto`, `844x390,touch`, carried (behaves as fresh per
+#273) -- the first healer this line has put on any battleground, and the
+first `style=auto` battleground pull on a real touch viewport (the only prior
+attempt, 2026-09-25's druid:feral, was 1280x800 desktop and silently fell
+back to `good` before the movement question ever came up). `hud.auto`
+genuinely flipped `false` -> `true` after the tap in all three runs this
+session (`playtest/plans/2026-09-26-29.play` through `-31.play`), confirming
+the toggle answers here.
+
+What it bought was close to nothing. `auto` never steers (the same driver-
+vocabulary gap already noted above for the daily-mode restoration shaman), so
+the healer stood at its opening position all match, and the action bar shows
+why that is fatal for this spec specifically: `healing_touch`/`rejuvenation`/
+`swiftmend`/`starsurge` spent nearly the entire match reading `"range"` --
+out of range of anyone to heal -- because nothing it targets holds still on
+this map. The cleanest single number is from `-31.play`: `power` sat at
+`1000/1000`, completely untouched, through the first 80 seconds of the match,
+while the party dropped from 5/5 to 3/5 around it -- eighty seconds of a
+healer that would have cast on the first tick something came into range, and
+nothing ever did. All three runs ended the same way regardless: the player
+itself died (`-29.play` ~83s, `-30.play` ~127s after one mid-match
+revive-and-redie cycle, `-31.play` ~89s), each time with `byMechanic={}` --
+nothing to blame it on but standing still.
+
+**Not a clean instance of this line's own disprove-by-`good` condition, and
+not primarily a game finding** -- a real player has a second thumb free
+specifically so this does not happen (README's own words: "the other thumb
+is about position, which is the half of the game the screen is actually
+showing"), and the driver's `auto` style has no positioning logic at all,
+unlike `dodge`/`good`/`melee`. What it still shows cleanly, and for the
+first time on any battleground: even a body that is actively *trying* to
+act -- ability ready, mana full, an ally presumably needing it somewhere on
+the map -- gets reduced to the same zero-output shape every purely passive
+style on this line already produces, because nothing here carries a
+stationary body toward the fight the way [[#1]]'s raid AI carries an idle
+one. Worth a `good`-style restoration druid on the same map before
+concluding anything about the class rather than the driver's own positioning
+gap.
+
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to

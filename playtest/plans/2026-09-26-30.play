@@ -1,0 +1,38 @@
+# Follow-up to -29.play, same cell (mode=battleground map=flags
+# spec=druid:restoration style=auto view=844x390,touch save=carried). The
+# first run showed every heal slot on the action bar reading "range" by
+# fightTime~64s (healing_touch/rejuvenation/swiftmend/starsurge all "range",
+# only the self-buff barkskin "ready") while the player stood still under
+# AUTO, then died around fightTime~83s and was still hp=0/locked five seconds
+# later when the chained play() calls were cut short by playbot's own
+# abort-on-hero()===null quirk. This run plays to the same death, then uses
+# bare wait/state polling instead of chained play (the "Tried and dropped"
+# lesson) to get a clean read on the respawn, and continues on to the match's
+# actual end (Ebb and Flow's real limit is 180s per #278).
+open
+tap battleground
+tap map:flags
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+state
+
+play auto 90
+shot a1
+state
+bill
+
+wait 15
+state
+shot a2
+
+wait 15
+state
+shot a3
+
+play auto 90
+shot a4
+state
+bill
+says
+targets

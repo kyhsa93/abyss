@@ -1,0 +1,43 @@
+# Third pull of the same cell (mode=battleground map=flags spec=druid:
+# restoration style=auto view=844x390,touch save=carried), run all the way to
+# the match's own end this time. -29 and -30 both showed the same shape: a
+# stationary AUTO healer spends most of a heal slot's time reading "range"
+# (out of range of anyone to heal), dies at least once, and casts only a
+# handful of times in two minutes (power drained ~100-300 of 1000). This run
+# chunks play() in shorter 40s windows with a short wait between, so a death
+# mid-chunk costs less of the observation, through to Ebb and Flow's own
+# 180s limit (#278).
+open
+tap battleground
+tap map:flags
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+state
+
+play auto 40
+state
+bill
+
+wait 3
+play auto 40
+state
+bill
+
+wait 3
+play auto 40
+state
+bill
+
+wait 3
+play auto 40
+state
+bill
+
+wait 3
+play auto 40
+shot end
+state
+bill
+says
+targets

@@ -1,0 +1,49 @@
+# playpick gave mode=battleground map=flags spec=druid:restoration style=auto
+# view=844x390,touch save=carried. First healer-role spec on any battleground in
+# this job's history -- all six prior battleground sessions were dps (priest:
+# shadow, hunter:marksmanship, shaman:elemental, druid:feral, warlock:
+# destruction, druid:balance) -- and the first genuine-touch AUTO attempt on a
+# battleground: the only prior auto/battleground pull (flags/druid:feral,
+# 2026-09-25) was 1280x800 desktop and silently fell back to `good` because
+# isTouchMode() gates the toggle. 844x390 is real touch, so playbot's own
+# play() should actually tap AUTO on rather than falling back this time.
+# direction.md's [[#7]] line ("a battleground does not carry a passive body the
+# way a raid does") has never seen a body that casts automatically but never
+# steers -- worth knowing whether a stationary auto-healer on Ebb and Flow (the
+# map where README says a carrier is the whole story) keeps its own flag
+# carriers alive or gets picked off before it matters.
+open
+targets
+shot front
+
+tap battleground
+tap map:flags
+targets
+shot flags-picked
+
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play auto 60
+shot mid1
+state
+bill
+says
+
+wait 5
+play auto 60
+shot mid2
+state
+bill
+
+wait 5
+play auto 70
+shot mid3
+state
+bill
+says
+targets
