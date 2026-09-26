@@ -1100,6 +1100,26 @@ one. Worth a `good`-style restoration druid on the same map before
 concluding anything about the class rather than the driver's own positioning
 gap.
 
+**2026-09-26, sharpened by the second `melee`-style ranged spec and the
+first `melee` pull on this map.** `playpick` gave The Long Haul (escort),
+shaman:elemental, `melee`, 820x1180 touch, carried (behaves as fresh per
+#273). The only other `melee`-style battleground pull on record is a
+marksmanship hunter on Ebb and Flow, also a ranged spec forced into melee
+range, which read `hitsPerMin=0` for the whole match. This one matched it
+exactly: `2026-09-26-42.play`'s three chunks (`bill` after each) all read
+`hits=0 hitsPerMin=0`, the player died at fightTime~14s and the cart
+(`Corvin`, the map's own contested-progress reading) swung from 85% to 53%
+back to 97% while `aliveParty` fell from 5/5 to 3/5 by fightTime 46s --
+consistent with three of five actually fighting and two (this body, and
+whichever else) not. Second ranged spec, second map, same shape: `melee` is
+not a hypothesis about a player who plays badly, it is a hypothesis about a
+player who cannot deal damage at all with this kit, and that has now been
+shown twice without ever isolating whether a *melee-capable* class under
+`melee` style would fare differently on a battleground. Worth a `melee`-style
+warrior or rogue on either map before trusting "melee style loses" as
+evidence about battlegrounds rather than about pairing a ranged kit with a
+beeline-to-target steering algorithm.
+
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to
@@ -1544,6 +1564,21 @@ fightTime~24s -- a clean ten-second respawn, landing inside
 agree (clean revival, ~10s, both times) against two chained-`play` runs that
 each looked stuck at least once -- the stall was the chained-`play` sampling
 gap the note already suspected, not a game bug. Moved to *Tried and dropped*.
+
+**Confirmed a third way, 2026-09-26.** The assigned cell this session
+(`mode=battleground`, `map=escort`, `spec=shaman:elemental`, `style=melee`,
+820x1180 touch, carried) produced the identical shape on a third spec and
+style: `2026-09-26-42.play`'s chained `play melee 90` calls read
+`hp=0/1440 alive=false bar=[...locked]` across three samples spanning
+fightTime 14s to 46s -- 32 seconds looking stuck. A dedicated bare-polling
+follow-up on the same cell (`2026-09-26-43-respawn-check.play`, one `play
+melee 15` to force the death, then `state` every 5s with no further `play`)
+died at fightTime~17s and was back to `hp=1440/1440 alive=true` with a fresh
+ability bar by the very next sample at fightTime~22s -- a clean five-second
+respawn, inside `RESPAWN_EARLY=6`. Third spec (druid:feral, warlock:
+destruction, now shaman:elemental), third confirmation of the same
+mechanism: this artifact is the chained-`play` sampling gap, not a
+respawn bug, on any spec or style tried so far.
 
 **2026-09-25, driver lesson, not a game finding.** `style=auto` silently
 becomes `style=good` (`scripts/playbot.ts`'s own `no-autocast-toggle` note)

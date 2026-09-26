@@ -1,0 +1,48 @@
+# Follow-up to 2026-09-26-42.play, not the assigned cell itself.
+#
+# -42.play's melee shaman died at fightTime~14s and every subsequent sample
+# (taken via chained `play melee 90` calls) still read alive=false/hp=0/bar
+# locked out to fightTime~46s -- 32 real seconds with no respawn, well past
+# the ~10s the Tried-and-dropped note's bare-polling method already confirmed
+# elsewhere. Repeating that method here (one short `play` to get the kill,
+# then nothing but bare `wait`/`state` afterward) on the same map/spec to see
+# whether this is the same chained-play sampling gap or something escort- or
+# shaman-specific.
+open
+targets
+shot front
+
+tap battleground
+tap map:escort
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+state
+
+play melee 15
+state
+shot d0
+
+wait 5
+state
+shot d5
+
+wait 5
+state
+shot d10
+
+wait 5
+state
+shot d15
+
+wait 5
+state
+shot d20
+
+wait 5
+state
+shot d25
+
+wait 5
+state
+shot d30

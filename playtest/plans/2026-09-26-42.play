@@ -1,0 +1,52 @@
+# Cell from playpick: mode=battleground map=escort spec=shaman:elemental
+# style=melee view=820x1180,touch save=carried.
+#
+# The Long Haul (escort) has seen dodge twice (shaman:elemental 2026-09-25-26,
+# warlock:destruction 2026-09-25-...6) but never melee. melee has been run on
+# a battleground exactly once before, on Ebb and Flow with a marksmanship
+# hunter (390x844) -- a ranged spec forced into melee range, which read
+# hitsPerMin=0 the whole match. Elemental shaman is also a ranged caster, so
+# this repeats that mismatch on a new map and asks whether the cart-following
+# nature of escort (the fight follows the cart rather than sitting on a fixed
+# point) changes anything about a body that beelines the nearest enemy
+# regardless of range. carried save is known-fresh-in-disguise per #273
+# (still open), so nothing here relies on anything actually carrying.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:escort
+targets
+shot escort-picked
+
+tap class:shaman:elemental
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play melee 90
+shot mid1
+state
+bill
+
+wait 5
+play melee 90
+shot mid2
+state
+bill
+
+wait 5
+play melee 90
+shot mid3
+state
+bill
+says
+targets
