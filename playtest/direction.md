@@ -1418,6 +1418,86 @@ reopens, proposing `hud()` expose which court body currently holds the
 crown (or the untouchable flag on the named boss), the same class of gap
 `mode()` was added to close for travel-vs-fight.
 
+**2026-09-26, held, gate shut, a real bug measured two independent ways.**
+First `mode=menus` session to use the invite-hash unlock recipe and then
+immediately try to reach a raid-setup screen behind it, rather than an
+evening. `open #b=marrow&s=25&h=1` -> `tap back` -> `tap raid`
+(`playtest/plans/2026-09-26-24.play`) did not land on a raid-setup screen at
+all: it dropped straight into `screen=fight mode=travel`, mid-corridor in THE
+WEST CLIMB, with a full ten-body paladin:retribution party already standing
+where a much earlier session had left it (`heroHp=1800/1800`, `foes=173`
+matching the HUD's own "173 left in it", ability bar reading `range` on every
+melee slot). That is not what the 2026-09-26 driver-lesson recipe documented
+elsewhere in this file predicts (a fresh raid-setup screen showing the
+unlocked tier) -- it is [[#5]]'s own mechanism in a sharper and worse shape.
+`scripts/playbot.ts`'s dev-server port is `5200 + ((pid + attempt*37) % 300)`,
+only 300 possible values, and every playbot invocation against
+`--profile playtest/profile` shares the same on-disk Chromium profile; #273
+already established that two *different* ports never see each other's
+`localStorage`, but said nothing about what happens when two *separate*
+invocations, on two different days, coincidentally draw the *same* port. This
+session's answer: they see the exact same origin, and therefore the exact
+same saved run, with nothing to tell a player (or a driver) that what is
+about to load is somebody else's abandoned evening from however long ago
+rather than a clean slate.
+
+Confirmed a second, independent way rather than trusted off one screenshot:
+`scripts/playbot.ts` has no flag to aim at a specific port, so a raw
+Playwright script (`playtest/plans/2026-09-26-24-reconnect.mjs`) started its
+own `vite --port 5458 --strictPort` by hand and opened a persistent context on
+`playtest/profile` at that exact origin. A bare page load read `screen=home`
+(a fresh menu-backdrop pull, `me.spec` correctly remembered as `retribution`
+from the last class picked -- README's "your pick is remembered between
+visits" holds even here) -- but calling `window.__abyss.probe(412,420)` on the
+RAID button confirmed the label (`"raid"`), and tapping it reproduced
+`playbot`'s own reading exactly: `chamber:"westclimb"`, `foes:173`,
+`heroPos:{x:-1509.5,y:-5956.8}`, `hp:1800/1800`, the same four ability slots
+reading `"range"` -- pixel-identical party layout in the follow-up screenshot.
+Two unrelated processes, one built by `playbot` and one built by hand, landed
+on the same stuck evening because they happened to share a port.
+
+Not the same finding as #271/#281's own VIGIL stalls -- this is not about
+whether that West Climb walk itself is stuck, it is that **pressing RAID from
+home can silently resume an arbitrary earlier session's abandoned evening
+instead of showing the setup screen a player (or the "back then raid" unlock
+recipe) asked for, with no signal that this happened.** A real player never
+sees this, because a real browser always serves from one fixed port -- this
+is `playbot`'s own port scheme turning a testing convenience into an
+accidental cross-session collision, which is a `playtest/` driver problem
+married to a genuine save-model question worth asking regardless: should
+`RAID` from `home` ever silently resume a run this old, or should a stale
+enough `run` prompt before resuming rather than walking straight into a live
+fight? Fourteen open `playtest` issues held the gate shut at session start;
+file once it reopens, referencing both scripts and noting this sharpens
+#273 rather than duplicating it.
+
+**2026-09-26, held, gate shut, cheap and clean.** Same session, the
+battleground party screen. README's "one tank, one healer, three damage" cap
+and its role-trade rule ("tap a tank into your own slot and the slot that was
+tanking takes the one you gave up") had never actually been exercised by a
+tap -- only `ui`-checked for size and overlap. `open` -> `tap battleground` ->
+`tap map:conquest` -> `tap compose` (`playtest/plans/2026-09-26-25-bgparty.play`)
+reached the picker, gave Bastion (till then `H Druid Heal`) a tank spec
+(`Paladin Tank`), and the screenshot afterward
+(`bgcompose-after-swap.png`) shows Wren -- who had been `T Druid Tank` --
+now reading `H Shaman Heal`, exactly the trade README describes. Not a bug;
+confirms the mechanic works.
+
+But the screen both pulls happened on is titled **"THE RAID"**, in exactly
+the same type as the real raid composition screen -- confirmed side by side
+this session: the battleground version reads "THE RAID / 1 tank · 1 healer ·
+3 damage" (`bgcompose.png`), and a same-session raid composition screen
+(`playtest/plans/2026-09-26-26-titlecheck.play`, `raidcompose-title.png`)
+reads "THE RAID / 2 tanks · 2 healers · 6 damage" -- identical header text,
+correct subtitle either way, for two screens the game itself treats as
+differently shaped (README: a raid's tank/healer counts are a soft cap, "one
+or two tanks, one to three healers"; a battleground's five slots are "exact
+rather than capped"). A battleground party is not a raid, and the one word
+on screen that says what the group in front of you is called says the wrong
+one. Falls under `docs/playtest.md`'s own "a menu that says something untrue
+about the game behind it." Fourteen open `playtest` issues held the gate
+shut; file once it reopens, with both screenshots side by side.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

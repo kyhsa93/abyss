@@ -1,0 +1,27 @@
+# Same menus cell (820x1180,touch, carried/fresh). README's battleground
+# section: "a team of five is exact... tap a tank into your own slot and the
+# slot that was tanking takes the one you gave up." No prior session has
+# actually tapped a role slot on the battleground party screen to see the
+# trade happen -- only ui-checked it for size/overlap. Quick, cheap check.
+open
+tap battleground
+tap map:conquest
+tap compose
+targets
+ui
+shot bgcompose
+
+# Bastion is "H Druid Heal" and Wren is "T Druid Tank" going in. Tap Bastion's
+# slot and give them a tank spec instead -- README says the slot that WAS
+# tanking (Wren) should take the role Bastion gave up (healer), rather than
+# the composition ending up with two tanks and no healer.
+tap slot:1
+targets
+shot bgcompose-picker
+tap spec:paladin:protection
+targets
+shot bgcompose-after-swap
+
+# Also: is "THE RAID" the real header on a 5-person battleground team, or did
+# the earlier `shot` just crop it oddly? Confirm by reading state directly.
+state

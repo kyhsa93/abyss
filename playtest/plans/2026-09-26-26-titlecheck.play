@@ -1,0 +1,8 @@
+# Quick title comparison: does the RAID composition screen actually say
+# something different from the battleground one, or is "THE RAID" the header
+# either way? Same cell (820x1180,touch, fresh/carried).
+open
+tap raid
+tap next
+tap compose
+shot raidcompose-title

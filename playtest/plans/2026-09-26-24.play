@@ -1,0 +1,22 @@
+# mode=menus cell: 820x1180,touch, carried save (behaves as fresh per #273).
+# README's cap claim -- "one or two tanks, one to three healers... a third
+# tank or a fourth healer cannot be selected... the entry is drawn locked" --
+# needs a 25-player roster to actually bind, and a fresh save only opens
+# 10-normal. Use the known invite-hash recipe (open a boss link, back, raid)
+# to reach a real 25-heroic setup, then open the composition screen and look
+# for a locked slot -- no prior session has tapped enough slots to find one.
+open #b=marrow&s=25&h=1
+targets
+tap back
+tap raid
+targets
+shot raidsetup25
+
+tap next
+targets
+shot classpick25
+
+tap compose
+targets
+ui
+shot compose25
