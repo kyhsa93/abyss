@@ -1,0 +1,33 @@
+# playpick cell: mode=raid boss=whisper spec=warrior:protection style=idle
+# size=10 difficulty=normal view=844x390,touch save=fresh
+#
+# What no session has done before: every prior direction.md reading of The
+# Last Whisper came from inside an evening (mode=walk/clear, reached after
+# Bonegrinder, always at 25-heroic) or was read off docs/upkeep.md's own
+# table (played 94% / idle 78%, +16 -- the second-smallest played-over-idle
+# gap on the whole roster, after Bloodgorged's +15). This is the first
+# direct mode=raid pull of this boss on its own invite hash, the first tank
+# spec against it, and the first idle-style reading at its easiest setting
+# (10-normal) rather than 25-heroic. Line 1 (direction.md) has never been
+# tested against a boss upkeep's own table already flags as one of the two
+# fights that reward play the most -- if idle still wins clean here, that is
+# a sharper case for line 1 than any of the bosses with a bigger gap; if it
+# does not, this is the fight to test #1's "disproved by" condition on next.
+open #b=whisper&s=10&h=0
+targets
+tap class:warrior:protection
+tap pull
+waitscreen fight 15
+state
+shot start
+
+play idle 90
+state
+shot mid
+bill
+
+play idle 90
+state
+shot end
+says
+bill

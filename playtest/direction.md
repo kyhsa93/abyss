@@ -907,6 +907,55 @@ the gate shut all session — a strong candidate once it reopens, with this
 script and a version that adds a `bill` call after each wipe to pin the
 mechanic down before it is written up as one.
 
+**2026-09-27, the first direct raid pull of The Last Whisper, and a second
+named mechanic built to punish exactly what idle does — that this pull's own
+dice happened to miss.** `mode=raid` (`open #b=whisper&s=10&h=0`, not an
+evening or a daily; every prior reading of this boss came from inside
+`mode=walk`/`clear` at 25-heroic, or from `docs/upkeep.md`'s own table),
+warrior:protection, `idle`, 10-normal, fresh save, 844x390 touch
+(`playtest/plans/2026-09-27-17.play`) — the first idle-style reading of this
+specific boss and the first tank spec against it. `docs/upkeep.md`'s "raid
+rewarding play" table has The Last Whisper at played 94% / idle 78%, the
+second-smallest gap on the whole roster after Bloodgorged's — the two fights
+this file has already shown resist line 1's usual shape (Bloodgorged's
+`fester`, above, and this same boss's own enrage beating a `flee` dps on
+2026-09-26).
+
+`idle` still won it outright: `fightTime=139`, `outcome=victory`,
+`aliveParty=10/10`, `presses=0`, `heroHp=2069/2790` (74%) — but for the first
+time on this line, `inDanger` moved hard mid-pull rather than sitting near
+zero throughout: 3% for the first 88s, then 77% for the closing 51s. `mid.png`
+shows why — the player's own token sitting directly under the boss, inside two
+overlapping magenta rings, with `decay` ("The ground is going over — off it")
+and `volley` ("Cold, all of it, all of you") both up on screen at once — and
+`bill` read only `byMechanic={"volley":6,"decay":2}` across the whole fight,
+a low hit count against that much time spent inside the rings.
+
+The `says` log this phase also fired `shade` ("Something is following you —
+keep walking"), and `src/sim/boss.ts`'s `scheduleShade`/`updateShades` name it
+in as many words: "the aura alone would be a dot with a long name: it would
+tick on somebody standing perfectly still, and the mechanic is that standing
+still is the one thing that does not work... outrun by walking and never
+outrun by being somewhere clever." Reading the code: the mark starts pinned to
+wherever the marked body stood the instant it was picked, then chases at a
+fraction of that body's own move speed — so a body that never moves again
+after being marked never separates from its own mark, and the tick keeps
+landing at full strength for as long as the mark is up. This pull's own `bill`
+carries no `shade` entry at all, which reads as the mark simply never landing
+on this idle body (`count = max(1, round(partySize/10))` marks one raider at
+random per cast, in a ten-player pull) rather than idle having any answer to
+it — a bill of `{}`-for-shade here is a miss, not evidence. **Not a disprove of
+line 1, and not a confirmation either**: this is the second mechanic this line
+has now read straight from source as purpose-built against standing still
+(after Bloodgorged's `fester`), on the second of upkeep's own two
+closest-to-rewarding-play fights, and both times the actual pull that could
+have tested it did not land the mechanic on the idle body. Worth a longer idle
+pull of this exact cell, or several, to catch a `shade` mark actually landing
+on the player before reading this boss as another disprove-by-`good` candidate
+or as a third confirmation of line 1's usual shape. Not filed — fourteen open
+`playtest` issues held the gate shut all session, and this is a sharpening of
+the existing Bloodgorged/Last-Whisper thread rather than a new hypothesis.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
