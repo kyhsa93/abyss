@@ -1,0 +1,43 @@
+# playpick cell: mode=clear spec=druid:restoration style=mash size=25
+# difficulty=heroic view=820x1180,touch save=carried (behaves as fresh, #273 --
+# carried never actually carries across separate playbot invocations because
+# the dev-server port is derived from the process pid).
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: `mash` on a healer has only ever been read
+# inside one room at a time before now (mode=walk toward crowns and toward
+# whisper, both 10-normal, both stalled or wiped in/near THE VIGIL; mode=daily
+# Confluence 10-normal, wiped at 68s). This is the first time a healer under
+# `mash` gets a full evening (mode=clear) to actually try, and the first at
+# 25-heroic. scripts/playbot.ts's `play` loop never sets `want` for `mash`, so
+# the body never steers in a fight -- it only round-robins the action bar in
+# place -- but README's "every heal aimed at whoever is furthest from full"
+# means those round-robin presses should still land on whoever needs it most,
+# unlike a dps's round-robin, which lands on the boss regardless of who is
+# hurt. Corridor crossing itself is not a question here (scripts/playbot.ts's
+# own `cross()` steers at the door/room-boss independently of style, already
+# confirmed for `mash` twice at 10-normal); what is open is whether an
+# unsteered but correctly-targeted healer carries a 25-heroic raid through
+# multiple boss rooms the way idle/wander/flee healers already have on this
+# line, or whether heroic's tighter numbers expose the lack of positioning
+# the way heroic already has for a tank under dodge (nine deaths, 2026-09-26).
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening mash 220 6
+state
+shot end
+says
+bill

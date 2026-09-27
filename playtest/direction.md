@@ -1068,6 +1068,45 @@ session — and this sharpens the existing Three Crowns thread (both the crown-
 puzzle mechanism and the enrage-timing question the 2026-09-26/2026-09-27
 `good` pulls left open) rather than adding an eighth hypothesis.
 
+**2026-09-27, a third measurement of the `shade` mark, the highest hit count
+yet, and the first healer under `mash` to actually get a full evening.**
+`mode=clear`, druid:restoration, `mash`, 25-heroic, carried (behaves as fresh
+per #273), 820x1180 touch (`playtest/plans/2026-09-28-7.play`), via the
+driver-lesson unlock recipe. Every prior `mash`-healer reading on this line
+stalled inside THE VIGIL or wiped inside a single room at 10-normal (the
+`crowns`/`whisper` walk probes and the Confluence daily, above); this is the
+first time that pairing has been handed a real `evening` command, and the
+first at heroic.
+
+THE VIGIL crossed clean in 6s door-to-door — another class, another style,
+still no stall, sharpening [[#6]] rather than this line. Bonegrinder heroic
+died at `fightTime=78`, `aliveParty=25/25`, `heroHp` finishing a full
+1440/1440, `presses=559` — `mash`'s round-robin never sets `want` in
+`scripts/playbot.ts` (it does not steer any more than `idle` does inside a
+fight), but README's "every heal aimed at whoever is furthest from full"
+means those blind presses still landed as healing rather than the wasted
+motion a dps's round-robin would be, and the room fell the same free way
+[[#1]]'s idle/`wander`/`flee` healers already have. The Last Whisper heroic
+then ran its full 220s room budget out at boss **2%** (9472/388,600),
+`heroHp` down to 920/1440 (64%), `inDanger=28%`, `bill`:
+`byMechanic={"decay":2,"shade":42,"volley":8}`.
+
+`shade:42` is the third reading of the mechanic named above as built
+specifically to punish standing still, and by far the largest: zero on a
+10-normal idle tank (a miss by the random target roll), 14 on a 25-heroic
+`auto` warlock over a 197s pull, now 42 over 218s on a 25-heroic `mash`
+healer — every number bigger than the last, on a body construction keeps
+predicting will never separate from its own mark once it stops moving. Not a
+controlled progression (three different specs, two different sizes/styles),
+but the direction is the same every time source says it should be, and this
+is the longest single exposure yet. The near-kill (2% left, budget-limited
+rather than a wipe or a clean victory) is this line's own script-timing
+artifact, not a boss finding — a longer room budget would likely have
+finished it, given 25/25 stayed alive the whole way. Not filed — fourteen
+open `playtest` issues held the gate shut all session — this sharpens the
+existing Bloodgorged/Last-Whisper thread rather than adding an eighth
+hypothesis.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
