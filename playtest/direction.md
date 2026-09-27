@@ -3138,6 +3138,50 @@ and save state to the 2026-09-27-2 pull, before promoting "losing the tank
 specifically is worse" from one comparison to a sharper claim. Gate held shut
 at fourteen open `playtest` issues; not filed.
 
+**2026-09-28, a confirmation rather than a complaint: README's "Getting
+better at it" section, tested end to end for the first time.** `mode=menus`,
+820x1180 touch, carried (behaves as fresh per #273). Every prior menus/carried
+session that opened RECORD found it empty (`0 pulls . 0 kills`), because
+#273's port-per-invocation bug means a `carried` save never actually survives
+between two separate `playbot` calls -- but nobody had checked whether it
+carries correctly *within* one invocation, across two real kills, which is
+the whole premise the comparison line and personal-best banners need to prove
+themselves at all. This session did: a direct `mode=raid` pull
+(`open #b=marrow&s=10&h=0`) of Bonegrinder 10-normal, killed with
+`good`/warrior:arms, `tap outcome:retry` for a second identical pull, killed
+again, then `key Escape` -> `tap back` -> `tap record`
+(`playtest/plans/2026-09-28-4.play`, `-5.play`; two earlier attempts,
+`-1-probe.play` through `-3.play`, mistimed the retry tap against a boss
+still finishing off residual DoT and are kept as the record of that mistake).
+
+The first kill's screen (`kill1.png`) carried only the four fixed
+first-pull banners (First Blood, Nobody Fell, Inside Two Minutes, Nobody Left
+Standing) and no comparison line at all -- matching README's own "a trend
+needs two kills to have a direction, so it says nothing until there are two."
+The second kill (`kill2.png`, `fightTime=106` against the first's `105`) read
+**"0.9s slower than your last kill — 2 kills on this one"**, plus two
+personal-best banners neither pull could have earned on its own: **"CLEANEST
+KILL — The Bonegrinder on 16 mechanic hits, down from 23"** and **"YOUR
+BIGGEST PULL — 7.8k damage, past 7.0k"** -- both comparing directly against
+the first kill's own numbers, silent on the first kill exactly as README
+says a first recording should be. Opening RECORD afterward, still the same
+invocation, read `2 pulls . 2 kills . your best 79 . raid best 191` with
+both kills' full damage/healing boards listed correctly and in the right
+order (most recent first). Every piece of this system that this job has
+never been able to test end-to-end -- because every previous read was either
+a cold profile or a single kill with nothing to compare against -- worked
+exactly as documented on the first real attempt. **Not a bug, and not a
+standing hypothesis**; recorded because a core, never-verified claim from
+`README.md` turning out to be true the first time it was actually tested is
+itself worth knowing, the same way this file already records confirmed-not-a-
+bug readings (the VIGIL overlay note, the emoji-lock-glyph note, above).
+
+The already-tracked banner/report overlap (#275/#283's family) reproduced on
+both kill screens (the four first-pull banners over the damage-board header
+on `kill1.png`; the personal-best banners over the same header, and `DOWN`
+over the `Vale` row, on `kill2.png`) -- not commented or filed again, both
+issues already open and this adds nothing new about the mechanism.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

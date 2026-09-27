@@ -1,0 +1,19 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# Probe only: reach a direct mode=raid pull of Bonegrinder 10-normal (a
+# fresh/carried save only ever has this one open), kill it once with `good`,
+# and read `targets` on the results screen to learn the actual button names
+# for a kill (not a wipe) before scripting the real experiment -- README's
+# "Getting better at it" section (the results-screen comparison line and
+# personal-best banners) has never been tested by this job because every
+# prior menus/carried session only ever saw one kill per playbot invocation,
+# and #273 means state does carry within one invocation even though it never
+# carries between them.
+open #b=marrow&s=10&h=0
+targets
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+play good 90
+targets
+shot result1

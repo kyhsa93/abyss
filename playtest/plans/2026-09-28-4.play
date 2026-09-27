@@ -1,0 +1,31 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# Retry of -3.play: that attempt tapped outcome:retry one line too early
+# (the boss was at 1% hp, still finishing itself off by DoT, so the button
+# did not exist yet -- fault:no-such-control -- and the follow-up
+# waitscreen/play calls just re-read the same first kill rather than
+# starting a second pull). Same experiment, with a wait before checking
+# state and only tapping retry once outcome reads victory.
+open #b=marrow&s=10&h=0
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+play good 130
+wait 3
+state
+shot kill1
+
+tap outcome:retry
+waitscreen fight 15
+play good 130
+wait 3
+state
+shot kill2
+says
+
+targets
+key Escape
+targets
+tap back
+targets
+shot home

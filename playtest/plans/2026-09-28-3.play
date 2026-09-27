@@ -1,0 +1,32 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# What no session has done before: README's "Getting better at it" section
+# promises two things this job has never actually tested -- the results
+# screen's own kill-to-kill comparison line ("4.2s faster than your last
+# kill...") and personal bests re-announcing correctly on a second kill of
+# the same boss/difficulty -- because #273 means state only ever carries
+# within one playbot invocation, and no prior session pulled the same boss
+# twice inside one script to get two kills to compare. This does that: kill
+# Bonegrinder 10-normal, retry the identical pull, kill it again, and read
+# both results screens plus (if reachable from the fight screen after a
+# kill) the RECORD screen's own per-boss line in the same invocation.
+open #b=marrow&s=10&h=0
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+play good 110
+state
+shot kill1
+says
+
+tap outcome:retry
+waitscreen fight 15
+play good 110
+state
+shot kill2
+says
+
+targets
+key Escape
+targets
+shot after-escape

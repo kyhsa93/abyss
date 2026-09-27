@@ -1,0 +1,24 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# Continuation of -4.play in spirit (fresh invocation, same recipe): kill
+# Bonegrinder 10-normal twice in one script, then open RECORD in the same
+# invocation to see whether the per-boss line reflects these two pulls --
+# no prior menus session ever checked RECORD after playing a fight in the
+# same script; every prior RECORD read was either a cold carried profile
+# (always empty, #273) or never followed an actual kill.
+open #b=marrow&s=10&h=0
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+play good 130
+wait 3
+tap outcome:retry
+waitscreen fight 15
+play good 130
+wait 3
+targets
+key Escape
+tap back
+tap record
+targets
+shot record

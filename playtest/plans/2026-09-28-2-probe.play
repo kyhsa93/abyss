@@ -1,0 +1,13 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# Continuation of -1-probe: 90s of `good` warrior:arms only got Bonegrinder
+# 10-normal to 16% (phase 3). Give it a full kill this time before reading
+# the results screen's own button names.
+open #b=marrow&s=10&h=0
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+play good 150
+state
+targets
+shot result1
