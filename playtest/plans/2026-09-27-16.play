@@ -1,0 +1,48 @@
+# playpick cell: mode=clear spec=shaman:elemental style=melee size=25
+# difficulty=heroic view=390x844,touch save=carried (behaves as fresh, #273 --
+# carried never actually carries across separate playbot invocations because
+# the dev-server port is derived from the process pid).
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: the one prior melee-style 25-heroic
+# evening (rogue:assassination, 2026-09-27-7) crossed THE VIGIL clean in
+# 24.5s, but direction.md read that off rogue's own flat moveSpeed=178, the
+# highest in the roster (src/sim/classes.ts) -- an outlier this line already
+# flagged as *not* further evidence for "size/difficulty, not style" separating
+# a clean crossing from a #6 stall, since a faster class would cross clean
+# anywhere by the same mechanism. shaman's own moveSpeed is 167, the same
+# middle tier as druid/mage -- this is the first melee-style evening on a
+# class whose speed is not the outlier, and so the first real second data
+# point for whether `melee`'s own fixed beeline-at-target steering crosses
+# corridors cleanly on its own merits at 25-heroic, or whether rogue's clean
+# record was rogue, not melee.
+#
+# Second question the same cell opens: shaman:elemental is a ranged caster
+# spec. direction.md's #7 already found a ranged spec forced into `melee`
+# style (marksmanship hunter, then elemental shaman itself) dealing zero
+# damage in a battleground, beelining into melee range and never landing a
+# cast. That has never been measured inside an actual raid/evening at
+# heroic -- whether a caster with no ranged attack still clears Bonegrinder
+# heroic for free (line 1's shape) or whether standing in melee range against
+# bonestorm (#267, already measured as reversing melee's own hit ratio) costs
+# a caster body more than it costs an intended melee class.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening melee 200 5
+state
+shot end
+says
+bill

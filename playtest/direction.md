@@ -859,6 +859,54 @@ nothing to dodge has nothing to answer an enrage with," on a second boss and
 a second affix, and the closest any style has come to actually finishing The
 Three Crowns at heroic.
 
+**2026-09-27, the costliest "active but wrong" case yet, and a whole evening
+spent losing to the same boss instead of never meeting a second one.**
+`mode=clear`, shaman:elemental, `melee`, 25-heroic, carried (behaves as fresh
+per #273), 390x844 touch (`playtest/plans/2026-09-27-16.play`). The one prior
+melee-style 25-heroic evening (rogue:assassination, 2026-09-27-7) crossed THE
+VIGIL clean in 24.5s, but `src/sim/classes.ts` gives rogue the highest flat
+`moveSpeed` in the roster (178), so [[#6]] already read that crossing as the
+class, not size/difficulty or style, and left open whether `melee` itself
+crosses cleanly on an ordinary-speed class. Shaman's own `moveSpeed` is 167,
+the same middle tier as druid/mage — this pull crossed THE VIGIL in about 30s
+(12.2s to 42.2s, presses=3), the same shape as `good`'s and `dodge`'s clean
+25-heroic crossings, not a rogue-only result. A second point for [[#6]]'s own
+size/difficulty reading, on a class this line had not yet used to test it.
+
+Past the door, the same evening spent its *entire* five-room budget failing to
+kill the one boss in it. THE BONEGRINDER (heroic) wiped four times running —
+`fightTime` 138s, 137s, 135s, 129s, every one of them phase 3 (`phaseThreeHp:
+0.33`, `src/sim/encounters.ts:1636`) with the boss at 7%, 7%, 9%, 9% and the
+player itself the one death each time (`heroHp=0/1440`, `aliveParty` 23-24/25)
+— close enough to a kill every time that a body doing real damage would
+plausibly have finished it, and every prior active-style Bonegrinder-heroic
+kill on record lands in 43-56s (`good`, `melee`-as-rogue, `dodge`), a third to
+a quarter of this pull's length. `evening`'s own room counter never got past
+`spire`: `reached=threshold -> vigil -> spire`, `rooms=5`, all four retries
+spent on the same chamber, `NEXT`/a second boss never reached.
+
+Read together with the line's own already-recorded driver-lesson (`melee`'s
+steering in `scripts/playbot.ts` only ever computes a vector toward the boss,
+with no away-from-hazard term, first flagged on the tank/Two-Flasks caustic
+pull above) and elemental being a ranged spec forced into melee range ([[#7]]
+already measured this shape dealing zero damage in a battleground): a fifth,
+fresh pull begun once the evening's budget ran out read `hits=2 hitsPerMin=4.4
+taken=548 takenPerMin=1198.5 byMechanic={"coldflame":2}` at the 27s mark —
+close to no output at all, which is consistent with a body too slow to finish
+the boss before its own exposure (standing in whatever coldflame/spike ground
+the fixed beeline never steps out of) caught up with it. **Not confirmed as
+the literal death mechanism** — no `bill` was called inside any of the four
+actual wipes, only on the follow-up pull, so this reads as a strong
+correlation (near-zero output, a fight that runs three times long, four
+deaths in the same shape) rather than a measured cause. Distinct from #267
+(bonestorm's hit-ratio reversal, 10-normal): this is a different mechanic pair
+(coldflame/spike), a different scale (25-heroic), and a different symptom — not
+an inefficient kill but a boss that never dies and an evening that never
+leaves its own first room. Not filed — fourteen open `playtest` issues held
+the gate shut all session — a strong candidate once it reopens, with this
+script and a version that adds a `bill` call after each wipe to pin the
+mechanic down before it is written up as one.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
