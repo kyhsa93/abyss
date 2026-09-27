@@ -1,0 +1,30 @@
+# Second follow-up to 2026-09-28-14.play. The respawn-check run showed this
+# good-style healer's ability bar reading "ready" (in range) by ~51s, unlike
+# direction.md's [[#7]] auto-style healer entry where healing_touch/
+# rejuvenation/swiftmend/starsurge read "range" for nearly the entire match.
+# Every bill reading logged so far on this cell landed inside a death window
+# (hits=0 because dead). This run pushes further to catch a bill reading
+# while actually alive and in range, to see whether good's steering turns
+# into real heals connected or just a ready bar that never gets used.
+open
+tap battleground
+tap map:flags
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+
+play good 60
+state
+bill
+shot c1
+
+play good 60
+state
+bill
+shot c2
+
+play good 60
+state
+bill
+says
+shot c3

@@ -1,0 +1,46 @@
+# playpick gave mode=battleground map=flags spec=shaman:restoration style=good
+# view=844x390,touch save=fresh. direction.md's [[#7]] has one healer-role
+# battleground pull on record (druid:restoration, style=auto, carried, flags,
+# 2026-09-26): a stationary auto-caster whose heals sat on "range" the whole
+# match because auto never steers at all. That entry's own open question is
+# "worth a good-style restoration druid on the same map before concluding
+# anything about the class rather than the driver's own positioning gap" --
+# `good` is the one style whose steering actually chases threats/allies
+# (scripts/playbot.ts), so this is the first chance to see whether a healer
+# that can reposition itself connects any heals on Ebb and Flow, and the
+# first-ever fresh-save (not carried) healer on any battleground.
+open
+targets
+shot front
+
+tap battleground
+tap map:flags
+targets
+shot flags-picked
+
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play good 60
+shot mid1
+state
+bill
+says
+
+wait 5
+play good 60
+shot mid2
+state
+bill
+
+wait 5
+play good 70
+shot mid3
+state
+bill
+says
+targets

@@ -1,0 +1,34 @@
+# Follow-up to 2026-09-28-14.play: the good-style shaman:restoration pull on
+# flags read hero=0/dead from fightTime~14s through 45s across three chained
+# play calls, never reviving. direction.md's Tried and dropped section says
+# chained play() calls can miss a real revival between samples -- only a
+# single play call followed by bare wait/state polling settles whether this
+# is a real stall or the known artifact. Same cell, same fresh save (pull 1
+# is deterministic), one short play call to reach the same death, then pure
+# wait/state after.
+open
+tap battleground
+tap map:flags
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+
+play good 20
+state
+shot died
+
+wait 5
+state
+shot plus5
+
+wait 5
+state
+shot plus10
+
+wait 10
+state
+shot plus20
+
+wait 15
+state
+shot plus35

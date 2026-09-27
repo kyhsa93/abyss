@@ -2223,6 +2223,57 @@ before arrival regardless of what it is holding. Not filed -- fourteen open
 work on a battleground for any kit, and the reason is the steering's own
 blindness to the other four enemies, not a class mismatch.
 
+**2026-09-28, closes the "good-style healer" open question the 2026-09-26
+auto-healer entry left standing, and extends the "good dies almost
+immediately" shape to a healer.** `mode=battleground`, `map=flags` (Ebb and
+Flow), `spec=shaman:restoration`, `style=good`, 844x390 touch, fresh save (the
+first non-carried healer this line has put on any battleground) --
+`playtest/plans/2026-09-28-14.play`, with two follow-ups
+(`-14-respawn-check.play`, `-14-extended.play`) to settle what the chained
+`play` calls looked like they were showing. The 2026-09-26 auto-healer entry
+above left an open question: "worth a `good`-style restoration druid on the
+same map before concluding anything about the class rather than the driver's
+own positioning gap" -- `good` is the one style whose steering actually moves
+toward a target, unlike `auto`. The answer is not "it heals better once it can
+move": it dies before that question can even be asked. The first pull's `bill`
+read `hits=0 hitsPerMin=0 taken=1523 takenPerMin=5900-6300 died=true
+byMechanic={}` from `fightTime=14.5s` onward, and the player was still reading
+`alive:false` at `fightTime=45s`, three chained `play good` calls later --
+looking, on its face, like a stuck respawn.
+
+A bare-poll follow-up (one `play good 20`, then pure `wait`/`state`, per this
+file's own *Tried and dropped* method) settled it a fifth way: dead at 16.2s,
+still dead at 21.3s, alive again by 26.3s (872/1485, bar reading `"range"`),
+dead again by 36.4s, alive again by 51.5s (1270/1485, bar reading `"ready"`)
+-- both revivals squarely inside `RESPAWN_EARLY=6`/`LATE=11`, the same clean
+recovery every prior confirmation of this artifact has shown, now on `flags`
+and on a healer under `good` specifically. A third script
+(`-14-extended.play`) showed the sharper edge of the artifact itself: three
+chained `play good 60` calls issued back-to-back while the player was already
+dead at call-start each returned in under a second of wall-clock time,
+advancing the simulated clock by only a couple of ticks each -- `play()`
+does not merely miss a revival between samples, it appears to return almost
+immediately when `hero()` already reads null at the call's own start, which is
+why a chain of such calls can read "dead" for far longer than any one
+`RESPAWN_LATE` window without anything in the game actually being stuck.
+
+But the death itself is the real finding: `hits=0 hitsPerMin=0` in every
+`bill` reading across both pulls, despite the bar reaching `"ready"` briefly
+after each revival -- this healer never got a single heal off before dying
+again. `fightTime` of first death (14-16s across the two pulls) lands in the
+same 9-16s band as every prior `good`-style battleground death already on
+this line (druid:feral/flags ~15s, warlock:destruction/escort ~13s,
+druid:balance/conquest ~9s) -- a fourth spec, and the first healer, in that
+band. The `pulled.png` screenshot shows a likely mechanism: the whole 5-body
+party spawns clustered directly on top of Corvin's own position (a large "3"
+countdown ring drawn right over him), and `good`'s beeline-at-`hud().boss`
+steering (already read from source in the 2026-09-28 escort entry) walks
+whatever body holds it straight into that cluster with no notion of how
+fragile it is. A healer with real steering does not fare any better than the
+three DPS specs already measured this way -- the shape this line already had
+("`good` dies almost immediately on a battleground") turns out not to be
+about role at all.
+
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to

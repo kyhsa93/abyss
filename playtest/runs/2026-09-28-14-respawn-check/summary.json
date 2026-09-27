@@ -1,0 +1,14 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/runs/2026-09-28-14-respawn-check",
+  "seed": 476975,
+  "view": "844x390,touch",
+  "entries": 18,
+  "faults": [
+    {
+      "hero": null,
+      "hp": 0,
+      "at": 21.7,
+      "kind": "fault:not-a-number"
+    }
+  ]
+}
