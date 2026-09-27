@@ -1,0 +1,49 @@
+# playpick cell: mode=raid boss=marrow spec=paladin:holy style=wander
+# size=25 difficulty=heroic view=390x844,touch save=fresh
+#
+# A fresh save only opens Bonegrinder 10-normal (progress.ts's chain), so
+# reaching 25-heroic needs the invite-hash unlock (src/main.ts's invite
+# handler unlocks whatever tier a link names). Since the hash names marrow
+# itself -- the boss this cell actually wants -- `open #b=marrow&s=25&h=1`
+# sets visiting=true and the class screen's button calls startFight()
+# directly: a standalone mode=raid pull, exactly what this cell asks for
+# (no need for the back->raid recipe, which is only for reaching an evening's
+# own setup screen).
+#
+# Never run before on this combination: paladin:holy has only ever met gorged
+# (Bloodgorged, wander, 25-heroic, 2026-09-25) and marrow under a mode=daily
+# mislabel (the actual daily that day was crowns). This is the first time a
+# genuinely-named mode=raid Bonegrinder pull has run under wander, and the
+# first time a non-melee, non-tank spec has met Bonegrinder's bonestorm aura
+# (#267's own open bug, "an aura on the boss that hurts everything near it
+# while the boss wanders") under a style that neither stands still (idle,
+# which this line's other Bonegrinder pulls have already shown wins clean)
+# nor deliberately keeps distance (dodge/good/flee) -- wander picks a new
+# random heading every twelve steps and presses a random ability slot
+# regardless of where the boss or its aura are.
+open #b=marrow&s=25&h=1
+targets
+shot roster
+tap class:paladin:holy
+targets
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+
+play wander 80
+bill
+state
+shot mid1
+
+play wander 80
+bill
+state
+shot mid2
+
+play wander 80
+bill
+state
+shot end
+says

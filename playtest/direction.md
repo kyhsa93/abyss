@@ -767,6 +767,58 @@ boss, on the one role whose kit requires standing next to it to do anything
 at all. Same shape, sixth role, first melee one. See [[#6]]'s new entry
 below for what the same evening found two rooms later.
 
+**2026-09-27, a middle case between this line's usual "costs nothing" and
+its one recorded "costs nine deaths."** `mode=raid`, paladin:holy, `wander`,
+25-heroic, fresh save, 390x844 touch (`playtest/plans/2026-09-27-13.play`,
+`open #b=marrow&s=25&h=1`) — the first genuinely-named mode=raid Bonegrinder
+pull under `wander` (its one prior marrow appearance was a `mode=daily`
+mislabel, the real daily being crowns), and the first time this line has put
+a non-melee, non-tank spec in `wander`'s path of Bonegrinder's bonestorm
+aura, which #267 already covers as punishing proximity regardless of what a
+body is trying to do. `wander` presses a random ability slot round-robin and
+picks a new heading every twelve steps with no idea where the boss's aura
+is, unlike `idle` (never moves, already shown clean on this exact boss/
+difficulty under other specs) or `dodge`/`good`/`flee` (retreat once
+something is chasing them).
+
+The kill landed at `fightTime=140` (phase 3), well past every other
+25-heroic Bonegrinder kill this line has on record (43–56s under `good`,
+`melee` and `dodge`), with `aliveParty=23/25` (two dead), the player's own
+`heroHp=398/1530` (26%), `presses=505` total across the pull and `bill`:
+`hits=8 hitsPerMin=3.4 taken=1667 takenPerMin=714.3
+byMechanic={"spike":1,"bonestorm":7}`. The mid-fight screenshot (`mid1.png`)
+shows the player's own token standing inside the boss's own bonestorm ring
+at 77s, confirming the mechanic hit was proximity, not chance. The healing
+board on the kill screen (`end.png`) has "You" last of four healers at 25
+hps (not the flat 0 the idle Three Crowns healer read) — a `holy_shock`
+apparently landing on itself or a neighbour by chance often enough to not
+read as zero, while `holy_light`/`beacon_of_light` spent most of the fight
+either `locked` or `range` per the mid-fight `state` reads.
+
+**Read with the caution this file already carries about heroic's own
+run-to-run jitter** (the 2026-09-26 shaman:elemental entry: two nominally
+identical `good` pulls of this exact cell finished 49s and "still going at
+130s," from press-timing alone) — a 140s kill on a spec that contributes
+neither tanking nor damage is not cleanly attributable to `wander` slowing
+the raid down, since the other 24 bodies' own output decides how fast the
+boss dies regardless of what the healer does. What *is* directly
+attributable to the style is the exposure: seven bonestorm hits and two
+raid deaths on a pull that other specs/styles have cleared at this exact
+cell with zero of either. This sits between line 1's usual "the AI carries
+a passive body for free" shape and the one `dodge`-tank pull that cost nine
+deaths for a fast, untouched clear — a body that presses things but presses
+them uselessly (three-for-three spec, and this line's own driver-vocabulary
+note on `wander`'s blind spot) pays a little rather than nothing or a lot.
+Not filed — fourteen open `playtest` issues held the gate shut all session —
+and this is a sharpening of both line 1 and #267's own bonestorm mechanism
+(evidence it is not melee-specific) rather than a new hypothesis. The
+kill screen's "Full Raid" banner reads "Kill it with twenty-five," which
+`src/achievements.ts:106-111` confirms is a raid-size award (`party(s).length
+=== 25`), not a no-deaths one — checked against source before it was
+mistaken for a contradiction with the two actual deaths, and not the
+already-tracked #275/#283 banner-overlap family either (no overlap was
+visible on this viewport's kill screen).
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
