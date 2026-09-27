@@ -1,0 +1,52 @@
+# playpick cell: mode=walk boss=confluence spec=druid:guardian style=good
+# size=10 difficulty=normal view=820x1180,touch save=carried (behaves as
+# fresh, #273 -- carried never actually carries across separate playbot
+# invocations because the dev-server port is derived from the process pid).
+# 10-normal is progress.ts's first rung, open on a fresh save with no
+# unlock trick needed. boss=confluence is a coverage label only -- `evening`
+# steers at no boss (direction.md's own repeated note) -- so this walks in
+# at the door same as any other.
+#
+# This exact spec/style/size/difficulty (druid:guardian, good, 10-normal,
+# mode=clear) already opened [[#6]]'s VIGIL-stall line on 2026-09-25 (two
+# convergent runs, wander and good, both stalling within a dozen units of
+# each other). Re-running the same corridor confirmation for a fifteenth
+# time is not new by itself, so what this session actually tries is
+# something no [[#6]] report has checked yet: what the CITADEL map screen
+# (README's "the map is a map... the one thing you can still press on it is
+# a lit pad") actually shows a player mid-evening, reached via the fight
+# screen's own corner `map` button (src/main.ts:2303, `walkingAnEvening()`
+# gate) -- whether that is while still crossing, or once a corridor has
+# stalled. No session in direction.md has pressed it during a live evening;
+# every citadel-screen mention on record is from the class screen's own
+# BACK. If VIGIL stalls again as expected, this checks whether the map
+# offers any lit room or a GIVE UP a stuck player could actually use, which
+# is the practical half of the VIGIL question the fault alone does not
+# answer.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:druid:guardian
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening good 200 8
+state
+shot after-evening
+says
+bill
+
+tap map
+waitscreen citadel 10
+shot citadel-view
+targets
+state
+tap back
+state
+shot after-back

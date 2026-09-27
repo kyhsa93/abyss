@@ -1390,6 +1390,46 @@ script's own budget, not a stall of [[#6]]'s shape (the fault fired with
 the fight still closing on the boss, not parked motionless near a door).
 Fourteen open `playtest` issues held the gate shut; nothing filed.
 
+**2026-09-27, fifteenth confirmation, and the first clean crossing that
+matches this line's own disprove condition on the letter of it.** `mode=walk`
+(`boss=confluence`, a coverage label only), druid:guardian, `good`, 10-normal,
+carried (behaves as fresh per #273), 820x1180 touch
+(`playtest/plans/2026-09-27-9.play`) -- the exact spec, style, size and
+difficulty that opened this line on 2026-09-25 (`wander`/`good`, seed A/B,
+both stalling at 259-400s within a dozen units of each other) and that
+`flee` stalled a third time on 2026-09-25. No session had run `good` on
+this precise cell again since the opening pair. This time THE VIGIL crossed
+in about 30 seconds (`10.4s` at the door to `40.6s`, waking The Bonegrinder
+directly, `presses=15`) -- the first clean 10-normal crossing this line has
+ever recorded under `good` specifically, where every 10-normal `good`/`wander`/
+`flee` run before it stalled and every clean 10-normal crossing on record
+belonged to rogue:assassination (already explained by its own
+above-average `moveSpeed`, not by size/difficulty or style).
+
+This meets the line's own stated disprove condition -- "an evening crossing
+THE VIGIL under any of these styles from a fresh save at this size/
+difficulty" -- on the same class, style, size and difficulty as the original
+stall, with only the seed differing (fresh/carried's `roomSeed` is keyed off
+`Date.now()`, per this file's own repeated note). **Narrowed, not
+dropped**: fourteen confirmed stalls and clean crossings together already
+argued style and class matter less than this file first thought, and the
+size/difficulty theory itself had cracks (a West Climb stall at 25-heroic,
+a `wander` stall at 25-heroic past VIGIL). This is the cleanest single data
+point yet for the reading several 2026-09-26 entries were already leaning
+toward: the watchmen's own seeded placement, not any property of the party
+crossing them, decides whether a given evening's VIGIL is a corridor or a
+wall. The evening carried on cleanly for six more rooms after this --
+Bonegrinder and The Last Whisper both killed clean (10/10 alive, `heroHp`
+finishing at 4050/4140 after the second kill), a working pad-ride from West
+Climb to Mooring (`cross()` choosing `why=toward a lit pad` over the nearer
+unlit door, landing exactly on the intended room), and a Skyward Deck pull
+still open at 52% boss hp when the script's 8-room budget ran out
+(`fight-outlasted-its-budget`, `aliveParty=9/10`) -- the furthest into the
+citadel and the first wing boss this job's own evening-mode sessions have
+ever put real numbers on. See *Not yet filed*, below, for what the same
+session found by pressing the fight screen's own `map` corner button while
+that pull was still live.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
@@ -2493,6 +2533,52 @@ observation"); recorded rather than chased further, in case it recurs on a
 `--profile` run specifically (the one condition that differed between the
 sighting and two of the three failed repros) and becomes worth a fourth
 attempt.
+
+**2026-09-27, held, gate shut, a real bug found by pressing a documented
+control mid-fight rather than reading it off the source.** Same session as
+[[#6]]'s new clean-VIGIL entry above (`playtest/plans/2026-09-27-9.play`),
+continued past the evening itself: with The Skyward Deck still an open pull
+(`mode=raid outcome=ongoing`, boss at 52%, 9/10 party alive), pressed the
+fight screen's own corner `map` control (`src/main.ts:2303`'s
+`walkingAnEvening()` gate, visible in the screenshot `after-evening.png`
+next to `party`/`settings`) for what the journal shows is the first time any
+session has tapped it while a boss fight was actually live rather than
+mid-corridor. It worked exactly as `main.ts` says -- `screen` became
+`citadel` -- but two things followed that no report has caught before.
+
+**The fight does not pause.** `state` read `hud.time=198.4` the instant
+before the tap and `hud.time=199.5` on the very next `state` call taken
+*from the citadel screen*, with the boss's own hp reading 65,674 then
+65,264 across the same gap -- the encounter kept simulating a full second
+behind the map with no way to act on it (`citadel-view.png` shows the live
+pull's own sprites and health bars rendered faintly in the background,
+mid-fight, under the room graph). A player who checks the map out of
+curiosity during a pull is not pausing to look, they are standing in the
+fight blind for however long they read it.
+
+**And `tap back` did not return to the fight.** `targets` on the citadel
+screen read `["room:oratory","room:threshold","back","reset"]` (`reset` is
+`GIVE UP`'s own control id, confirming README's map description down to the
+button that ends a run) -- correct and unsurprising on its own, since
+`mooring`, the room the live pull is actually in, is not a valid pad
+destination while its own fight is unresolved. But pressing `back`
+(screenshot `after-back.png`) landed on `screen=home` -- the ABYSS front
+page, RAID/BATTLEGROUND/TODAY'S RUN tiles and all -- not back on the fight,
+even though `state` read `mode=raid outcome=ongoing chamber=mooring` with
+the same live boss hp on the very same line. The run is still there by the
+state the hook reports; what a player actually sees after pressing the one
+button the map screen offers to leave it is the front page, with nothing on
+it saying a Skyward Deck pull is still open two menus back. Not filed --
+fourteen open `playtest` issues held the gate shut all session -- but this
+reads as more than a `mode()`-style semantic gap ([[#2]]): a real player who
+taps `map` mid-pull, reads it for a few seconds, and taps `back` is handed a
+menu that looks like nowhere they were, with an unwatched pull still ticking
+behind it. Worth checking on the next session whether pressing RAID from
+that state resumes the live Skyward Deck pull (per #273/#281's own port
+caveats) or drops it, before writing the fix this deserves -- and whether
+the same non-pause holds for the corner `map` button reached outside an
+evening's own travel mode, since this session only ever pressed it during
+one.
 
 ## Tried and dropped
 
