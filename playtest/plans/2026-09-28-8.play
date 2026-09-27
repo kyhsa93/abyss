@@ -1,0 +1,38 @@
+# playpick cell: mode=raid boss=whisper spec=paladin:holy style=idle
+# size=10 difficulty=normal view=390x844,touch save=fresh
+#
+# What no session has done before: every prior idle-style reading of The
+# Last Whisper's shade mark (2026-09-27-17, warrior:protection) came from a
+# tank, and the two pulls that actually landed shade hits on a stationary
+# body (2026-09-27-20 auto-warlock, 2026-09-28-7 mash-druid:restoration)
+# were both at 25-heroic inside an evening, and neither style is a body that
+# truly never acts -- auto and mash both still press abilities, just without
+# steering. idle never casts and never moves at all, so a healer under idle
+# is the first body on this exact boss with nothing to answer shade with
+# even if it lands: no self-heal, no movement to break the mark's chase.
+# This is also the first direct mode=raid idle-healer pull of this specific
+# boss at its easiest setting (10-normal), matching the tank pull's own cell
+# so the two are a controlled pair on role alone.
+open #b=whisper&s=10&h=0
+targets
+tap class:paladin:holy
+tap pull
+waitscreen fight 15
+state
+shot start
+
+play idle 80
+state
+shot mid1
+bill
+
+play idle 80
+state
+shot mid2
+bill
+
+play idle 80
+state
+shot end
+says
+bill

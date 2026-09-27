@@ -1107,6 +1107,45 @@ open `playtest` issues held the gate shut all session — this sharpens the
 existing Bloodgorged/Last-Whisper thread rather than adding an eighth
 hypothesis.
 
+**2026-09-28, a second zero-`shade` idle pull, and a source-backed reason to
+stop reading that as luck.** `mode=raid` (`open #b=whisper&s=10&h=0`, the
+exact cell #1's own tank-idle pull used above), paladin:holy, `idle`, fresh
+save, 390x844 touch (`playtest/plans/2026-09-28-8.play`) — the first idle
+*healer* read of this boss, a stricter case than the tank: a healer under
+idle has nothing to answer a landed mark with even if it lands, no self-heal
+and no movement to break the chase. `idle` won it clean again: `victory`,
+`fightTime=138` (within a second of the tank pull's 139s on the same cell),
+`aliveParty=10/10`, `presses=0`, `heroHp` finishing 744/1530 (49%, lower than
+the tank's 74%), `inDanger` read 35% across the first 80s then 0% by the
+end — the opposite shape from the tank pull's 3%-then-77%. `bill`:
+`byMechanic={"decay":1,"volley":6}` across the whole fight — zero `shade`
+again, the second 10-normal idle pull in a row to read that way.
+
+Read `scheduleShade` (`src/sim/boss.ts:1162`) before calling a second zero a
+coincidence: `count = Math.max(1, Math.round(s.party.length / 10))` is not
+the `RAID_MODE`-style headcount scaling most of this boss's other mechanics
+use — at a 10-player party it is exactly 1, so every shade cast marks one
+body out of ten, and a specific stationary player's odds of ever being that
+one body are low per cast and roughly independent across the fight's dozen
+or so casts (phase 2 and 3 cadences of 12s/10.4s over a ~125s post-opening
+window). At 25 players the same formula gives 3 marks per cast — the two
+pulls that actually caught a stationary body (`auto`-warlock, `mash`-druid,
+both above) were both 25-player. Two 10-normal idle misses next to two
+25-player idle-adjacent hits is consistent with the mark's own count scaling
+by size being *why* a small idle pull reads as if idle answers shade, rather
+than idle actually answering it — the same body would very likely have taken
+a hit or two at 25-player. Not filed — the mechanic is doing what its own
+count formula says it should, not a bug — but worth the size-scaling framing
+being made explicit in this line rather than left as "a miss by the random
+target roll" a third time: the honest reading is that shade is a real
+"line 1 does not hold" mechanic (disprove-by-`good` territory, alongside
+Bloodgorged's `fester`) that a 10-player pull is simply the wrong scale to
+observe by. A 25-heroic or 25-normal idle pull of this exact boss, long
+enough to catch several casts, would settle it properly; every reading of
+this mechanic so far has been at 10-normal (idle, twice) or 25-heroic
+(`auto`, `mash`, neither a body that truly never acts) and none has been the
+controlled idle/`good` pair the line's own disprove condition asks for.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
