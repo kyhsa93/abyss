@@ -1728,6 +1728,52 @@ warrior or rogue on either map before trusting "melee style loses" as
 evidence about battlegrounds rather than about pairing a ranged kit with a
 beeline-to-target steering algorithm.
 
+**2026-09-27, complicated by the first passive-style death this line has ever
+recorded, on the one map with a mechanic that specifically hunts a passive
+body.** `mode=battleground`, `map=flags` (Ebb and Flow), `spec=mage:frost`,
+`style=flee`, 844x390 touch, carried (behaves as fresh per #273) --
+checked against every `.play` under `playtest/plans/` before committing:
+the first `flee`-style pull on this map (its three priors were all conquest
+or escort) and the first mage on any battleground at all
+(`playtest/plans/2026-09-27-14.play`). Every `flee`/`dodge` pull on record
+before this one -- three of them, two maps -- read `hits=0 taken=0` for the
+entire match, untouched start to finish. This one did not: `bill` read
+`taken=0` at fightTime=57s, `taken=1064 takenPerMin=521.6` (`heroHp`
+241/1305) at fightTime=122s, and the player was dead by fightTime=140s
+(`heroHp=0/1305`, `fault:not-a-number` firing the same way a raid wipe
+does), `presses=0` throughout -- the first death this line has ever
+recorded on a body that never pressed anything.
+
+The mid-match screenshot (`mid2.png`) shows why: a dashed blue ring drawn
+around "You" specifically, which `src/render/draw.ts:976-988`'s own comment
+says is drawn "over [the carrier], where the eye is already looking" --
+the player had become a flag carrier. Read `src/sim/battleground.ts` rather
+than guess how, since `flee` never presses anything and a raid never asks a
+player to opt into carrying something: `updateFlags`'s dropped-flag branch
+(line 934) hands carrier status to whoever is simply standing within
+`FLAG_PICKUP` of a flag on the ground, no press or intent required, and
+`CARRIER_SPEED=0.82`/`CARRIER_FRAGILITY=1.25` (the file's own comment:
+"a carrier is slower and takes more, which is what turns 'kill the carrier'
+from a suggestion into something that happens") apply automatically the
+instant that happens, whether or not the carrier has any intention of
+running it home. `flee`'s own steering only ever moves away from whatever
+is nearest and threatening -- it has no notion of "you are carrying
+something" or "drop it" or "the friendly base is a destination" -- so once
+the pickup happened by proximity alone, the penalty stacked for the rest of
+the body's life with no way for this style to answer it.
+
+**Not a clean instance of anything on this line, and not filed regardless
+(gate shut)** -- this is the one battleground mechanic built to make
+standing near the wrong spot costly regardless of what a body presses,
+which cuts the other way against [[#7]]'s own shape rather than confirming
+it: a passive body is not free here the way it is on conquest/escort, but
+only because an *automatic, no-input* pickup turned it into a bigger target,
+not because playing passively stopped working on its own. Worth a same-map
+`dodge`/`idle` pair before trusting this as "flags punishes passivity"
+rather than "flags punishes whichever body wanders over a dropped flag,
+active or not" -- the mechanism has nothing to do with `flee` specifically
+once the pickup happens, only the pickup itself does.
+
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to

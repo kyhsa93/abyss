@@ -1,0 +1,48 @@
+# playpick gave mode=battleground map=flags spec=mage:frost style=flee
+# view=844x390,touch save=carried. Two firsts checked against the ledger and
+# every .play under playtest/plans/ before committing to this script: no prior
+# battleground session has ever run mage:frost (all six frost/fire/arcane-less
+# priors were priest:shadow, hunter:marksmanship, shaman:elemental, druid:feral,
+# warlock:destruction, druid:balance -- no mage at all), and `flee` -- which
+# direction.md's [[#7]] already has losing outright on conquest (The Three
+# Cairns, 2026-09-24) -- has never been paired with this specific map (flags,
+# Ebb and Flow). Every flags-map session on record so far used auto, melee or
+# a bare-idle control, never a style that runs from everything and never
+# fights. #278 already covers this map's real 180s limit vs README's claimed
+# 360s, so the chunks below sum past 180s on purpose to watch the match
+# actually end rather than re-measuring that gap.
+open
+targets
+shot front
+
+tap battleground
+tap map:flags
+targets
+shot flags-picked
+
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play flee 60
+shot mid1
+state
+bill
+says
+
+wait 5
+play flee 60
+shot mid2
+state
+bill
+
+wait 5
+play flee 70
+shot mid3
+state
+bill
+says
+targets
