@@ -695,6 +695,63 @@ Gate held shut at 14 open `playtest` issues; not filed, and this is a
 sharpening of the existing Three Crowns thread under this line rather than an
 eighth standing hypothesis of its own.
 
+**2026-09-27, the second of the fight's two untried styles, and the first
+pull of this boss at heroic — which turned up a mechanic no prior session had
+reached.** `mode=daily` (today's actual run, probed first via
+`playtest/plans/2026-09-27-8-probe.play`): The Three Crowns again, but for
+the first time at 25-player **heroic** rather than normal, carrying HASTENED
+("the enrage arrives more than two minutes early"), priest:shadow, `wander`,
+fresh save, 390x844 touch (`playtest/plans/2026-09-27-8.play`). The 2026-09-27
+`dodge` entry above named `wander` as the one style this fight had not yet
+seen; `dodge` answered "does it lose the crown puzzle" with "it never engages
+the puzzle at all," since it has no toward-boss steering term. `wander` is a
+different hypothesis: it presses a random ability slot round-robin *and*
+picks a new random heading every twelve steps (`docs/playtest.md`'s own
+description), so unlike `dodge` it has no reason to avoid the court either.
+
+The pull wiped at 45.1s, phase 1, boss at 79% — the fastest this fight has
+ever ended in this job's history, on every other style's own numbers (melee
+218-257s, idle 258s, good 268-300s, dodge 268s, none of those a death; the one
+prior wipe on record, the 2026-09-27 `auto`-as-`good` pull, went to 287s).
+`bill`: `hits=1287 hitsPerMin=1710.9 taken=4457 takenPerMin=5925.1 died=true
+byMechanic={"thirst":759,"prison":528}`. `thirst` is the already-known court
+drain; `prison` is new — the first time this job has recorded it, on any
+boss. Read `src/sim/encounters.ts` and `src/sim/boss.ts` rather than guess
+why: The Three Crowns' kit lists `prison` fourth of five mechanics with
+`gates: { prison: 'heroic' }` — it does not exist below heroic, which is why
+nothing in this file has mentioned it before now: every prior Crowns pull, on
+every style, was normal difficulty. `schedulePrison`'s own comment names it
+"the one demand in this game answered by not doing the thing every other
+demand is answered by... what it asks is which steps are worth paying for" —
+ten seconds where every full stride costs more than the last
+(`billWalking`: a body's own `walked` timer accumulates while it is moving
+and resets the moment it stops, and the tick's damage scales with
+`min(a.walked, PRISON_CAP)`).
+
+That reads as close to a direct description of what `wander` cannot do.
+Every other style this line has run has some way to hold still — `idle`
+never moves at all; `dodge`/`good`/`flee` stop once nothing is chasing them —
+but `wander`'s own hypothesis is a player who never settles, forced onto a
+new heading every twelve steps whether or not anything asked for one. A
+mechanic built to bill "which steps are worth it" cannot be answered by a
+body with no concept of a step *not* being worth it. The end screen
+(`end.png`) shows the shape plainly: every other raider's own "taken
+mechanics" column reads a flat 147 (the raid-wide share of `thirst`'s
+rotation), and the player's own row alone reads a red `1287` — the only
+number on the board decided by this body's own steering rather than the
+crown's schedule.
+
+**Not a bug, and not filed** — the mechanic is doing exactly what its own
+comment says it should, billing motion for its own sake, and a style that is
+nothing but motion for its own sake is the cleanest possible demonstration of
+that rather than evidence anything is wrong. This closes the specific
+open question the `dodge` entry above left standing (both of the fight's two
+untried vocabulary styles have now been run), but not the fight's heroic tier
+itself — this is one pull deep at heroic, `mash` and `flee` have never
+touched this boss at all, and it is still open whether a raid answering
+`prison` properly (rather than a body that structurally cannot try) changes
+anything about it. Gate held shut at 14 open `playtest` issues; not filed.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

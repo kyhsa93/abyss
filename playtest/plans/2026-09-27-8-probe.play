@@ -1,0 +1,9 @@
+# probe: playpick gave mode=daily boss=gorged (coverage label only -- a
+# daily's boss comes off the UTC date, not a pickable control) spec=priest:shadow
+# style=wander view=390x844,touch save=fresh. Just reading today's actual
+# boss/size/difficulty off the setup screen before committing to a class.
+open
+tap daily
+targets
+state
+shot setup

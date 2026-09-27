@@ -1,0 +1,46 @@
+# playpick: mode=daily boss=gorged (coverage label only -- a daily's boss
+# comes off the UTC date, not a pickable control) spec=priest:shadow
+# style=wander view=390x844,touch save=fresh
+#
+# Probed first (2026-09-27-8-probe.play): today's actual daily is The Three
+# Crowns again, but not the same instance as any prior session this line has
+# logged -- every prior Crowns daily was 25-player normal/SWARMING; this one
+# is 25-player HEROIC with HASTENED ("the enrage arrives more than two
+# minutes early"). direction.md's own note on this fight names wander and
+# dodge as the only two vocabulary styles it had never seen; dodge got its
+# pull on 2026-09-27 (mode=raid, 10-normal) and read byMechanic={} because
+# dodge has no toward-boss term at all, so it never walks onto the untouchable
+# decoy the way melee/good do. wander is different again: it presses a random
+# ability slot round-robin AND picks a new random heading every twelve steps,
+# so unlike dodge it has no reason to avoid the court either -- this is the
+# first style with genuinely undirected movement to meet this fight, and the
+# first time this fight's hastened-enrage variant has been played by anyone.
+open
+tap daily
+tap class:6
+targets
+ui
+shot setup
+tap start
+waitscreen fight 15
+state
+shot open
+
+play wander 90
+bill
+state
+shot mid1
+
+play wander 90
+bill
+state
+shot mid2
+
+play wander 90
+bill
+state
+shot mid3
+
+says
+state
+shot end
