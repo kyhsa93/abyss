@@ -1,0 +1,38 @@
+# playpick cell: mode=daily boss=flasks (coverage label only) spec=priest:shadow
+# style=wander view=1280x800 save=fresh
+#
+# Same daily instance as 2026-09-28-11.play (The Three Crowns, 25-heroic,
+# HASTENED), one continuous invocation this time so the retry lands on a real
+# pull 2 rather than a fresh reload's pull 1 again. What no session has done
+# on this fight, at any difficulty, under any style: retried past pull 1 to
+# see whether the AI raid's own pull-over-pull sharpening (README: "they also
+# get sharper every pull") changes anything for a body that structurally
+# cannot answer `prison` or survive the HASTENED early enrage.
+open
+tap daily
+tap class:6
+tap start
+waitscreen fight 15
+state
+shot p1-start
+
+play wander 60
+bill
+state
+shot p1-end
+
+targets
+tap outcome:retry
+waitscreen fight 10
+state
+shot p2-start
+
+play wander 60
+bill
+state
+shot p2-mid1
+
+play wander 60
+bill
+state
+shot p2-mid2

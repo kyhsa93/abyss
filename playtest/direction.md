@@ -3352,6 +3352,62 @@ on `kill1.png`; the personal-best banners over the same header, and `DOWN`
 over the `Vale` row, on `kill2.png`) -- not commented or filed again, both
 issues already open and this adds nothing new about the mechanism.
 
+### Not yet filed
+
+Observations that do not belong to any of the seven numbered hypotheses above,
+held here until the gate opens (or a session drops them, with the reason).
+
+**2026-09-28, a daily's own retry never sharpens its AI, and the WIPE banner's
+own pull counter is the proof.** `mode=daily` gave priest:shadow, `wander`,
+fresh save, 1280x800 desktop. Probed first
+(`playtest/plans/2026-09-28-10-probe.play`): today's actual daily is The
+Three Crowns, 25-player heroic, HASTENED -- almost certainly the same
+instance a 2026-09-27 session already ran under this exact spec and style
+(`playtest/plans/2026-09-27-8.play`), which wiped to `prison` at 45.1s,
+phase 1, boss at 79%. No session has ever retried a daily past pull 1 in one
+continuous `playbot` invocation (the only way to get a real second pull rather
+than a fresh reload's pull 1 again, per this file's own `open #hash`
+same-document-navigation lesson under hypothesis 1): this one did
+(`playtest/plans/2026-09-28-12.play`), via `tap outcome:retry` straight off
+the first wipe, no `open` in between.
+
+The two pulls read as statistically the same fight: pull 1 wiped at
+`fightTime=45` (44.6s on the WIPE screen), boss 78%,
+`byMechanic={"thirst":730,"prison":511}`, `aliveParty=24/25`; pull 2 wiped at
+`fightTime=46` (45.7s), boss 79%, `byMechanic={"thirst":685,"prison":545}`,
+`aliveParty=24/25` -- no improvement on any axis, where every ladder-style
+pull-over-pull comparison this line has ever run (the Bonegrinder `learn`
+example in `docs/playtest.md` itself, 7.1 to 11.1 hits/min by pull 3) shows
+real movement by the second attempt. The screenshots are the sharper evidence:
+`p1-end.png` and `p2-mid1.png` both print "The Three Crowns · ~45s · boss at
+7X% · **pull 1**" -- the second wipe's own banner never advanced to "pull 2"
+at all.
+
+Read `src/main.ts`'s `buildState` (767-784) rather than guess why: an ordinary
+pull calls `createState(BASE_SEED, attempt, party, difficulty, encounter)` and
+a room's own fight calls `createState(roomSeed(run, roomId), attempt, ...)` --
+both pass the real `attempt` variable, which `restart()` (line 1487)
+increments unconditionally on every retry, daily included. But the
+`playingDaily` branch reads `createState(daily.seed, 0, party, difficulty,
+encounter, daily.affix)` -- a **literal `0`**, not `attempt`. `s.attempt` (the
+value the WIPE banner prints via `pull ${s.attempt + 1}`, `src/render/hud.ts:
+2114`) is exactly this argument, and `src/sim/state.ts:47`'s own comment
+("Later pulls produce sharper AI. Real raid groups get better at a fight by
+repeating it") names the mechanism this argument drives. A daily retry never
+passes it anything but zero, so the AI party is replayed at pull-1 skill on
+every single attempt, forever -- `README.md`'s own words, "Retries are allowed
+and counted... a run you cannot practise is one you only ever see once,"
+promise the opposite of what the source does for this one mode.
+
+**Not filed -- fourteen open `playtest` issues held the gate shut** -- but
+this is a source-confirmed bug, not a taste note, and the first time this job
+has actually looked at why two nominally-successive readings of the same
+daily (2026-09-27's and today's) kept landing on near-identical numbers
+rather than the improvement a second pull shows everywhere else on this line.
+File as a bug the first session the gate opens, with
+`playtest/plans/2026-09-28-12.play` as the reproduction and `p1-end.png`/
+`p2-mid1.png` as the banner evidence.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

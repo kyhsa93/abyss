@@ -1,0 +1,28 @@
+# playpick cell: mode=daily boss=flasks (coverage label only -- a daily's
+# boss comes off the UTC date, not a pickable control) spec=priest:shadow
+# style=wander view=1280x800 save=fresh
+#
+# Probed first (2026-09-28-10-probe.play): today's actual daily is The Three
+# Crowns, 25-player heroic, HASTENED -- almost certainly the same daily
+# instance a 2026-09-27 session already ran under this exact spec+style
+# (priest:shadow, wander), which wiped to `prison` at 45.1s, phase 1, boss at
+# 79%. What no session has ever done on this fight, under any style: retry
+# past pull 1. README says the AI party "get sharper every pull, because real
+# groups learn a fight by repeating it" -- this pull tests whether that
+# sharpening changes anything about a body that structurally cannot answer
+# `prison` (it never stops moving) or about surviving the HASTENED early
+# enrage, once the other 24 bodies have had a second attempt to learn it.
+open
+tap daily
+tap class:6
+targets
+shot setup
+tap start
+waitscreen fight 15
+state
+shot start
+
+play wander 60
+bill
+state
+shot mid1

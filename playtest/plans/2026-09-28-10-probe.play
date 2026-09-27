@@ -1,0 +1,9 @@
+# probe: playpick gave mode=daily boss=flasks (coverage label only -- a
+# daily's boss comes off the UTC date, not a pickable control) spec=priest:shadow
+# style=wander view=1280x800 save=fresh. Reading today's actual boss/size/
+# difficulty/affix off the setup screen before committing to a class.
+open
+tap daily
+targets
+state
+shot setup
