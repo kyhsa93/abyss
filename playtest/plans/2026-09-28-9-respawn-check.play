@@ -1,0 +1,35 @@
+# Follow-up to 2026-09-28-9.play: the first melee-style pull with a melee-
+# capable kit (paladin:protection) read dead across three chunked play calls
+# spanning fightTime 27s to 67s -- well past RESPAWN_LATE=11, unlike the
+# three prior chained-play "stuck" reads in direction.md's Tried and dropped,
+# which all turned out to be the abort-on-death sampling gap once checked
+# with a bare poll. Same cell (escort, paladin:protection, melee, carried,
+# 844x390 touch). One short play to get killed, then nothing but wait/state
+# -- no further play calls -- to see the real respawn behaviour.
+open
+tap battleground
+tap map:escort
+tap class:paladin:protection
+tap pull
+waitscreen fight 15
+state
+
+play melee 40
+state
+shot dead1
+
+wait 5
+state
+shot poll1
+
+wait 5
+state
+shot poll2
+
+wait 5
+state
+shot poll3
+
+wait 10
+state
+shot poll4

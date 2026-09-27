@@ -2126,6 +2126,73 @@ rather than "flags punishes whichever body wanders over a dropped flag,
 active or not" -- the mechanism has nothing to do with `flee` specifically
 once the pickup happens, only the pickup itself does.
 
+**2026-09-28, closes the melee-capable-kit question, and corrects a stale
+misreading of `hud().boss` on this map that this line has carried since the
+day it opened.** `mode=battleground`, `map=escort` (The Long Haul),
+`spec=paladin:protection`, `style=melee`, 844x390 touch, carried (behaves as
+fresh per #273) -- the first melee-capable kit (a tank, with a real melee
+weapon) this line has given `style=melee` on any battleground; both priors
+(hunter:marksmanship on Ebb and Flow, shaman:elemental on this same map)
+were ranged casters, which left open "worth a melee-style warrior or rogue
+on either map before trusting 'melee style loses' as evidence about
+battlegrounds rather than about pairing a ranged kit with a beeline-to-
+target steering algorithm." Two independent pulls of the identical cell
+(`playtest/plans/2026-09-28-9.play`, three chunked `play melee 90` calls;
+`-9-respawn-check.play`, a one-`play`-then-bare-poll follow-up run to settle
+a stuck-looking death) answer it: a melee-capable kit changes nothing. Across
+both pulls the player pressed an ability four times total while alive (1 in
+the first pull, 3 in the second) and connected zero of them --
+`hits=0 hitsPerMin=0` in every `bill` window either run produced, same shape
+as both ranged-spec priors.
+
+The first pull's chained `play` calls read the player dead from `fightTime`
+27s clear through 67s (`heroHp=0/2745 alive=false`, ability bar `locked`),
+well past `RESPAWN_LATE=11` -- worth checking before trusting as a real stall,
+per this file's own *Tried and dropped* precedent (three prior "stuck death"
+reads on this exact job, all resolved as the chained-`play` abort-on-death
+sampling gap). The follow-up settled it a fourth way: one `play melee 40`
+call to get the tank killed, then nothing but bare `wait`/`state` -- dead at
+27.5s, alive again with a full ability bar by 37.7s, squarely inside
+`RESPAWN_EARLY=6`/`LATE=11`. Not a new stall; a fourth confirmation of the
+same driver artifact, now on a tank spec.
+
+**The real correction:** this line's own 2026-09-25 escort entry read
+`hud().boss`'s falling-then-rising hp on this map as "the contested cart's
+own progress," but a `bossOrNone`/`RED_NAMES` read on a different map 22
+lines later in this same file already had the right answer and was never
+reconciled against it. Reading `src/sim/state.ts`'s `createBattlegroundState`
+(406-438) settles it for good: every battleground, `escort` included, seeds
+five real actors onto the red side with `id: BOSS_ID..BOSS_ID+4` and names
+them off `RED_NAMES = ['Corvin', 'Sable', 'Thane', 'Ember', 'Grimsby']`;
+`bossOrNone` (`src/sim/combat.ts:115`) returns whichever actor holds
+`BOSS_ID`, which is always `red[0]` -- literally "Corvin," a specific enemy
+player with his own hp pool, not a cart. `hud()` (`src/main.ts:2910`) exposes
+only that one actor's `name`/`hp`/`maxHp`/`x`/`y` -- there is no cart-progress
+field anywhere in it, and `bg.carts` (`src/sim/battleground.ts:660`) is a
+wholly separate structure `hud()` never reads. So every `bossHp` reading this
+line has logged on `escort` was Corvin's own health rising and falling from
+being hit and healed by his own team, the same as on every other map, not a
+tug-of-war meter -- the "56% -> 97%, pushed back, nearly reversed" language
+in the 2026-09-25 entry describes a real enemy getting topped up by a healer,
+not a cart rolling backward. This does not change any prior entry's numbers,
+only how they should be read; the 2026-09-25 line is superseded rather than
+struck, per this file's own convention for an overturned guess.
+
+That correction also sharpens what `melee`'s steering (`want = boss.x-hero.x,
+boss.y-hero.y` when `far>4`, `scripts/playbot.ts:952`) is actually doing on a
+battleground: it beelines the player, alone, at one specific named enemy's
+raw coordinate -- ignoring the other four red bodies and every teammate --
+which is a real reachable target, not a marker with no meaning attached to
+it. That a melee-capable tank still never landed a hit before dying twice at
+~27s says the zero-connection shape was never about kit-vs-range at all: a
+solo beeline at one enemy's coordinate through open ground, with no notion
+of the other four bodies who can reach the player first, gets a body killed
+before arrival regardless of what it is holding. Not filed -- fourteen open
+`playtest` issues held the gate shut -- and this closes [[#7]]'s own
+2026-09-26 open question rather than opening a new one: `melee` does not
+work on a battleground for any kit, and the reason is the steering's own
+blindness to the other four enemies, not a class mismatch.
+
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to

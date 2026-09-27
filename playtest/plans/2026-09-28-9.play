@@ -1,0 +1,59 @@
+# Cell from playpick: mode=battleground map=escort spec=paladin:protection
+# style=melee view=844x390,touch save=carried.
+#
+# melee has been run on battlegrounds twice before (hunter:marksmanship on
+# Ebb and Flow, shaman:elemental on this same map) and both times read
+# hitsPerMin=0 the whole match -- but both were ranged specs forced into
+# melee range by melee's own beeline-to-target steering. direction.md's #7
+# section names the open question directly: "Worth a melee-style warrior or
+# rogue on either map before trusting 'melee style loses' as evidence about
+# battlegrounds rather than about pairing a ranged kit with a beeline-to-
+# target steering algorithm." paladin:protection is the first melee-capable
+# kit this line has given the melee style on any battleground -- and it is
+# also a tank, which #7's newest entry (druid:guardian/mash, 2026-09-27)
+# found costs a match more than losing an interchangeable dps does, since a
+# battleground's five roles are an exact trade (one tank/one healer/three
+# damage). So this cell tests two open questions in one pull: does a kit
+# that can actually connect at melee range change the hitsPerMin=0 shape,
+# and does a passive/ineffective tank cost this match the way the
+# guardian's did. carried save is known-fresh-in-disguise per #273 (still
+# open), so nothing here relies on anything actually carrying.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:escort
+targets
+shot escort-picked
+
+tap class:paladin:protection
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play melee 90
+shot mid1
+state
+bill
+
+wait 5
+play melee 90
+shot mid2
+state
+bill
+
+wait 5
+play melee 90
+shot mid3
+state
+bill
+says
+targets
