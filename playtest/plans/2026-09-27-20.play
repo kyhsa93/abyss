@@ -1,0 +1,37 @@
+# playpick cell: mode=walk boss=gift spec=warlock:destruction style=auto
+# size=25 difficulty=heroic view=844x390,touch save=carried (behaves as
+# fresh, #273 -- carried never actually carries across separate playbot
+# invocations because the dev-server port is derived from the process pid).
+# `boss=gift` is a coverage label only (direction.md's 2026-09-25 note on
+# playpick.ts): a mode=walk evening steers at no named boss, the walk starts
+# at the door same as any other.
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: the one prior style=auto evening
+# (2026-09-26-40, druid:feral, same size/difficulty/viewport) was a melee dps
+# that never approaches anything. warlock:destruction is a pure ranged caster
+# -- its whole kit casts from range, so a body that never steers (auto's own
+# already-confirmed lack of a movement term) may still be able to fight
+# without ever closing distance, unlike the melee case. This is the first
+# time this line can separate "auto never moves" from "auto never damages"
+# by role.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening auto 200 5
+state
+shot mid
+says
+bill

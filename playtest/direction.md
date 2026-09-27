@@ -956,6 +956,65 @@ or as a third confirmation of line 1's usual shape. Not filed — fourteen open
 `playtest` issues held the gate shut all session, and this is a sharpening of
 the existing Bloodgorged/Last-Whisper thread rather than a new hypothesis.
 
+**2026-09-27, the longer pull the entry above asked for, and a `shade` mark
+that finally lands.** `mode=walk` (`boss=gift`, a coverage label only),
+warlock:destruction, `style=auto`, 25-heroic, carried (behaves as fresh per
+#273), 844x390 touch (`playtest/plans/2026-09-27-20.play`). The one prior
+`auto`-style evening at this size/difficulty (2026-09-26, druid:feral, above)
+was a melee dps that never approaches anything; this is the first ranged one,
+so it also speaks to that entry's own open question ("worth a `good`-style
+pull on The Last Whisper specifically before reading 32%-in-200s as anything
+about the boss rather than about a body meleeing air") from the other side —
+a spec whose whole kit casts from range, under the same never-steers style.
+
+THE VIGIL crossed clean (8.9s door to door, no stall — another class
+confirming [[#6]]'s clean-crossing shape), and Bonegrinder heroic died in 50s
+with `aliveParty=24/25`, `heroHp=1410/1485` (95%), `presses=0 inDanger=6%` —
+this line's usual free ride. Two short corridors later (9.4s, 12.4s) the
+evening reached The Last Whisper heroic and ran out its full 200s room budget
+without a kill: boss to 41% (157,844/388,600), `aliveParty=24/25`, `presses=0`,
+`heroHp` down to 672/1485 (45%), `inDanger` up to 32%. `bill`: `hits=19
+hitsPerMin=5.8 taken=2590 takenPerMin=787.6
+byMechanic={"volley":4,"decay":1,"shade":14}`.
+
+`shade:14` is the number the entry above was waiting for: fourteen hits over
+197s, where the 10-normal idle warrior three sessions ago read a flat zero on
+the same boss and called it "a miss by the random target roll, not evidence
+idle handles it." `src/sim/boss.ts`'s own comment on `updateShades` says the
+mark "closes at most of a body's speed — outrun by walking and never outrun
+by being somewhere clever," which a body that never moves cannot do by
+construction. Not a controlled pair against that earlier pull (different
+style, size and difficulty), but it is the first time this line has actually
+watched the mechanic connect with a stationary body rather than miss it, in
+the direction the source comment already predicted, and this pull ran out its
+room budget at 41% rather than dying the way the 10-normal one killed clean —
+consistent with, though not proof of, the mark costing something real.
+
+The ability bar read `shadow_bolt`/`chaos_bolt` at `"range"` for the whole
+pull, never `"ready"` — worth flagging rather than trusting at face value,
+since `SPELL_RANGE` (`src/sim/constants.ts:529`, 18 yards ≈ 416 units) is well
+past the 73-unit gap the end-of-budget fault measured between hero and boss
+(`away:73`), and the mid-fight screenshot (`mid.png`) shows the player's own
+token standing in the thick of the boss's own ring effects, not off to the
+side. Read `src/sim/sim.ts`'s `playerTarget()` before trusting "even a ranged
+spec gets nothing from range under `auto`" as settled: a damage press targets
+the lowest-hp living non-boss `'boss'`-faction actor over the boss itself when
+one exists, so a persistently-blocked bar could mean the press was aimed at
+something else in the room. The Last Whisper's own kit list (`encounters.ts:
+1930`) names no add-spawning mechanic, which argues against that reading, but
+this session never called `foesAt()` to check directly, so it is recorded
+rather than asserted. What is measured cleanly is the output: `hitsPerMin=5.8`,
+next to the druid:feral `auto` evening's `hitsPerMin=6.7` on the same boss/
+size/difficulty shape — both near the floor regardless of kit, which tracks
+`scripts/playbot.ts` having no `acting === 'auto'` branch in its steering at
+all (confirmed by reading the file: only `dodge`/`good`/`melee`/`wander`/
+`flee`/`learn` ever set `want`). A caster gains nothing from being ranged when
+the body that would need to stand somewhere in range never chooses to move
+there in the first place. Not filed — fourteen open `playtest` issues held the
+gate shut all session; this closes the open question two entries above left
+standing and sharpens the Bloodgorged/Last-Whisper thread rather than adding
+an eighth hypothesis.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
