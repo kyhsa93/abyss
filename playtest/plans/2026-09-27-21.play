@@ -1,0 +1,52 @@
+# playpick cell: mode=daily boss=host (coverage label only -- see probe;
+# playpick's daily boss label never names the actual fight) spec=paladin:retribution
+# style=good view=390x844,touch save=fresh.
+#
+# Probe (2026-09-27-21-probe.play) found today's actual run is The Three
+# Crowns again, 25-player heroic, HASTENED -- the same boss/affix pairing
+# this line has now hit six times this UTC day, but never before at heroic
+# under a genuine `style=good` command. Every prior heroic Crowns reading
+# came from `dodge` (paladin:retribution, no toward-boss term at all) or
+# `wander` (priest:shadow, wiped to prison in 45s) or from `auto` falling
+# back to `good`'s engine on a desktop viewport with no autocast toggle
+# (warlock:destruction, a ranged caster). This is the first melee dps under
+# an actually-issued `good` command against this fight at heroic: `good`'s
+# away-from-standing-ground term is present, same as the two normal-mode
+# `good` pulls of this fight already on record, but paladin:retribution is
+# melee where both those pulls were ranged/caster specs, so this is also the
+# first time a `good` steer has to close distance onto whatever body
+# hud().boss currently names -- which the source already says is sometimes
+# the untouchable decoy.
+#
+# Also noting a driver-vocabulary point for the ledger rather than filing it:
+# the 2026-09-26 daily-screen entry in direction.md says the class grid's
+# button is "start", not "pull" -- true of the *target id* (targets lists
+# start@300,812) but the button's own drawn label here reads "PULL", not
+# "START". Not a mismatch worth an issue on its own since the control still
+# answers to `tap start`; just worth recording since a future session reading
+# only a screenshot could reasonably tap by the printed word and be confused
+# by the id.
+open
+tap daily
+tap class:4
+targets
+tap start
+waitscreen fight 15
+state
+shot start
+
+play good 90
+state
+shot mid1
+bill
+
+play good 90
+state
+shot mid2
+bill
+
+play good 90
+state
+shot mid3
+bill
+says

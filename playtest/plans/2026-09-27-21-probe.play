@@ -1,0 +1,11 @@
+# probe: playpick gave mode=daily boss=host (coverage label only -- a
+# daily's boss comes off the UTC date, not a pickable control; source says
+# host is The Reeking Host, "share the air, and know who is holding it")
+# spec=paladin:retribution style=good view=390x844,touch save=fresh.
+# Reading today's actual boss/size/difficulty/affix off the setup screen,
+# and the class grid's index for paladin:retribution, before committing.
+open
+tap daily
+targets
+state
+shot setup

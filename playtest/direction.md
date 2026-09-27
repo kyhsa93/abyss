@@ -1015,6 +1015,59 @@ gate shut all session; this closes the open question two entries above left
 standing and sharpens the Bloodgorged/Last-Whisper thread rather than adding
 an eighth hypothesis.
 
+**2026-09-27, the first genuinely-issued `good` command against The Three
+Crowns at heroic, and the deepest this fight has ever been pushed before an
+enrage ended it.** `mode=daily` (today's actual run, probed first via
+`playtest/plans/2026-09-27-21-probe.play`): The Three Crowns again, 25-player
+**heroic**, HASTENED — the seventh time this UTC day has served this exact
+boss/affix pairing, and "no attempt yet today" on the setup screen confirming
+a fresh instance rather than a resume. paladin:retribution, `style=good`,
+fresh save, 390x844 touch (`playtest/plans/2026-09-27-21.play`). Every prior
+heroic reading of this fight came from `dodge` (no toward-boss steering term
+at all, so it never engages the crown puzzle and never took a mechanic hit) or
+`wander` (wiped to `prison` in 45s), or from `auto` silently falling back to
+`good`'s own engine on a desktop viewport with no autocast toggle
+(warlock:destruction, a ranged caster, 2026-09-27-6). This is the first time
+an actual `play good`/`evening good` command has run against this fight at
+heroic on a melee dps — the role most likely to be walked straight onto the
+untouchable decoy by `good`'s toward-`hud().boss` steering term, the same
+mechanism [[#1]]'s own prior Three Crowns entries already named from source.
+
+It was: `byMechanic` read 100% `thirst` across all three `bill` checkpoints
+(1075 at 87s, 2128 at 178s, 3029 at 248s) — the same parked-on-the-decoy shape
+every toward-boss style has shown on this fight, now confirmed on a melee dps
+under a real `good` command rather than a caster or a fallback. But unlike
+every prior heroic pull, this one actually pressed a real rotation the whole
+way (hitsPerMin 737 → 719 → 733, `mid1.png` shows the player standing in the
+crown's own ring with a live "enrage 162s" readout in the minimap corner) and
+pushed the boss further than any prior style at this difficulty: 68% at 87s,
+33% at 178s, 22% at the 248s cutoff — past `dodge`'s 6%-at-227s and
+`wander`'s 79%-at-45s, both already on record. Then `fight-over outcome=enrage
+time=248 phase=3` ended it, boss still at 22%, `aliveParty=9/25` — sixteen of
+twenty-five dead, the worst raid casualty count this fight has produced under
+any style so far (`dodge`'s own enrage wipe lost two, `wander`'s lost one).
+The end screen (`mid3.png`) names it outright ("ENRAGE WIPE · The Three
+Crowns · 248.1s · boss at 22% · pull 1") and lists all sixteen deaths by name
+and time, with the player itself among them (`heroHp=0/1800`) and last of the
+17 non-dashed rows on the damage board at 68 dps despite having pressed the
+most abilities of any pull this line has recorded on this fight.
+
+This bears directly on the 2026-09-26 `good`-style protection-warrior pull of
+this same fight, whose raid lost four members between 269s and 300s with no
+named mechanism at the time (later read as "plausibly the same enrage" once
+2026-09-27's `auto`-as-`good` pull produced a named `outcome=enrage` at 287s
+on what looked like the same daily instance). This pull removes the remaining
+doubt: a real, directly-issued `good` command, on a fresh instance of the
+identical boss/affix, produces the identical named `outcome=enrage` a third
+time, at a similar boss-health checkpoint (22%, next to the other two pulls'
+36% and an inferred mid-20s%), with a raid death toll now measured cleanly
+rather than guessed at. Three independent `good`-shaped pulls, three enrage
+wipes, no exceptions yet recorded for this style at this difficulty on this
+boss. Not filed — fourteen open `playtest` issues held the gate shut all
+session — and this sharpens the existing Three Crowns thread (both the crown-
+puzzle mechanism and the enrage-timing question the 2026-09-26/2026-09-27
+`good` pulls left open) rather than adding an eighth hypothesis.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
