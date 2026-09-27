@@ -2991,6 +2991,41 @@ strong candidate for the first slot once it reopens, with both scripts
 the three screenshots (`mid-evening.png`, `citadel-mid-fight.png`,
 `after-raid-retap.png`).
 
+**2026-09-27, sharpened by the first tank spec `mash` has ever been given on
+a battleground, and the first time this line has separated "a passive body"
+from "the specific role that body vacated."** `mode=battleground`,
+`map=conquest`, druid:guardian, `mash`, fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-27-19.play`). `mash` had already been shown, from
+source, to have no steering branch at all in `scripts/playbot.ts` -- it never
+leaves its own pull spot on any map, which the one prior `mash` battleground
+pull (2026-09-27-2, druid:balance/carried/touch, same map) confirmed live: a
+DEFEAT at 171s, 236-400, the player's own damage row blank the whole match.
+This session repeats that shape on a tank instead of a dps, and README's own
+"Battlegrounds" section says why that is not just a repeat: a battleground's
+five roles are an exact trade, one tank/one healer/three damage, so picking
+the tank spot does not add a sixth body standing off to the side -- it means
+the team's *only* tank is the one that never engages.
+
+The match ended in DEFEAT at 153s, **126-400** -- eighteen seconds faster and
+110 points worse than the dps-`mash` pull's 236-400 loss on the identical map
+and style. The end screen (`mid2.png`) shows the shape: "You" (guardian) reads
+`Out of range` with every column dashed (0 dps, 0 hps, 0 taken, 0 mechanics),
+exactly like the prior dps pull's blank row, but three of the four remaining
+bodies are dead (Vale, Kestrel, Wren, all `died` timestamps under 46s) against
+one healer (Bastion) left alive at 560 hp -- a worse casualty count than the
+dps-`mash` pull's own three-of-four-dead reading reached only by the full
+171s. **Not a controlled pair** (viewport, touch and save state all differ
+between the two pulls, and `roomSeed`/rock layout is rolled per entry per
+README's own "Battlegrounds" section), so this is one comparison, not a
+mechanism proven from source the way `mash`'s own lack of steering already
+is -- but it is the first data point this line has that losing the specific
+role a passive body vacated costs more than losing an interchangeable one,
+where every prior #7 entry treated "which role" as incidental to "presses
+nothing." Worth a second tank-spec `mash` pull, ideally matched on viewport
+and save state to the 2026-09-27-2 pull, before promoting "losing the tank
+specifically is worse" from one comparison to a sharper claim. Gate held shut
+at fourteen open `playtest` issues; not filed.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

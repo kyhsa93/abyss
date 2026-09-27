@@ -1,0 +1,46 @@
+# playpick gave mode=battleground map=conquest spec=druid:guardian style=mash
+# view=1280x800 save=fresh. direction.md's #7 has seen mash stall on this exact
+# map before (2026-09-27-2.play, druid:balance/carried/touch): mash has no
+# steer term in scripts/playbot.ts at all, so it never leaves the pull spot,
+# never gets in range of anything, and the match already read hits=0 taken=0
+# the whole way for a dps. This is the first tank spec mash has ever been given
+# on a battleground -- README says a battleground's five roles are an exact
+# trade (one tank, one healer, three damage), so picking the tank spot does not
+# add a sixth body, it swaps who is standing in it. If a mashing dps parked at
+# the pull spot still let the team's real tank hold the front line, this cell
+# removes that tank instead -- worth seeing whether the loss is worse, not just
+# repeated, with no actual tank anywhere on the team.
+open
+targets
+shot front
+
+tap battleground
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play mash 100
+shot mid1
+state
+bill
+
+wait 5
+play mash 100
+shot mid2
+state
+bill
+
+wait 5
+play mash 100
+shot mid3
+state
+bill
+says
+targets
