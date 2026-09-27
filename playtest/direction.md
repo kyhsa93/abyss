@@ -1146,6 +1146,36 @@ this mechanic so far has been at 10-normal (idle, twice) or 25-heroic
 (`auto`, `mash`, neither a body that truly never acts) and none has been the
 controlled idle/`good` pair the line's own disprove condition asks for.
 
+**2026-09-28, a third role now confirmed at the single hardest cell in the
+game, within seven seconds of the healer's own idle time.** `mode=raid`
+(`open #b=cold&s=25&h=1`), mage:frost, `dodge`, 25-heroic, carried (behaves as
+fresh within one invocation per #273), 390x844 touch
+(`playtest/plans/2026-09-28-13.play`) — The Long Cold's only prior appearances
+at this size and difficulty were a restoration shaman under `good`/`idle`
+(2026-09-25, above); every reading of it since has been at 10-normal, its
+easiest setting. This is the first ranged-caster dps on this boss at all (the
+other non-healer reading was warrior:arms, a melee role) and the first
+`dodge`-style pull of it at heroic — `dodge` presses nothing and only steers
+away from danger, so it is a zero-action style the same way `idle` is, tested
+here on the hardest cell instead of the easiest one.
+
+It won clean: `victory` at `fightTime=99` (against the idle-healer's 93s and
+the good-healer's 105s, same cell, different spec), `aliveParty=25/25`
+throughout, `presses=0`, `heroHp` finishing 834/1305 (64%), `inDanger` 16%
+then 9%. `bill`: `byMechanic={"breath":1,"instability":2,"flight":422,"haul":1}`
+— `flight` is the already-read unconditional per-tick raid-wide cost
+(`updateFlight`, no position check, per the 2026-09-26 `flee` entry above),
+not a style effect. A third role now confirms this line's shape at the top of
+the difficulty ladder rather than only at the bottom or in the middle: a
+zero-press ranged dps finished this pull almost exactly as fast and exactly
+as intact as the zero-press healer already had, on the one cell README itself
+names as the hardest in the game. The kill screen reproduced the
+already-tracked banner/report overlap (#275/#283's family) once more
+("Nobody Fell" over "Kill it without losing anyone", "Inside Two Minutes"
+over "Kill it in under 110 seconds") — not commented or filed again, both
+issues already open and nothing new about the mechanism. Gate held shut at
+fourteen open `playtest` issues; not filed.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

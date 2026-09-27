@@ -1,0 +1,40 @@
+# playpick: mode=raid boss=cold spec=mage:frost style=dodge size=25
+# difficulty=heroic view=390x844,touch save=carried
+#
+# The Long Cold at 25-heroic is README's own hardest single cell, and
+# direction.md's #1 ("doing nothing wins") has only ever measured it under a
+# healer (restoration shaman, good vs idle, 2026-09-25) -- a role the fight is
+# explicitly built around. Every other #1 reading of this boss was at
+# 10-normal, its easiest setting (warrior:arms under flee and dodge). This
+# cell crosses two axes at once for the first time: a ranged dps caster (every
+# prior Long Cold role was a healer or a melee dps/tank) under dodge (a style
+# with no toward-boss term at all, only away-from-danger, so it never presses
+# an ability) at the hardest difficulty this boss has. carried is known
+# fresh-in-disguise within one playbot invocation per #273 (still open), so
+# the invite hash is what actually gets here, same as every prior Long Cold
+# session -- README's own "Sharing" section: a fight link unlocks the boss it
+# points at regardless of save state. Portrait touch (390x844) is also new for
+# this boss: every prior touch reading of it was landscape (844x390).
+open #b=cold&s=25&h=1
+targets
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+state
+shot open
+
+play dodge 90
+bill
+shot mid1
+state
+
+play dodge 90
+bill
+shot mid2
+state
+
+play dodge 90
+bill
+shot mid3
+state
+says
