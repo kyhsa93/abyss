@@ -2643,6 +2643,69 @@ the same non-pause holds for the corner `map` button reached outside an
 evening's own travel mode, since this session only ever pressed it during
 one.
 
+**2026-09-27, held, gate shut, the open question above answered: it drops
+it.** `mode=menus`, `820x1180,touch`, `carried` (#273 means this played
+fresh). First attempt (`playtest/plans/2026-09-27-11.play`, frost mage,
+`idle`) never reached a live pull at all -- THE VIGIL's watchmen caught it,
+it wiped twice, and `outcome:retry` landed it in [[#3]]'s own already-tracked
+stall (`fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}`, a
+seventh-plus confirmation, first one reached from a `mode=menus` script
+rather than `clear`/`walk`). That did answer a smaller, adjacent question
+cleanly, though: from that stuck wipe screen, `tap map` -> `tap back` ->
+`tap raid` landed right back on the identical stuck `screen=fight
+mode=travel outcome=wipe chamber=vigil` state, byte-for-byte the same `hud`
+reading -- so RAID from home does not silently discard a *stuck* run either;
+it resumes exactly what was there.
+
+The real question needed an actual `ongoing` pull, so the second attempt
+(`-12.play`) used rogue:assassination (the class whose own flat `moveSpeed`
+[[#6]]'s own entries already read as the reason it crosses THE VIGIL
+cleanly) under `good`, with `evening good 60 3` -- a per-room budget short
+enough that Bonegrinder 10-normal (never finished under 84s by any style on
+record) would still be mid-fight when `evening` handed back control. It
+worked exactly as aimed: `fault:fight-outlasted-its-budget` fired with the
+boss at 47% (47,600/101,200 hp), phase 2, `aliveParty=10/10`, a live enrage
+timer ticking (`enrage 183s` on screen, `mid-evening.png`) -- an honestly
+`ongoing` pull, not a stall or a wipe.
+
+`tap map` (after `tap minimap` to reveal the corner group, the same route
+`leaveFight()`'s own comment documents) moved to `screen=citadel` with `state`
+still reading `mode=raid outcome=ongoing chamber=spire`, and the boss kept
+dying underneath it exactly as the prior session's own reading predicted:
+hp read 46,493 on the citadel screen, down from 47,600 the instant before the
+tap, and the player's own hp kept falling too (1215 -> 1134 -> 1023) purely
+from standing in the fight's own hazards while the map was up. `tap back`
+landed on `screen=home` (the ABYSS front page) with `state` still reading the
+same live `mode=raid outcome=ongoing chamber=spire`, boss hp unchanged since
+the last sample -- confirming the front page itself is just another menu
+sitting over a fight that has not stopped.
+
+Then `tap raid` -- the one press this whole thread has been building to.
+`state` immediately afterward read `screen=fight mode=travel outcome=ongoing
+chamber=spire hud.time=0.067 tick=2 phase=1 boss=null`. Not a resume: the
+boss is gone entirely (`boss: null`, where the line before had a name, an hp
+and a maxHp), phase reset from 2 back to 1, `hud.time` reset from 58.2s to a
+fraction of a second, and `mode` itself flipped from `raid` back to `travel`
+-- the exact shape of a room nobody has fought in yet. The screenshot
+(`after-raid-retap.png`) confirms it without needing the numbers: no boss
+health bar across the top at all, "THE SPIRE / onward — The Vigil / 9 still
+standing" printed on screen -- the same room-entry banner a party sees
+walking in cold, not a live pull resuming. The party itself survived (still
+10/10, hp intact from where the fight left it), but the pull's own progress
+-- 53% of Bonegrinder's health, an enrage clock already at 183s of however
+long it runs -- is simply gone, to be fought over again from a fresh phase 1
+whenever the party walks back up to the boss.
+
+This is worse than a wipe, not a cosmetic gap: a wipe at least tells the
+player something went wrong and costs the pull on purpose (README's own
+promise). Here nothing failed -- ten of ten alive, boss below half health,
+no wipe screen, no message -- and checking the map is what erased it. Not
+filed, fourteen open `playtest` issues holding the gate shut all session; a
+strong candidate for the first slot once it reopens, with both scripts
+(`-11.play`'s stuck-wipe control case and `-12.play`'s live-pull drop) and
+the three screenshots (`mid-evening.png`, `citadel-mid-fight.png`,
+`after-raid-retap.png`).
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

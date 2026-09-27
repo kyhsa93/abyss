@@ -1,0 +1,54 @@
+# Assigned cell: mode=menus, view=820x1180,touch, save=carried (#273 means
+# this plays as a genuinely fresh origin, not an actual second-evening carry).
+#
+# Picking up exactly where 2026-09-27-9.play's last note left off: that
+# session pressed the fight screen's own corner `map` button while The
+# Skyward Deck was still an open, unresolved pull, found the fight kept
+# simulating behind the map (hud.time and boss hp both advanced while the
+# citadel screen was up), and found `tap back` from there landed on the front
+# page rather than back on the fight -- with the live pull still reporting
+# `mode=raid outcome=ongoing` on the very same journal line. That session's
+# own words: "worth checking on the next session whether pressing RAID from
+# that state resumes the live ... pull ... or drops it, before writing the
+# fix this deserves." No session has pressed RAID from exactly that state.
+# Using Bonegrinder (the only rung a fresh save has open) instead of Skyward
+# Deck -- same mechanism, faster to reach.
+open
+targets
+shot home
+tap raid
+shot raid-setup
+tap next
+tap class:mage:frost
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+# A short per-room budget that will not be enough to kill Bonegrinder (every
+# prior idle/style reading on this boss at 10-normal needed 84-220s), so
+# `evening` should hand back control with the boss room still `ongoing`
+# rather than won or lost.
+evening idle 60 3
+state
+shot mid-pull
+
+# Reveal the corner group the documented way (leaveFight()'s own technique:
+# the minimap first, since corners are hidden on touch until it is pressed),
+# then press map while the boss fight is still live.
+tap minimap
+tap map
+state
+shot citadel-mid-fight
+
+tap back
+state
+shot after-back
+
+# The open question: does this resume the live Bonegrinder pull, or show a
+# fresh setup screen / drop the run?
+tap raid
+state
+shot after-raid-retap
+targets

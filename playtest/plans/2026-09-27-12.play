@@ -1,0 +1,39 @@
+# Same question as -11.play, retried: does RAID from home resume a live,
+# still-*ongoing* boss pull after map -> back, or only a stuck/wiped one?
+# -11.play (frost mage, idle) got caught by THE VIGIL's watchmen and landed in
+# [[#3]]'s own retry-wipe stall before ever reaching an ongoing fight -- which
+# did answer a *different* question (RAID from home resumed the stuck wipe
+# screen directly rather than showing a fresh raid-setup screen, so the run
+# is not silently dropped even in that state) but not this one.
+#
+# rogue:assassination has the highest flat moveSpeed in the roster
+# (src/sim/classes.ts, already the explanation direction.md's #6 thread
+# settled on for this class's repeated clean VIGIL crossings), under `good`
+# rather than `idle` this time to actually engage the watchmen instead of
+# risking another wipe-by-standing-still. 60s per room is short: Bonegrinder
+# 10-normal has never finished this job's own reporting in under 84s under
+# any style, so a live "ongoing" boss fight should still be running when
+# evening hands back control.
+open
+tap raid
+tap next
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+evening good 60 3
+state
+shot mid-evening
+
+tap minimap
+tap map
+state
+shot citadel-mid-fight
+
+tap back
+state
+shot after-back
+
+tap raid
+state
+shot after-raid-retap
+targets
