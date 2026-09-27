@@ -2313,6 +2313,56 @@ does not have belongs in `playtest.md`'s "what is worth an issue" list
 ("a menu that says something untrue about the game behind it"); file it
 first thing once the gate reopens, with this session's script.
 
+**2026-09-27, sharpened by actually pressing RESET through, rather than
+reading its two-press shape off `main.ts`'s own comment.** `mode=menus`,
+820x1180 touch, carried (behaves as fresh per #273): rogue:assassination,
+`evening good 300 2` to kill Bonegrinder 10-normal (`run.cleared.length`
+now 1, the precondition RESET needs to even appear), then `tap minimap` ->
+`tap map` to reach the citadel with a real down-count on it
+(`playtest/plans/2026-09-27-18.play`).
+
+The two-press arm is real and disarms the way the code says: `citadel-clean.png`
+shows the button reading `RESET`; one tap on it (no other state change --
+`state` is identical before and after, this screen carries no hook for the
+arm flag) turns it to `PRESS AGAIN` in the same red outline
+(`citadel-armed.png`); an unrelated `tapxy 30 30` on empty map background
+turns it back to `RESET` (`citadel-disarmed.png`) -- confirming live, for
+the first time, `main.ts`'s "every other press on this screen disarms it."
+Arming it again and pressing it through did not stop on this screen at
+all: the very next journal line reads `screen=fight mode=travel
+outcome=ongoing chamber=threshold hud={"time":0.133,"tick":4,...}` --
+no confirmation dialog, no stop on `citadel` or `home`, straight into a
+brand-new evening's first room (`citadel-after-reset.png` is not a citadel
+screenshot at all; it is THE THRESHOLD, "186 left in it," a full fresh
+roster). That broke this script's own trailing `tap back`/`tap raid`
+lines (`fault:no-such-control`, twice) since neither control exists on a
+fight screen -- a script mistake, not a game one, but worth remembering:
+RESET's confirm press lands the player in the fight itself, not back on a
+menu.
+
+**This changes the shape of the finding, not just its evidence.** The
+2026-09-25 note above reads as "the screen is missing the control README
+promises." Having now pressed it through: RESET's actual function *is*
+exactly what README describes for GIVE UP -- it ends the evening and puts
+the next one at the door, instantly and without ceremony. The gap is
+narrower than "missing a feature": the control that does this is named
+RESET rather than GIVE UP, only exists once something is down, and
+*restarts the rung from scratch* rather than merely closing out the
+current sitting (so a player who has cleared four rooms and wants to stop
+for the night without losing them has no control that does that -- only
+one that keeps their progress by leaving it be, or one that throws it all
+away and starts the rung over). Separately, and newly measured: `main.ts`'s
+own comment on the arm step promises it is "what prints how many rooms are
+about to stand again," and it prints nothing of the kind -- the subtitle
+line (`"10-man normal — 1 down, 1 rooms entered — locked for 2 more days"`)
+is byte-identical across `citadel-clean.png` and `citadel-armed.png`; the
+only visible change anywhere on arming is the button's own label. Still
+**held, gate shut** (fourteen open `playtest` issues, unchanged this
+session) -- file once it reopens, with both this session's script and
+2026-09-25's, and lead with the sharper claim: not an absent GIVE UP, a
+RESET that already does GIVE UP's job under the wrong name, with a promised
+preview that never draws.
+
 **2026-09-25.** A possible player-respawn stall in a battleground, seen once
 and not confirmed. `playtest/plans/2026-09-25-33.play` (druid:feral, Ebb and
 Flow) showed `me` reading `hp=0 alive=false bar=[...locked]` continuously

@@ -1,0 +1,52 @@
+# Nobody has ever pressed the citadel screen's own RESET control. Every prior
+# menus session that opened this screen (2026-09-25-30, and three more since)
+# only read its label and src/main.ts's own comments -- "armed via a second
+# press," "the first press is what prints how many rooms are about to stand
+# again" -- and reported that README's "GIVE UP on the map ends it and puts
+# the next one back at the door" names a button this screen does not have.
+# That is held, gate shut (14 open playtest issues), waiting to be filed. This
+# session cannot file it either, but it can stop guessing from the comment and
+# actually watch what pressing RESET does: RESET only exists once
+# run.cleared.length > 0, so this kills a boss first, then arms it, checks
+# that an unrelated tap on the same screen disarms it (main.ts's own claim),
+# arms it again, and presses it through to see what the evening looks like on
+# the other side of it.
+open
+tap raid
+tap next
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+evening good 300 2
+state
+shot after-kill
+
+tap minimap
+tap map
+state
+shot citadel-clean
+targets
+
+tap reset
+state
+shot citadel-armed
+
+tapxy 30 30
+state
+shot citadel-disarmed
+targets
+
+tap reset
+state
+shot citadel-armed-again
+tap reset
+state
+shot citadel-after-reset
+targets
+
+tap back
+state
+shot after-back
+tap raid
+state
+shot after-raid-retap
