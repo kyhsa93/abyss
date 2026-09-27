@@ -1212,6 +1212,31 @@ stuck here. Which of the two happens looks like it depends on whether the
 threshold's watchmen actually catch the party this particular run, not on
 anything about class, size or difficulty measured so far.
 
+**2026-09-28, seventh confirmation, first `flee` style and first hunter
+class.** `mode=walk` (`boss=marrow`, a coverage label only), hunter:
+marksmanship, `flee`, 10-normal, genuinely fresh save (not
+carried-behaving-as-fresh), 1280x800 desktop
+(`playtest/plans/2026-09-28-6.play`). Every #271 confirmation so far used
+`mash`, `wander` or `auto`; hunter's own flat `moveSpeed` (173, per [[#6]]'s
+own source reading) is the second-highest in the roster after rogue's, and
+this crossed THE THRESHOLD's own door in 8.2s, as fast as rogue's clean
+crossings. But the raid never reached THE SPIRE: caught inside THE VIGIL
+itself by the threshold's own chasing watchmen (`stillAlive` reading 185-186
+The Damned throughout, `closestGot=16` units from the far door), it wiped at
+34.6s. `outcome:retry` tapped and produced the identical shape every prior
+report has: an instant re-wipe with `hero.hp=0` and every ability slot
+`locked`, and a second `evening` call over the same stuck room produced the
+same shape a room later -- `fault:evening-stuck
+{"at":"vigil","after":"wipe","rooms":3}` at 95.6s. A seventh spec, and the
+first under a style built to retreat from danger rather than beeline or
+wander into it -- but `cross()`'s own fixed corridor-steering (already
+established under [[#6]]: it ignores style entirely) means `flee`'s own
+away-from-danger term never actually ran here, so the wipe is the corridor's
+watchmen catching up regardless of style, not a `flee`-specific interaction.
+Not commented on #271 again -- seven specs and now four styles have hit this
+exact wall the same way, and the qualifier still standing is only "at least
+in THE VIGIL."
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five

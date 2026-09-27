@@ -1,0 +1,39 @@
+# playpick cell: mode=walk boss=marrow spec=hunter:marksmanship style=flee
+# size=10 difficulty=normal view=1280x800 save=fresh. 10-normal is
+# progress.ts's first rung, open on a fresh save with no unlock trick
+# needed, so this walks in cold with no invite-hash recipe. boss=marrow is
+# a coverage label only -- `evening` steers at no boss (direction.md's own
+# repeated note under [[#6]]) -- so this walks in at the door same as any
+# other.
+#
+# What is actually new here: [[#6]] (THE VIGIL stalls one evening in five
+# regardless of style) has been narrowing toward "a class's own flat
+# moveSpeed decides whether the corridor is a wall," on the strength of
+# rogue:assassination (moveSpeed 178, highest in the roster) crossing clean
+# three-for-three where warrior/paladin/priest/warlock/druid/shaman/mage
+# (moveSpeed 158-167) have stalled more often than not at 10-normal. No
+# session has yet tried the *second*-fastest class -- hunter, at 173,
+# `src/sim/classes.ts` -- against this exact stall. flee had already stalled
+# once at 10-normal on a slower class (priest:discipline, 2026-09-25) and
+# crossed clean twice at 25-heroic (shaman:restoration, hunter:marksmanship
+# itself in a different session) -- so this is also the first test of
+# whether a fast class crosses 10-normal clean under a style that has
+# already stalled once at that exact size/difficulty under a different
+# class.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:hunter:marksmanship
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening flee 300 6
+state
+bill
+shot end
