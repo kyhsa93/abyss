@@ -1,0 +1,30 @@
+# playpick: mode=daily boss=skyward (coverage label only) spec=paladin:retribution
+# style=dodge view=1280x800 save=fresh. Probe (-15-probe.play) found today's
+# actual daily is The Three Crowns, 25-player heroic, HASTENED -- the same
+# boss/affix as 2026-09-27-8.play (priest:shadow, wander), played the same UTC
+# day, so likely the same instance. That session found `prison`, a heroic-only
+# mechanic that bills continuous movement -- wander (never stops moving) wiped
+# to it in 45s. dodge only moves when something is chasing it, so this is the
+# first dodge pull of this fight at heroic and the first melee-dps role on it
+# (every prior spec here was a tank, a healer, or a ranged dps).
+open
+tap daily
+targets
+tap class:4
+tap start
+waitscreen fight 15
+state
+shot opening
+play dodge 90
+bill
+shot mid1
+play dodge 90
+bill
+shot mid2
+play dodge 90
+bill
+shot mid3
+play dodge 90
+bill
+shot ending
+says

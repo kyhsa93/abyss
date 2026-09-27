@@ -819,6 +819,46 @@ mistaken for a contradiction with the two actual deaths, and not the
 already-tracked #275/#283 banner-overlap family either (no overlap was
 visible on this viewport's kill screen).
 
+**2026-09-27, sharpened by the first `dodge` pull of The Three Crowns at heroic,
+and the deepest this fight has ever been pushed at that difficulty.**
+`mode=daily` (today's actual run, probed first via
+`playtest/plans/2026-09-27-15-probe.play`): The Three Crowns again, but this
+time 25-player **heroic**, HASTENED — almost certainly the same instance as
+2026-09-27's `wander` entry above (same boss/affix, same UTC day), paladin:
+retribution, `dodge`, fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-27-15.play`) — the first `dodge` pull of this fight
+at heroic (its one prior `dodge` appearance was 10-normal, mode=raid, above)
+and the first melee-dps role this fight has seen (every prior spec was a
+tank, a healer, or a ranged dps).
+
+`byMechanic={}` across all four `bill` checkpoints (88s, 178s, 227s) — the
+same zero-mechanic shape the 10-normal `dodge` pull already established from
+source (`dodge` has no toward-boss term, so it never nears the court, the
+decoys or the drain radius), now confirmed at heroic too. But where `wander`
+wiped to `prison` in 45s at 79% boss hp, this pull went the furthest into
+this fight at heroic this line has ever recorded: boss to 67% (88s), 23%
+(178s), 6% (227s), `aliveParty=25/25` the whole way and `inDanger=0%`
+throughout — before ending in `outcome=enrage` at 227.1s, the end screen
+naming it outright ("ENRAGE WIPE · The Three Crowns · 227.1s · boss at 6% ·
+pull 1", `ending.png`), the player itself the only fresh death
+(`heroHp=0/1800`, `aliveParty=23/25`) and finishing dead last on the damage
+board at 11 dps — a body that never once attacked.
+
+Read alongside the 2026-09-26 `flee`-vs-The-Last-Whisper entry above rather
+than treated as new: this is the second boss now where a style built only to
+avoid danger runs headlong into the one mechanic avoidance cannot answer —
+`combat.ts`'s enrage aura doubles whatever damage is already landing rather
+than adding a telegraph to sidestep, and HASTENED's own two-minutes-early
+enrage plus a raid carrying a zero-damage dps (this body's own 11 dps, last
+of 25) plausibly explains why 25 AI-only bodies could bring the boss to 6%
+but not the rest of the way before the clock caught them. **Not a clean
+disprove-by-`good`** (`dodge` is not `good`), and not filed — the mechanism
+is already on record and the gate held shut at thirteen open `playtest`
+issues all session — but this is a second data point for "a style with
+nothing to dodge has nothing to answer an enrage with," on a second boss and
+a second affix, and the closest any style has come to actually finishing The
+Three Crowns at heroic.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

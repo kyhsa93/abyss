@@ -1,0 +1,9 @@
+# probe: playpick gave mode=daily boss=skyward (coverage label only -- a
+# daily's boss comes off the UTC date, not a pickable control) spec=paladin:retribution
+# style=dodge view=1280x800 save=fresh. Just reading today's actual
+# boss/size/difficulty off the setup screen before committing to a class.
+open
+tap daily
+targets
+state
+shot setup
