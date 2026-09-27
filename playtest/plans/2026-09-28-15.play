@@ -1,0 +1,13 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# README's Sharing section: "A day link opens today's run rather than the
+# day it names -- a daily ends at midnight and so does the comparison it was
+# shared for." Never tested live. Today's real daily (read via a separate
+# probe invocation, no hash) is The Three Crowns, 25-player heroic, HASTENED.
+# This opens with #d= pointing at a day years in the past and checks whether
+# the daily screen still shows that same fight rather than an old one.
+open #d=20200101
+tap daily
+targets
+state
+shot dated-link

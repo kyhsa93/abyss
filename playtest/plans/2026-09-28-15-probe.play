@@ -1,0 +1,10 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# Probe: read today's actual daily (boss/size/difficulty/affix) with a plain
+# open, no hash, before testing README's Sharing claim that a day-link
+# "opens today's run rather than the day it names" -- never tested live.
+open
+tap daily
+targets
+state
+shot today
