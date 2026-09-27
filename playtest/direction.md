@@ -752,6 +752,21 @@ touched this boss at all, and it is still open whether a raid answering
 `prison` properly (rather than a body that structurally cannot try) changes
 anything about it. Gate held shut at 14 open `playtest` issues; not filed.
 
+**2026-09-27, a sixth role now confirmed under idle, and the first melee dps
+one.** `mode=clear`, druid:feral, `idle`, 10-normal, genuinely fresh save
+(not carried-behaving-as-fresh), 1280x800 desktop
+(`playtest/plans/2026-09-27-10.play`). Every prior idle confirmation on this
+line was a tank, a ranged dps or a healer of some kind; a melee dps is the
+stricter version of the same test, since it cannot tag a mechanic or land a
+hit from range the way 2026-09-25's idle warlock:destruction pull still
+could. THE VIGIL crossed clean in 27s (door-to-door, `presses=0`) and
+Bonegrinder died at `fightTime=84` of a 200s budget:
+`aliveParty=10/10 heroHp=1575/1575 bossHp=down presses=0 inDanger=10%` — a
+full, clean, cost-free kill with a body that never once walked toward the
+boss, on the one role whose kit requires standing next to it to do anything
+at all. Same shape, sixth role, first melee one. See [[#6]]'s new entry
+below for what the same evening found two rooms later.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -1429,6 +1444,54 @@ citadel and the first wing boss this job's own evening-mode sessions have
 ever put real numbers on. See *Not yet filed*, below, for what the same
 session found by pressing the fight screen's own `map` corner button while
 that pull was still live.
+
+**2026-09-27, a different failure shape in the same category: past the first
+boss, an evening can loop forever between two already-cleared rooms rather
+than stalling in one spot.** `mode=clear`, druid:feral, `idle`, 10-normal,
+genuinely fresh save, 1280x800 desktop (`playtest/plans/2026-09-27-10.play`,
+[[#1]]'s new entry above). THE VIGIL and Bonegrinder both went cleanly
+(27s crossing, 84s kill). Past that, the evening crossed `spire -> westclimb
+-> spire -> eastclimb -> oratory` without a single fault -- and then, in
+Oratory, never engaged The Last Whisper (`encounter: 1`,
+`src/dungeon.ts:535-547`, its own boss) at all: no `boss-woken` line for
+`oratory` anywhere in the journal. Seventeen seconds after entering the room
+it rode Oratory's own pad (lit since Bonegrinder's death, `pad:
+killed('spire')`) to Threshold, the only other lit room, then rode
+Threshold's pad straight back to Oratory, and the evening's 8-room budget
+ran out there: `reached=threshold -> vigil -> spire -> westclimb -> eastclimb
+-> oratory`, `wipes=0`, no fault raised at any point.
+
+Read `scripts/playbot.ts:1283`'s `cross()` and `src/main.ts:3033`'s
+`asleep()` rather than guess why. `cross()` checks the room's own boss first,
+every tick, before ever falling back to a door or a pad -- the fix its own
+neighbouring comment (`src/main.ts:3020-3026`) says was written for exactly
+this shape ("eastclimb to oratory to westclimb, with the Watcher asleep and
+untouched"). But the very first tick standing in Oratory found no match, so
+the same tick's fallback fired instead: Oratory's only forward door (to
+Mooring) is gated on Whisper being dead and so never appears in `ways()` at
+all, every other door was already `been`, and with `padLit()` true the walk
+rode the pad on the spot rather than ever stepping toward the boss. The pad
+screen's own room list then only ever offered the *other* already-visited
+pad room each time (`lit=["threshold"]`, then `lit=["oratory"]` on the
+return trip), so the two pads just traded the party back and forth for the
+rest of the budget.
+
+**Not yet confirmed which of two things emptied the boss check**: whether
+`asleep()` genuinely carried no entry for Oratory's own warden from where the
+party was standing (a scoping question about what `travel.corridor.packs`
+holds once the party has crossed into a new room), or whether it did and
+`cross()`'s single-tick pad decision simply won the race before any step was
+taken toward it. `asleep()` is not a hook this vocabulary exposes on its own
+(only through `cross()`'s internal use), so telling the two apart needs
+either a one-off script that reads `window.__abyss.asleep()` directly while
+standing in Oratory, or a hook added for it -- and this is one sighting, not
+three, so it is recorded here rather than promoted. What the journal alone
+already shows without any further reading: an evening can spend its whole
+remaining room budget shuttling between two already-cleared rooms once its
+only forward path needs a boss the walk never attempts to reach, and none of
+it shows on screen as a fault, a wipe, or a message saying the way is shut --
+it reads exactly like ordinary progress, `walked-on`/`took-the-pad` lines and
+all, until the budget silently runs out.
 
 ### 7. A battleground does not carry a passive body the way a raid does
 

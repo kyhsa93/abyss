@@ -1,0 +1,47 @@
+# Cell from playpick: mode=clear, spec=druid:feral, style=idle, size=10,
+# difficulty=normal, view=1280x800, save=fresh.
+#
+# 10-normal on a genuinely fresh save is progress.ts's own first rung, open
+# with no unlock trick needed -- no driver-lesson recipe required this time.
+#
+# What is actually new: direction.md's #1 line ("doing nothing wins") has
+# been run against a tank, a ranged dps, three different healers and a
+# holy paladin under idle, but never against a melee dps -- and its one
+# prior mode=clear/mode=walk idle evening (2026-09-25-37, paladin:
+# retribution) was 25-heroic on a carried save that #273 means behaved as
+# fresh anyway, on a touch viewport. This is the first idle evening on:
+#   - a melee dps role (druid:feral)
+#   - a genuinely fresh save (no carried-behaving-as-fresh ambiguity)
+#   - 10-normal specifically
+#   - a desktop/mouse viewport
+# direction.md's own #6 note already establishes that `cross()` ignores
+# style entirely, so THE VIGIL and every other corridor should cross the
+# same way idle or not -- what idle actually tests here is only what
+# happens once a boss room opens: does the raid still carry a melee dps
+# who never even walks into range, the way it has carried every other
+# role that pressed nothing so far? A melee body that presses nothing is a
+# stricter test than a ranged one (2026-09-25's warlock:destruction idle
+# pull could still tag mechanics from range) because druid:feral has no
+# way to contribute at all without closing distance, and idle never moves.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+targets
+tap next
+tap class:druid:feral
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening idle 200 8
+shot after-evening
+state
+says
+targets
+ui
+bill
