@@ -1927,6 +1927,53 @@ it shows on screen as a fault, a wipe, or a message saying the way is shut --
 it reads exactly like ordinary progress, `walked-on`/`took-the-pad` lines and
 all, until the budget silently runs out.
 
+**2026-09-28, a third failure shape on the identical cell, this time a hard
+budget-out rather than a quiet loop.** `mode=walk` (`boss=gorged`, a coverage
+label only), druid:feral, `style=auto`, 10-normal, genuinely fresh save,
+1280x800 desktop (`playtest/plans/2026-09-28-16.play`) -- the same
+spec/size/difficulty/save/viewport as the 2026-09-27 `idle` entry immediately
+above, differing only in style (`auto`, which the desktop fallback plays as
+`good`: presses abilities and steers). THE VIGIL and Bonegrinder both went
+clean again (crossed at 8.1s/36s, killed at `fightTime=175` of the 300s room
+budget, `aliveParty=10/10 heroHp=1575/1575 presses=81 inDanger=1%`) --
+matching every prior clean reading of this exact cell.
+
+Past that it diverged from both prior shapes. `spire -> westclimb` crossed
+clean (9.3s), but the *next* hop broke differently again: the door log named
+`"took":"oratory"` (`ways=["oratory@187","spire@62"]`), yet the `crossed`
+event four seconds later read `"from":"westclimb","to":"spire"` -- the
+announced target and the room the game actually logged arriving in do not
+match, and the room it landed back in is the *nearer* of the two candidate
+doors, not the one named "took." From `spire` a second time, the door log
+named `"took":"eastclimb"` (`ways=["eastclimb@2025","vigil@1463",
+"westclimb@438"]`, eastclimb the *farthest* of the three, picked purely for
+being unvisited), and this time nothing arrived anywhere at all for the rest
+of the room's budget: `"from":"spire","to":"spire","closestGot":1889` at
+`650.3s` -- a crossing whose own source and destination are the identical
+room, after the full `300`s allowance, `fault:fight-outlasted-its-budget`.
+`after-evening.png` shows why it reads as a stall and not a fight: the whole
+visible party (six frames with a value, four reading a flat `0`) stands
+bunched in one small cluster in open ground, nothing drawn nearby to fight,
+the HUD's own "onward" label reading **"The West Climb"** -- a *third* room
+name, matching neither the door log's "took: oratory" nor its later "took:
+eastclimb" -- and the minimap corner still reading "137 left in it," the same
+building-wide remaining-enemy count this line's own priest:discipline entry
+already read off a stalled corridor.
+
+Three sightings now on this identical spec/size/difficulty/save/viewport
+cell (`druid:feral`, 10-normal, fresh, 1280x800) share a room ("spire" or its
+neighbours) and a mechanism-shaped absence -- style differs each time
+(`idle` looped between two already-lit pads; this one names a door,
+"crosses" into itself, and silently eats a full room budget) -- but none of
+the three ever shows a fault, a wipe or a spread-out fight to blame it on.
+**Not filed** (fourteen open `playtest` issues held the gate shut this
+session too), and this reads as a further variant of this line's own
+mechanism rather than a fourth hypothesis: whatever decides "which door did
+we actually arrive through" (the mismatch between a door's own `"took"`
+label and the `crossed` event's `to`) is the thing worth reading from source
+before the next repeat of this cell, rather than guessing from the journal
+alone a second time.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

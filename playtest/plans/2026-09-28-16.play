@@ -1,0 +1,33 @@
+# playpick cell: mode=walk boss=gorged spec=druid:feral style=auto
+# size=10 difficulty=normal view=1280x800 save=fresh
+#
+# boss=gorged is a coverage label only -- `evening` steers at no boss
+# (direction.md's own repeated note), so this walks in at the door same as
+# any other. 1280x800 is a non-touch view, so `auto` hits the already-known
+# fallback (no autocast toggle on screen or key for it -- plays `good`
+# instead, per scripts/playbot.ts:836 and direction.md's driver-lesson
+# notes at lines 2787/2863). Every prior `auto`-style evening on record was
+# 25-heroic on a touch viewport (skyward/carried, gift/carried); this is the
+# first at 10-normal, the first on a genuinely fresh save, and the first on
+# a desktop (non-touch) viewport, so it is really asking whether a
+# good-style melee dps clears the earliest cell in the game any differently
+# than idle already did on the identical spec (druid:feral, mode=clear,
+# 10-normal, fresh, 2026-09-27-10.play: clean VIGIL crossing at 27s,
+# Bonegrinder killed at 84s, aliveParty=10/10, presses=0).
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:druid:feral
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening auto 300 8
+state
+shot after-evening
+bill
