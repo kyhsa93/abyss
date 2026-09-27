@@ -1176,6 +1176,60 @@ over "Kill it in under 110 seconds") — not commented or filed again, both
 issues already open and nothing new about the mechanism. Gate held shut at
 fourteen open `playtest` issues; not filed.
 
+**2026-09-28, the first full evening under `auto`, and the closest an
+`auto`-style pull has come to killing The Last Whisper at heroic.**
+`mode=clear`, rogue:assassination, `style=auto`, 25-heroic, carried (behaves
+as fresh per #273), 844x390 touch (`playtest/plans/2026-09-28-17.play`).
+Every `auto` session on record so far was `mode=walk`, a single coverage-label
+fight; no `mode=clear` evening (checked against all eleven prior `clear`
+entries in `sessions.jsonl`) had run under this style before. Rogue is also
+the fastest class in the roster (`moveSpeed` 178, [[#6]]'s own reading), and
+this is the first time `auto` has been paired with it.
+
+Both corridors before the first boss crossed exactly as [[#6]] already
+predicts at 25-heroic — clean, 5.2s then 24.5s — and Bonegrinder heroic died
+at `fightTime=45` inside the room's own 200s play budget
+(`aliveParty=25/25 heroHp=1530/1530 presses=0`), the usual free ride. Past it,
+two more short corridors (8.6s, 12.2s) reached The Last Whisper heroic, where
+`auto` wiped outright for the first time on record: `fightTime=110`, boss at
+36%, the player's own death (`heroHp=0/1530`), `aliveParty=24/25`. The two
+priors on this boss (druid:feral melee, warlock:destruction ranged, both
+above) never wiped — they only ever ran out of their own room's play budget
+mid-fight. `outcome:retry` worked normally (a boss-room retry, not [[#3]]'s
+broken travel-mode one), and the second pull got further than any `auto` pull
+of this boss has: boss down to 13% by `fightTime=197` with the whole raid
+alive (`aliveParty=25/25`, against the priors' 24/25), before the room's 200s
+budget ran out (`fault:fight-outlasted-its-budget`, `away=331`).
+
+`bill` on that second pull: `hits=30 hitsPerMin=9.1 taken=2546
+takenPerMin=774.3 byMechanic={"decay":1,"shade":20,"volley":9}` — a third
+data point for this line's own `shade` reading (a mark that "closes at most
+of a body's speed," per `src/sim/boss.ts`'s comment, so a body that never
+moves never separates from it): 20 hits here, more than the ranged warlock's
+14 and the stationary tank's zero-by-miss, on the class with the highest
+`moveSpeed` in the roster and therefore the one that should be furthest from
+its own mark if speed mattered here — it does not, because `auto` never
+converts that speed into motion. The ability bar confirms it directly:
+`sinister_strike`/`rupture`/`eviscerate` read `"range"` at the very first
+state check (before the boss even existed) and still read `"range"` at the
+last one, 197 seconds into a real fight, while `sprint`/`evasion` (self-only,
+no range check) sat `"ready"` throughout — the same shape the missing
+`acting === 'auto'` steering branch in `scripts/playbot.ts` already explains
+for a ranged caster, now confirmed on a melee class whose three core buttons
+need proximity `auto` never supplies.
+
+Not filed — fourteen open `playtest` issues held the gate shut all session —
+and this sharpens the existing `auto` driver-lesson and this line's own shape
+(a body that cannot act, by construction rather than by choice, still gets
+carried to the edge of a heroic kill) rather than adding an eighth hypothesis.
+**Driver lesson, not a game finding:** `evening auto 200 6`'s own
+200-second-per-room budget does not shorten when a boss dies early —
+Bonegrinder's own kill landed at 45s but the room's `play` call still ran the
+full 200, costing about 155 seconds of real wall-clock time on an empty room.
+A shorter per-room budget (90-120s) would have let this same six-room script
+reach a seventh checkpoint or a third pull in the same real time; worth
+remembering before handing `evening` a flat number this large again.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

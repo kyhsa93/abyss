@@ -1,0 +1,42 @@
+# playpick cell: mode=clear spec=rogue:assassination style=auto size=25
+# difficulty=heroic view=844x390,touch save=carried (behaves as fresh, #273 --
+# carried never actually carries across separate playbot invocations because
+# the dev-server port is derived from the process pid).
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: no `mode=clear` evening has ever been run
+# under `style=auto` (checked playtest/sessions.jsonl -- eleven prior `clear`
+# entries, none `auto`; the two prior `auto` evenings on record were both
+# `mode=walk` coverage-label runs, not the full door-to-as-far-as-it-goes
+# walk). This is also the first time `auto` has been given rogue:assassination,
+# the fastest class in the roster (moveSpeed 178, direction.md's #6 line), on
+# a touch viewport where the autocast toggle is actually reachable (every
+# prior `auto` session on a desktop viewport silently fell back to `good`).
+# direction.md already knows from source that `auto`'s own steering in
+# scripts/playbot.ts never sets a `want` vector at all -- the body just stands
+# wherever it lands -- and the one prior melee-class `auto` reading (druid:
+# feral, mode=walk) showed a body parked ~207 units off the boss dealing
+# next to nothing. This evening asks whether that holds for a full multi-room
+# walk rather than a single fight, and whether rogue's own speed (which
+# crosses every corridor clean regardless of style, per #6) changes anything
+# once the corridor's own steering hands off to the fight's total absence of it.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening auto 200 6
+state
+shot end
+says
+bill
