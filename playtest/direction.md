@@ -1680,6 +1680,34 @@ VIGIL as a room, or to any travel-mode death anywhere in the building --
 every confirmation, `cross()`-driven or not, has still only ever happened in
 this one corridor.
 
+**2026-09-28, eleventh confirmation, and the first to test whether `melee`'s
+one clean crossing was a style effect or a class-speed effect.** `mode=walk`
+(`boss=crowns`, a coverage label only), warlock:destruction, `melee`,
+10-normal, fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-28-32.play`). [[#6]]'s seventh-confirmation note
+names `melee` and `idle` as "the only two styles that have ever crossed THE
+VIGIL clean," but the single `melee` clean crossing on record (2026-09-25,
+rogue:assassination) is also the single fastest class in the roster
+(`moveSpeed` 178), and the eighth #271 confirmation already ran `melee`
+through a different size/difficulty (priest:discipline, 25-heroic) and got a
+wipe, not a clean pass -- the two `melee` data points had never actually told
+style apart from class speed or size/difficulty. Warlock:destruction sits at
+`moveSpeed` 158, tied for the slowest tier with three classes that have
+already stalled or wiped this exact 10-normal/fresh cell under other styles.
+It did not cross clean either: THE THRESHOLD in 9.3s, then caught by THE
+VIGIL's own watchmen and wiped at 35s (`closestGot=14`, `presses=9`).
+`outcome:retry` tapped: the identical shape every prior #271 report has had,
+an instant re-wipe with `hero.hp=0` and every ability slot `locked`, and a
+second `evening` call over the same stuck room reproduced it a room later --
+`fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}` at 95.9s.
+`end.png` is the same DEFEAT-screen shape as every prior report: "0.0s ·
+0 down". Eleven specs and five styles have now hit the #271 retry wall;
+`melee`'s own record is now one clean crossing (fastest class) against two
+wipes (slowest-tier class, both sizes tried), which points at class speed
+doing the work in the one clean pass rather than the style itself -- folded
+into [[#6]] above. Gate held shut at fourteen open `playtest` issues; not
+filed, nothing here beyond another #271 confirmation.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
@@ -1869,6 +1897,20 @@ within about a dozen units of each other. Still holds against `melee` and
 druid:guardian/10-normal/fresh cell before trusting that those two styles
 cross any cell cleanly rather than this one in particular being unusually
 open to them.
+
+**2026-09-28, corrected: `melee`'s one clean crossing does not replicate.**
+[[#3]]'s eleventh confirmation ran `melee` a third time (warlock:destruction,
+10-normal, `moveSpeed` 158, the slowest tier in the roster) and it wiped in
+THE VIGIL rather than crossing clean, same as the eighth #271 confirmation's
+`melee` reading (priest:discipline, 25-heroic). `melee`'s record is now one
+clean crossing, by rogue:assassination -- the single fastest class,
+`moveSpeed` 178 -- against two wipes on slower classes at both sizes tried.
+That reads as class speed doing the work in the one clean pass, not the
+style: this line should stop calling `melee` a style that crosses clean and
+start reading its one clean data point as a speed effect wearing a style's
+name, alongside `idle`, whose own clean crossings ([[#6]]'s sixth and later
+confirmations above) hold across slower classes too and so are not explained
+away the same way.
 
 **2026-09-26, eighth confirmation, and the first clean `good` crossing --
 on a much harder cell.** `mode=clear`, shaman:elemental, `good`, 25-heroic,

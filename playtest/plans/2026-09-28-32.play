@@ -1,0 +1,37 @@
+# playpick cell: mode=walk boss=crowns spec=warlock:destruction style=melee
+# size=10 difficulty=normal view=1280x800 save=fresh. boss=crowns is a
+# coverage label only -- `evening` steers at no boss (direction.md's own
+# repeated note under [[#6]]) -- so this walks in at the door same as any
+# other.
+#
+# What is actually new here: `melee` has only ever been run through THE
+# VIGIL once before (2026-09-25, rogue:assassination, 844x390 touch), where
+# it crossed clean in 26s -- but rogue:assassination is also the single
+# fastest class in the roster (moveSpeed 178, src/sim/classes.ts:878), so
+# that clean crossing has always been readable as "melee is a clean style"
+# or just as "the fastest class was under the wheel," and no session has
+# told the two apart. warlock:destruction sits at moveSpeed 158
+# (classes.ts:812), tied for the slowest tier in the roster with
+# warrior/paladin/priest -- three of whom have already stalled THE VIGIL at
+# this exact 10-normal/fresh size and difficulty under other styles. Running
+# `melee` on the slowest tier, on a fresh desktop viewport nobody has run
+# `melee` on before, is the first test of whether the style crosses clean
+# independent of class speed, or whether the one clean melee reading on
+# record was actually a speed effect wearing a style's name.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:warlock:destruction
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening melee 300 6
+state
+bill
+shot end
