@@ -1,0 +1,51 @@
+# playpick cell: mode=walk boss=saved spec=druid:balance style=flee
+# size=10 difficulty=normal view=844x390,touch save=carried (behaves as
+# fresh, #273 -- carried never actually carries across separate playbot
+# invocations because the dev-server port is derived from the process
+# pid). `boss=saved` is a coverage label only (direction.md's 2026-09-25
+# note on playpick.ts): a mode=walk evening steers at no named boss, the
+# walk starts at the door same as any other, and the fresh/carried default
+# is already 10-normal, so no #hash unlock is needed to reach this cell.
+#
+# What is new here: checked sessions.jsonl -- druid:balance has been
+# played four times before (2026-09-25 daily, 2026-09-26/09-27
+# battleground x2, 2026-09-28 daily) and never once inside mode=walk or
+# mode=clear, so this is the first evening this spec has ever walked.
+# It is also only the third flee-style #271 confirmation on record, and
+# the first to put flee on a ranged caster dps rather than a healer
+# (paladin:holy, ninth confirmation) or a hunter (seventh). druid's own
+# moveSpeed is 167 (src/sim/classes.ts:618) -- squarely between the
+# confirmed-slow tier (158: warrior/paladin/priest/warlock, all stall/wipe
+# THE VIGIL) and the one confirmed-fast clean crossing (rogue, 178) --
+# so this is also a new data point on whether VIGIL's watchmen catch
+# everything below rogue's own speed, or whether 167 is fast enough to
+# get through where 158 is not (hunter's 173 flee reading crossed clean
+# per the eighth #271 confirmation, so if druid also crosses clean this
+# starts drawing the actual speed line rather than a flat "slow tier
+# dies, fast tier lives").
+#
+# If it crosses THE VIGIL, the evening keeps running (8 fights, 300s
+# budget) rather than stopping at the first room -- direction.md's #3
+# hypothesis has eleven confirmations of the PULL AGAIN retry bug and all
+# eleven happened inside THE VIGIL specifically; nobody has yet gotten a
+# travel-mode wipe in a *different* corridor to see whether the same bug
+# reproduces there or is actually specific to this one room. A clean
+# VIGIL crossing here is the first real chance at that.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:druid:balance
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening flee 300 8
+state
+shot after-evening
+says
+bill

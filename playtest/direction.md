@@ -1549,6 +1549,23 @@ has been read under all four roles (healer, ranged dps, melee dps, tank)
 with idle never once behind good on any axis that is not itself a proxy for
 effort.
 
+**2026-09-29, the first full evening -- not one pull -- won without a single
+press.** `mode=walk`, druid:balance, `flee` (a style that never calls
+`d.ability()`), 10-normal, carried (behaves as fresh per #273), 844x390 touch
+(`playtest/plans/2026-09-29-9.play`, full detail under [[#6]]'s new entry
+above). Every prior reading on this line is one pull with a fixed style
+compared against `idle`; this one never pressed anything to begin with and
+ran the whole scripted evening, not a single fight. Result: THE VIGIL crossed
+clean, Bonegrinder killed (`aliveParty=10/10 heroHp=1485/1485 presses=0
+inDanger=1%`), two more corridors crossed clean, The Last Whisper killed
+(`aliveParty=10/10 heroHp=1362/1485 presses=0 inDanger=0%`), a final corridor
+crossed into a ninth room -- zero faults anywhere, two boss kills, the whole
+raid never below full strength, `bill hits=0 taken=0` the entire way. Every
+prior confirmation of this line was a single pull; this is the first time the
+shape has held across two consecutive kills inside one continuous evening,
+which is a stronger claim than "one fight can be won standing still" -- it is
+"an evening can be won standing still, more than once in a row."
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -2552,6 +2569,37 @@ rooms-reached. Fifth clean 25-heroic crossing overall counting this and the
 `idle`/`dodge`x3 runs already on this line; still zero 25-heroic stalls
 against four 10-normal ones, which keeps sharpening this line toward "size or
 difficulty, not style," as the axis that actually predicts a VIGIL stall.
+
+**2026-09-29, a same-class, same-size/difficulty split that undercuts both the
+speed and the style theories at once.** `mode=walk` (`boss=saved`, a coverage
+label only), druid:balance, `flee`, 10-normal, carried (behaves as fresh per
+#273), 844x390 touch (`playtest/plans/2026-09-29-9.play`) -- the first evening
+this spec has ever walked. THE VIGIL crossed door to door in 29.9s (`8.5s` in,
+`38.4s` out, `presses=3`) -- squarely inside the ~30s clean-crossing band every
+25-heroic clean run above shares, not the 250-400s convergent stall. The
+evening then ran clean through its whole 8-room script: Bonegrinder killed
+(`fightTime=182 aliveParty=10/10 heroHp=1485/1485 presses=0 inDanger=1%`), two
+more corridors crossed with no fault, The Last Whisper killed
+(`fightTime=134 aliveParty=10/10 heroHp=1362/1485 presses=0 inDanger=0%`), and
+a final corridor crossed into a ninth room -- zero faults, zero wipes, two full
+boss kills, the whole raid untouched, on a body that pressed nothing all
+evening (`bill hits=0 hitsPerMin=0`).
+
+Two things this splits apart. First, style: `flee` has now stalled once
+(the fourth confirmation above, priest:discipline, 10-normal, mode=clear) and
+crossed clean once (this session), so `flee` itself predicts nothing. Second,
+speed: druid's `moveSpeed` is 167 (`src/sim/classes.ts:618`) -- identical for
+every spec of the class -- and this line *opened* on druid:guardian stalling
+at this exact 10-normal tier under `wander`. Same class, same moveSpeed, same
+size and difficulty, opposite outcome, different spec and style. Between a
+same-speed style split and a same-class same-tier speed split, "seed/watchman-
+placement luck" (floated as the alternative back at the fifth confirmation) is
+now the explanation with the fewest live counter-examples, not spec, style or
+class speed. Not filed -- fourteen open `playtest` issues held the gate shut
+-- and this reads as sharpening the existing line rather than a new one: the
+25-heroic-vs-10-normal split still holds (five clean 25-heroic runs, zero
+stalls) but "why 10-normal sometimes stalls" still has no answer that survives
+its own counter-examples.
 
 **Same run, a small and probably-too-small-to-matter complication to #279.**
 `ui` on this exact cell (820x1180 touch, druid:guardian's 5-slot bar) reported
