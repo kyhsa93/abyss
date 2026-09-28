@@ -1266,6 +1266,54 @@ See *Not yet filed*, below, for a source-confirmed display bug this same pull
 turned up: the minimap's own `enrage 83s` reading, six seconds before the
 wipe, was wrong by exactly the HASTENED affix's own 135-second discount.
 
+**2026-09-29, this "enrage beats a played pull" reading corrected: it was
+never the raid losing, and doing nothing proves it by winning the same
+fight.** `mode=daily` (today's real run, probed first: The Skyward Deck still
+25-heroic HASTENED, the same instance the three deaths below all share),
+druid:feral, `style=dodge` (zero presses, no toward-boss term at all), fresh
+save, 1280x800 desktop (`playtest/plans/2026-09-29-4.play`). Four checkpoints,
+`bill` after each: boss 100% -> 68% (87s) -> 36% (178s) -> 3% (268s) -> **0%,
+`fight-over outcome=victory time=278`**, `aliveParty=21/25`, `presses=0` the
+entire fight, `byMechanic` empty or a single incidental `rocket` hit at every
+checkpoint. A body that did nothing at all, on the roster's single largest
+played/idle gap (`docs/upkeep.md`: played 76% / idle 6%, +70), watched the
+other 24 kill the boss clean.
+
+That is the opposite of what the three prior reads of this identical
+instance found, all cited above as "line 1's own disprove-by-good condition
+losing": `good`/druid:balance died to `outcome=enrage` at 184s, boss 33%,
+`aliveParty=24/25`; `mash`/shaman:elemental died to `outcome=enrage` at
+199.3s, boss 26%, `aliveParty=24/25`; `wander`/paladin:protection died to
+`outcome=wipe` at 18s, boss 92%, `aliveParty=24/25`
+(`playtest/out/2026-09-28-30/journal.jsonl`, confirmed directly). **All
+three "losses" were one body dying, not the raid** -- 24 of 25 were alive
+in every one of them, same as this session's own winning pull, which also
+lost 4 along the way (21/25) and still finished the boss.
+
+Read `src/sim/sim.ts:778-792` rather than guess why: for a non-`saving`
+encounter, victory is `!b.alive` -- but the *loss* branch two lines later
+checks `player !== undefined && !player.alive` and ends the pull right
+there (`s.outcome = enrage-aura-present ? 'enrage' : 'wipe'`), before ever
+reaching the real wipe check on the next line, `livingParty(s).length === 0`.
+The pull ends -- and is labelled a wipe or an enrage -- the instant the one
+actor flagged `isPlayer` dies, whatever the other twenty-four are doing.
+`good` and `mash` pressed a rotation that put their own body in the way of
+something the fight was actually asking to be dodged; `dodge` never engaged
+that hazard at all and simply outlived it, and the identical AI raid it
+was riding along with did the rest, the same shape line 1 has shown all
+along -- the player's own actions costing the player's own body, not the
+fight, is one more reading of "nothing you do is a decision," not an
+exception to it. **The "fourth boss where enrage beats a played pull"
+framing above is superseded, not standing**: this fight has never actually
+been shown to beat the raid, only to kill the one body a driver was
+steering.
+
+**Not yet filed** carries the sharper version of this as its own
+engine-level finding, since `scripts/harness.ts` -- the balance harness
+`docs/upkeep.md`'s own bands and this exact +70 gap are drawn from -- reads
+`s.outcome` through the identical `isPlayer` actor
+(`harness.ts:28`, `harness.ts:791`: `if (s.outcome === 'victory') wins++`).
+
 **2026-09-28, the first idle pull of The Confluence, and a third kind of
 mechanism that beats this line -- not an enrage and not a healer's dot, but a
 positional one that turns standing still into a standing melee sink.**
@@ -4389,6 +4437,48 @@ names, so it is left as an observation here rather than folded into that
 issue on a guess. Whoever re-reads #283 for the credits/enrage/daily-retry
 backlog above should check whether this is the same `reportTop`-does-not-grow
 root cause or a second one.
+
+**2026-09-29, a pull's outcome is decided by one actor's death, not the
+raid's, and the same field feeds the balance harness's own win rates.**
+`mode=daily`, druid:feral, `style=dodge` (zero presses all fight), fresh
+save, 1280x800 (`playtest/plans/2026-09-29-4.play`, full detail and source
+citation under hypothesis 1's 2026-09-29 entry above). A body that pressed
+nothing rode the same Skyward Deck 25-heroic HASTENED instance three prior
+sessions had each recorded as an `outcome=enrage`/`outcome=wipe` loss to a
+clean **victory** at 278s -- and in every one of those three losses,
+`aliveParty` read `24/25`: one body down, not the raid.
+
+`src/sim/sim.ts:783-788` ends a non-`saving` pull and sets `s.outcome` the
+instant `s.actors.find(a => a.isPlayer)` is dead, before the actual
+all-dead check on the next line (`livingParty(s).length === 0`) is ever
+reached. That is playtest's own driver's problem when a script is steering
+one body through a raid of twenty-four AI -- but `scripts/harness.ts:28`
+builds its "crude stand-in for a competent human" the same way, with a real
+`isPlayer` actor, and `scripts/harness.ts:791` counts a win with
+`if (s.outcome === 'victory') wins++` -- the identical field. Every spec win
+rate, cell win rate and the "raid rewarding play" played/idle table in
+`docs/upkeep.md` (including the exact +70 Skyward Deck gap that sent this
+line chasing the fight in the first place) is very likely counting "did the
+one tracked body survive," not "did the raid clear the boss." Not
+confirmed against the harness directly this session -- that would mean
+instrumenting `harness.ts` itself, past what a playtest session may touch --
+but the mechanism is the same field, the same actor flag, and the same
+early-return order, read from the same file, so this is a source-backed
+suspicion rather than a guess.
+
+**Not filed -- fourteen open `playtest` issues held the gate shut** -- but
+this is arguably the most consequential finding this job has produced: if
+correct, a meaningful share of `docs/upkeep.md`'s own red-band history was a
+policy actor dying alone, not the raid failing, which is a different bug in
+a different place (`scripts/harness.ts`, upkeep's own tool, not `src/`) that
+playtest cannot fix and can only flag. File as a bug the first session the
+gate opens, pointing at `sim.ts:783-792` and `harness.ts:28,791` together,
+with `playtest/plans/2026-09-29-4.play` (the winning `dodge` pull) and
+`playtest/out/2026-09-28-30/journal.jsonl` (a `24/25`-alive "wipe" from the
+same instance, kept on disk) as the two reproductions, and a note asking
+upkeep's own job to check whether `harness.ts`'s win-rate loop should test
+`livingParty` non-empty rather than `s.outcome` before trusting any band
+this number moves.
 
 ## Tried and dropped
 

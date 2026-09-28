@@ -1,0 +1,12 @@
+# playpick cell: mode=daily boss=host (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md) spec=druid:feral style=dodge
+# view=1280x800 save=fresh.
+#
+# daily.boss is whatever the date computes, not a pickable control. Probe
+# first to see today's real boss/size/difficulty/affix before writing the
+# full script.
+open
+tap daily
+targets
+state
+shot today

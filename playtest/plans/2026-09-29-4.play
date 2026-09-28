@@ -1,0 +1,49 @@
+# playpick cell: mode=daily boss=host (coverage label only -- daily.boss is
+# not a real playpick axis, the actual daily is whatever the date computes)
+# spec=druid:feral style=dodge view=1280x800 save=fresh.
+#
+# Probed first (2026-09-29-4-probe.play): today's actual daily is The Skyward
+# Deck, 25-player heroic, HASTENED -- the same instance four 2026-09-28
+# sessions already fought (good x2, mash, wander), all melee/caster styles
+# that press a rotation. No session has run `dodge` against this fight, and
+# no daily session has ever picked a druid (checked sessions.jsonl: every
+# prior daily spec was warrior, paladin, priest, shaman, hunter or warlock).
+# dodge presses nothing and steers only away from telegraphs, so this tests
+# whether hypothesis 1 ("doing nothing wins") still holds on the roster's
+# single largest played/idle gap (docs/upkeep.md: played 76% / idle 6%,
+# +70) and on a fight with a fixed-schedule enrage rather than a boss-health
+# gate -- the 2026-09-27 dodge-vs-Three-Crowns pull found the opposite shape
+# there (dodge got furthest of any style, then died anyway to an enrage with
+# no damage dealer). Class grid tile confirmed via probe screenshot:
+# class:10 reads "Druid Feral" at both 390-wide (3-column) and 1280-wide
+# (5-column) layouts, so the flat index is layout-independent.
+open
+tap daily
+tap class:10
+targets
+tap start
+waitscreen fight 15
+state
+shot start
+bill
+
+play dodge 90
+state
+shot mid1
+bill
+
+play dodge 90
+state
+shot mid2
+bill
+
+play dodge 90
+state
+shot mid3
+bill
+
+play dodge 90
+state
+shot mid4
+bill
+says
