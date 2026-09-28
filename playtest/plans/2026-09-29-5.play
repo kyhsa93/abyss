@@ -1,0 +1,86 @@
+# Cell from playpick: mode=menus, view=390x844,touch, save=carried.
+#
+# All sixteen prior mode=menus sessions ran at 820x1180,touch or 1280x800 --
+# playpick.ts's other two viewports (390x844 and 844x390, the actual phone
+# sizes) have only ever been driven through a single fight or the bare front
+# page (#266, #279), never through the deep menu screens: THE CITADEL map,
+# the battleground setup screen, raid composition, settings or credits.
+# carried behaves as fresh per #273 (port-per-invocation localStorage origin).
+# Short bursts, since nothing here is on a clock.
+open
+targets
+ui
+shot front
+
+tap raid
+targets
+ui
+shot raidsetup
+
+tap open:difficulty
+targets
+shot difficulty-open
+tap dismiss
+targets
+shot difficulty-closed
+
+tap next
+targets
+ui
+shot classpick
+
+tap compose
+targets
+ui
+shot compose
+
+tap slot:1
+targets
+ui
+shot slot-tapped
+
+# Reached compose via raidsetup -> next -> compose (one back undoes the
+# slot picker, not a screen).
+tap back
+targets
+shot afterslot-back
+
+# THE CITADEL, never seen at a phone width: walk into a fight to raise the
+# corner group, then press map.
+open
+tap raid
+tap next
+tap class:hunter:marksmanship
+tap pull
+waitscreen fight 15
+tap map
+targets
+ui
+shot citadel-narrow
+
+tap back
+targets
+shot citadel-back
+
+# Battleground setup, only ever surveyed at 820x1180 before.
+open
+tap battleground
+targets
+ui
+shot bg-setup-narrow
+
+tap map:flags
+targets
+ui
+shot bg-composition-narrow
+
+open
+tap settings
+targets
+ui
+shot settings-narrow
+
+tap credits
+targets
+ui
+shot credits-narrow

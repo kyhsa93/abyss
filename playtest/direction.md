@@ -4201,6 +4201,44 @@ flag happened to be sitting, not something this script measured directly.
 Worth a same-map `dodge`/`idle` pair, as originally asked, before closing
 this question; not filed, gate held shut at fourteen open issues.
 
+**2026-09-29, `mode=menus` at an actual phone viewport for the first time,
+and a second confirmation of the camera-row under-44px defect, now on a
+touch device rather than a mouse.** `playpick` gave `mode=menus,
+view=390x844,touch, save=carried` (behaves as fresh per #273). All sixteen
+prior `mode=menus` sessions ran at 820x1180,touch or 1280x800 desktop --
+390x844 and 844x390, the two viewports that actually match a phone, had
+only ever carried a single fight (#279) or the bare front page (#266)
+through this axis, never the deep menu screens. This session walked raid
+setup, the difficulty dropdown, classpick, composition (including an
+individual slot tap), THE CITADEL map (reached the same way as
+2026-09-25's first citadel session: walk in, `tap map`), the battleground
+setup and composition screens, settings, and credits, all at 390x844
+(`playtest/plans/2026-09-29-5.play`, `--out playtest/out/2026-09-29-5`).
+Zero faults. Every screen's `ui` reading came back `offGlass=[]`, and the
+screenshots (`citadel-narrow.png`, `compose.png`, `bg-setup-narrow.png`,
+`settings-narrow.png`) all read clean and legible at this width -- the
+layouts described throughout `README.md`'s "Getting in" section hold down
+to a real phone's narrowest common width, not just the wider touch profile
+(820x1180) every prior menus session happened to use.
+
+The one live measurement that was not clean: `ui` on settings flagged
+`camera:1 40x52` under the 44px floor (`under44=["camera:1 40x52"]`) --
+the same seven-button camera-zoom row the 2026-09-26 entry above derived
+from source math (`settingsLayout()`'s `spread()`: `cw = (340 - 36) / 7 ≈
+43.43px`, under 44 by construction on every viewport wide enough for the
+row to hit its 340px cap, which includes this one). That entry's only live
+`under44` reading was on a 1280x800 desktop/mouse viewport, where the
+44px touch floor is arguably academic; this is the first time the same
+row has read under44 on a genuine touch viewport, where it is not. Two
+different buttons flagged in practice (`camera:3` at 1280x800,
+`camera:1` here) across two different viewports, exactly the
+antialiasing-noise-around-a-universal-defect shape that entry predicted.
+Not filed -- fourteen open `playtest` issues held the gate shut -- but
+this sharpens rather than duplicates the existing hold: file the source
+derivation together with both live readings (1280x800 desktop and this
+session's 390x844 touch) once the gate opens, so the report does not rest
+on either run's rounding alone.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
