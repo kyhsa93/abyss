@@ -1,0 +1,46 @@
+# playpick cell: mode=daily boss=confluence (coverage label only -- daily.boss
+# is not a real playpick axis, see probe) spec=druid:balance style=good
+# view=390x844,touch save=fresh.
+#
+# Probe (2026-09-28-18-probe.play) found today's actual run is The Skyward
+# Deck, 25-player heroic, HASTENED -- docs/upkeep.md's own "raid rewarding
+# play" table has this fight at the single largest played/idle gap in the
+# roster (played 76% / idle 6%, +70), and no session in this job's history
+# has ever fought it to a finish: two prior evening-mode encounters
+# (2026-09-26 mash, 2026-09-27 good) only ever touched it at 10-normal, one
+# wiped-then-retried-and-killed mid-evening and one left it open at 52% boss
+# hp when the room budget ran out. This is the first Skyward Deck pull at
+# 25-heroic, the first under the HASTENED affix, and the first via mode=daily
+# at all -- an actual `good`-style read of the roster's biggest upkeep gap,
+# on the daily's own always-fresh, always-pull-1 AI (per the 2026-09-28-12
+# daily-retry finding).
+open
+tap daily
+targets
+tap class:9
+targets
+tap start
+waitscreen fight 15
+state
+shot start
+
+play good 90
+state
+shot mid1
+bill
+
+play good 90
+state
+shot mid2
+bill
+
+play good 90
+state
+shot mid3
+bill
+
+play good 90
+state
+shot mid4
+bill
+says

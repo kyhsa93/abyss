@@ -1,0 +1,11 @@
+# playpick cell: mode=daily boss=confluence(coverage label) spec=druid:balance style=good view=390x844,touch save=fresh
+#
+# daily.boss is not a real playpick axis (direction.md: "daily.boss is not
+# reachable as a playpick axis at all") -- the actual daily is whatever the
+# date computes. Probe first to see today's real boss/size/difficulty/affix
+# before writing the full script.
+open
+tap daily
+targets
+state
+shot today

@@ -1230,6 +1230,42 @@ A shorter per-room budget (90-120s) would have let this same six-room script
 reach a seventh checkpoint or a third pull in the same real time; worth
 remembering before handing `evening` a flat number this large again.
 
+**2026-09-28, a fourth boss where enrage beats an actively-played pull
+outright, and the first ever finish of the roster's single biggest
+played/idle gap.** `mode=daily` (today's actual run: The Skyward Deck,
+25-player heroic, HASTENED, probed first via
+`playtest/plans/2026-09-28-18-probe.play`), druid:balance, `style=good`,
+fresh save, 390x844 touch (`playtest/plans/2026-09-28-18.play`). This boss
+had two fragments on record before now (2026-09-26 `mash`, killed on a
+retry, 10-normal; 2026-09-27 `good`, left open at 52% when an evening's room
+budget ran out, also 10-normal) and no session had ever fought it at heroic,
+via `mode=daily`, or to any actual finish. `docs/upkeep.md`'s "raid rewarding
+play" table has it at the largest gap on the whole list (played 76% / idle
+6%, +70), which made an actual played reading of it worth chasing on its own
+terms, independent of this line's own hypothesis.
+
+A real `good` command, pressing a real rotation (52, then 41, then 3 presses
+across three checkpoints; `hitsPerMin` 12.4 → 109.5 → 112.6 as phase 2 opened
+mechanics up), pushed the boss to 68% by 87s and 35% by 177s before ending in
+`fight-over outcome=enrage time=184 phase=2`, boss at 33%, the player itself
+the death (`heroHp=0/1485`), `aliveParty=24/25`. This is not a new mechanism —
+the enrage aura is the same one already read from `combat.ts` against The
+Last Whisper and The Three Crowns, above — but it is the fourth distinct boss
+now (after Bloodgorged's `fester`, The Last Whisper's enrage-vs-`flee`, and
+The Three Crowns' three enrage wipes under `good`) where this line's own
+disprove-by-`good` condition produces a loss rather than a win, and the first
+time it has happened on the fight upkeep's own table says should reward
+playing the most. **Not a disprove of line 1 in general** (most of the
+roster still shows idle/passive winning outright), but it sharpens the
+pattern rather than adding to it: every confirmed exception so far is an
+enrage or a healer-specific dot, never a puddle or an add wave, which keeps
+narrowing what kind of mechanic actually answers this line rather than just
+cataloguing more of them.
+
+See *Not yet filed*, below, for a source-confirmed display bug this same pull
+turned up: the minimap's own `enrage 83s` reading, six seconds before the
+wipe, was wrong by exactly the HASTENED affix's own 135-second discount.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -3589,6 +3625,72 @@ rather than the improvement a second pull shows everywhere else on this line.
 File as a bug the first session the gate opens, with
 `playtest/plans/2026-09-28-12.play` as the reproduction and `p1-end.png`/
 `p2-mid1.png` as the banner evidence.
+
+**2026-09-28, the minimap's own enrage countdown is reading the wrong number
+on every HASTENED fight, by exactly the affix's own discount.** `mode=daily`
+(today's actual run rolled over since the last several sessions: probed first
+via `playtest/plans/2026-09-28-18-probe.play`, The Skyward Deck, 25-player
+heroic, HASTENED -- the first time this job has ever fought this boss at
+heroic, or via `mode=daily` at all; its two prior appearances were 10-normal
+evening fragments, one killed on retry under `mash`, one left open at 52%
+when a room budget ran out), druid:balance, `style=good`, fresh save,
+390x844 touch (`playtest/plans/2026-09-28-18.play`). `docs/upkeep.md`'s own
+"raid rewarding play" table has this fight at the single largest played/idle
+gap in the whole roster (played 76% / idle 6%, +70) and no session had ever
+played it to a finish.
+
+It did not reach one: `fight-over outcome=enrage time=184 phase=2`, boss at
+33% (129,221/388,600), the player itself the death (`heroHp=0/1485`),
+`aliveParty=24/25`. `mid2.png`, taken 6.6 seconds earlier at `177.4s`, shows
+the minimap corner reading `enrage 83s` -- the display promising more than a
+minute and a half of runway right before the fight ended in the thing it was
+counting down to. That gap was worth checking against source rather than
+filed as "the countdown is just wrong sometimes."
+
+`src/render/hud.ts:1572` computes `enrageIn = encounterAt(s.encounter).enrage
+- s.time` -- the encounter's raw, un-affixed enrage second (`enrage: 260` for
+The Skyward Deck, `src/sim/encounters.ts:3706`; `260 - 177.4 = 82.6`, which
+rounds to the exact `83s` on screen). But `src/sim/boss.ts:527` decides when
+the enrage aura actually attaches with `enrageAt = encounter.enrage -
+affixEnrage(s.affix)`, and `affixEnrage('hastened')` returns `135`
+(`src/sim/affix.ts:84-89` -- "more than two minutes early", matching the
+affix's own advertised text). So the real enrage attached at `260 - 135 =
+125s`, some 52 seconds before the `mid2.png` shot, and the HUD's countdown
+was never told: it keeps subtracting from the un-adjusted `260` for the rest
+of the pull, so every HASTENED fight's minimap displays a number that is
+wrong by exactly `135` seconds low on danger for the whole back half of the
+timer -- the display would not have hit zero until `s.time=260`, seventy-six
+seconds after this pull was already over.
+
+`combat.ts:947-952`'s own damage-ramp math has the identical bug in a second
+place: `since = s.time - encounterAt(s.encounter).enrage - ENRAGE_GRACE` also
+reads the raw `260`, not the affix-adjusted `125`, so the exponential ramp
+("flat for the first half minute and doubling every half minute after," per
+its own comment) would not itself begin until `s.time > 290` -- meaning a
+HASTENED pull's enrage is flatly doubled (not yet ramping) for however long
+it lasts past the real, affix-adjusted `enrageAt`, and the ramp comment's own
+worked example ("pulls resolve around 110 to 135 seconds and the enrage is at
+233") was written before HASTENED existed and no longer describes what a
+HASTENED pull's own numbers do. Both bugs share one root cause -- two
+call sites computing "time since/until enrage" against `encounter.enrage`
+directly instead of through the same `enrageAt` `boss.ts` already derives --
+and both are readable from source without a second pull to confirm, though a
+same-day HASTENED pull that survives past `s.time=125` on a *different* boss
+would show the same wrong countdown and confirm this is not specific to The
+Skyward Deck's own numbers.
+
+**Not filed -- fourteen open `playtest` issues held the gate shut** -- but
+this is a source-confirmed display bug with the exact numbers that predict
+it, not a taste note, and it directly undercuts the one thing an enrage
+countdown exists for: `README.md`'s own account of the genre says "the whole
+of learning one is learning when things happen," and a timer that is wrong
+by over two minutes on the one affix built to move that number is telling a
+learning player the opposite of the truth for the second half of every
+HASTENED pull. File as a bug the first session the gate opens, with
+`playtest/plans/2026-09-28-18.play` as the reproduction, `mid2.png` as the
+screenshot evidence, and both `hud.ts:1572` and `combat.ts:950` named as the
+two sites needing the affix-adjusted `enrageAt` instead of the raw
+`encounter.enrage`.
 
 ## Tried and dropped
 
