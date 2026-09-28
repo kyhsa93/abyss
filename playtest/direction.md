@@ -4269,6 +4269,49 @@ session's `--out` directory, fix candidates named for whoever picks it up:
 either route the heading through `paragraph()` too, or shrink/wrap it to
 `creditsLayout().width` the same way the body text already respects.
 
+**2026-09-28, the win screen's own rung button, pressed for the first time
+this job has ever pressed it.** `mode=menus`, 820x1180 touch, carried (behaves
+as fresh per #273). Not a bug: a confirmation, kept here so the next session
+does not spend a cell re-deriving it.
+
+Every prior standalone-kill session (the 2026-09-28 02:00 kill-comparison
+session, and the two enrage-countdown daily sessions above) reopened the next
+fight with a fresh `open #hash` rather than actually tapping the button
+`advanceLabel`/`hitOutcome` draw on a win screen (`src/render/hud.ts:182`,
+`src/main.ts:2347`'s `else advanceTier()`). Nobody had watched
+`progress.ts`'s own promise -- "a kill opens exactly one rung… and pressing
+the advance button drops straight into it" -- actually happen.
+
+`open #b=marrow&s=10&h=0` (Bonegrinder, 10-man normal, tier 0 on the chain),
+`warrior:arms`, killed at `fightTime=115` (`playtest/plans/2026-09-29-1.play`,
+run once to the kill and once more end-to-end after adding the `tap
+outcome:next` step -- both kills landed at 114-115s, the small difference
+being wall-clock press timing per `docs/playtest.md`'s own note on what does
+and does not replay). `outcome.png` shows the button reading `10-MAN HEROIC`
+exactly as `tierLabel({size:10, difficulty:'heroic'})` predicts
+(`src/progress.ts:218`), not a generic `NEXT BOSS`. Tapping it
+(`targets` gave the label `outcome:next`) went straight from
+`screen=fight outcome=victory` to `screen=fight outcome=ongoing` with no
+setup screen in between -- `advanced.png` shows `The Bonegrinder`, `101,200`
+max hp, `pull 1`, a fresh three-second count (`countdown:80` ticks in the
+`state` json). Boss max hp is unchanged from the normal pull's `101200` --
+checked against source rather than read as a display bug: `DIFFICULTIES.heroic
+= { health: 1.0, ... }` in `src/sim/classes.ts:1182`, with its own comment
+("Health is left alone entirely… a longer fight is more casts of everything")
+saying identical boss health between normal and heroic is the design, not a
+miss. The mechanism works exactly as `progress.ts` and `README.md`'s "an
+evening that has run out says so" both describe it.
+
+One loose thread, not chased this session: `outcome.png`'s "OPENED 10-man
+heroic — kill the same fight, 10 of…" banner (the `main.ts:2494` line said
+only on the pull that earns a rung) sits partly behind the `First Blood`
+award banner, the same shape of overlap #283 already reports for the
+damage/healing report -- but this is a different piece of text than #283
+names, so it is left as an observation here rather than folded into that
+issue on a guess. Whoever re-reads #283 for the credits/enrage/daily-retry
+backlog above should check whether this is the same `reportTop`-does-not-grow
+root cause or a second one.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

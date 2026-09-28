@@ -1,0 +1,44 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried.
+#
+# What is actually new here: no session on record has ever pressed the
+# win-screen's own advance button (advanceLabel/hitOutcome in src/render/hud.ts,
+# `hit === 'next'` with no room -> advanceTier() in src/main.ts:2347) after a
+# standalone raid kill. Every prior standalone-kill session (2026-09-28's
+# same-boss-twice comparison) reopened the fight with a fresh `open #hash`
+# each time rather than tapping the button that is supposed to walk straight
+# onto the next rung. progress.ts's own comment says a kill opens exactly one
+# rung and advanceTier() reads nextSetting() and jumps straight into a new
+# fight with no setup screen in between -- nobody has watched that actually
+# happen, or read what the button says before it is pressed.
+#
+# Bonegrinder (marrow) 10-normal is tier 0 on the chain (progress.ts RUNGS),
+# so a direct #b=marrow&s=10&h=0 link opens exactly that rung and no more.
+# Killing it should bump unlocked to tier 1 (10-heroic, same boss) and the
+# button should read tierLabel({10, heroic}) = "10-MAN HEROIC" per
+# src/progress.ts:218, and pressing it should NOT go to a setup screen --
+# it should drop straight into a fresh 10-heroic Bonegrinder pull.
+
+open #b=marrow&s=10&h=0
+shot roster
+targets
+note roster screen after a direct boss link -- confirm spec picker is here, not straight to fight
+tap warrior:arms
+shot picked
+targets
+tap pull
+shot pulling
+waitscreen fight 15
+
+play good 200
+
+shot outcome
+state
+says
+targets
+note read the advance button's own label off targets before tapping it -- expect something naming 10-heroic, not a generic NEXT BOSS
+
+tap outcome:next
+shot advanced
+waitscreen fight 15
+state
+note confirm advanceTier() dropped straight into a fresh pull with no setup screen in between, and that it is actually the harder rung (boss maxHp should differ from the 10-normal fight's 101200)
