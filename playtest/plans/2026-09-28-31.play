@@ -1,0 +1,37 @@
+# playpick cell: mode=clear spec=druid:guardian style=good size=25
+# difficulty=heroic view=820x1180,touch save=carried (behaves as fresh, #273 --
+# carried save does not survive between playbot invocations since the port is
+# PID-keyed, so #b=marrow&s=25&h=1 is used to unlock the chain up to 25-heroic
+# the same way every other 25-heroic carried-cell script in this ledger does).
+#
+# Checked against sessions.jsonl first: druid:guardian has three mode=clear/
+# mode=walk appearances (wander/10-normal, flee/10-normal, good/10-normal-walk)
+# and none at 25-heroic; no mode=clear session has ever run good-style on a
+# tank spec, and no clear-mode good-style evening exists at 25-heroic either
+# (the two 25-heroic good evenings on record are shaman:elemental and a walk-
+# mode paladin, neither a tank). [[#6]]'s pattern so far is that 10-normal
+# evenings stall in THE VIGIL under every style tried while 25-heroic ones
+# (idle, dodge) have crossed it clean -- this is the first chance to see
+# whether a tank spec specifically, played well, still crosses it clean at
+# this size/difficulty, and how far a tank's own survivability carries a
+# good-style evening past the point [[#3]]'s zero-clean-25-heroic-evenings-to-
+# the-second-boss record currently reaches (paladin:retribution/dodge got
+# furthest: Bonegrinder killed clean, Last Whisper to 26%, five rooms).
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:druid:guardian
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening good 220 10
+shot end
+state
+says
+bill

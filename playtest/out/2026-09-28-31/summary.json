@@ -1,0 +1,26 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-31",
+  "seed": 594957,
+  "view": "820x1180,touch",
+  "entries": 41,
+  "faults": [
+    {
+      "room": "oratory",
+      "seconds": 220,
+      "hero": {
+        "x": 516.9319967844718,
+        "y": -8694.439919209919
+      },
+      "boss": {
+        "name": "The Last Whisper",
+        "hp": 80794,
+        "maxHp": 388600,
+        "x": 526.8790128293091,
+        "y": -8700.507517424436
+      },
+      "away": 12,
+      "at": 509.2,
+      "kind": "fault:fight-outlasted-its-budget"
+    }
+  ]
+}

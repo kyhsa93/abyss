@@ -2357,6 +2357,57 @@ paladin:retribution), zero `dodge` stalls -- worth flagging as the one style
 that has never once stalled THE VIGIL, against `wander`/`good`/`flee` each
 stalling it at least once.
 
+**2026-09-28, a fourth clean crossing, and a new deepest zero-wipe evening --
+this time under `good`, not `dodge`, and on a tank.** `mode=clear`,
+druid:guardian, `good`, 25-heroic, carried (behaves as fresh per #273),
+820x1180 touch (`playtest/plans/2026-09-28-31.play`). First mode=clear evening
+on druid:guardian at 25-heroic (its three prior clear/walk appearances were
+all 10-normal) and the first good-style tank pushed through a whole evening.
+THE VIGIL crossed door to door in 29.9s (`9.8s` in, `39.7s` out, `presses=15`,
+`closestGot=8`) -- a fourth clean 25-heroic crossing against the same four
+10-normal stalls this line opened on, and the first under `good` specifically
+at this size/difficulty (the only prior `good` reading on this line stalled at
+10-normal). Bonegrinder-heroic then died inside the crossing itself, same as
+every other clean-VIGIL evening: `fightTime=78 aliveParty=25/25
+heroHp=4140/4140 presses=87 inDanger=2%`, full health, nobody down. THE WEST
+CLIMB analogue (eastclimb, 9.3s) and a second short corridor (oratory-bound,
+12.3s) both crossed with no fault, reaching The Last Whisper's room at 281.6s.
+
+There `good` played its full 220s budget and did not finish: `fight-over`
+never fired, `fault:fight-outlasted-its-budget` instead, at `fightTime=217
+phase=3 aliveParty=25/25 heroHp=3494/4140 bossHp=21% presses=53 inDanger=12%`
+(`bill`: `hits=9 taken=7590 takenPerMin=2090.3 died=false
+byMechanic={"decay":2,"volley":7}`). Same room, same budget (220s) as
+2026-09-28's paladin:retribution/`dodge` run, which stopped at 26% with
+`presses=0` -- `good`'s own presses are the plausible reason it reaches 5
+points lower in the same window, since `dodge` does not attack at all. Five
+rooms reached, one full boss kill, the whole raid still alive and above 80%
+on its own tank, and not one wipe anywhere in it: the deepest this line has
+now measured a zero-wipe evening go, on boss-hp-remaining rather than just
+rooms-reached. Fifth clean 25-heroic crossing overall counting this and the
+`idle`/`dodge`x3 runs already on this line; still zero 25-heroic stalls
+against four 10-normal ones, which keeps sharpening this line toward "size or
+difficulty, not style," as the axis that actually predicts a VIGIL stall.
+
+**Same run, a small and probably-too-small-to-matter complication to #279.**
+`ui` on this exact cell (820x1180 touch, druid:guardian's 5-slot bar) reported
+`overlapping=["auto / ability:5","auto / ability:4", ...]` alongside the
+already-understood ability-vs-ability false positives. #279's own table
+computed `auto`'s isolated hit circle as clearing 52px at this viewport, wide
+of the 44px floor, and did not check it against its neighbours here. Working
+`theme.ts`'s own formulas at 820x1180 (`btnR=25.42`, `autoR*1.3=27.09`,
+`btnHit=btnR*1.32=33.55`) puts `autoPos` at `(724.66,1027.26)` and
+`ability:4`/`ability:5` (the upper-row pair nearest it) at `(752.62,1079.92)`
+and `(696.70,1079.92)` -- both 59.6 units from `autoPos`, against a summed
+hit-radius of 60.64. The circles really do overlap, by about one pixel of
+radius, and `auto` is checked unconditionally before the ability buttons'
+nearest-neighbor contest (`src/main.ts:2717`), so that sliver is a real,
+if tiny, dead zone rather than a grid-sampling artifact. Not filed and
+probably not worth its own issue even once the gate opens -- a ~1px sliver on
+a 27-33px hit radius is far below where a real thumb would ever land on the
+boundary -- but worth remembering if a future session ever sees a press near
+the top of the ability cluster silently toggle `auto` instead of firing.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
