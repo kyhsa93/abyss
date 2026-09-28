@@ -4115,6 +4115,44 @@ pull on conquest with a melee-capable spec before trusting "the map's opening
 geometry" over "any style that closes distance dies here"; not filed, gate
 held shut at fourteen open issues.
 
+**2026-09-29, a second `flee` pull on flags, this time with a melee-capable
+kit, and the carrier death from 2026-09-27 does not reproduce.** `playpick`
+gave `mode=battleground map=flags spec=warrior:arms style=flee view=
+844x390,touch save=carried` (behaves as fresh per #273) -- the first
+warrior:arms pull on any battleground (eleven priors covered druid x4,
+shaman x3, hunter, mage, paladin, priest x2, warlock, never a warrior), and
+only the second `flee`-style pull this line has ever run on Ebb and Flow.
+Three chunks of `play flee`, summing past the map's real 180s limit (#278)
+on purpose: `presses=0 inDanger=0%` throughout, `bossHp` (actually the
+tracked enemy `Corvin`'s hp, per this map's own `hud().boss` misreading)
+drifting 74% -> 98% -> 100% as the driver simply lost and regained proximity
+to whoever was nearest. Unlike 2026-09-27's mage:frost, this body never grew
+the dashed flag-carrier ring -- `mid2.png` shows the ring around the
+*dropped flag itself* ("1 in to 2"), with the player's own green ring
+well clear of it -- and it never took the `CARRIER_FRAGILITY` spike that
+killed the mage. `bill` read `taken=0` at fightTime 57s and 122s and only
+`taken=215 takenPerMin=71.7` by the 180s whistle, `died=false` throughout,
+finishing at `heroHp=1675/1890` (89%). The match still ended
+`outcome=defeat`, `Ebb and Flow · 180s · 1 - 2` (`mid3.png`), with four of
+the other five party frames reading dead on the end board (`Vale died 9s`,
+`Kestrel died 22s`, `Wren died 32s`, `Bastion died 35s` -- relative death
+clocks per this line's own established reading of these boards, not first
+deaths).
+
+This is the same-map `flee` repeat the 2026-09-27 entry asked for (it asked
+for `dodge`/`idle` specifically; this substitutes a second `flee` pull with a
+different, melee-range kit) and it comes out on the side of "flags punishes
+whichever body wanders over a dropped flag, active or not" rather than
+"flags punishes flee": same style, same map, no carrier pickup this time,
+ordinary passive-survives shape (chip damage instead of a fatal spike,
+consistent with [[#7]]'s other `flee`/`dodge` entries). **Not a controlled
+comparison** -- rocks and the enemy roster are rolled fresh per entry per
+README's own "Battlegrounds" section, and whether this body crossed a
+dropped flag's `FLAG_PICKUP` radius at any point is a matter of where the
+flag happened to be sitting, not something this script measured directly.
+Worth a same-map `dodge`/`idle` pair, as originally asked, before closing
+this question; not filed, gate held shut at fourteen open issues.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

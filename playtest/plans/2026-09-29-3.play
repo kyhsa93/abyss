@@ -1,0 +1,51 @@
+# playpick gave mode=battleground map=flags spec=warrior:arms style=flee
+# view=844x390,touch save=carried. Checked against the ledger and every
+# .play under playtest/plans/ before committing: warrior:arms has been
+# played in mode=daily and in mode=raid before, but never once on a
+# battleground (the eleven prior battleground sessions cover druid x4,
+# shaman x3, hunter, mage, paladin, priest x2, warlock -- no warrior). And
+# the only prior flee+flags pull on record (2026-09-27, mage:frost, same
+# view) found a *ranged* class wandering onto Ebb and Flow's dropped flag,
+# becoming its carrier by proximity alone (no press involved), and dying to
+# CARRIER_FRAGILITY with no way to fight back -- flee's steering has no
+# notion of carrying or dropping a flag. This pull swaps in a melee class to
+# see whether that is a flag-map property or a ranged-class property: arms
+# has a shorter attack range than frost, so if flee still drifts it onto the
+# flag the same way, the carrier death is the map's, not the spec's. #278
+# already covers Ebb and Flow's real 180s limit vs README's claimed 360s, so
+# the chunks below sum past 180s on purpose to watch the match actually end.
+open
+targets
+shot front
+
+tap battleground
+tap map:flags
+targets
+shot flags-picked
+
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play flee 60
+shot mid1
+state
+bill
+says
+
+wait 5
+play flee 60
+shot mid2
+state
+bill
+
+wait 5
+play flee 70
+shot mid3
+state
+bill
+says
+targets
