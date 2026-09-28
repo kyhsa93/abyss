@@ -1373,6 +1373,60 @@ naming this as a tank-specific cost rather than a `dodge`-specific one, though
 a second protection-spec `dodge` pull at this exact cell would make it a
 clean pair rather than two single pulls a role apart.
 
+**2026-09-28, the fastest death this whole line has ever recorded, and the
+first look at *why* Skyward Deck sits at the roster's largest played/idle
+gap rather than just confirming that it does.** `mode=daily` (today's run
+had not rolled over: still The Skyward Deck, 25-player heroic, HASTENED --
+the same instance the `good` and `mash` sessions above already ran),
+paladin:protection, `wander`, fresh save, 390x844 touch, probed first
+(`playtest/plans/2026-09-28-30-probe.play`) to find which `class:N` daily
+tile is Paladin Tank before committing
+(`playtest/plans/2026-09-28-30.play`). Neither of this fight's two prior
+played readings was a tank -- both were squishy dps (druid:balance `good`,
+died to enrage at 184s boss 33%; shaman:elemental `mash`, died to enrage at
+199s boss 26%) -- and paladin:protection had only met `mode=daily` once
+before, against a different boss entirely (The Reeking Host, 2026-09-24).
+
+It did not last one `play` chunk: `fight-over outcome=wipe time=18 phase=1`,
+`aliveParty=24/25`, the player itself the death (`heroHp=0/2745`),
+`bill: taken=7193 takenPerMin=24521.6 died=true byMechanic={}` -- 18 seconds
+into the pull, against 184s and 199s for the two dps deaths on the identical
+instance, and faster than any death this entire file has on record for any
+style on any boss. The WIPE screen's own banner (`end.png`) has a raid-chat
+line cut off at the very top of the shot reading `"...Aimed at the tank; it
+needs a defensive"` -- `src/render/hints.ts:20` names this `slam`'s own
+advice text (`title: 'ABYSSAL SLAM'`), and `src/sim/encounters.ts:3706-3707`
+confirms Skyward Deck schedules its own `opening.slam` cast at 14 seconds
+into every pull, phase 1's own recast at 16s after that. `src/sim/boss.ts:
+4339-4356`'s `resolveBossCast` shows what the telegraph is actually asking
+for: `boss_slam` lands only on whichever body is within melee range when the
+cast resolves, for `fight(s).slamDamage` (1100 raw for this boss) run through
+`hit()` -- `fightScale`, heroic's `1.05` times this boss's own `sizeMechanic`
+25-player weight (`0.62`) -- then `applyDamage`'s block-then-armour
+mitigation, exactly the kind of hit a tank's own defensive cooldown
+(`divine_protection`, slot 5 on this spec's bar) exists to blunt. `wander`
+has no such logic anywhere in `scripts/playbot.ts`: per the source read
+under [[#6]] above, it round-robins slots 1-5 in fixed order regardless of
+what a telegraph is asking for, so slot 5 gets pressed on schedule rather
+than in answer to anything, and the opening slam at 14s landed on whatever
+slot the round-robin happened to be sitting on.
+
+**Not a clean disprove-by-`good`, and not primarily a game finding** -- no
+`good`-style tank pull of this exact cell exists yet to show a defensive
+timed correctly surviving the same cast, so this cannot yet separate "the
+mechanic is properly lethal without an answer" from "`wander`'s round-robin
+answers nothing in particular, the same blind spot already named for every
+other style-specific mechanic on this line." What it does show cleanly,
+for the first time on this line: `docs/upkeep.md`'s own +70 gap for this
+fight is not merely "more mechanics happen here" -- it is at least partly a
+single scheduled, single-target, role-specific cooldown check, a different
+shape from every other mechanism this line has catalogued so far (an aura
+that punishes proximity, a dot that punishes standing still, a raid-wide
+enrage that punishes a slow kill). Worth a `good`-style protection paladin
+on this exact cell, timing the defensive to the 14s opening slam on purpose,
+before reading 18-second tank deaths as anything more than `wander`'s own
+blindness meeting the one mechanic on the roster built to punish it hardest.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

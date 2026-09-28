@@ -1,0 +1,71 @@
+# playpick cell: mode=daily boss=gorged (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md) spec=paladin:protection
+# style=wander view=390x844,touch save=fresh.
+#
+# Probe (2026-09-28-30-probe.play) found today's actual run is The Skyward
+# Deck, 25-player heroic, HASTENED -- the same fight, size, difficulty and
+# affix the 2026-09-28-18 (good, died enrage 184s boss 33%) and 2026-09-28-24
+# (mash, died enrage 199s boss 26%) sessions already ran, and the same
+# mistimed-enrage-countdown bug direction.md already source-confirmed under
+# "Not yet filed" (hud.ts:1572 and combat.ts:947 both read the raw
+# encounter.enrage=260 instead of boss.ts's own affix-adjusted enrageAt=125,
+# so the aura attaches on time at s.time=125 but the *ramp* math that is
+# supposed to make it hurt more over time stays keyed to the wrong baseline
+# until s.time>260 -- meaning the extra danger should be flat, not escalating,
+# for the whole window both prior deaths happened in).
+#
+# What no session has done before: paladin:protection has been played once
+# under mode=daily (2026-09-24, against The Reeking Host, a different boss
+# entirely) but never against this boss, and neither prior Skyward Deck daily
+# pull was a tank -- both were squishier dps (druid:balance, shaman:
+# elemental). A tank's own higher health and mitigation is the natural next
+# question this bug raises: do the two dps deaths at 184s/199s reflect the
+# enrage aura's own flat, un-ramped damage being lethal on its own, or would a
+# tougher body survive past s.time=260 -- the point where the ramp math's own
+# wrong baseline would suddenly stop reading deeply negative and the intended
+# escalation would kick in decades late? wander is also new against this
+# fight: both priors were good/mash.
+open
+tap daily
+targets
+state
+shot today
+
+tap class:2
+targets
+shot class-selected
+tap start
+waitscreen fight 15
+state
+shot start
+
+play wander 60
+bill
+state
+shot mid1
+
+play wander 60
+bill
+state
+shot mid2
+
+play wander 60
+bill
+state
+shot mid3
+
+play wander 60
+bill
+state
+shot mid4
+
+play wander 60
+bill
+state
+shot mid5
+
+play wander 60
+bill
+state
+shot end
+says

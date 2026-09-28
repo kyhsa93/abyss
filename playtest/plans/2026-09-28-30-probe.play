@@ -1,0 +1,10 @@
+# Probe only: find today's actual daily boss/size/affix and which class:N
+# tile on the daily grid is Paladin Protection, before committing to the full
+# script. playpick cell: mode=daily boss=gorged (coverage label only --
+# daily.boss is not a real playpick axis, see direction.md) spec=paladin:
+# protection style=wander view=390x844,touch save=fresh.
+open
+tap daily
+targets
+state
+shot today
