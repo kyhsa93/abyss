@@ -1,0 +1,63 @@
+# Cell from playpick: mode=battleground map=conquest spec=priest:shadow
+# style=wander view=1280x800 save=fresh.
+#
+# Checked sessions.jsonl and every .play under playtest/plans/ first. `wander`
+# has only ever been run on a battleground once before (2026-09-28-19.play,
+# escort/priest:discipline, carried): it died once at fightTime=54 -- much
+# later than any `good`-style death (9-16s, a beeline straight into the
+# enemy cluster at the spawn) but earlier than `flee`/`dodge`'s "never dies
+# at all" shape -- then respawned, drifted `Out of range` of both carts, and
+# contributed nothing for the rest of the match. direction.md's #7 called
+# that one pull, one map, wants a second `wander` pull on the *other* map
+# before it counts as a shape rather than a coincidence.
+#
+# This is that second pull, on conquest (The Three Cairns) instead of escort,
+# and on shadow instead of discipline -- also the first `wander` run with a
+# `save=fresh` profile rather than `carried` (moot per #273, carried already
+# behaves as fresh). Conquest specifically has its own separate thread on
+# this line: two different `good`-style specs (druid:balance, then
+# druid:restoration) both died at fightTime~9s on this exact map, read as
+# "conquest's own opening geometry punishes closing distance in the first
+# ~9 seconds" rather than a kit problem. `wander` doesn't beeline at
+# anything on purpose, so this pull also tests whether that geometry catches
+# a body that isn't aiming at it.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:priest:shadow
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play wander 90
+shot mid1
+state
+bill
+says
+
+wait 5
+play wander 90
+shot mid2
+state
+bill
+
+wait 5
+play wander 90
+shot mid3
+state
+bill
+says
+targets

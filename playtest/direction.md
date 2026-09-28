@@ -4320,6 +4320,45 @@ derivation together with both live readings (1280x800 desktop and this
 session's 390x844 touch) once the gate opens, so the report does not rest
 on either run's rounding alone.
 
+**2026-09-29, the second `wander` pull this line has ever run, first time on
+conquest, and the first `wander` battleground pull to actually reach a result
+screen.** `playpick` gave `mode=battleground map=conquest spec=priest:shadow
+style=wander view=1280x800 save=fresh` (`playtest/plans/2026-09-29-8.play`).
+The only prior `wander` pull (2026-09-28-19, escort, priest:discipline,
+carried) died once at `fightTime=54` and then drifted `Out of range` for the
+rest of the match, but the script ended with the match still `outcome=ongoing`
+at 154.3s of the map's 300s window -- nobody had actually seen how a `wander`
+pull *resolves*.
+
+This one resolved, and cleanly: the priest never died at all. `heroHp` stayed
+at `1350/1350` through the first 90s chunk and was still `1272/1350` (94%) at
+the `outcome=defeat` result 158s in -- `bill`'s running `taken` never passed
+78 across the whole match (`takenPerMin=29.6` by the end). `mid1.png` shows
+why: `Out of range` printed center-screen at 87.5s, and the `state` json's own
+`bar` reads `"range"` on all four offensive slots (`mind_flay`,
+`shadow_word_pain`, `mind_blast`, `shadow_word_death`) -- 739 presses total
+across the two `play wander` calls (`presses=427` then `312`), essentially all
+of them thrown at nothing in range. The end-of-match board (`mid3.png`)
+confirms the shape numerically: `You` (Priest) posted `dps=4`, `taken=78`
+against `Vale` (Mage) `dps=78 taken=4.8k`, `Bastion` (Mage) `dps=44
+taken=8.7k`, `Wren` (Druid) `dps=24 hps=14 taken=22k` -- the wandering body
+was two to three orders of magnitude less involved than any of its own
+teammates, on both sides of the ledger, and never once in danger
+(`inDanger=0%` every `played` line). The match still ended `171 – 400`,
+`DEFEAT`.
+
+This is the sharpest reading [[#7]] has produced: not "dies once, then
+contributes nothing" (the escort pull) and not "beelines in and dies in
+9-16s" (`good`'s shape), but a body that is functionally absent from the
+match in every column of its own damage board -- barely scratching the enemy,
+barely scratched itself -- while the four AI teammates who actually fought
+(and died: `Vale` 54s, `Bastion` 17s, `Wren` 28s, `Kestrel` 38s) lost anyway.
+**Not a controlled comparison** -- rocks and the enemy roster roll fresh per
+README's own "Battlegrounds" section -- but it is a second map and a second
+spec agreeing with the first `wander` pull's direction, and the first to show
+what a full, undisturbed `wander` match actually looks like end to end. Gate
+held shut at fourteen open issues; not filed.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
