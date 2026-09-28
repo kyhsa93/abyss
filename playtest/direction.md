@@ -3843,6 +3843,48 @@ record so far has been a dps or a tank), before this reads as more than one
 data point for a third shape. Gate held shut at fourteen open `playtest`
 issues; not filed.
 
+**2026-09-28, the `good`-style healer pull the line kept asking for, and it
+answers with a sharper claim than "healers die too."** `playpick` gave
+`map=conquest` (The Three Cairns), `spec=druid:restoration`, `style=auto`,
+1280x800 desktop, fresh (`playtest/plans/2026-09-28-28.play`) -- desktop means
+`isTouchMode()` gates AUTO off exactly as it did for the 2025-09-25 feral
+druid, and the journal confirms the fallback fired three times
+(`no-such-control want=auto`, `no-autocast-toggle ... playing good instead`),
+so this cell is the `good`-style restoration druid the 2026-09-26 entry above
+asked for -- just on a third map (conquest) rather than a repeat of flags.
+
+It died at `fightTime=9` (`bill`: `hits=0 hitsPerMin=0 taken=1584
+takenPerMin=10759.2 died=true byMechanic={}`), one press landed
+(`presses=1`) before `heroHp=0/1440`, `aliveParty` down to 4/5.
+`mid1.png` shows why: the body is inside a red hazard ring with a `-58` tick
+and a `DOWN` callout on another party member in the same ring, 8.6s into the
+match -- a beeline into the opening scrum, same as every other `good` death
+on this line.
+
+The sharper part is the number itself: 2026-09-26's `good`-style
+druid:balance pull on this *same* map also died at `fightTime~9s` (line
+above). Two different roles -- a healer casting `healing_touch`/
+`rejuvenation` and a boomkin casting `starsurge` -- on two different kits,
+under the identical style, on the identical map, dying at the identical
+second. That is a tighter match than role or kit can explain by coincidence,
+and it reframes the 2026-09-26 `melee` entry's open question ("a hypothesis
+about a player who cannot deal damage... not yet isolating whether a
+melee-capable class would fare differently"): the common factor across every
+`good` death this line has now recorded is not the kit, it is conquest's own
+opening geometry -- something at or near this map's spawn that punishes
+closing distance in the first ~9 seconds regardless of who is doing it. Set
+against the flags touch-`auto` healer above, which stood still and lived to
+`fightTime` 83-127s doing nothing: on a battleground, moving toward the
+fight killed a healer roughly ten times faster than standing still did,
+which is [[#1]]'s raid shape ("doing nothing wins") but sharper here, because
+this line already has the *reason* nothing beats acting on a raid (the AI
+carries an idle body) and battlegrounds have no such carry -- so the same
+outcome here is not evidence of the same mechanism, it is two different
+mechanisms that happen to reward the same non-input. Worth a `good`-style
+pull on conquest with a melee-capable spec before trusting "the map's opening
+geometry" over "any style that closes distance dies here"; not filed, gate
+held shut at fourteen open issues.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

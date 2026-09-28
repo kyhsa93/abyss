@@ -1,0 +1,48 @@
+# playpick gave mode=battleground map=conquest spec=druid:restoration
+# style=auto view=1280x800 save=fresh. 1280x800 is desktop, not touch, so
+# isTouchMode() gates the AUTO toggle off and playbot's own play() should fall
+# back to `good` (the "no-autocast-toggle" note in scripts/playbot.ts) --
+# meaning this cell resolves, in practice, to the good-style restoration-druid
+# battleground pull that direction.md's [[#7]] line has been asking for since
+# 2026-09-26: the only prior healer/battleground pull (flags, druid:
+# restoration, genuine touch AUTO) found a healer that casts but never steers,
+# and stood still until it died, and the line's own next step was "worth a
+# good-style restoration druid on the same map before concluding anything
+# about the class rather than the driver's own positioning gap." This is also
+# conquest's first healer-role pull (prior conquest sessions were
+# priest:shadow flee, druid:balance good, and a bare-idle control -- all dps).
+open
+targets
+shot front
+
+tap battleground
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play auto 60
+shot mid1
+state
+bill
+says
+
+wait 5
+play auto 60
+shot mid2
+state
+bill
+
+wait 5
+play auto 90
+shot mid3
+state
+bill
+says
+targets
