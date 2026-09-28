@@ -2960,6 +2960,32 @@ browser — which do have a share sheet or a permitted clipboard — would hit.
 Not filed. Worth a second look only if a session can first confirm the
 CDP context actually has clipboard-write and still sees `NO LUCK`.
 
+**2026-09-28, resolved: confirmed a driver artifact, not a game bug.**
+`mode=menus`, 820x1180 touch. `docs/playtest.md`'s own "go around the
+vocabulary" allowance used for the first time on this specific question: a
+one-off Playwright script
+(`playtest/plans/2026-09-28-27-share-clipboard.mjs`) started its own `vite`
+on a fixed port outside `playbot`'s own 5200-5500 range, opened a plain
+(non-persistent, so nothing under `playtest/profile` was touched) context
+with `permissions: ['clipboard-read', 'clipboard-write']` granted at
+creation — the one thing `scripts/playbot.ts` never does and cannot be
+asked to do from a `.play` script — and tapped the exact box a same-viewport
+`targets` call had just read (`share@476,1132 120x40`,
+`playtest/plans/2026-09-28-27-probe.play`).
+
+With real clipboard permission, the button read **COPIED** (`after.png`,
+against `before.png`'s plain `SHARE`) and `navigator.clipboard.readText()`
+immediately afterward returned the exact text `gameMessage()` builds:
+`"Abyss — a raid boss, or five people who would rather you left\nhttp://127.0.0.1:5900/"`
+— no bosses-killed line, correctly, since this was a fresh, non-persistent
+context with an empty `bests` record, matching `gameMessage()`'s own "a
+player who has done nothing yet claims nothing" rule. This closes the
+question the 2026-09-25 note left open: given the permission a real phone or
+desktop browser actually has, `share()` works exactly as `README.md`
+describes. `NO LUCK` in every prior session's reading was `scripts/playbot.ts`
+never granting clipboard access, not a defect in `src/share.ts`. Nothing to
+file — moved here as the resolution rather than left as an open question.
+
 **Filed, 2026-09-25, as #283 — narrowed on the way in.** The banner-pile note
 above (2026-09-24/25, warlock:destruction pair, held while the gate was shut)
 reproduced independently on a third, unrelated cell (daily mode, druid:balance,

@@ -1,0 +1,6 @@
+# Probe: find the front page's SHARE control box on this session's assigned
+# viewport (820x1180, touch), so a follow-up raw Playwright script can tap it
+# without guessing coordinates.
+open
+targets
+shot home
