@@ -3587,6 +3587,53 @@ missing movement policy; further sessions should spend an `auto` cell on
 whatever the assigned spec/mode is and simply note the shape holds, rather
 than re-deriving the mechanism each time.
 
+**2026-09-29, a fifth confirmation, and the first case where the gap works in
+the class's own favour.** `mode=clear`, hunter:marksmanship, 25-heroic, carried
+(behaves as fresh per #273), 820x1180 touch (`playtest/plans/2026-09-29-7.play`)
+-- the first `mode=clear` evening this job has ever given hunter:marksmanship
+(its two priors were both `mode=walk` single-corridor coverage labels under
+`flee`) and the first `auto`+`clear`+25-heroic reading on a ranged spec rather
+than the one prior melee reading (rogue:assassination, 2026-09-28-17.play).
+
+THE VIGIL crossed clean in 25.8s (hunter's own `moveSpeed` 173, second-fastest
+in the roster per [[#6]]'s own reading), then Bonegrinder-heroic woke
+immediately. The first pull nearly killed it solo-standing: wiped at
+`fightTime=141` (phase 3) with the player itself the death (`heroHp=0/1620`)
+but the boss down to 4% (`bossHp=4%`), `aliveParty=24/25` -- the closest an
+`auto` pull has ever come to a kill on the first attempt anywhere on this
+line. `outcome:retry` worked normally and the second pull killed clean:
+`fightTime=59`, `aliveParty=25/25`, `heroHp=1620/1620` (full health),
+`presses=0` throughout both pulls. Past that, two more corridors crossed
+clean (9s, 12.3s) into The Last Whisper heroic, where `auto` again did real
+work: `fight-outlasted-its-budget` at `fightTime=197` with the boss at 54%
+and the whole raid alive (`aliveParty=25/25`, `heroHp=1366/1620`), not the
+near-zero-progress shape every melee/caster `auto` reading on this line has
+shown.
+
+Read `src/render/hud.ts:1748-1753` rather than guess why a body that never
+moves did this well: marksmanship's own `distance` HUD widget
+(`` `+${bonus}% AT RANGE` ``) grants up to +35% wherever the kit already
+rewards standing 150-330 units from the target, scaling with the gap
+(`(gap-150)/180`, clamped to 1, times 35) -- a real, intentional class
+mechanic (confirmed on screen, `end.png` reads "+35% AT RANGE" in green on
+both shots), not a bug. `auto`'s own steering gap (already established: it
+never sets a `want` vector at all, so the body stands wherever the pull left
+it) has, on every prior class tried, meant standing somewhere the boss's own
+demands do not reward -- melee out of range, casters in the open. Here the
+pull's own opening position already sits inside marksmanship's own reward
+band, so the identical "never moves" defect that starved every earlier `auto`
+reading instead parks this class inside its own damage bonus for free.
+
+**Not a disproof of the driver-lesson's own shape** ("auto never steers"
+still holds, confirmed again by `presses=0` and the player's own position
+never changing) -- but it is the first case where that gap helps rather than
+hurts, and it means a future `auto` reading's hits/damage numbers should be
+read against the specific spec's own positioning demand before being treated
+as evidence about "auto" uniformly, the same caution this file already
+applies to `hound`/`flight` timing. Driver lesson, not filed as a game finding
+(gate shut at fourteen open issues); `scripts/playbot.ts` is outside what this
+job may touch.
+
 **2026-09-26, driver lesson, not a game finding.** `melee` (and by the same
 logic, `good`'s own toward-boss term) steers at `hud().boss`'s raw
 coordinate and nothing else -- fine on every fight that has one hittable

@@ -1,0 +1,40 @@
+# playpick cell: mode=clear spec=hunter:marksmanship style=auto size=25
+# difficulty=heroic view=820x1180,touch save=carried (behaves as fresh, #273 --
+# carried never actually carries across separate playbot invocations because
+# the dev-server port is derived from the process pid).
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: direction.md's #6/auto driver-lesson note
+# says auto never sets a steering vector at all (scripts/playbot.ts) -- every
+# prior auto reading confirming that was a caster dps, two healers, or a
+# melee dps (rogue:assassination, the one prior auto+clear+25-heroic evening,
+# 2026-09-28-17.play). None of those was a ranged class that starts a fight
+# already within its own attack range without needing to close distance --
+# hunter:marksmanship is the roster's other pure ranged dps alongside the
+# warlock/mage/shaman casters already read this way, but no auto reading has
+# been taken on it, and none has asked whether "never moves" costs a ranged
+# body less than it costs a melee one when the pull's own opening position is
+# already in range. This is also the first hunter:marksmanship evening this
+# job has run under mode=clear at all (its four priors were all mode=walk
+# coverage-label single-corridor runs under `flee`), and the first auto+clear
+# reading at this viewport (820x1180,touch; the one prior was 844x390).
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:hunter:marksmanship
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening auto 200 6
+state
+shot end
+says
+bill
