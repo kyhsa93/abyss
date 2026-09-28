@@ -1,0 +1,11 @@
+# playpick cell: mode=daily boss=crowns (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md) spec=shaman:elemental style=mash
+# view=1280x800 save=fresh.
+#
+# Probe first to see today's real boss/size/difficulty/affix before writing
+# the full script, per convention (2026-09-28-18-probe.play etc).
+open
+tap daily
+targets
+state
+shot today

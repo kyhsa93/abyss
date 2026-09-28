@@ -1,0 +1,44 @@
+# playpick cell: mode=daily boss=crowns (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md) spec=shaman:elemental style=mash
+# view=1280x800 save=fresh.
+#
+# Probe (2026-09-28-24-probe.play) found today's actual run is The Skyward
+# Deck, 25-player heroic, HASTENED -- the same fight, size, difficulty and
+# affix the 2026-09-28-18 session already played under style=good (died to
+# enrage at 184s, boss 33%). Since a daily's own seed is fixed for the day and
+# its own retry-AI bug (direction.md "Not yet filed") means attempt is always
+# 0, today's daily is the same script every single pull -- so this is a
+# same-day, same-seed style comparison of mash against that prior good run,
+# the discriminating pair docs/playtest.md's ladder section asks for, on a
+# style this specific boss/size/difficulty/affix combination has never seen.
+# shaman:elemental has also never been played on this boss at any size.
+open
+tap daily
+targets
+tap class:12
+targets
+tap start
+waitscreen fight 15
+state
+shot start
+
+play mash 90
+state
+shot mid1
+bill
+
+play mash 90
+state
+shot mid2
+bill
+
+play mash 90
+state
+shot mid3
+bill
+
+play mash 90
+state
+shot mid4
+bill
+says

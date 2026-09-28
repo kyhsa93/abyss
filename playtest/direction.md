@@ -3880,6 +3880,27 @@ screenshot evidence, and both `hud.ts:1572` and `combat.ts:950` named as the
 two sites needing the affix-adjusted `enrageAt` instead of the raw
 `encounter.enrage`.
 
+**2026-09-28, a second confirmation, different spec and style, same day's
+instance.** `mode=daily` (still The Skyward Deck, 25-heroic, HASTENED --
+today's run had not rolled over), shaman:elemental, `mash`, fresh save,
+1280x800 desktop (`playtest/plans/2026-09-28-24.play`), the first
+shaman:elemental pull and the first `mash`-style pull this job has ever run
+against this boss. Same death: `fight-over outcome=enrage time=199 phase=3`,
+boss at 26% (99,108/388,600), `heroHp=0/1440`. `mid2.png`, taken 21.2s
+earlier at `178.1s`, shows the minimap reading `enrage 82s` -- almost the
+identical wrong number the `good`-style run's `mid2.png` showed at `177.4s`
+(`enrage 83s`), one second apart on a completely different spec and press
+pattern, which is exactly what a display bug reading a fixed, un-affixed
+constant (`encounter.enrage=260`) should produce: it does not track how the
+pull is played, only `s.time`. `mash` survived 15 seconds longer than `good`
+before the enrage killed it (199s against 184s) and left the boss 7 points
+lower (26% against 33%) -- consistent with `mash`'s own random button
+presses doing more incidental damage than a considered rotation on a fight
+where positioning, not the rotation, is what a HASTENED pull actually asks
+for. Two specs, two styles, two viewports, one identical wrong countdown.
+Same reproduction and fix sites as above; nothing left to sharpen here
+before it is filed.
+
 **2026-09-28, the credits screen, the settings screen's sound/volume/backdrop
 rows, and a heading that runs clean off the edge of the canvas -- the first
 session on any of these.** `mode=menus`, 820x1180 touch, carried (behaves as
