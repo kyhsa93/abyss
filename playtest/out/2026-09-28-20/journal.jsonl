@@ -1,0 +1,76 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20","view":"1280x800","touch":false,"seed":982263,"url":"http://127.0.0.1:5434/","at":1.3,"kind":"session"}
+{"hash":"/","screen":"home","mode":"raid","outcome":"ongoing","at":2.2,"kind":"open"}
+{"on":"home","list":["raid@640,268 336x72","battleground@640,356 336x72","daily@640,436 336x72","settings@640,524 336x72","reset@640,692 304x40","record@576,740 128x40","share@704,740 128x40"],"at":2.3,"kind":"targets"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/front.png","screen":"home","mode":"raid","outcome":"ongoing","at":2.5,"kind":"shot"}
+{"label":"raid","box":[336,72],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.7,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/raid-setup.png","screen":"raid","mode":"raid","outcome":"ongoing","at":2.8,"kind":"shot"}
+{"label":"next","box":[1072,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":3,"kind":"tap"}
+{"label":"class:warrior:arms","box":[240,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":3.1,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/class-selected.png","screen":"roster","mode":"raid","outcome":"ongoing","at":3.2,"kind":"shot"}
+{"label":"pull","box":[1008,48],"screen":"fight","mode":"travel","outcome":"ongoing","at":3.3,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":3.4,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.1,"tick":3,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":false,"zoom":3,"party":10,"alive":10,"me":{"name":"You","spec":"arms","role":"dps","hp":1890,"maxHp":1890,"power":0,"maxPower":100,"alive":true,"casting":null,"bar":[{"slot":1,"id":"mortal_strike","status":"resource"},{"slot":2,"id":"rend","status":"resource"},{"slot":3,"id":"execute","status":"resource"},{"slot":4,"id":"charge","status":"range"},{"slot":5,"id":"die_by_the_sword","status":"ready"}]},"boss":null},"at":3.4,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/arrive-threshold.png","screen":"fight","mode":"travel","outcome":"ongoing","at":3.5,"kind":"shot"}
+{"n":"1/8","room":"threshold","mode":"travel","at":3.5,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@138"],"lit":["threshold"],"rode":[],"padHere":true,"at":3.6,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":51,"endedAt":{"x":-50.39802990657388,"y":-934.9340302089458},"presses":0,"secondsAtTheDoor":0,"stillAlive":186,"nearest":"The Damned,The Damned,The Damned,The Damned","at":8.9,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":8.9,"kind":"walked-on"}
+{"n":"2/8","room":"vigil","mode":"travel","at":9,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1307","threshold@64"],"lit":["threshold"],"rode":[],"padHere":false,"at":9,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":11,"endedAt":{"x":-37.19483827249956,"y":-5718.9250293216055},"presses":4,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":43,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":43,"kind":"boss-woken"}
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20","view":"1280x800","touch":false,"seed":119744,"url":"http://127.0.0.1:5329/","at":1.1,"kind":"session"}
+{"hash":"/","screen":"home","mode":"raid","outcome":"ongoing","at":1.9,"kind":"open"}
+{"on":"home","list":["raid@640,268 336x72","battleground@640,356 336x72","daily@640,436 336x72","settings@640,524 336x72","reset@640,692 304x40","record@576,740 128x40","share@704,740 128x40"],"at":2,"kind":"targets"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/front.png","screen":"home","mode":"raid","outcome":"ongoing","at":2.4,"kind":"shot"}
+{"label":"raid","box":[336,72],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.7,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/raid-setup.png","screen":"raid","mode":"raid","outcome":"ongoing","at":3,"kind":"shot"}
+{"label":"next","box":[1072,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":3.3,"kind":"tap"}
+{"label":"class:warrior:arms","box":[240,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":3.7,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/class-selected.png","screen":"roster","mode":"raid","outcome":"ongoing","at":3.9,"kind":"shot"}
+{"label":"pull","box":[1008,48],"screen":"fight","mode":"travel","outcome":"ongoing","at":4.2,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":4.2,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.1,"tick":3,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":false,"zoom":3,"party":10,"alive":10,"me":{"name":"You","spec":"arms","role":"dps","hp":1890,"maxHp":1890,"power":0,"maxPower":100,"alive":true,"casting":null,"bar":[{"slot":1,"id":"mortal_strike","status":"resource"},{"slot":2,"id":"rend","status":"resource"},{"slot":3,"id":"execute","status":"resource"},{"slot":4,"id":"charge","status":"range"},{"slot":5,"id":"die_by_the_sword","status":"ready"}]},"boss":null},"at":4.2,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/arrive-threshold.png","screen":"fight","mode":"travel","outcome":"ongoing","at":4.3,"kind":"shot"}
+{"n":"1/8","room":"threshold","mode":"travel","at":4.3,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@138"],"lit":["threshold"],"rode":[],"padHere":true,"at":4.3,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":50,"endedAt":{"x":-50.39802990657388,"y":-945.4673635422791},"presses":0,"secondsAtTheDoor":0,"stillAlive":186,"nearest":"The Damned,The Damned,The Damned,The Damned","at":9.8,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":9.8,"kind":"walked-on"}
+{"n":"2/8","room":"vigil","mode":"travel","at":9.8,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1296","threshold@58"],"lit":["threshold"],"rode":[],"padHere":false,"at":9.8,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":9,"endedAt":{"x":-9.048029705068634,"y":-5715.949045862881},"presses":6,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":41.2,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":41.2,"kind":"boss-woken"}
+{"style":"dodge","seconds":300,"outcome":"ongoing","fightTime":165,"phase":1,"aliveParty":"10/10","heroHp":"1890/1890","bossHp":"down","presses":0,"inDanger":"1%","at":341.3,"kind":"played"}
+{"room":"vigil","at":341.4,"kind":"boss-down"}
+{"n":"3/8","room":"spire","mode":"travel","at":341.4,"kind":"room"}
+{"room":"spire","took":"eastclimb","why":"unvisited","ways":["eastclimb@735","vigil@575","westclimb@1118"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":341.4,"kind":"door"}
+{"from":"spire","to":"eastclimb","aimedAt":"door","closestGot":54,"endedAt":{"x":1428.2644562179653,"y":-5842.462482193703},"presses":0,"secondsAtTheDoor":0,"stillAlive":174,"nearest":"The Damned,The Damned,The Damned,The Damned","at":349.5,"kind":"crossed"}
+{"from":"spire","to":"eastclimb","at":349.5,"kind":"walked-on"}
+{"n":"4/8","room":"eastclimb","mode":"travel","at":349.6,"kind":"room"}
+{"room":"eastclimb","took":"oratory","why":"unvisited","ways":["spire@42","oratory@375"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":349.7,"kind":"door"}
+{"from":"eastclimb","to":"oratory","aimedAt":"door","closestGot":84,"endedAt":{"x":799.3444759362776,"y":-7558.744171251813},"presses":0,"secondsAtTheDoor":0,"stillAlive":174,"nearest":"The Damned,The Damned,The Damned,The Damned","at":362.3,"kind":"crossed"}
+{"from":"eastclimb","to":"oratory","at":362.4,"kind":"walked-on"}
+{"n":"5/8","room":"oratory","mode":"travel","at":362.4,"kind":"room"}
+{"from":"oratory","to":"oratory","aimedAt":"boss:whisper","closestGot":261,"endedAt":{"x":412.0385216543636,"y":-8635.983458867053},"presses":0,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Last Whisper","at":370.3,"kind":"crossed"}
+{"room":"oratory","from":"oratory","at":370.3,"kind":"boss-woken"}
+{"style":"dodge","seconds":300,"outcome":"ongoing","fightTime":60,"phase":1,"aliveParty":"10/10","heroHp":"1886/1890","bossHp":"down","presses":0,"inDanger":"0%","at":670.5,"kind":"played"}
+{"room":"oratory","at":670.5,"kind":"boss-down"}
+{"n":"6/8","room":"oratory","mode":"travel","at":670.5,"kind":"room"}
+{"room":"oratory","took":"westclimb","why":"unvisited","ways":["eastclimb@1182","westclimb@1345"],"lit":["threshold","oratory","mooring"],"rode":[],"padHere":true,"at":670.6,"kind":"door"}
+{"from":"oratory","to":"westclimb","aimedAt":"door","closestGot":136,"endedAt":{"x":-1396.8321980673718,"y":-6284.335357563885},"presses":0,"secondsAtTheDoor":0,"stillAlive":167,"nearest":"The Damned,The Damned,The Damned,The Damned","at":690.6,"kind":"crossed"}
+{"from":"oratory","to":"westclimb","at":690.7,"kind":"walked-on"}
+{"n":"7/8","room":"westclimb","mode":"travel","at":690.7,"kind":"room"}
+{"room":"westclimb","took":"oratory","why":"toward a lit pad","ways":["oratory@228","spire@470"],"lit":["threshold","oratory","mooring"],"rode":[],"padHere":false,"at":690.9,"kind":"door"}
+{"from":"westclimb","to":"oratory","aimedAt":"door","closestGot":228,"endedAt":{"x":-230.2383534798982,"y":-7548.59462587429},"presses":0,"secondsAtTheDoor":0,"stillAlive":167,"nearest":"The Damned,The Damned,The Damned,The Damned","at":702.3,"kind":"crossed"}
+{"from":"westclimb","to":"oratory","at":702.3,"kind":"walked-on"}
+{"n":"8/8","room":"oratory","mode":"travel","at":702.3,"kind":"room"}
+{"label":"pad","box":[304,192],"screen":"citadel","mode":"travel","outcome":"ongoing","at":705.8,"kind":"tap"}
+{"label":"room:mooring","box":[88,48],"screen":"fight","mode":"travel","outcome":"ongoing","at":707.7,"kind":"tap"}
+{"from":"oratory","to":"mooring","wanted":"mooring","lit":["mooring","threshold"],"at":707.7,"kind":"took-the-pad"}
+{"from":"oratory","to":"mooring","aimedAt":"door","closestGot":"n/a","endedAt":{"x":3567.769042282511,"y":-8574.012711211926},"presses":0,"secondsAtTheDoor":0,"stillAlive":171,"nearest":"The Damned,The Damned,The Damned,The Damned","at":707.7,"kind":"crossed"}
+{"from":"oratory","to":"mooring","at":707.7,"kind":"walked-on"}
+{"rooms":8,"wipes":0,"walked":["threshold(travel,ongoing,5s)","vigil(travel,ongoing,332s)","spire(travel,ongoing,8s)","eastclimb(travel,ongoing,13s)","oratory(travel,ongoing,308s)","oratory(travel,ongoing,20s)","westclimb(travel,ongoing,12s)","oratory(travel,ongoing,5s)"],"reached":"threshold -> vigil -> spire -> eastclimb -> oratory -> westclimb","endedAt":"mooring","at":707.7,"kind":"evening"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"mooring","hud":{"time":0.13333333333333333,"tick":4,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":false,"zoom":3,"party":10,"alive":10,"me":{"name":"You","spec":"arms","role":"dps","hp":1890,"maxHp":1890,"power":0,"maxPower":100,"alive":true,"casting":null,"bar":[{"slot":1,"id":"mortal_strike","status":"resource"},{"slot":2,"id":"rend","status":"resource"},{"slot":3,"id":"execute","status":"resource"},{"slot":4,"id":"charge","status":"range"},{"slot":5,"id":"die_by_the_sword","status":"ready"}]},"boss":null},"at":707.7,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-20/shots/after-evening.png","screen":"fight","mode":"travel","outcome":"ongoing","at":707.8,"kind":"shot"}
+{"lines":[],"at":707.8,"kind":"says"}
+{"fightTime":0,"outcome":"ongoing","hits":0,"hitsPerMin":0,"taken":0,"takenPerMin":0,"died":false,"byMechanic":{},"at":707.8,"kind":"bill"}

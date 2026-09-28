@@ -1266,6 +1266,25 @@ See *Not yet filed*, below, for a source-confirmed display bug this same pull
 turned up: the minimap's own `enrage 83s` reading, six seconds before the
 wipe, was wrong by exactly the HASTENED affix's own 135-second discount.
 
+**2026-09-28, sharpened by the first `dodge`-style evening on a melee dps, and
+the first evening to carry a never-attacking body through two boss kills in a
+row.** `mode=clear`, warrior:arms, `dodge`, 10-normal, fresh save, 1280x800
+desktop (`playtest/plans/2026-09-28-20.play`). `dodge` never calls an ability
+at all, and this is the first time it has been given a spec with no ranged
+option across a full evening rather than a single pull. Both wing bosses this
+evening reached went down with the raid intact and the player barely
+touched: Bonegrinder killed at `fightTime=165` (`aliveParty=10/10
+heroHp=1890/1890 presses=0 inDanger=1%`), and The Last Whisper -- the same
+boss whose enrage a `flee`-style dps has already died to once, above -- killed
+even faster at `fightTime=60` (`aliveParty=10/10 heroHp=1886/1890 presses=0
+inDanger=0%`). Zero faults across the whole 8-room budget, and the run ended
+at a room this line has only reached once before (`THE MOORING`,
+`after-evening.png`: "THE WAY AHEAD IS HELD · 9 still standing"). Another
+confirmation that the shape holds even when the never-attacking body is asked
+to carry across two consecutive bosses in the same sitting, not just one
+pull -- see [[#6]]'s own new entry below for what the same run's corridor
+crossing adds to that line.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -2063,6 +2082,34 @@ we actually arrive through" (the mismatch between a door's own `"took"`
 label and the `crossed` event's `to`) is the thing worth reading from source
 before the next repeat of this cell, rather than guessing from the journal
 alone a second time.
+
+**2026-09-28, a second clean crossing, a different style and spec than the
+first.** `mode=clear`, warrior:arms, `dodge`, 10-normal, fresh save, 1280x800
+desktop (`playtest/plans/2026-09-28-20.play`) -- the same size/difficulty
+every stall on this line has used, and only the second style (after
+rogue:assassination's `melee` crossing, 2026-09-25) to cross THE VIGIL
+without stalling at all. `9.8s crossed from=threshold to=vigil ...
+presses=0` then `41.2s crossed from=vigil to=spire ... presses=6
+stillAlive=1 nearest=The Bonegrinder` -- 31.4 seconds door to door, not the
+250-400s convergent stall this line opened on. Two clean crossings now
+against four stalls, and the two clean runs do not obviously share a cause
+either: rogue:assassination/`melee` (beelines) and warrior:arms/`dodge`
+(retreats only) have opposite steering, against the stalled runs' own mix of
+`wander`/`good`/`flee`/`wander` on druid:guardian/priest:discipline/
+mage:frost. Still reads as seed/watchman-placement luck rather than a
+property of style, spec or role -- worth remembering this is now two data
+points on each side, not four-against-one.
+
+**Driver lesson, not a game finding, from the same run.** The journal read
+`41.2s boss-woken room=spire` (a fresh `chamber()` read, per
+`scripts/playbot.ts:1528`'s own comment: "the room the fight is in, not the
+one the slice began in") but `341.4s boss-down room=vigil` for the *same*
+fight -- `evening()`'s `boss-down` line (`playbot.ts:1554`) logs `at`, the
+room the slice started the turn in, rather than re-querying `chamber()` the
+way `boss-woken` three lines earlier deliberately does. Worth remembering
+when reading any evening journal where a boss is fought through a doorway:
+`boss-down`'s own `room` field names where the party was standing when the
+room's turn began, not where the boss actually died.
 
 ### 7. A battleground does not carry a passive body the way a raid does
 

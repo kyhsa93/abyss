@@ -1,0 +1,37 @@
+# playpick cell: mode=clear spec=warrior:arms style=dodge size=10
+# difficulty=normal view=1280x800 save=fresh
+#
+# Checked sessions.jsonl and direction.md first: `dodge` has been run
+# against warrior:arms exactly twice before (2026-09-26-15 comparison note
+# names `flee` at this size; 2026-09-27-1 ran `dodge` itself), but both were
+# a single `mode=raid` pull against The Long Cold, never a full evening.
+# And every `dodge`-style evening on record so far was a tank (paladin:
+# protection, 2026-09-26-19, 25-heroic) -- this is the first `dodge`
+# evening on a pure melee-dps role, the first at 10-normal, and the first
+# on a genuinely fresh save with a desktop (non-touch) viewport. `dodge`
+# never calls an ability at all (scripts/playbot.ts), so on a melee spec
+# with no ranged option this is as strict a test of #1's "doing nothing
+# wins" as idle's own melee reading (2026-09-27-10, druid:feral) -- except
+# `dodge` actively steers away from danger the whole time, where idle never
+# moves, so this also asks whether that steering changes how THE VIGIL
+# corridor plays out (#6) or whether a travel-mode wipe under a moving,
+# never-attacking body still stalls PULL AGAIN the way #271 has under
+# every style tried there so far.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:warrior:arms
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening dodge 300 8
+state
+shot after-evening
+says
+bill
