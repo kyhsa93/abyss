@@ -1,0 +1,53 @@
+# playpick cell: mode=raid boss=whisper spec=shaman:restoration style=mash
+# size=10 difficulty=normal view=390x844,touch save=fresh.
+#
+# What is actually new here: no session on record has ever landed a raid-mode
+# pull of The Last Whisper at all -- its four prior appearances in
+# sessions.jsonl were mage:frost/auto (mode=clear, never reached it),
+# priest:shadow/mash (mode=walk, wiped in THE VIGIL before ever reaching it),
+# warrior:protection/idle and paladin:holy/idle (both mode=raid, but neither
+# a healer nor mash). This is the first mash-style pull of this boss and the
+# first shaman:restoration under mash anywhere. mash round-robins ability
+# slots 1-5 with no movement at all (scripts/playbot.ts: mash is absent from
+# every steering branch), so a healer under mash stands still on the spot it
+# spawns and randomly casts heals and fillers alike with no target logic of
+# its own -- a different shape of "does nothing useful" than [[#1]]'s idle
+# entries, which never press anything at all. The room's own demand is "cut
+# the shard, swap the hold, and hold off your own" (src/sim/encounters.ts) --
+# a straight-line-mechanic room, the first non-round arena in the game -- so
+# standing on one spot for the whole fight is a real test of whether this
+# room punishes not moving the way a round room does not.
+#
+# whisper is tier 0 of its own wing on the chain and a fresh save opens
+# nothing above Bonegrinder 10-normal, so #b=whisper&s=10&h=0 (h=0 normal)
+# is the direct-link recipe every raid-mode session on an unlocked-later
+# boss has used.
+
+open #b=whisper&s=10&h=0
+shot roster
+targets
+note roster screen after a direct boss link -- confirm spec picker is here
+tap shaman:restoration
+shot picked
+targets
+tap pull
+shot pulling
+waitscreen fight 15
+
+play mash 90
+shot mid1
+state
+says
+bill
+
+play mash 90
+shot mid2
+state
+says
+bill
+
+play mash 40
+shot outcome
+state
+says
+bill

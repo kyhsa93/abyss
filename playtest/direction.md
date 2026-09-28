@@ -1427,6 +1427,46 @@ on this exact cell, timing the defensive to the 14s opening slam on purpose,
 before reading 18-second tank deaths as anything more than `wander`'s own
 blindness meeting the one mechanic on the roster built to punish it hardest.
 
+**2026-09-29, the first raid-mode kill of The Last Whisper this job has ever
+finished, and a blind healer topping the meter.** `mode=raid`,
+shaman:restoration, `mash`, 10-normal, fresh, 390x844 touch
+(`playtest/plans/2026-09-29-2.play`). This boss has appeared four times
+before (mage:frost/`auto` under `mode=clear`, never reached it;
+priest:shadow/`mash` under `mode=walk`, wiped in THE VIGIL before ever
+reaching it; warrior:protection/`idle` and paladin:holy/`idle` under
+`mode=raid`) and none of the four ever produced a finished pull of the boss
+itself — this is the first. `mash` has no movement branch at all
+(`scripts/playbot.ts`'s steering only covers `dodge`/`good`/`melee`/`wander`/
+`flee`/`learn`), so the healer stood on its spawn point, round-robinning
+slots 1-5 blind, for the entire 172.5s kill. Raid finished 10/10, the
+player itself at 703/1485 (47%), no faults. `bill`:
+`byMechanic={"decay":1,"volley":8}` — nine mechanic hits total over the
+whole fight, and per `src/sim/encounters.ts:129-131` both are the fight's
+unavoidable, non-positional ones (`volley`: "everybody at once, which is
+everybody at any size"; `decay`: "a patch of a fixed size, wherever it
+lands"). The room's own named demand — "cut the shard, swap the hold, and
+hold off your own" — never appears in the bill at all: no `shard` or `hold`
+entry either landed on this player or was answered by it. So this pull does
+not actually test whether standing on one spot survives the room's own
+distinguishing straight-line mechanics; it only shows that the fight's
+generic raid-wide chip damage is survivable stationary, same shape as every
+other cell on this line. The KILL screen's own healing board
+(`outcome.png`) is the sharper oddity: `You` (mash, blind, unmoving) read 55
+hps against the AI healer Nara's 53, topping the two-healer board and
+earning "Top of the Meter." Read against `README.md`'s own account of
+target selection ("heals to whoever is furthest from full" — the same
+auto-aim [[#1]]'s "Every press aimed at the boss" fix gave every heal
+button), this is not mysterious: a press that lands always lands on the
+neediest body regardless of who or where the caster is, so a blind
+round-robin loses nothing to bad targeting, only to whatever time it wastes
+pressing an ability that is still on cooldown. Not a disprove or a sharpen
+of the line's own "idle wins" claim — `mash` presses constantly, it is not
+idle — but it is the same family of evidence: a body contributing nothing
+resembling considered play still finished ahead of the AI on the one board
+that was actually its own job. Worth a `wander` or `good`-style healer pull
+on this exact boss before concluding the room's shard/hold mechanics are
+survivable stood still — this pull never drew either one.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
