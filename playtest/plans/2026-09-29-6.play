@@ -1,0 +1,45 @@
+# playpick: mode=raid boss=cold spec=warrior:protection style=good size=25
+# difficulty=heroic view=844x390,touch save=fresh
+#
+# The Long Cold at 25-heroic is README's own hardest single cell, and
+# direction.md's #1 ("doing nothing wins") has read it under a healer
+# (restoration shaman, good vs idle, 2026-09-25), a ranged dps (frost mage,
+# dodge, 2026-09-28) and a melee dps (warrior:arms, flee/dodge, but only at
+# 10-normal, its easiest setting) -- never a tank, and never a protection
+# warrior on this boss at all. The earlier protection-warrior idle/good pair
+# in #1 was on The Bonegrinder at 10-normal, a different boss and difficulty,
+# so this closes the last open role x difficulty gap on the hardest cell in
+# the game. Fresh save, so 25-heroic is not unlocked by the chain -- the
+# invite hash gets there directly, same as every prior Long Cold session.
+open #b=cold&s=25&h=1
+targets
+ui
+tap class:warrior:protection
+tap pull
+waitscreen fight 15
+state
+shot good-open
+
+play good 200
+bill
+says
+state
+shot good-end
+
+# Second pull, same seed (fresh profile carries nothing between `open` calls,
+# so a fresh open starts the encounter's pull count back at one) -- this time
+# idle, for the same #1 discrimination the healer pair used: same boss, same
+# difficulty, same spec, only the style differs.
+open #b=cold&s=25&h=1
+targets
+tap class:warrior:protection
+tap pull
+waitscreen fight 15
+state
+shot idle-open
+
+play idle 200
+bill
+says
+state
+shot idle-end

@@ -1,0 +1,46 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-6",
+  "seed": 772506,
+  "view": "844x390,touch",
+  "entries": 26,
+  "faults": [
+    {
+      "want": "class:warrior:protection",
+      "on": "fight",
+      "saw": [
+        "outcome:share",
+        "minimap",
+        "auto",
+        "ability:5",
+        "ability:4",
+        "outcome:next",
+        "outcome:retry",
+        "outcome:party",
+        "ability:3",
+        "ability:2",
+        "ability:1"
+      ],
+      "at": 105.8,
+      "kind": "fault:no-such-control"
+    },
+    {
+      "want": "pull",
+      "on": "fight",
+      "saw": [
+        "outcome:share",
+        "minimap",
+        "auto",
+        "ability:5",
+        "ability:4",
+        "outcome:next",
+        "outcome:retry",
+        "outcome:party",
+        "ability:3",
+        "ability:2",
+        "ability:1"
+      ],
+      "at": 105.8,
+      "kind": "fault:no-such-control"
+    }
+  ]
+}

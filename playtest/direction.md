@@ -1515,6 +1515,40 @@ that was actually its own job. Worth a `wander` or `good`-style healer pull
 on this exact boss before concluding the room's shard/hold mechanics are
 survivable stood still — this pull never drew either one.
 
+**2026-09-29, the last open role on the hardest cell: a tank, on The Long
+Cold, at 25-heroic.** `mode=raid`, warrior:protection, 25-heroic, fresh save,
+844x390 touch. This boss had been read four times before -- restoration
+shaman good/idle (2026-09-25), warrior:arms flee and dodge at 10-normal
+(2026-09-26/27), mage:frost dodge at 25-heroic (2026-09-28) -- covering
+healer and both dps flavours, never a tank, and never a protection warrior
+on this boss at all (its one prior good/idle pair in this hypothesis was on
+The Bonegrinder, 10-normal, a different boss and a different difficulty).
+`open #b=cold&s=25&h=1` -> `class:warrior:protection` -> `pull` ->
+`play good 200`, then, in a **separate `playbot` invocation** (the mid-script
+`open #hash` a second time is the same-document fragment-navigation trap
+this file already names two paragraphs above -- caught before it cost the
+data this time, not after) -> the identical `open` -> `play idle 200`:
+
+```
+good: fight-over time=100 aliveParty=25/25 heroHp=2141/2790 (77%) presses=40
+      inDanger=31% hits=503 hitsPerMin=300.9 taken=3805 takenPerMin=2276.2
+idle: fight-over time=101 aliveParty=25/25 heroHp=2737/2790 (98%) presses=0
+      inDanger=28% hits=494 hitsPerMin=294.2 taken=2072 takenPerMin=1234.1
+```
+
+Both cleared with the full raid standing and inside a second of each other on
+fight length. Idle finished at 98% of its own health against good's 77%,
+took barely more than half the damage per minute (1234.1 vs 2276.2), and
+spent less time in danger (28% vs 31%) despite never pressing `shield_wall`
+or moving to block anything. `outcome.png` for both pulls puts `You` at the
+bottom of the damage board either way (rank 15 of 19, a tank's normal spot)
+and shows the same `Held It`/`Inside Two Minutes` award banners sitting over
+the report table the #283 family already tracks -- not filed again here.
+Fourth role, fourth confirmation shape, and now the hardest cell in the game
+has been read under all four roles (healer, ranged dps, melee dps, tank)
+with idle never once behind good on any axis that is not itself a proxy for
+effort.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
