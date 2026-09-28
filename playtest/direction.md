@@ -1266,6 +1266,71 @@ See *Not yet filed*, below, for a source-confirmed display bug this same pull
 turned up: the minimap's own `enrage 83s` reading, six seconds before the
 wipe, was wrong by exactly the HASTENED affix's own 135-second discount.
 
+**2026-09-28, the first idle pull of The Confluence, and a third kind of
+mechanism that beats this line -- not an enrage and not a healer's dot, but a
+positional one that turns standing still into a standing melee sink.**
+`mode=raid`, rogue:assassination, `idle`, 10-normal, fresh save, 390x844
+touch (`playtest/plans/2026-09-28-22.play`) -- completing an idle/mash/good
+triangle on the one boss `docs/upkeep.md`'s own "raid rewarding play" table
+already flags as the second-largest played-over-idle gap (+54, after
+Bloodgorged). The other two corners were already on record: `mash`
+(2026-09-26-41.play, `mode=raid`) wiped at 84.2s, boss at 23%,
+`aliveParty=7/10`; `good` (2026-09-27-9.play, reached through an evening)
+killed it clean, `aliveParty=10/10`. `idle` did not just fail to win, it lost
+worse than the mashing pull did: wiped at `fightTime=108`, boss at 7%
+(further down than mash's pull, since nine other bodies still dealt damage
+for longer), but `aliveParty=3/10` -- seven dead including the player itself
+(`heroHp=0/1530`), `presses=0 inDanger=85%`, `bill`:
+`taken=3035 takenPerMin=1680.9 died=true
+byMechanic={"infection":43,"ooze":3,"spray":2,"engulf":1}`. This meets line
+1's own disprove condition on the letter of it: same boss, same size, same
+difficulty, idle loses where good already won clean.
+
+Read `src/sim/boss.ts` afterward rather than guess why, since `taken mechanics`
+on the end screen (`end.png`) showed heavy hits landing on several AI bodies
+too, not only the player. `scheduleInfection` (`boss.ts:2642`) hands a
+random non-tank, non-infected body a dot (`INFECTION_TICK`, 12/s,
+`combat.ts:289`) that also cuts incoming healing while it runs
+(`combat.ts:1129`). The dot always ends the same way -- it "births" an ooze
+exactly where the carrier is standing at that moment (`birthOoze`,
+`boss.ts:2677`) -- but it can end two ways: naturally, once its duration runs
+out (`sim.ts:464`), or early, the instant the carrier's own hp climbs back
+above a flush fraction (`sim.ts:361`, which spawns the ooze right there rather
+than waiting). Healing does not prevent the ooze; per the code's own comment,
+"a wound is answered by getting a body *out of* trouble, and this one is
+answered by getting a body that is not in trouble all the way to the top...
+what it buys is not the carrier's health, it is where the thing it leaves
+behind will stand" -- and the healing-reduction debuff makes reaching that
+early flush harder while infected, keeping the carrier closer to wherever it
+was already standing. Either way the ooze walks at its own maker "for as long as they are
+standing" (`boss.ts:2690-2694`) and melees them on arrival, growing stronger
+every time it merges with another ooze (`oozeDamage` scales with what it has
+"eaten", `boss.ts:2705-2707`). The function's own comment calls this
+"something on a body that will be a body when it stops" and names the whole
+answer explicitly: "the small things are slow by design... a body can walk
+away from one" (`boss.ts:2713`). A body born already in melee range of a
+target that never moves can never be walked away from -- idle does not merely
+fail to dodge this mechanic, it guarantees the ooze it spawns starts and stays
+in position to hit it, for the rest of the fight, growing if anything else
+wanders close enough to feed it.
+
+**Not as clean as Bloodgorged's fester disprove**, and worth saying plainly:
+the AI itself does try to answer this mechanic (`ai.ts:1347`, `getAura(actor,
+'infected')` registers as a `danger` worth acting on, `ai.ts:304`'s
+`infection:self` case), and it still lost badly here (`aliveParty=3/10`,
+worse than the `mash` pull's `7/10`) -- so this fight reads as generally hard
+or high-variance (matching the mash session's own "suggestive but not
+conclusive" note) rather than a case where idleness alone is the whole
+explanation, the way a healer withholding heals was the whole explanation on
+Bloodgorged. What is clean is the shape of the mechanism itself: this is the
+first exception on this line that is neither an enrage (Last Whisper,
+Skyward Deck, three Three Crowns pulls) nor a healer-specific dot
+(Bloodgorged), but a mechanic that punishes not moving specifically, on the
+one boss whose own source comment says its demand "is not about where the
+raid is standing... it asks about the geometry between the fight's own
+bodies" -- exactly the shape a style with zero movement was always going to
+answer worst of all three tried so far.
+
 **2026-09-28, sharpened by the first `dodge`-style evening on a melee dps, and
 the first evening to carry a never-attacking body through two boss kills in a
 row.** `mode=clear`, warrior:arms, `dodge`, 10-normal, fresh save, 1280x800

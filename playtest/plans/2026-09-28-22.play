@@ -1,0 +1,42 @@
+# Cell from playpick: mode=raid, boss=confluence (The Confluence),
+# spec=rogue:assassination, style=idle, size=10, difficulty=normal,
+# view=390x844,touch, save=fresh.
+#
+# The Confluence has two prior appearances on record and neither is idle:
+# 2026-09-26-41.play (mash, mode=raid) wiped at 84.2s with the boss at 23%
+# and three of ten dead including the player itself; 2026-09-27-9.play (good,
+# mode=walk, reached via an evening) killed it clean with the whole raid
+# alive. Both of those left an idle/good/mash triangle with idle missing --
+# this is the first true mode=raid idle pull of this specific boss, and it
+# matters because docs/upkeep.md's own "raid rewarding play" table has
+# Confluence at played=72%/idle=18%, a +54 gap, the opposite direction from
+# nearly everything direction.md's line 1 has found. The mash pull already
+# showed an active-ish style losing most of the raid here, which is
+# suggestive that idle might lose too -- if so this would be only the second
+# boss (after Bloodgorged's fester) to meet line 1's own disprove condition.
+# src/sim/boss.ts's own comment on this fight (read after the 2026-09-26 mash
+# pull) says its demand "is not about where the raid is standing... it asks
+# about the geometry between the fight's own bodies" -- an infection mark
+# that must not end up near another mark. idle never moves at all, so if
+# marks are meant to be walked apart this is the style with no way to answer
+# that demand whatsoever.
+#
+# Reached the documented way: an invite hash unlocks the tier it names and
+# everything below it, since a fresh save only opens Bonegrinder 10N.
+open #b=confluence&s=10&h=0
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+state
+shot open
+
+play idle 130
+bill
+state
+shot mid1
+
+play idle 130
+bill
+state
+says
+shot end
