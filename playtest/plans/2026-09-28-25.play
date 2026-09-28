@@ -1,0 +1,40 @@
+# playpick cell: mode=walk boss=saved spec=paladin:holy style=flee
+# size=10 difficulty=normal view=390x844,touch save=carried (behaves as
+# fresh, #273 -- carried never actually carries across separate playbot
+# invocations because the dev-server port is derived from the process pid).
+# `boss=saved` is a coverage label only (direction.md's 2026-09-25 note on
+# playpick.ts): a mode=walk evening steers at no named boss, the walk
+# starts at the door same as any other -- and the fresh/carried default is
+# already 10-normal, so no #hash unlock is needed to reach this cell.
+#
+# What no session has done before: checked sessions.jsonl -- paladin:holy
+# has been played four times (2026-09-25, 09-26 x2, 09-28) but never once
+# inside mode=walk or mode=clear; every prior reading was a standalone
+# mode=raid or mode=daily pull. This is the first evening a holy paladin
+# has ever walked. It is also the first flee-style evening on a healer at
+# 10-normal specifically -- flee has stalled THE VIGIL twice before
+# (druid:guardian and priest:discipline, both under #6/#281), but the
+# priest:discipline flee reading was at 25-heroic; nothing has run
+# flee+healer at the size/difficulty where every VIGIL stall on record so
+# far has actually happened. Also: THE ONE YOU SAVE ('saved')'s own demand
+# line -- "the thing in the middle is not the enemy, and it is running out
+# of time" -- has never been read by a healer under a style that runs from
+# danger rather than standing in it, if the evening gets that far.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:paladin:holy
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening flee 300 8
+state
+shot after-evening
+says
+bill

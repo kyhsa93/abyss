@@ -1,0 +1,32 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-25","view":"390x844","touch":true,"seed":58518,"url":"http://127.0.0.1:5245/","at":1.2,"kind":"session"}
+{"hash":"/","screen":"home","mode":"raid","outcome":"ongoing","at":1.9,"kind":"open"}
+{"on":"home","list":["raid@196,292 344x72","battleground@196,380 344x72","daily@196,468 344x72","settings@196,556 344x72","reset@196,772 296x24","record@132,812 120x40","share@260,812 120x40"],"at":1.9,"kind":"targets"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-25/shots/front.png","screen":"home","mode":"raid","outcome":"ongoing","at":2,"kind":"shot"}
+{"label":"raid","box":[344,72],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.1,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-25/shots/raid-setup.png","screen":"raid","mode":"raid","outcome":"ongoing","at":2.2,"kind":"shot"}
+{"label":"next","box":[240,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.3,"kind":"tap"}
+{"label":"class:paladin:holy","box":[120,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-25/shots/class-selected.png","screen":"roster","mode":"raid","outcome":"ongoing","at":2.4,"kind":"shot"}
+{"label":"pull","box":[192,56],"screen":"fight","mode":"travel","outcome":"ongoing","at":2.6,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":2.6,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.06666666666666667,"tick":2,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":10,"alive":10,"me":{"name":"You","spec":"holy","role":"healer","hp":1530,"maxHp":1530,"power":1100,"maxPower":1100,"alive":true,"casting":null,"bar":[{"slot":1,"id":"holy_light","status":"ready"},{"slot":2,"id":"beacon_of_light","status":"ready"},{"slot":3,"id":"lay_on_hands","status":"ready"},{"slot":4,"id":"holy_shock","status":"range"},{"slot":5,"id":"divine_shield","status":"ready"}]},"boss":null},"at":2.6,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-25/shots/arrive-threshold.png","screen":"fight","mode":"travel","outcome":"ongoing","at":2.6,"kind":"shot"}
+{"n":"1/8","room":"threshold","mode":"travel","at":2.6,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@138"],"lit":["threshold"],"rode":[],"padHere":true,"at":2.7,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":47,"endedAt":{"x":-21.95696543413948,"y":-958.0078883696192},"presses":0,"secondsAtTheDoor":0,"stillAlive":186,"nearest":"The Damned,The Damned,The Damned,The Damned","at":8.2,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":8.2,"kind":"walked-on"}
+{"n":"2/8","room":"vigil","mode":"travel","at":8.2,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1283","threshold@28"],"lit":["threshold"],"rode":[],"padHere":false,"at":8.3,"kind":"door"}
+{"from":"vigil","to":"vigil","aimedAt":"door","closestGot":13,"endedAt":null,"presses":9,"secondsAtTheDoor":0,"stillAlive":185,"nearest":"The Damned,The Damned,The Damned,The Damned","at":35.9,"kind":"crossed"}
+{"at_":"vigil","outcome":"wipe","wipes":1,"journalKeyClash":true,"at":35.9,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,56],"screen":"fight","mode":"travel","outcome":"wipe","at":36,"kind":"tap"}
+{"n":"3/8","room":"vigil","mode":"travel","at":66.3,"kind":"room"}
+{"from":"vigil","to":"vigil","aimedAt":"door","closestGot":"n/a","endedAt":null,"presses":0,"secondsAtTheDoor":0,"stillAlive":179,"nearest":"The Damned,The Damned,The Damned,The Damned","at":66.4,"kind":"crossed"}
+{"at_":"vigil","outcome":"wipe","wipes":2,"journalKeyClash":true,"at":66.4,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,56],"screen":"fight","mode":"travel","outcome":"wipe","at":66.5,"kind":"tap"}
+{"at_":"vigil","after":"wipe","rooms":3,"journalKeyClash":true,"at":96.8,"kind":"fault:evening-stuck"}
+{"rooms":3,"wipes":2,"walked":["threshold(travel,ongoing,6s)","vigil(travel,wipe,28s)","vigil(travel,wipe,0s)"],"reached":"threshold -> vigil","endedAt":"vigil","at":96.8,"kind":"evening"}
+{"screen":"fight","mode":"travel","outcome":"wipe","chamber":"vigil","hud":{"time":0.03333333333333333,"tick":1,"phase":1,"countdown":0,"outcome":"wipe","auto":false,"touch":true,"zoom":3,"party":10,"alive":9,"me":{"name":"You","spec":"holy","role":"healer","hp":0,"maxHp":1530,"power":1100,"maxPower":1100,"alive":false,"casting":null,"bar":[{"slot":1,"id":"holy_light","status":"locked"},{"slot":2,"id":"beacon_of_light","status":"locked"},{"slot":3,"id":"lay_on_hands","status":"locked"},{"slot":4,"id":"holy_shock","status":"locked"},{"slot":5,"id":"divine_shield","status":"locked"}]},"boss":null},"at":96.8,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-25/shots/after-evening.png","screen":"fight","mode":"travel","outcome":"wipe","at":96.9,"kind":"shot"}
+{"lines":[],"at":96.9,"kind":"says"}
+{"fightTime":0,"outcome":"wipe","hits":0,"hitsPerMin":0,"taken":0,"takenPerMin":0,"died":false,"byMechanic":{},"at":96.9,"kind":"bill"}

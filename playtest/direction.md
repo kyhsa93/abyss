@@ -1544,6 +1544,40 @@ VIGIL," and this session finds nothing that narrows it further, only that it
 holds at the far end of every axis tried so far. Gate held shut at fourteen
 open `playtest` issues; not filed.
 
+**2026-09-28, ninth confirmation, first paladin:holy evening ever and the
+first `flee`+healer pairing.** `mode=walk` (`boss=saved`, a coverage label
+only), paladin:holy, `flee`, 10-normal, carried (behaves as fresh per #273),
+390x844 touch (`playtest/plans/2026-09-28-25.play`). Checked sessions.jsonl
+first: paladin:holy has been played four times before this and never once
+inside `mode=walk` or `mode=clear` — every prior reading was a standalone
+`mode=raid` or `mode=daily` pull, so this is the first evening this class/
+spec has ever walked, full stop. It is also the second `flee`-style
+confirmation of this wall (after the seventh, hunter:marksmanship) and the
+first time `flee` has been paired with a healer specifically — the eighth
+confirmation put a healer through `melee` (no away-from-danger term at all),
+this puts one through the style built to retreat. THE THRESHOLD crossed
+clean (8.2s, `presses=0`), then THE VIGIL's watchmen caught the party
+mid-crossing (`closestGot=13`, `presses=9` — the healer's own casts while
+retreating) and wiped it at 35.9s. `outcome:retry` tapped: the identical
+shape every prior report has, an instant re-wipe at 66.4s with `presses=0`
+and `closestGot=n/a` (no movement even attempted), and a second `evening`
+call over the same stuck room produced the same shape a room later —
+`fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}` at 96.8s.
+`after-evening.png` is the same DEFEAT-screen shape as every prior report:
+"0.0s · 0 down", every column a flat `-`/`0`, PULL AGAIN highlighted and
+nothing on the board. Not commented on #271 again — nine specs and five
+styles have now hit this exact wall the same way, and `flee`'s own
+away-from-danger term still never runs inside it, for the same reason the
+seventh confirmation already named: `cross()` ignores style entirely. Gate
+held shut at fourteen open `playtest` issues; not filed. Nine confirmations
+across nine specs is enough that this line should stop collecting specs and
+start asking the one question it has not yet: whether PULL AGAIN's failure
+is specific to a wipe that happens *while `cross()` is mid-crossing*, or
+whether a travel-mode wipe anywhere else in the building (a corridor this
+job has not yet gotten a party killed in) fails the same way. Every
+confirmation so far is THE VIGIL; no session has tried to force a wipe in a
+different corridor on purpose.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
