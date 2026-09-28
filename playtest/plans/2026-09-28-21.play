@@ -1,0 +1,31 @@
+# Menus session: the settings screen's sound/volume/backdrop controls and the
+# credits screen -- checked against sessions.jsonl and direction.md first,
+# neither "sound", "volume", "backdrop"/ambience nor "credits" appears in
+# either file across thirteen prior mode=menus sessions. rendercheck asserts
+# numbers on these rows (src/render/menu.ts settingsLayout/creditsLayout) but
+# has never rendered them through a real browser, per docs/playtest.md's own
+# account of what rendercheck does and does not cover.
+open
+targets
+tap settings
+targets
+ui
+shot settings-fresh
+tap sound
+shot settings-muted
+tap sound
+tap volume:2
+shot settings-volume2
+tap backdrop
+shot settings-backdrop-off
+tap backdrop
+tap credits
+targets
+ui
+shot credits
+tap back
+targets
+shot settings-back
+tap back
+targets
+shot home-back

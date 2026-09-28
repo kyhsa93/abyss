@@ -1,0 +1,25 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21","view":"820x1180","touch":true,"seed":660423,"url":"http://127.0.0.1:5439/","at":1.3,"kind":"session"}
+{"hash":"/","screen":"home","mode":"raid","outcome":"ongoing","at":3.6,"kind":"open"}
+{"on":"home","list":["raid@412,420 344x104","battleground@412,544 344x112","daily@412,668 344x104","settings@412,788 344x104","reset@408,1084 304x40","record@348,1132 120x40","share@476,1132 120x40"],"at":3.7,"kind":"targets"}
+{"label":"settings","box":[344,104],"screen":"settings","mode":"raid","outcome":"ongoing","at":3.9,"kind":"tap"}
+{"on":"settings","list":["name@412,212 344x56","sound@412,300 344x56","volume:0@296,388 112x56","volume:1@408,388 112x56","volume:2@528,388 112x56","camera:0@260,476 40x56","camera:1@312,476 48x56","camera:2@360,476 48x56","camera:3@412,476 40x56","camera:4@460,476 40x56","camera:5@508,476 40x56","camera:6@560,476 48x56","backdrop@412,564 344x56","credits@412,652 344x56","refresh@412,744 344x48","reset@412,832 344x48","back@84,1132 120x40"],"at":4,"kind":"targets"}
+{"on":"settings","glass":"820x1180","controls":17,"list":["name 340x52 at 240,184","sound 340x52 at 240,272","volume:0 108x52 at 240,360","volume:1 108x52 at 356,360","volume:2 108x52 at 472,360","camera:0 44x52 at 240,452","camera:1 44x52 at 288,452","camera:2 44x52 at 340,452","camera:3 44x52 at 388,452","camera:4 44x52 at 436,452","camera:5 44x52 at 488,452","camera:6 44x52 at 536,452","backdrop 340x52 at 240,540","credits 340x52 at 240,628","refresh 340x52 at 240,716","reset 340x52 at 240,804","back 120x44 at 24,1112"],"under44":[],"offGlass":[],"overlapping":[],"at":4.1,"kind":"ui"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21/shots/settings-fresh.png","screen":"settings","mode":"raid","outcome":"ongoing","at":4.3,"kind":"shot"}
+{"label":"sound","box":[344,56],"screen":"settings","mode":"raid","outcome":"ongoing","at":4.5,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21/shots/settings-muted.png","screen":"settings","mode":"raid","outcome":"ongoing","at":4.6,"kind":"shot"}
+{"label":"sound","box":[344,56],"screen":"settings","mode":"raid","outcome":"ongoing","at":5,"kind":"tap"}
+{"label":"volume:2","box":[112,56],"screen":"settings","mode":"raid","outcome":"ongoing","at":5.2,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21/shots/settings-volume2.png","screen":"settings","mode":"raid","outcome":"ongoing","at":5.3,"kind":"shot"}
+{"label":"backdrop","box":[344,56],"screen":"settings","mode":"raid","outcome":"ongoing","at":5.5,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21/shots/settings-backdrop-off.png","screen":"settings","mode":"raid","outcome":"ongoing","at":5.5,"kind":"shot"}
+{"label":"backdrop","box":[344,56],"screen":"settings","mode":"raid","outcome":"ongoing","at":5.7,"kind":"tap"}
+{"label":"credits","box":[344,56],"screen":"credits","mode":"raid","outcome":"ongoing","at":5.9,"kind":"tap"}
+{"on":"credits","list":["back@84,1132 120x40"],"at":6,"kind":"targets"}
+{"on":"credits","glass":"820x1180","controls":1,"list":["back 120x44 at 24,1112"],"under44":[],"offGlass":[],"overlapping":[],"at":6,"kind":"ui"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21/shots/credits.png","screen":"credits","mode":"raid","outcome":"ongoing","at":6.1,"kind":"shot"}
+{"label":"back","box":[120,40],"screen":"settings","mode":"raid","outcome":"ongoing","at":6.2,"kind":"tap"}
+{"on":"settings","list":["name@412,212 344x56","sound@412,300 344x56","volume:0@296,388 112x56","volume:1@408,388 112x56","volume:2@528,388 112x56","camera:0@260,476 40x56","camera:1@312,476 48x56","camera:2@360,476 48x56","camera:3@412,476 40x56","camera:4@460,476 40x56","camera:5@508,476 40x56","camera:6@560,476 48x56","backdrop@412,564 344x56","credits@412,652 344x56","refresh@412,744 344x48","reset@412,832 344x48","back@84,1132 120x40"],"at":6.3,"kind":"targets"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21/shots/settings-back.png","screen":"settings","mode":"raid","outcome":"ongoing","at":6.4,"kind":"shot"}
+{"label":"back","box":[120,40],"screen":"home","mode":"raid","outcome":"ongoing","at":6.6,"kind":"tap"}
+{"on":"home","list":["raid@412,420 344x104","battleground@412,544 344x112","daily@412,668 344x104","settings@412,788 344x104","reset@408,1084 304x40","record@348,1132 120x40","share@476,1132 120x40"],"at":6.6,"kind":"targets"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-28-21/shots/home-back.png","screen":"home","mode":"raid","outcome":"ongoing","at":6.7,"kind":"shot"}

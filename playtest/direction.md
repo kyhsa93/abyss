@@ -3790,6 +3790,57 @@ screenshot evidence, and both `hud.ts:1572` and `combat.ts:950` named as the
 two sites needing the affix-adjusted `enrageAt` instead of the raw
 `encounter.enrage`.
 
+**2026-09-28, the credits screen, the settings screen's sound/volume/backdrop
+rows, and a heading that runs clean off the edge of the canvas -- the first
+session on any of these.** `mode=menus`, 820x1180 touch, carried (behaves as
+fresh per #273). Checked first: `sessions.jsonl` and this file both have zero
+prior hits for "sound", "volume", "backdrop"/"ambience" or "credits" across
+thirteen prior `mode=menus` sessions -- every one of them went to composition,
+the citadel map, the name field, the invite-hash unlock recipe, or the RESET
+control instead. `targets` and `ui` on both screens
+(`playtest/plans/2026-09-28-21.play`) read clean: 17 controls on settings, one
+on credits, `under44=[] offGlass=[] overlapping=[]` both times -- the toggles
+themselves behave exactly as their own code says (muting sound greys out the
+whole VOLUME row; turning BACKDROP off drops the entire menu's animated scene
+to flat black, not just its own button's live preview) and none of that is
+worth an issue.
+
+The screenshot is the finding: `credits.png` shows the second art set's own
+heading, `` `THE FLOOR AND WHAT STANDS ON IT — Liberated Pixel Cup tilesets` ``
+(`src/credits.ts`'s `what`/`set` fields for the terrain set), running past the
+right edge of the 820px canvas and stopping mid-word at "...Liberated Pixe" --
+the licence name and the rest of the set's own title never appear anywhere on
+screen. The first art set's heading (`THE BODIES ON THE FIELD — Liberated
+Pixel Cup`, shorter) fits on one line cleanly on the same screenshot, so this
+is specific to the second heading's length, not a wholesale layout failure.
+
+Read `src/render/menu.ts`'s `drawCredits`/`paragraph` rather than guess why:
+the licence list and author list under each heading go through `paragraph()`,
+"the only wrapping in this file, because it is the only screen made of prose"
+-- but the heading line itself (`` ctx.fillText(`${set.what.toUpperCase()} —
+${set.set}`, left, y) ``) is a bare `fillText`, never passed through
+`paragraph` or measured against `creditsLayout().width` (560px) at all. And
+`scripts/rendercheck.ts`'s own credits check (searched for "credits" first,
+found the exact block) stubs `measureText` as `text.length * 6` specifically
+so `drawCredits`'s wrapping "is exercised rather than short-circuited," then
+only asserts that every author name string appears somewhere in the
+concatenated draw calls and that the BACK button is on screen -- it never
+measures the heading's own drawn width against the canvas, real or stubbed.
+This is the exact shape `docs/playtest.md`'s own warning names: a check reading
+green over a picture that is plainly wrong, because the thing that broke
+(a real font's character width against an un-wrapped line) is not the thing
+the check's fake metric was ever asked about.
+
+Worth filing once the gate opens: this is licence-attribution text specifically
+-- `src/credits.ts`'s own comment calls attribution "a condition of most of
+the licences this game's art is under" -- so text that never renders is not a
+cosmetic gap on this one screen. Not filed this session; fourteen open
+`playtest` issues held the gate shut. Reproduction:
+`playtest/plans/2026-09-28-21.play`, screenshot `credits.png` under this
+session's `--out` directory, fix candidates named for whoever picks it up:
+either route the heading through `paragraph()` too, or shrink/wrap it to
+`creditsLayout().width` the same way the body text already respects.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
