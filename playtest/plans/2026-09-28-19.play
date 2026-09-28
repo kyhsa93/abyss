@@ -1,0 +1,57 @@
+# Cell from playpick: mode=battleground map=escort spec=priest:discipline
+# style=wander view=820x1180,touch save=carried.
+#
+# wander has never been run on a battleground before (checked sessions.jsonl:
+# every prior battleground cell used dodge/flee/melee/good/auto/mash). It
+# presses a random ability slot round-robin and picks a new random heading
+# every twelve steps -- unlike flee/dodge it does not retreat, unlike
+# good/melee it does not walk at anything on purpose. direction.md's #7 line
+# says a body that presses nothing (flee/dodge) finishes healthy while the
+# team still loses, and a body that presses something real (good) dies in a
+# 9-16s band because the whole party spawns clustered on the enemy boss-actor
+# and good's beeline walks straight into it. wander has no beeline at all, so
+# it's the open middle case: does it die the way good does (nothing to do
+# with steering-at-a-target, since wander doesn't steer at one) or survive
+# the way flee/dodge do (nothing to do with retreating, since wander doesn't
+# retreat either)? First healer under this style on any battleground too.
+# carried save is known-fresh-in-disguise per #273 (still open), so nothing
+# here relies on anything actually carrying.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:escort
+targets
+shot escort-picked
+
+tap class:priest:discipline
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play wander 90
+shot mid1
+state
+bill
+
+wait 5
+play wander 90
+shot mid2
+state
+bill
+
+wait 5
+play wander 90
+shot mid3
+state
+bill
+says
+targets

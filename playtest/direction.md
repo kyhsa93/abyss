@@ -3570,6 +3570,57 @@ on `kill1.png`; the personal-best banners over the same header, and `DOWN`
 over the `Vale` row, on `kill2.png`) -- not commented or filed again, both
 issues already open and this adds nothing new about the mechanism.
 
+**2026-09-28, a third shape: not "presses nothing and survives" and not
+"beelines in and dies fast," but dies once anyway and then leaves the match
+for good.** `mode=battleground`, `map=escort` (The Long Haul),
+priest:discipline, `style=wander`, carried (behaves as fresh per #273),
+820x1180 touch (`playtest/plans/2026-09-28-19.play`) -- checked
+`sessions.jsonl` first: every prior battleground cell used
+`dodge`/`flee`/`melee`/`good`/`auto`/`mash`, so this is the first `wander`
+pull on any battleground, and the first healer under it.
+
+The body died once, at `fightTime=54` (`FAULT not-a-number` at 59.6s cut the
+first `play wander 90` short at `seconds=56`; the second `play` call aborted
+almost immediately too, `seconds=0` -- both are the already-documented
+"Tried and dropped" driver artifact, chained `play` aborting while
+`hero()===null`, not a new finding). That death lands nowhere near every
+`good`-style battleground death this line has on record, all in a 9-16s band
+from spawning clustered on the enemy actor Corvin -- 54s is three to six
+times later, and `mid1.png` shows why it is a different mechanism: the "DEAD"
+body is off to one side, not inside the visible melee scrum by the cart, with
+a hazard ring and a `DOWN` callout on a different party member nearby (cart
+progress 20%/20%, `4 v 3`). `wander`'s round-robin ability presses and
+twelve-step random headings are neither `good`'s beeline into the cluster nor
+`flee`/`dodge`'s retreat-only logic, so a death this much later, in a
+different place, is consistent with "wanders into *something*, eventually"
+rather than either of #7's two established shapes.
+
+What happened after respawn is the new part. By the third checkpoint
+(`fightTime=154`, of the map's 300s cap), the body was back at full health
+(`heroHp=1350/1350`) but `mid3.png` shows it alone, isolated, with `Out of
+range` printed over it and every damage/heal slot on the bar reading
+`"range"` rather than `"ready"` -- the cart bars read 31% (own side) against
+71% (enemy), both `held`, meaning neither side currently has anyone standing
+with either cart. `bill`'s `hits` stayed at 0 for the entire tracked match and
+the healing-per-second board (`mid1.png`) credited "You" for only 14 hps
+before the death, nothing after. Unlike `mash`/`auto` on a battleground,
+which read the same zero-output shape from a documented absence of any
+steering branch in `scripts/playbot.ts`, `wander` *does* steer -- it simply
+steers at nothing in particular, so a healer under it can die once from being
+in the wrong place and then wander somewhere even more wrong for the rest of
+the match, contributing less than `flee`/`dodge`'s untouched-but-useless
+bodies (which at least never die) and dying later and differently than
+`good`'s beeline-into-Corvin bodies (which at least tried).
+
+**Not a controlled comparison** -- one pull, rocks and the enemy roster are
+rolled fresh per entry per README's own "Battlegrounds" section, and the
+match never reached a result inside this script's window (still `ongoing` at
+154.3s of 300s when the script ended). Worth a second `wander` pull on either
+map, and a `good`-style healer pull for comparison (every `good` pull on
+record so far has been a dps or a tank), before this reads as more than one
+data point for a third shape. Gate held shut at fourteen open `playtest`
+issues; not filed.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
