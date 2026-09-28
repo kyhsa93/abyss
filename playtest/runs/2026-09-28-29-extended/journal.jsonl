@@ -1,0 +1,35 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/runs/2026-09-28-29-extended","view":"844x390","touch":true,"seed":593092,"url":"http://127.0.0.1:5423/","at":1.1,"kind":"session"}
+{"hash":"#b=marrow&s=25&h=1","screen":"roster","mode":"raid","outcome":"ongoing","at":1.9,"kind":"open"}
+{"label":"back","box":[104,40],"screen":"home","mode":"raid","outcome":"ongoing","at":2.1,"kind":"tap"}
+{"label":"raid","box":[344,40],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.2,"kind":"tap"}
+{"label":"next","box":[664,32],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"label":"class:paladin:retribution","box":[152,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.5,"kind":"tap"}
+{"label":"pull","box":[584,40],"screen":"fight","mode":"travel","outcome":"ongoing","at":2.6,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":2.6,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.1,"tick":3,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"retribution","role":"dps","hp":1800,"maxHp":1800,"power":900,"maxPower":900,"alive":true,"casting":null,"bar":[{"slot":1,"id":"crusader_strike","status":"range"},{"slot":2,"id":"judgement","status":"range"},{"slot":3,"id":"hammer_of_wrath","status":"range"},{"slot":4,"id":"exorcism","status":"range"},{"slot":5,"id":"shield_of_vengeance","status":"ready"}]},"boss":null},"at":2.6,"kind":"state"}
+{"n":"1/8","room":"threshold","mode":"travel","at":2.6,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@139"],"lit":["threshold"],"rode":[],"padHere":true,"at":2.7,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":38,"endedAt":{"x":-15.749351725614478,"y":-985.1848332523913},"presses":0,"secondsAtTheDoor":0,"stillAlive":192,"nearest":"The Damned,The Damned,The Damned,The Damned","at":8.6,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":8.6,"kind":"walked-on"}
+{"n":"2/8","room":"vigil","mode":"travel","at":8.6,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1256","threshold@19"],"lit":["threshold"],"rode":[],"padHere":false,"at":8.7,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":8,"endedAt":{"x":-0.4731603586268454,"y":-5716.907983353938},"presses":4,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":39.9,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":39.9,"kind":"boss-woken"}
+{"style":"dodge","seconds":220,"outcome":"ongoing","fightTime":64,"phase":1,"aliveParty":"25/25","heroHp":"1800/1800","bossHp":"down","presses":0,"inDanger":"0%","at":260,"kind":"played"}
+{"room":"vigil","at":260,"kind":"boss-down"}
+{"n":"3/8","room":"spire","mode":"travel","at":260,"kind":"room"}
+{"room":"spire","took":"westclimb","why":"unvisited","ways":["eastclimb@1012","vigil@510","westclimb@847"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":260,"kind":"door"}
+{"from":"spire","to":"westclimb","aimedAt":"door","closestGot":62,"endedAt":{"x":-1457.3884926924682,"y":-5808.585468220074},"presses":0,"secondsAtTheDoor":0,"stillAlive":158,"nearest":"Servant of the Throne,Deathbound Ward,Deathbound Ward,Servant of the Throne","at":269.2,"kind":"crossed"}
+{"from":"spire","to":"westclimb","at":269.2,"kind":"walked-on"}
+{"n":"4/8","room":"westclimb","mode":"travel","at":269.2,"kind":"room"}
+{"room":"westclimb","took":"oratory","why":"unvisited","ways":["oratory@251","spire@12"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":269.2,"kind":"door"}
+{"from":"westclimb","to":"oratory","aimedAt":"door","closestGot":70,"endedAt":{"x":-423.7214120136395,"y":-7593.5113046749075},"presses":0,"secondsAtTheDoor":0,"stillAlive":158,"nearest":"Servant of the Throne,Deathbound Ward,Deathbound Ward,Servant of the Throne","at":282.7,"kind":"crossed"}
+{"from":"westclimb","to":"oratory","at":282.7,"kind":"walked-on"}
+{"n":"5/8","room":"oratory","mode":"travel","at":282.7,"kind":"room"}
+{"from":"oratory","to":"oratory","aimedAt":"boss:whisper","closestGot":277,"endedAt":{"x":204.81596754824076,"y":-8647.454842190678},"presses":0,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Last Whisper","at":290.6,"kind":"crossed"}
+{"room":"oratory","from":"oratory","at":290.6,"kind":"boss-woken"}
+{"style":"dodge","seconds":220,"outcome":"ongoing","fightTime":217,"phase":3,"aliveParty":"25/25","heroHp":"1176/1800","bossHp":"26%","presses":0,"inDanger":"1%","at":510.7,"kind":"played"}
+{"room":"oratory","seconds":220,"hero":{"x":106.40509443169094,"y":-8763.362366443043},"boss":{"name":"The Last Whisper","hp":102178,"maxHp":388600,"x":187.60181520384003,"y":-8704.714726924985},"away":100,"at":510.7,"kind":"fault:fight-outlasted-its-budget"}
+{"rooms":5,"wipes":0,"walked":["threshold(travel,ongoing,6s)","vigil(travel,ongoing,251s)","spire(travel,ongoing,9s)","westclimb(travel,ongoing,14s)","oratory(travel,ongoing,228s)"],"reached":"threshold -> vigil -> spire -> westclimb -> oratory","endedAt":"oratory","at":510.7,"kind":"evening"}
+{"screen":"fight","mode":"raid","outcome":"ongoing","chamber":"oratory","hud":{"time":217.1666666666569,"tick":6515,"phase":3,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"retribution","role":"dps","hp":1176,"maxHp":1800,"power":900,"maxPower":900,"alive":true,"casting":null,"bar":[{"slot":1,"id":"crusader_strike","status":"ready"},{"slot":2,"id":"judgement","status":"ready"},{"slot":3,"id":"hammer_of_wrath","status":"ready"},{"slot":4,"id":"exorcism","status":"ready"},{"slot":5,"id":"shield_of_vengeance","status":"ready"}]},"boss":{"name":"The Last Whisper","hp":102014,"maxHp":388600,"x":187.60181520384003,"y":-8704.714726924985}},"at":510.8,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/runs/2026-09-28-29-extended/shots/end.png","screen":"fight","mode":"raid","outcome":"ongoing","at":510.9,"kind":"shot"}

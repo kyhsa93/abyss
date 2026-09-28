@@ -1,0 +1,26 @@
+# playpick cell: mode=clear spec=paladin:retribution style=dodge size=25
+# difficulty=heroic view=844x390,touch save=carried (behaves as fresh, #273).
+# carried/fresh only opens Bonegrinder 10-normal by default, so #b=marrow&s=25&h=1
+# unlocks the chain up to 25-heroic before backing out to a real RAID -> WALK IN
+# at the door, rather than the invite's own single-pull "visiting" framing.
+#
+# First paladin:retribution evening on record (the class's two prior mode=clear/
+# walk appearances were both other specs), and dodge at 25-heroic has already
+# crossed THE VIGIL clean once before (2026-09-26, paladin:protection). If it
+# does again here, the open question worth chasing per direction.md [[#3]]'s
+# 2026-09-28 note is whether a travel-mode wipe *anywhere else* in the building
+# fails PULL AGAIN the same way THE VIGIL's ten confirmations already do -- no
+# session has forced or found one outside that one corridor yet. Budget is wider
+# than usual (8 fights) specifically to get past THE VIGIL and see more ground.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:paladin:retribution
+tap pull
+waitscreen fight 15
+state
+shot start
+evening dodge 150 8
+state
+shot end

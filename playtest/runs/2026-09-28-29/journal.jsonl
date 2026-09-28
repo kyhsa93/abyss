@@ -1,0 +1,23 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/runs/2026-09-28-29","view":"844x390","touch":true,"seed":382728,"url":"http://127.0.0.1:5373/","at":1.1,"kind":"session"}
+{"hash":"#b=marrow&s=25&h=1","screen":"roster","mode":"raid","outcome":"ongoing","at":4.6,"kind":"open"}
+{"label":"back","box":[104,40],"screen":"home","mode":"raid","outcome":"ongoing","at":4.8,"kind":"tap"}
+{"label":"raid","box":[344,40],"screen":"raid","mode":"raid","outcome":"ongoing","at":5,"kind":"tap"}
+{"label":"next","box":[664,32],"screen":"roster","mode":"raid","outcome":"ongoing","at":5.1,"kind":"tap"}
+{"label":"class:paladin:retribution","box":[152,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":5.2,"kind":"tap"}
+{"label":"pull","box":[584,40],"screen":"fight","mode":"travel","outcome":"ongoing","at":5.3,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":5.3,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.06666666666666667,"tick":2,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"retribution","role":"dps","hp":1800,"maxHp":1800,"power":900,"maxPower":900,"alive":true,"casting":null,"bar":[{"slot":1,"id":"crusader_strike","status":"range"},{"slot":2,"id":"judgement","status":"range"},{"slot":3,"id":"hammer_of_wrath","status":"range"},{"slot":4,"id":"exorcism","status":"range"},{"slot":5,"id":"shield_of_vengeance","status":"ready"}]},"boss":null},"at":5.3,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/runs/2026-09-28-29/shots/start.png","screen":"fight","mode":"travel","outcome":"ongoing","at":5.4,"kind":"shot"}
+{"n":"1/8","room":"threshold","mode":"travel","at":5.4,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@139"],"lit":["threshold"],"rode":[],"padHere":true,"at":5.4,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":38,"endedAt":{"x":-16.576643399865457,"y":-971.7870067228731},"presses":0,"secondsAtTheDoor":0,"stillAlive":192,"nearest":"The Damned,The Damned,The Damned,The Damned","at":11.3,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":11.3,"kind":"walked-on"}
+{"n":"2/8","room":"vigil","mode":"travel","at":11.4,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1269","threshold@17"],"lit":["threshold"],"rode":[],"padHere":false,"at":11.4,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":8,"endedAt":{"x":-0.4578327783228304,"y":-5716.1022349405675},"presses":10,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":42.7,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":42.7,"kind":"boss-woken"}
+{"style":"dodge","seconds":150,"outcome":"ongoing","fightTime":147,"phase":3,"aliveParty":"25/25","heroHp":"703/1800","bossHp":"1%","presses":0,"inDanger":"3%","at":192.8,"kind":"played"}
+{"room":"vigil","seconds":150,"hero":{"x":260.4929240336938,"y":-5982.0584158141855},"boss":{"name":"The Bonegrinder","hp":3003,"maxHp":308200,"x":23.226373747672575,"y":-5980.9113815960445},"away":237,"at":192.8,"kind":"fault:fight-outlasted-its-budget"}
+{"rooms":2,"wipes":0,"walked":["threshold(travel,ongoing,6s)","vigil(travel,ongoing,181s)"],"reached":"threshold -> vigil","endedAt":"spire","at":192.8,"kind":"evening"}
+{"screen":"fight","mode":"raid","outcome":"ongoing","chamber":"spire","hud":{"time":147.19999999999422,"tick":4416,"phase":3,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"retribution","role":"dps","hp":703,"maxHp":1800,"power":900,"maxPower":900,"alive":true,"casting":null,"bar":[{"slot":1,"id":"crusader_strike","status":"range"},{"slot":2,"id":"judgement","status":"ready"},{"slot":3,"id":"hammer_of_wrath","status":"ready"},{"slot":4,"id":"exorcism","status":"ready"},{"slot":5,"id":"shield_of_vengeance","status":"ready"}]},"boss":{"name":"The Bonegrinder","hp":2822,"maxHp":308200,"x":23.226373747672575,"y":-5980.9113815960445}},"at":192.8,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/runs/2026-09-28-29/shots/end.png","screen":"fight","mode":"raid","outcome":"ongoing","at":192.9,"kind":"shot"}

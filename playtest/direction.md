@@ -1350,6 +1350,29 @@ to carry across two consecutive bosses in the same sitting, not just one
 pull -- see [[#6]]'s own new entry below for what the same run's corridor
 crossing adds to that line.
 
+**2026-09-28, sharpened at 25-heroic specifically, and a direct complication
+of the 2026-09-26 tank/`dodge` entry above.** `mode=clear`, paladin:
+retribution, `dodge`, 25-heroic, carried (behaves as fresh per #273), 844x390
+touch (`playtest/plans/2026-09-28-29-extended.play`, after a first 150s-budget
+run cut Bonegrinder off at 1% -- `playtest/plans/2026-09-28-29.play`). Same
+size, difficulty and style as the 2026-09-26 paladin:protection pull that
+killed Bonegrinder-heroic in 48s but lost 9 of 25 raiders doing it -- this run
+is the same boss, same style, same difficulty, a different spec on the same
+class, and killed it in 64s with `aliveParty=25/25 heroHp=1800/1800
+presses=0 inDanger=0%`: full raid, full health, on a body that pressed
+nothing the entire fight. Went on, still under `dodge`, to clear THE WEST
+CLIMB and reach The Last Whisper with the raid still 25/25, taking it to 26%
+before the room's 220s budget ran out (`fight-outlasted-its-budget`, not a
+wipe). Five rooms, one full clean 25-heroic kill, zero deaths anywhere --
+against the earlier pull's nine deaths on the identical boss/style/difficulty
+triple. The variable that changed is role: a tank standing off every
+cooldown leaves nothing between the boss and the raid it is meant to
+front, where a dps doing nothing costs the raid nothing because nothing was
+counting on it. Sharpens the 2026-09-26 entry's own open question -- worth
+naming this as a tank-specific cost rather than a `dodge`-specific one, though
+a second protection-spec `dodge` pull at this exact cell would make it a
+clean pair rather than two single pulls a role apart.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -2259,6 +2282,26 @@ way `boss-woken` three lines earlier deliberately does. Worth remembering
 when reading any evening journal where a boss is fought through a doorway:
 `boss-down`'s own `room` field names where the party was standing when the
 room's turn began, not where the boss actually died.
+
+**2026-09-28, a third clean crossing, the second at 25-heroic, and the
+deepest evening this line has reached with zero wipes.** `mode=clear`,
+paladin:retribution, `dodge`, 25-heroic, carried (behaves as fresh per #273),
+844x390 touch (`playtest/plans/2026-09-28-29-extended.play`). THE VIGIL
+crossed in 31.3s door to door (`8.6s` in, `39.9s` out, `presses=4`) -- close
+to the same ~31s the other 25-heroic `dodge` crossing took (2026-09-26,
+paladin:protection), a different spec on the same class landing within a
+second of the first. The evening then kept going past every stall this line
+has on record: Bonegrinder-heroic killed clean (`aliveParty=25/25
+heroHp=1800/1800 presses=0`, see [[#1]]'s new entry above for what that kill
+itself says), through THE WEST CLIMB with no fault, into The Last Whisper's
+room, taken to 26% before the room's own budget ran out -- five rooms
+reached, one full boss kill, and not one wipe anywhere in it. The deepest any
+`mode=clear`/`mode=walk` session has gotten on this line without [[#3]]'s
+retry wall ever firing, because nothing died to trigger it. Three `dodge`
+crossings now (10-normal warrior:arms, 25-heroic paladin:protection, 25-heroic
+paladin:retribution), zero `dodge` stalls -- worth flagging as the one style
+that has never once stalled THE VIGIL, against `wander`/`good`/`flee` each
+stalling it at least once.
 
 ### 7. A battleground does not carry a passive body the way a raid does
 

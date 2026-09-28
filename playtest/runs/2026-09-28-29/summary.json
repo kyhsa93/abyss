@@ -1,0 +1,26 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/runs/2026-09-28-29",
+  "seed": 382728,
+  "view": "844x390,touch",
+  "entries": 22,
+  "faults": [
+    {
+      "room": "vigil",
+      "seconds": 150,
+      "hero": {
+        "x": 260.4929240336938,
+        "y": -5982.0584158141855
+      },
+      "boss": {
+        "name": "The Bonegrinder",
+        "hp": 3003,
+        "maxHp": 308200,
+        "x": 23.226373747672575,
+        "y": -5980.9113815960445
+      },
+      "away": 237,
+      "at": 192.8,
+      "kind": "fault:fight-outlasted-its-budget"
+    }
+  ]
+}

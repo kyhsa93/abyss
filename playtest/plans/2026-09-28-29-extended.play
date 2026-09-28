@@ -1,0 +1,20 @@
+# playpick cell: mode=clear spec=paladin:retribution style=dodge size=25
+# difficulty=heroic view=844x390,touch save=carried (behaves as fresh, #273).
+# Re-run of 2026-09-28-29.play with a wider per-room budget (220s, not 150s):
+# that run crossed THE VIGIL clean (11.3s-42.7s) and took Bonegrinder-heroic to
+# 1% (boss hp 3003/308200) before the 150s room budget cut the fight off at
+# fightTime=147. This run gives the fight room to actually finish, to see
+# further into the building than any dodge/25-heroic evening has reached and
+# test whether a travel-mode wipe anywhere past THE VIGIL fails PULL AGAIN the
+# same way THE VIGIL's ten #271 confirmations already do.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:paladin:retribution
+tap pull
+waitscreen fight 15
+state
+evening dodge 220 8
+state
+shot end
