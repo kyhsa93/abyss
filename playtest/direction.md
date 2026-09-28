@@ -1578,6 +1578,31 @@ job has not yet gotten a party killed in) fails the same way. Every
 confirmation so far is THE VIGIL; no session has tried to force a wipe in a
 different corridor on purpose.
 
+**2026-09-28, tenth confirmation, and the first to bypass `cross()` entirely.**
+`mode=raid` (`boss=marrow`, mage:frost, `idle`, 10-normal, fresh, 844x390
+touch, `playtest/plans/2026-09-28-26.play`) -- every prior confirmation went
+through `evening`'s own `cross()` (`mode=walk`/`mode=clear`); this one never
+called `evening` at all. Walked in the real front-door way (front page ->
+RAID -> class pick -> PULL, only the second `mode=raid` session ever to do
+that instead of an invite-hash shortcut -- see [[#1]]'s sibling note, though
+this line is the one that benefited), then drove straight at the boss's room
+with the driver's own `walkto`, which has no combat or survival behaviour of
+its own. THE VIGIL's watchmen caught the player mid-walk and killed it at
+33.5s (`hp=0/1305`, `aliveParty=9/10`) -- `walkto`'s own `could-not-walk-there`
+fault fired because the player died before reaching the target, not because
+the path was blocked. `outcome:retry` tapped: the identical shape every
+`cross()`-driven report has had, an instant DEFEAT-screen redisplay
+("0.8s · 0 down", `after-retry.png`) with every ability slot `locked` and
+nothing restarted. Re-ran a second time with the same script for a clean
+screenshot pair; both runs died in THE VIGIL and both retries failed the same
+way. This answers the ninth confirmation's open question: the bug is not in
+`cross()`'s own re-entry handling, since a wipe reached without `cross()`
+ever running fails identically. Commented on #271 with both journal excerpts
+rather than filing again. Still open: whether the wall is specific to THE
+VIGIL as a room, or to any travel-mode death anywhere in the building --
+every confirmation, `cross()`-driven or not, has still only ever happened in
+this one corridor.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five

@@ -1,0 +1,38 @@
+# playpick: mode=raid boss=marrow spec=mage:frost style=idle size=10
+# difficulty=normal view=844x390,touch save=fresh
+#
+# Only one of the fourteen prior mode=raid sessions walked in from the front
+# page rather than an invite-hash shortcut -- 2026-09-24-1.play, the very
+# first session this job ever ran. Every mode=raid pull since has skipped
+# straight to the fight via `open #b=...`, which a real new player never
+# types. This repeats the genuine front-door path a second time, on the axis
+# playpick actually assigned: a ranged dps caster instead of a tank, and
+# landscape touch (844x390) instead of portrait (390x844).
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+shot class-pick
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+walkto 0 -1000 10
+shot in-vigil
+state
+walkto 0 -6000 45
+shot in-spire
+state
+targets
+play idle 240
+shot after-idle
+state
+bill
+says
+tap outcome:retry
+shot after-retry
+state
+targets
