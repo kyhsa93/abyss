@@ -1,0 +1,29 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/tmp/2026-09-28-23","view":"844x390","touch":true,"seed":782627,"url":"http://127.0.0.1:5225/","at":1.2,"kind":"session"}
+{"hash":"#b=marrow&s=25&h=1","screen":"roster","mode":"raid","outcome":"ongoing","at":1.9,"kind":"open"}
+{"label":"back","box":[104,40],"screen":"home","mode":"raid","outcome":"ongoing","at":2.1,"kind":"tap"}
+{"label":"raid","box":[344,40],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.3,"kind":"tap"}
+{"label":"next","box":[664,32],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"label":"class:priest:discipline","box":[160,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.5,"kind":"tap"}
+{"label":"pull","box":[584,40],"screen":"fight","mode":"travel","outcome":"ongoing","at":2.6,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":2.6,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.06666666666666667,"tick":2,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"discipline","role":"healer","hp":1350,"maxHp":1350,"power":1050,"maxPower":1050,"alive":true,"casting":null,"bar":[{"slot":1,"id":"heal","status":"ready"},{"slot":2,"id":"renew","status":"ready"},{"slot":3,"id":"flash_heal","status":"ready"},{"slot":4,"id":"smite","status":"range"},{"slot":5,"id":"fade","status":"ready"}]},"boss":null},"at":2.7,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/tmp/2026-09-28-23/shots/arrive-threshold.png","screen":"fight","mode":"travel","outcome":"ongoing","at":2.7,"kind":"shot"}
+{"n":"1/6","room":"threshold","mode":"travel","at":2.7,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@139"],"lit":["threshold"],"rode":[],"padHere":true,"at":2.7,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":37,"endedAt":{"x":-16.077965682198656,"y":-970.8064831946084},"presses":0,"secondsAtTheDoor":0,"stillAlive":192,"nearest":"The Damned,The Damned,The Damned,The Damned","at":8.6,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":8.6,"kind":"walked-on"}
+{"n":"2/6","room":"vigil","mode":"travel","at":8.6,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1270","threshold@17"],"lit":["threshold"],"rode":[],"padHere":false,"at":8.6,"kind":"door"}
+{"from":"vigil","to":"vigil","aimedAt":"door","closestGot":14,"endedAt":null,"presses":11,"secondsAtTheDoor":0,"stillAlive":175,"nearest":"The Damned,The Damned,Servant of the Throne,Deathbound Ward","at":39.6,"kind":"crossed"}
+{"at_":"vigil","outcome":"wipe","wipes":1,"journalKeyClash":true,"at":39.6,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,48],"screen":"fight","mode":"travel","outcome":"wipe","at":39.7,"kind":"tap"}
+{"n":"3/6","room":"vigil","mode":"travel","at":70.1,"kind":"room"}
+{"from":"vigil","to":"vigil","aimedAt":"door","closestGot":"n/a","endedAt":null,"presses":0,"secondsAtTheDoor":0,"stillAlive":169,"nearest":"The Damned,The Damned,Servant of the Throne,Deathbound Ward","at":70.1,"kind":"crossed"}
+{"at_":"vigil","outcome":"wipe","wipes":2,"journalKeyClash":true,"at":70.1,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,48],"screen":"fight","mode":"travel","outcome":"wipe","at":70.2,"kind":"tap"}
+{"at_":"vigil","after":"wipe","rooms":3,"journalKeyClash":true,"at":100.6,"kind":"fault:evening-stuck"}
+{"rooms":3,"wipes":2,"walked":["threshold(travel,ongoing,6s)","vigil(travel,wipe,31s)","vigil(travel,wipe,0s)"],"reached":"threshold -> vigil","endedAt":"vigil","at":100.6,"kind":"evening"}
+{"screen":"fight","mode":"travel","outcome":"wipe","chamber":"vigil","hud":{"time":0.03333333333333333,"tick":1,"phase":1,"countdown":0,"outcome":"wipe","auto":false,"touch":true,"zoom":3,"party":25,"alive":24,"me":{"name":"You","spec":"discipline","role":"healer","hp":0,"maxHp":1350,"power":1050,"maxPower":1050,"alive":false,"casting":null,"bar":[{"slot":1,"id":"heal","status":"locked"},{"slot":2,"id":"renew","status":"locked"},{"slot":3,"id":"flash_heal","status":"locked"},{"slot":4,"id":"smite","status":"locked"},{"slot":5,"id":"fade","status":"locked"}]},"boss":null},"at":100.6,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/tmp/2026-09-28-23/shots/after-evening.png","screen":"fight","mode":"travel","outcome":"wipe","at":100.7,"kind":"shot"}
+{"lines":[],"at":100.7,"kind":"says"}
+{"fightTime":0,"outcome":"wipe","hits":0,"hitsPerMin":0,"taken":0,"takenPerMin":0,"died":false,"byMechanic":{},"at":100.7,"kind":"bill"}

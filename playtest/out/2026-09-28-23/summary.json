@@ -1,0 +1,16 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/tmp/2026-09-28-23",
+  "seed": 782627,
+  "view": "844x390,touch",
+  "entries": 28,
+  "faults": [
+    {
+      "at_": "vigil",
+      "after": "wipe",
+      "rooms": 3,
+      "journalKeyClash": true,
+      "at": 100.6,
+      "kind": "fault:evening-stuck"
+    }
+  ]
+}

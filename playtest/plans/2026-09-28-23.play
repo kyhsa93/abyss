@@ -1,0 +1,40 @@
+# playpick cell: mode=walk boss=gift spec=priest:discipline style=melee
+# size=25 difficulty=heroic view=844x390,touch save=carried (behaves as
+# fresh, #273 -- carried never actually carries across separate playbot
+# invocations because the dev-server port is derived from the process pid).
+# `boss=gift` is a coverage label only (direction.md's 2026-09-25 note on
+# playpick.ts): a mode=walk evening steers at no named boss, the walk starts
+# at the door same as any other.
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe), rather than landing on the invite's own single-fight
+# "visiting" framing.
+#
+# What no session has done before: checked sessions.jsonl -- the only prior
+# mode=walk/melee evening on record is 2026-09-25-25 (rogue:assassination,
+# 10-normal). This is the first melee-style evening at 25-heroic, and the
+# first melee-style pairing with a healer at all (priest:discipline has only
+# ever been run under flee/idle/wander before now). melee has no away-from-
+# danger term (direction.md's 2026-09-26 tank-melee note: it beelines at
+# hud().boss and walks straight through ground hazards), so a healer forced
+# to close to melee range of every pack and boss for a whole heroic evening,
+# never casting a heal from a safe distance, is the strictest test this line
+# has put a healer through yet -- and #267's bonestorm-punishes-proximity
+# finding was found on a tank; this asks whether a healer pays the same way.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:priest:discipline
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening melee 200 6
+state
+shot after-evening
+says
+bill

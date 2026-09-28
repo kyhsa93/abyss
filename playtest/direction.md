@@ -1519,6 +1519,31 @@ Not commented on #271 again -- seven specs and now four styles have hit this
 exact wall the same way, and the qualifier still standing is only "at least
 in THE VIGIL."
 
+**2026-09-28, eighth confirmation, first healer, first `melee` style, and the
+first at 25-heroic.** `mode=walk` (`boss=gift`, a coverage label only),
+priest:discipline, `melee`, 25-heroic, carried (behaves as fresh per #273),
+844x390 touch (`playtest/plans/2026-09-28-23.play`). Every prior #271
+confirmation was 10-normal on a dps or an unclear role under `mash`, `wander`,
+`auto` or `flee`; this is the first healer put through it, the first under a
+style with no away-from-danger term at all (`melee` beelines at `hud().boss`,
+per the 2026-09-26 tank-melee note), and the first at the hardest
+size/difficulty pairing in the game. THE THRESHOLD crossed clean (5.9s), then
+THE VIGIL's watchmen caught the party mid-crossing and wiped it at 39.6s
+(`closestGot=14`, `presses=11` -- the healer's own casts, not steering).
+`outcome:retry` tapped: the same shape every prior report has, an instant
+re-wipe at 70.1s with `presses=0`, `closestGot=n/a` (no movement even
+attempted), and a second `evening` call over the same stuck room produced the
+identical shape a room later -- `fault:evening-stuck
+{"at":"vigil","after":"wipe","rooms":3}` at 100.6s. `after-evening.png` shows
+the exact DEFEAT-screen shape every prior report has: "0.0s · 0 down", every
+raider's own dps/hps/taken-mechanics column reading a flat `-`/`0`, PULL AGAIN
+highlighted and nothing on the board. Not commented on #271 again -- eight
+specs, five styles, two sizes and two difficulties have now hit this exact
+wall the same way; the qualifier still standing is only "at least in THE
+VIGIL," and this session finds nothing that narrows it further, only that it
+holds at the far end of every axis tried so far. Gate held shut at fourteen
+open `playtest` issues; not filed.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
