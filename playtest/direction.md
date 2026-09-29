@@ -5579,6 +5579,51 @@ the gate opens, with `playtest/plans/2026-09-30-4.play` as the reproduction
 screenshot evidence, `src/main.ts:1787`, `1841-1844`, `2282-2287` and
 `src/render/roster.ts:294` named as the mechanism.
 
+**2026-09-30, the RECORD screen's boss list has no scroll, and on a landscape
+phone that hides most of it forever.** `playpick` gave `mode=menus
+view=844x390,touch save=fresh` -- the twentieth `menus` cell run, but the
+first at this viewport (fifteen-plus prior fight sessions had used 844x390,
+none of them just navigating menus) and only the second honestly `fresh` one.
+Walked the front page, RAID setup, class select, BATTLEGROUND setup, daily
+setup and SETTINGS at this shape first (`playtest/plans/2026-09-30-7.play`) --
+all clean, `under44` catches every button's height by a few px everywhere
+(`raid 340x40`, `back 120x32`, etc.) but every screenshot reads comfortably
+sized and nothing overlaps or sits off the glass, so none of that is worth the
+gate.
+
+RECORD's own BOSSES tab is different in kind, not degree. `tap record` ->
+`tap tab:bosses` -> `targets` returned only `boss:0`..`boss:3`, and the
+screenshot (`record-bosses-empty.png`) prints "7 more below" under them --
+11 encounters are built (`dungeoncheck` says so), 7 of them permanently off
+this screen. Re-ran the same two taps at `1280x800` desktop for contrast
+(`/tmp/check-history-taller.play`): `boss:0`..`boss:5`, six of eleven, "5
+more below" -- so this is not landscape-phone-specific, it is every viewport
+this job has ever measured, and the phone cell just makes it worst.
+
+Read rather than guessed: `src/render/history.ts`'s `historyLayout` (75-123)
+builds the `bosses` array by stepping down from the same fixed `top` until
+`ry + bossH > bottom`, then simply stops -- there is no scroll offset
+anywhere in the file, no scroll/wheel/swipe listener anywhere in
+`src/input.ts` or `src/main.ts`, and the "N more below" line (412-416) is the
+screen's own admission that it knows the list is bigger than what it drew.
+The awards list (511-557) and the pulls-per-boss blocks (75-100) share the
+same `historyLayout` and the same silent cutoff. Nothing filters this by
+difficulty or unlock state -- a save with real history (kills, ladders,
+awards) will run into the same wall sooner, not later, since a killed boss's
+row carries more to show, not less.
+
+This is `docs/playtest.md`'s own "a screen with no way out" and arguably "a
+menu that says something untrue about the game behind it" -- "more below"
+promises content that no input in this game can ever reach. **Not filed --
+fourteen open `playtest` issues held the gate shut all session** (283, 282,
+281, 279, 278, 276, 275, 274, 273, 272, 271, 269, 267, 266). File as a bug the
+first session the gate opens, with `playtest/plans/2026-09-30-7.play` as the
+reproduction (`open` -> `tap record` -> `tap tab:bosses`) and
+`record-bosses-empty.png` (844x390, 4/11 shown) plus
+`/tmp/pt-tall/shots/bosses-tall.png` (1280x800, 6/11 shown) as the screenshot
+evidence, `src/render/history.ts:75-123` and `:412-416` named as the
+mechanism.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

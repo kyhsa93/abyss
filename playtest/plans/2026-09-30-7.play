@@ -1,0 +1,54 @@
+# playpick cell: mode=menus view=844x390,touch save=fresh
+#
+# First menus session ever at 844x390 (landscape phone) -- the twenty prior
+# menus sessions were all 820x1180,touch / 390x844,touch (portrait) or
+# 1280x800 (desktop mouse); the viewport itself has been fought in plenty
+# (fifteen+ raid/walk/clear/battleground/daily sessions) but never just
+# navigated. Only the second honestly-fresh menus session on record.
+#
+# Walks the front page, RAID setup, class select, BATTLEGROUND setup, daily
+# setup, SETTINGS, RECORD (both tabs) and CREDITS, checking `ui` at each stop
+# for size/overlap/off-glass on this squat 390px-tall shape.
+open
+targets
+shot frontpage
+ui
+tap raid
+targets
+shot raid-roster
+ui
+tap next
+targets
+shot class-select
+ui
+tap back
+tap back
+tap battleground
+targets
+shot battleground-setup
+ui
+tap back
+tap daily
+targets
+shot daily-setup
+ui
+tap back
+tap settings
+targets
+shot settings
+ui
+tap back
+tap record
+targets
+shot record-empty
+ui
+tap tab:bosses
+targets
+shot record-bosses-empty
+ui
+tap back
+tap settings
+tap credits
+targets
+shot credits
+ui
