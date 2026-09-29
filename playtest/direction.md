@@ -1379,6 +1379,35 @@ raid is standing... it asks about the geometry between the fight's own
 bodies" -- exactly the shape a style with zero movement was always going to
 answer worst of all three tried so far.
 
+**2026-09-30, narrowed by the first tank-spec idle pull of this exact boss,
+and a clean flip of the outcome on the same cell.** `mode=raid`,
+druid:guardian, `idle`, 10-normal, fresh save, 390x844 touch
+(`playtest/plans/2026-09-30-9.play`) -- same boss, size and difficulty as the
+2026-09-28 rogue:assassination idle pull above, changing only the spec's
+role from dps to tank. `inDanger` read almost identical to that pull (87% vs
+85%, so the body spent the same share of the fight standing in something that
+hurts), but the outcome inverted completely: a clean kill,
+`fightTime=119 outcome=victory aliveParty=6/10 heroHp=3541/4140 presses=0`,
+against the rogue's wipe at `aliveParty=3/10 heroHp=0/1530`. `bill`'s own
+`byMechanic` breakdown explains why rather than leaving it to guesswork:
+`{"spray":3,"engulf":1}` with no `infection` entry at all, where the rogue's
+pull read `infection:43` as its dominant hit source. Read `scheduleInfection`
+(`src/sim/boss.ts:2653`) afterward: `livingParty(s).filter((a) => a.role
+!== 'tank' && !getAura(a, 'infected'))` -- tanks are excluded from ever
+carrying the mark by role, not by survivability. This **narrows** the
+2026-09-28 entry rather than confirming or dropping it: idle's loss on this
+boss is real for the roles the mechanic can actually land on, but the
+mechanism itself cannot fire on a tank at all, so "idle loses on Confluence"
+needs the qualifier "for a non-tank role" to hold, and a tank idling this
+fight does not merely survive the mechanic better, it structurally cannot be
+handed it. The kill screen's own banner is new evidence in the same
+direction -- "First Blood" and "Nothing Merged" ("...the Confluence without
+two small things ever becoming on[e]") -- read as the game's own scoring
+noticing that no ooze in this pull ever grew by merging, which is what an
+infection-carrier's idle standstill was shown to cause on 2026-09-28. Worth an
+idle pull on the remaining untried role (healer) before this line calls the
+role split settled.
+
 **2026-09-28, sharpened by the first `dodge`-style evening on a melee dps, and
 the first evening to carry a never-attacking body through two boss kills in a
 row.** `mode=clear`, warrior:arms, `dodge`, 10-normal, fresh save, 1280x800

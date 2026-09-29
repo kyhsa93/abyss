@@ -1,0 +1,39 @@
+# Cell from playpick: mode=raid, boss=confluence (The Confluence),
+# spec=druid:guardian, style=idle, size=10, difficulty=normal,
+# view=390x844,touch, save=fresh.
+#
+# direction.md #1 already has an idle pull of this exact boss/size/difficulty
+# (2026-09-28-22.play, rogue:assassination) that lost badly: wiped at
+# fightTime=108, boss=7%, aliveParty=3/10, heroHp=0/1530 -- worse than the
+# mash pull's 7/10. That session's read of src/sim/boss.ts said the infection
+# mechanic births an ooze exactly where its carrier is standing and the ooze
+# then melees whoever made it "for as long as they are standing" -- a
+# positional punishment for not moving, not a raid-wide DPS/enrage race. That
+# reading predicts idle should lose the same way regardless of spec, since
+# the mechanism is geometric rather than about output. But every idle pull on
+# this line so far has been dps or healer; this is the first tank spec idle
+# pull anywhere on this boss, and a guardian druid carries several times a
+# rogue's effective health and innate mitigation, so if idle's death here was
+# actually about raw survivability rather than the ooze always landing on the
+# same standing target, a tank is the spec most likely to expose that by
+# surviving where the rogue didn't.
+#
+# Reached the documented way: an invite hash unlocks the tier it names and
+# everything below it, since a fresh save only opens Bonegrinder 10N.
+open #b=confluence&s=10&h=0
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+state
+shot open
+
+play idle 130
+bill
+state
+shot mid1
+
+play idle 130
+bill
+state
+says
+shot end
