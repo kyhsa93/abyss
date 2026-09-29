@@ -1716,6 +1716,30 @@ would have taken the same `decay` tick mash's blind presses did nothing to
 avoid, or whether mash's own button-mashing is what kept the player rooted
 in it.
 
+**2026-09-30, the deepest `auto`-style progress yet against The Last Whisper
+heroic, on a spec and viewport this pairing had never seen.** `mode=walk`,
+druid:balance, `auto`, 25-heroic, 820x1180 touch, carried-behaves-as-fresh
+(`playtest/plans/2026-09-30-6.play`) -- the fourth `auto` evening to reach
+this boss (after druid:feral/844x390, warlock:destruction/844x390,
+hunter:marksmanship/844x390, all on other viewports) and the first on
+820x1180. THE VIGIL crossed clean (`10.7s` in, `41s` total) and Bonegrinder
+died at `fightTime=62` (`aliveParty=25/25 heroHp=1485/1485 presses=0`) --
+[[#6]]'s now-routine clean 25-heroic crossing under `auto`, a further
+confirmation rather than new evidence. The Last Whisper then ran its 200s
+room budget down to `boss=12%` (`bill hits=23 hitsPerMin=7 taken=3082
+takenPerMin=933.9 byMechanic={"volley":7,"decay":2,"shade":14}`) --
+further than any prior `auto` attempt on this exact fight: feral stalled at
+32%, warlock at 41%, marksmanship at 43% (the last one landing only 1 hit
+all fight to a range dead-zone). hitsPerMin (7) is close to feral's (6.7)
+and warlock's (5.8), so the deeper boss health is not obviously explained by
+landing more hits -- more likely the shared-RNG-stream variance this line's
+own caution already names (different runs consume the same deterministic
+stream at different rates and land on different crit/target rolls), not a
+new mechanism. Not written up as a disproof or a new line: same shape as
+every other `auto` reading, a wider spread on the same axis rather than a
+different axis. **Not filed** -- fourteen open issues still held the gate
+shut (unchanged since the last ledger line; nothing closed to re-verify).
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

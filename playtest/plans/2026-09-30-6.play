@@ -1,0 +1,38 @@
+# playpick cell: mode=walk boss=saved (coverage label only -- evening steers
+# at no boss, the walk starts at the door same as any other) spec=druid:balance
+# style=auto size=25 difficulty=heroic view=820x1180,touch save=carried
+# (behaves as fresh per #273 -- the dev-server port is pid-derived so
+# localStorage never actually carries across separate playbot invocations).
+# #b=saved&s=25&h=1 unlocks the 25-heroic tier the same way every other
+# 25-heroic carried-cell script in this ledger does.
+#
+# Checked sessions.jsonl first: druid:balance has one prior mode=walk
+# appearance (2026-09-28T23:58:21Z, flee, 10-normal, 844x390 -- crossed THE
+# VIGIL clean and killed two bosses pressing nothing at all). mode=walk +
+# auto + 25-heroic has three prior appearances (mage:frost/1280x800,
+# druid:feral/844x390, hunter:marksmanship/844x390) but never on the
+# 820x1180 portrait-touch viewport, and never with a balance druid --
+# a ranged caster spec like mage:frost, but a different autocast rotation
+# and range band. Two questions open: does the 820x1180 layout hold up
+# across a real multi-room evening the way it has in single-pull sessions,
+# and does auto's known no-steering gap (2026-09-29's marksmanship finding:
+# a fixed opening position can land inside a dead zone between a range bonus
+# and an ability's own shorter cast range) show up on a different spec's own
+# range thresholds.
+open #b=saved&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:druid:balance
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening auto 200 12
+shot end
+state
+says
+bill
