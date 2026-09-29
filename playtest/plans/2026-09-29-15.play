@@ -1,0 +1,42 @@
+# playpick cell: mode=walk boss=skyward spec=druid:guardian style=melee
+# size=25 difficulty=heroic view=844x390,touch save=carried (behaves as
+# fresh, #273 -- carried never actually carries across separate playbot
+# invocations because the dev-server port is derived from the process pid).
+# `boss=skyward` is a coverage label only (direction.md's 2026-09-25/26
+# notes on playpick.ts): a mode=walk evening steers at no named boss, the
+# walk starts at the door same as any other.
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (the 2026-09-26-40.play recipe),
+# rather than landing on the invite's own single-fight "visiting" framing.
+#
+# What no session has done before: druid:guardian (sessions.jsonl, five
+# priors: mode=clear wander/flee/good, mode=walk boss=confluence good,
+# mode=battleground mash) has never been given `style=melee`, and has never
+# run mode=walk at 25-heroic -- its one prior mode=walk reading was
+# 10-normal/good. `melee` closes to the boss and never leaves regardless of
+# what is on the floor (scripts/playbot.ts:952-954, the same policy that
+# made #267's bonestorm complaint and the Bloodgorged-tank wipe above), which
+# for once matches the role: guardian is a tank, and a tank standing in melee
+# and never disengaging is closer to correct play than it was for the priest
+# and warlock this style has already been run on. The open question is
+# whether a tank spec's own kit (self-healing, mitigation) covers for
+# `melee`'s refusal to ever step out of a hazard the way it did not for a
+# healer or a caster dps, across a full evening's worth of corridors and
+# fights rather than one isolated pull.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening melee 240 6
+state
+shot end
+says
+bill
