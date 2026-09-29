@@ -1,0 +1,45 @@
+# Cell from playpick: mode=clear, spec=warrior:arms, style=idle, size=10,
+# difficulty=normal, view=1280x800, save=fresh.
+#
+# Checked sessions.jsonl and direction.md first. This is the second
+# idle-style mode=clear/mode=walk evening at 10-normal on a genuinely
+# fresh save (the first, 2026-09-27-10, was druid:feral) and the first
+# idle evening on warrior:arms at all -- its only idle appearances on
+# record are single mode=raid pulls (2026-09-24, The Bonegrinder).
+#
+# What is actually being tested: the druid:feral idle evening never
+# stalled or wiped, but past its first boss it looped forever between
+# two already-lit pads (Oratory <-> Threshold) instead of ever engaging
+# The Last Whisper, because cross()'s own boss-check found nothing on the
+# first tick in Oratory and fell back to the pad (direction.md's #1/#6
+# entry for 2026-09-27, src/main.ts:3020-3033). Whether that is a property
+# of the room/seed (roomSeed is keyed off Date.now() per docs/playtest.md)
+# or something an idle body specifically triggers (never walking toward
+# the boss at all, unlike every other style cross() still steers the same
+# way through corridors but which might behave differently once inside a
+# room fight loop) is not yet settled -- this is the first same-style,
+# same-size/difficulty, different-class repeat that can tell the two
+# apart. Same room budget (8) and per-room seconds (200) as the prior
+# idle run, so the two are a controlled pair on everything but class.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+targets
+tap next
+tap class:warrior:arms
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening idle 200 8
+shot after-evening
+state
+says
+targets
+ui
+bill

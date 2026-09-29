@@ -2682,6 +2682,50 @@ a 27-33px hit radius is far below where a real thumb would ever land on the
 boundary -- but worth remembering if a future session ever sees a press near
 the top of the ability cluster silently toggle `auto` instead of firing.
 
+**2026-09-29, the same idle/10-normal/fresh cell repeated on a different
+class, and the Oratory pad-loop from 2026-09-27 does not reproduce.**
+`mode=clear`, warrior:arms, `idle`, 10-normal, genuinely fresh save,
+1280x800 desktop (`playtest/plans/2026-09-29-12.play`) -- identical on
+every axis (style, size, difficulty, save, viewport, room budget of 8,
+200s per room) to 2026-09-27-10's druid:feral idle evening except the
+class, run specifically to test whether that session's pad-loop was
+something idle triggers or something the seed rolled. THE VIGIL crossed
+clean (`8.8s` to the door, `41.9s` total, `presses=0`), Bonegrinder died
+inside the crossing at `fightTime=73` full health (`aliveParty=10/10
+heroHp=1890/1890 bossHp=down`) -- [[#1]]'s shape holding again, first
+warrior:arms idle evening on record. The path past it was the identical
+sequence the druid:feral run took, `spire -> westclimb -> spire ->
+eastclimb -> oratory`, all four crossings clean and fault-free.
+
+But in Oratory this run diverged completely: `293.6s crossed
+from=oratory to=oratory aimedAt=boss:whisper`, 7.9 seconds after
+entering the room, followed immediately by `boss-woken` -- where the
+druid:feral run's own boss-check never matched at all across the 17
+seconds before it gave up and rode the pad. The Last Whisper died at
+`fightTime=23` (`aliveParty=10/10 heroHp=1706/1890 bossHp=down`), a
+noticeably harder kill than Bonegrinder's -- `inDanger=28%` against `3%`,
+and the first real damage (184 hp) an idle body has taken on this
+specific room path -- but still a clean win, and the evening then rode
+the newly-lit Oratory pad to Mooring correctly (`took-the-pad
+from=oratory to=mooring wanted=mooring`), arriving on "THE WAY AHEAD IS
+HELD, 9 still standing" with no fault anywhere in the whole run (0
+distinct faults, 8/8 room budget used). `after-evening.png` and
+`arrive-threshold.png` both read clean, no rendering defect either.
+
+Same style, same cell parameters, same room-to-room path, opposite
+outcome on the one room that mattered -- the cleanest evidence yet that
+2026-09-27's pad-loop is not something `idle` itself triggers (this run
+never walked toward the boss either, and found it anyway) but something
+the fresh save's `Date.now()`-keyed `roomSeed` decides per visit, in
+line with this hypothesis's own running theory that seed/watchman
+placement, not style or class, is what actually separates a clean
+crossing from a stall. Does not settle *which* of the two mechanisms
+2026-09-27's own read of `asleep()`/`cross()` left open -- this run
+simply landed on the lucky side of whatever that mechanism is -- but it
+weakens "idle-style is the trigger" specifically, since the one variable
+held constant here (style) produced the one outcome that changed. Not
+filed -- fourteen open `playtest` issues held the gate shut.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
