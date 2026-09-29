@@ -1,0 +1,38 @@
+# playpick: mode=raid boss=flasks spec=druid:feral style=mash size=25
+# difficulty=heroic view=820x1180,touch save=carried
+#
+# The Two Flasks has only ever been read at 10-normal (raid mode) and via the
+# daily framing at 25-normal/25-heroic under good, mash, idle and wander on
+# other specs; the one prior 25-heroic reading of this boss at all was
+# mode=walk under hunter:marksmanship/flee, which never actually fought it
+# (stopped by THE VIGIL). This is the first raid-mode (not daily) 25-heroic
+# pull of it, the first druid:feral pull outside the daily framing (its one
+# prior reading was daily/dodge on a different boss), and the first touch
+# portrait viewport for this spec. carried is fresh-in-disguise within one
+# playbot invocation per #273, so the invite hash is what actually reaches
+# this cell.
+open #b=flasks&s=25&h=1
+targets
+tap class:druid:feral
+tap pull
+waitscreen fight 15
+state
+shot open
+
+play mash 90
+bill
+shot mid1
+state
+says
+
+play mash 90
+bill
+shot mid2
+state
+says
+
+play mash 90
+bill
+shot mid3
+state
+says

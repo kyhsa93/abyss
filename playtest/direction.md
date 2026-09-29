@@ -1606,6 +1606,28 @@ into a boss with two independently-confirmed, differently-shaped answers to
 of the isPlayer-outcome bug under *Not yet filed* below (2% boss health,
 22/25 raid alive, the fight still called a flat wipe).
 
+**2026-09-29, first completed 25-heroic reading of The Two Flasks on record,
+under `mash`.** `mode=raid` (`boss=flasks`, druid:feral, `mash`, 25-heroic,
+carried, 820x1180 touch, `playtest/plans/2026-09-29-11.play`). Every prior
+25-heroic attempt at this boss was `mode=walk`/`flee` and never got past THE
+VIGIL; this went straight in on an invite hash and fought it. `mash` presses a
+random ability slot with no telegraph awareness at all (the same blind,
+judgement-free shape as `idle` in spirit, just not idle's zero presses) and
+killed at 130s with `aliveParty=24/25`, one death, `hits=437 hitsPerMin=201.4
+taken=3075 takenPerMin=1417.4`. Not a clean `idle`-vs-`good` pair so it does
+not sharpen this line's own test directly, but it is a second data point (after
+the daily-mode idle/good/mash trio above) that this boss's hardest published
+cell falls to undirected pressing about as easily as its normal one did --
+worth a real `idle` vs `good` pair at this exact size/difficulty before
+concluding more.
+
+The result screen (`mid2.png`) also handed #283 the reproduction its own text
+says it was missing: three award banners at once (`First Blood`/`OPENED The
+Three Crowns`, `Heroic`, `Full Raid`) stacked over the damage board's top three
+rows, with a surviving screenshot this time. Commented on #283 rather than
+filing -- same root cause the issue already names, just the three-banner case
+it noted no screenshot existed for.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
