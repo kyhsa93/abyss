@@ -1,0 +1,28 @@
+# playpick: mode=raid boss=flasks spec=warlock:destruction size=10
+# difficulty=normal view=390x844,touch save=fresh
+#
+# First use of the `ladder` command in this job's history. docs/playtest.md's
+# own worked example (The Bonegrinder, 10 players, normal, four pulls under
+# `learn`) has sat in the spec since the job was seeded and no committed
+# script has ever actually called it -- checked by grepping all 188 prior
+# .play files for the literal command before writing this one. The Two
+# Flasks already has an idle/good pair on this exact cell (-20.play and
+# 2026-09-25-20.play: idle takenPerMin=1314.4, good takenPerMin=1678.0,
+# direction.md #1), so a ladder curve here lands next to real numbers to
+# discriminate against, the way the spec's own Bonegrinder table does.
+# Four pulls, not nine -- docs/playtest.md says ask for fewer seconds when
+# nine would cost too long a foreground block; four pulls at up to 90s each
+# is enough to see whether any curve appears at all.
+open #b=flasks&s=10&h=0
+targets
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+state
+shot ladder-start
+
+ladder 4 90
+bill
+says
+state
+shot ladder-end

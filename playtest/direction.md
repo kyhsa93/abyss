@@ -1628,6 +1628,56 @@ rows, with a surviving screenshot this time. Commented on #283 rather than
 filing -- same root cause the issue already names, just the three-banner case
 it noted no screenshot existed for.
 
+**2026-09-29, the first `ladder` run this job has ever executed, and the
+sharpest split yet: idle wins clean in one pull while `learn` never wins in
+four.** `mode=raid` (not daily), boss=flasks, warlock:destruction, 10-normal,
+fresh save, 390x844 touch -- the exact cell `playpick` returned this session,
+already carrying an idle/good pair from 2026-09-25
+(`playtest/plans/2026-09-25-20.play`: idle takenPerMin=1314.4, good
+takenPerMin=1678.0). Checked first: grepped all 188 prior `.play` files for
+the literal `ladder` command and found zero -- despite `docs/playtest.md`'s
+own "Whether the fight can be learned at all" section, with its worked
+Bonegrinder table, existing since the job was seeded.
+
+Ran a fresh idle pull on this cell again for a same-session comparison point
+(`playtest/plans/2026-09-29-20.play`: victory at fightTime=125,
+aliveParty=10/10, heroHp=641/1485, presses=0, inDanger=31%,
+hitsPerMin=550.1, takenPerMin=2500.3), then `ladder 4 90` on an independent
+fresh pull of the identical cell (`playtest/plans/2026-09-29-21.play`):
+
+```
+#1 ongoing 87s  hits=497(342.8/min) taken=1806(1245.5/min)      worst=houndx497
+#2 wipe    123s hits=543(264.9/min) taken=2737(1335.1/min) DIED worst=houndx542
+#3 ongoing 87s  hits=0(0/min)       taken=315(217.2/min)        worst=none
+#4 wipe    131s hits=400(183.2/min) taken=1674(766.7/min) DIED  worst=houndx393
+```
+
+`wins=0/4` -- the boss never died once across four attempts, both budget-outs
+stalled around boss 36-37% and both wipes landed at boss 12-13%, so this was
+not a ladder gradually closing in on a kill. The curve is not monotonic
+either: pull 3 is a clean outlier at zero mechanic hits for the whole 87
+seconds, sandwiched between two pulls hit for hundreds. And despite taking
+less damage per minute on every single pull than idle's own 2500.3/min,
+`learn` never once produced idle's outcome -- idle killed this boss clean in
+its one and only pull, at zero presses, while four pulls of a style built to
+imitate a player who reacts to what it has already seen came away with
+nothing. This is the sharpest version of this line yet: not just "idle
+doesn't lose," but "the style closest to a player actually trying, run four
+times over, does worse than a player who never touches the controls at all."
+
+**Not a clean disprove-or-confirm** -- `learn` is not `good`, so this does
+not literally satisfy the line's own disproof condition ("any cell where
+idle loses and good wins"). But it is new evidence in the same direction,
+from a mechanism (`ladder`) this job had never once exercised, and it closes
+a gap `docs/playtest.md` itself names: "Neither has ever been measured
+against a player."
+
+**Not filed** -- fourteen open `playtest` issues held the gate shut, and this
+sharpens an existing line rather than opening a new one regardless. Worth a
+repeat with more pulls (the spec's own default is nine) once there is room,
+to see whether pull 3's zero-hit anomaly is a real skill state the learner
+reached and then lost, or noise from one lucky mechanic-target roll.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

@@ -1,0 +1,25 @@
+# playpick: mode=raid boss=flasks spec=warlock:destruction style=idle size=10
+# difficulty=normal view=390x844,touch save=fresh
+#
+# The exact same cell (raid/flasks/warlock:destruction/idle/10-normal/fresh/
+# 390x844 touch) was already run 2026-09-25 (playtest/plans/2026-09-25-20.play)
+# and is recorded under direction.md's #1. Playing it again to have this
+# session's own canonical idle reading -- the new thing this session does is
+# in the companion script (-21.play): the `ladder` command, never once used
+# in any committed play script across 188 prior plans, despite being the
+# whole mechanism docs/playtest.md's "Whether the fight can be learned at
+# all" section is built around.
+open #b=flasks&s=10&h=0
+targets
+ui
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+state
+shot idle-open
+
+play idle 150
+bill
+says
+state
+shot idle-end
