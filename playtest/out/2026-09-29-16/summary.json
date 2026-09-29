@@ -1,0 +1,20 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-16",
+  "seed": 893002,
+  "view": "844x390,touch",
+  "entries": 28,
+  "faults": [
+    {
+      "room": "westclimb",
+      "seconds": 240,
+      "hero": {
+        "x": -1402.88186083126,
+        "y": -6610.624094474852
+      },
+      "boss": null,
+      "away": null,
+      "at": 521.8,
+      "kind": "fault:fight-outlasted-its-budget"
+    }
+  ]
+}

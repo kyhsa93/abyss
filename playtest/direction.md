@@ -1909,6 +1909,52 @@ doing the work in the one clean pass rather than the style itself -- folded
 into [[#6]] above. Gate held shut at fourteen open `playtest` issues; not
 filed, nothing here beyond another #271 confirmation.
 
+**2026-09-29, twelfth confirmation: the first clean `flee`-style VIGIL
+crossing on record, and a second westclimb stall that does not look like the
+first one.** `mode=walk` (`boss=gift`, a coverage label only), druid:
+restoration, `flee`, 10-normal, carried (behaves as fresh per #273), 844x390
+touch (`playtest/plans/2026-09-29-16.play`) -- first druid:restoration
+evening this job has ever run (its five prior readings were all standalone
+`mash`/`auto` pulls). THE THRESHOLD crossed clean in 10.8s, and THE VIGIL
+crossed clean too, in 41.6s (`crossed from=vigil to=spire ... presses=10`,
+the healer's own casts while moving) -- the first time `flee` itself has
+crossed VIGIL clean (it has wiped there twice before, hunter:marksmanship and
+paladin:holy, both this exact style/size/difficulty) and only the third clean
+VIGIL crossing this line has on record at all, after one `melee` and one
+`idle`. Druid's own `moveSpeed` (167) sits between hunter's (173, wiped) and
+paladin's (158, wiped) -- a mid-speed class crossing where a faster one did
+not is a fourth data point against the eleventh confirmation's tentative
+"class speed decides it" reading, and argues harder for that entry's own
+alternative: whether the threshold's watchmen happen to catch the party this
+particular run, not anything measured about the class. The evening then
+walked straight into The Bonegrinder's room and killed it with no report
+screen (`boss-woken` then `boss-down`,
+`played style=flee seconds=240 ... fightTime=128 aliveParty=10/10
+heroHp=1440/1440 bossHp=down presses=0 inDanger=2%`) -- unremarkable on its
+own, [[#1]]'s idle/flee-wins shape again, already well covered.
+
+Room 3 (`westclimb`) is the new ground. `fault:fight-outlasted-its-budget
+{"room":"westclimb","seconds":240,...}` at 521.8s, `closestGot=553` -- the
+evening burned its whole 240s budget without the door coming anywhere near
+reach. This is only the second stall this job has ever recorded outside THE
+VIGIL (the first, 2026-09-25, paladin:retribution/`idle`, also stalled in
+westclimb, at `nearestDoorGot=12`) -- but the two do not look alike beyond
+the room's name: that one parked the party twelve units from the door,
+functionally at the point of leaving; this one never got within five hundred
+units of it. `after-evening.png` shows the party clustered at the foot of a
+diagonal wall on the room's western edge, well short of any doorway, all ten
+members at full health and fighting nothing (`hits=0 taken=0` for the full
+368s chamber time) -- closer in shape to `cross()` aiming the party at a
+point it cannot walk past than to THE VIGIL's watchmen-convergence stalls.
+Two westclimb stalls under two different classes and styles (`idle`, `flee`)
+is enough to say the failure is not THE VIGIL-specific -- #281's own title
+still only names THE VIGIL -- but the very different `closestGot` (12 against
+553) means "the same failure, a second place" is not yet established either.
+Worth a third westclimb stall that reads the door's own coordinate against
+the party's mid-stall, to say whether `cross()` is aiming at a point it
+cannot reach or just aiming badly from far away. Not filed -- gate held shut
+at fourteen open `playtest` issues.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five

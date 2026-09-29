@@ -1,0 +1,29 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-16","view":"844x390","touch":true,"seed":893002,"url":"http://127.0.0.1:5458/","at":1.2,"kind":"session"}
+{"hash":"/","screen":"home","mode":"raid","outcome":"ongoing","at":2,"kind":"open"}
+{"label":"raid","box":[344,40],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"label":"next","box":[664,32],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.5,"kind":"tap"}
+{"label":"class:druid:restoration","box":[160,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.8,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-16/shots/class-selected.png","screen":"roster","mode":"raid","outcome":"ongoing","at":2.9,"kind":"shot"}
+{"label":"pull","box":[584,40],"screen":"fight","mode":"travel","outcome":"ongoing","at":3.2,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":3.6,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.6,"tick":18,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":10,"alive":10,"me":{"name":"You","spec":"restoration","role":"healer","hp":1440,"maxHp":1440,"power":1000,"maxPower":1000,"alive":true,"casting":null,"bar":[{"slot":1,"id":"healing_touch","status":"ready"},{"slot":2,"id":"rejuvenation","status":"ready"},{"slot":3,"id":"swiftmend","status":"ready"},{"slot":4,"id":"starsurge","status":"range"},{"slot":5,"id":"barkskin","status":"ready"}]},"boss":null},"at":3.6,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-16/shots/start.png","screen":"fight","mode":"travel","outcome":"ongoing","at":4.1,"kind":"shot"}
+{"n":"1/8","room":"threshold","mode":"travel","at":4.2,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@138"],"lit":["threshold"],"rode":[],"padHere":true,"at":4.4,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":47,"endedAt":{"x":-16.78743466352128,"y":-1016.8222813576639},"presses":0,"secondsAtTheDoor":0,"stillAlive":186,"nearest":"The Damned,The Damned,The Damned,The Damned","at":10.8,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":10.9,"kind":"walked-on"}
+{"n":"2/8","room":"vigil","mode":"travel","at":10.9,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1224","threshold@45"],"lit":["threshold"],"rode":[],"padHere":false,"at":11.1,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":8,"endedAt":{"x":-0.46706622835291556,"y":-5715.109117065602},"presses":10,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":41.6,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":41.6,"kind":"boss-woken"}
+{"style":"flee","seconds":240,"outcome":"ongoing","fightTime":128,"phase":1,"aliveParty":"10/10","heroHp":"1440/1440","bossHp":"down","presses":0,"inDanger":"2%","at":281.6,"kind":"played"}
+{"room":"vigil","at":281.6,"kind":"boss-down"}
+{"n":"3/8","room":"westclimb","mode":"travel","at":281.6,"kind":"room"}
+{"room":"westclimb","took":"oratory","why":"unvisited","ways":["oratory@654","spire@848"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":281.6,"kind":"door"}
+{"from":"westclimb","to":"westclimb","aimedAt":"door","closestGot":553,"endedAt":{"x":-1402.493038090908,"y":-6610.624094474852},"presses":0,"secondsAtTheDoor":0,"stillAlive":175,"nearest":"The Damned,The Damned,The Damned,The Damned","at":521.7,"kind":"crossed"}
+{"room":"westclimb","seconds":240,"hero":{"x":-1402.88186083126,"y":-6610.624094474852},"boss":null,"away":null,"at":521.8,"kind":"fault:fight-outlasted-its-budget"}
+{"rooms":3,"wipes":0,"walked":["threshold(travel,ongoing,7s)","vigil(travel,ongoing,271s)","westclimb(travel,ongoing,240s)"],"reached":"threshold -> vigil -> westclimb","endedAt":"westclimb","at":521.8,"kind":"evening"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"westclimb","hud":{"time":368.1333333334106,"tick":11044,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":10,"alive":10,"me":{"name":"You","spec":"restoration","role":"healer","hp":1440,"maxHp":1440,"power":1000,"maxPower":1000,"alive":true,"casting":null,"bar":[{"slot":1,"id":"healing_touch","status":"ready"},{"slot":2,"id":"rejuvenation","status":"ready"},{"slot":3,"id":"swiftmend","status":"ready"},{"slot":4,"id":"starsurge","status":"range"},{"slot":5,"id":"barkskin","status":"ready"}]},"boss":null},"at":521.8,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-16/shots/after-evening.png","screen":"fight","mode":"travel","outcome":"ongoing","at":521.8,"kind":"shot"}
+{"lines":[],"at":521.9,"kind":"says"}
+{"fightTime":368,"outcome":"ongoing","hits":0,"hitsPerMin":0,"taken":0,"takenPerMin":0,"died":false,"byMechanic":{},"at":521.9,"kind":"bill"}

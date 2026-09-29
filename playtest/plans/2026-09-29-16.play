@@ -1,0 +1,37 @@
+# Cell from playpick: mode=walk, boss=gift (coverage label only -- evening
+# steers at no boss, the walk starts at the door same as any other), spec
+# druid:restoration, style=flee, size=10, difficulty=normal, view=844x390,
+# touch, save=carried (behaves as fresh per #273 -- the dev-server port is
+# pid-derived so localStorage never actually carries across separate
+# playbot invocations).
+#
+# Checked sessions.jsonl and direction.md's hypothesis #6/#281 first.
+# druid:restoration has been played five times before (grep: mash x3,
+# auto x2) and never once inside mode=walk or mode=clear -- this is its
+# first evening, full stop. It also lands on a hypothesis with eleven
+# prior confirmations: every fresh 10-normal evening that has gone through
+# cross()'s own THE VIGIL crossing has either stalled in place or been
+# caught by the corridor's watchmen and wiped, regardless of style, and a
+# wipe there leaves PULL AGAIN unable to restart the fight (#271). flee has
+# already wiped this exact size/difficulty twice before (hunter:
+# marksmanship, paladin:holy) -- druid's own moveSpeed (167) sits between
+# those two classes' speeds (173, 158), so this is the first data point
+# that can tell whether the one style/class pairing that crossed clean
+# (melee on the fastest class, rogue at 178) was really about raw speed or
+# something else: if 167 also gets caught, speed alone does not explain
+# the one clean pass.
+open
+tap raid
+tap next
+tap class:druid:restoration
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening flee 240 8
+state
+shot after-evening
+says
+bill
