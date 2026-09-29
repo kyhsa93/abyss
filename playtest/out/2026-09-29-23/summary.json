@@ -1,0 +1,16 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-23",
+  "seed": 457411,
+  "view": "1280x800",
+  "entries": 67,
+  "faults": [
+    {
+      "at_": "mooring",
+      "after": "wipe",
+      "rooms": 10,
+      "journalKeyClash": true,
+      "at": 1086.3,
+      "kind": "fault:evening-stuck"
+    }
+  ]
+}

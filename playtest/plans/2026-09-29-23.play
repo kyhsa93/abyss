@@ -1,0 +1,48 @@
+# playpick cell: mode=clear spec=shaman:restoration style=melee size=25
+# difficulty=heroic view=1280x800 save=fresh.
+#
+# A fresh profile defaults to 10-normal, so #b=marrow&s=25&h=1 unlocks the
+# 25-heroic tier the same way every other 25-heroic clear/walk script in this
+# ledger does, then backs out to a real RAID -> WALK IN at the door rather
+# than the invite's single-fight "visiting" framing (direction.md's
+# 2026-09-26 driver-lesson recipe).
+#
+# Checked sessions.jsonl first (grepped every shaman:restoration line, and
+# every mode=clear line, directly rather than by memory): shaman:restoration
+# has one prior mode=clear evening (flee, 25-heroic, 820x1180 touch,
+# 2026-09-26) but never melee, and no clear/walk evening on any healer spec
+# has ever run under melee -- the eighteen prior clear-mode sessions cover
+# melee twice (rogue:assassination and shaman:elemental, both dps) and
+# healers three times (priest:discipline/flee+good, druid:restoration/mash,
+# shaman:restoration/flee), never crossed with each other. melee's own
+# steering (scripts/playbot.ts:952) is a flat beeline to the boss with no
+# danger-avoidance term at all -- unlike good's away-then-toward blend -- so
+# this is the first time a healer has been walked into and held in melee
+# range for a whole evening rather than steered around what is on the floor.
+#
+# Worth watching for: direction.md's "Not yet filed" single-actor-death
+# entries (sim.ts:783-788 ending a pull on the tracked body's own death
+# rather than the raid's) have already caught this in mode=daily twice and
+# in one mode=walk boss room under priest:discipline/good (four wipes on a
+# boss the raid had nearly killed each time). A healer held in melee range
+# with no defensive positioning at all is the sharpest test yet of whether
+# that same outcome-flip repeats across a whole evening's worth of rooms,
+# not just one.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:shaman:restoration
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening melee 300 10
+shot end
+state
+says
+bill

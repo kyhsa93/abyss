@@ -2005,6 +2005,75 @@ the party's mid-stall, to say whether `cross()` is aiming at a point it
 cannot reach or just aiming badly from far away. Not filed -- gate held shut
 at fourteen open `playtest` issues.
 
+**2026-09-29, thirteenth confirmation, and the first outside THE VIGIL --
+answering the ninth confirmation's open question.** `mode=clear`,
+shaman:restoration, `melee`, 25-heroic, genuinely fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-29-23.play`) -- the first melee-style evening ever
+run on a healer spec (every prior `melee` reading was a dps or a tank), and
+the first shaman:restoration evening under anything but `flee`. THE VIGIL
+itself crossed clean in 5.6s door to door (`7.6s` to `13.2s`, `presses=0`),
+adding a data point to [[#6]]'s own "25-heroic never stalls VIGIL" reading,
+and the Bonegrinder heroic pull died inside the crossing at full health
+(`aliveParty=24/25 heroHp=1485/1485 presses=7`) -- unremarkable, [[#1]]'s
+idle-wins shape again.
+
+Rooms 4-6 (eastclimb, oratory) crossed clean and The Last Whisper died on a
+retry (first attempt hit its own `outcome=enrage` at 2% boss hp with the
+healer itself dead, `heroHp=0/1485`, a real boss-timer loss, not this bug --
+`outcome:retry` worked normally on that boss-room wipe, matching the "Not yet
+filed" notes above that boss-room retries are fine and only travel-mode ones
+are not). Past that, room 8 (`westclimb`) is what every #271 confirmation
+before this one had never tried: an actual corridor wipe outside THE VIGIL.
+`cross()` named `"took":"oratory"` `why="toward a lit pad"` while standing in
+westclimb (`ways=["oratory@273","spire@514"]`, `lit=["threshold","oratory",
+"mooring"]`), then the driver opened the map and rode the lit pad to
+`mooring` -- and the state read back from that very tap already showed
+`outcome=wipe`, with the `crossed` line logged a beat later reading
+`from=westclimb to=mooring endedAt=null presses=5`, then
+`wiped at=westclimb outcome=wipe wipes=2` -- westclimb's own packs
+(`nearest=Blighted Abomination,Blighted Abomination,Plague Scientist,
+Pustulating Horror` on every crossing line through this stretch) killed the
+party while `cross()` was mid-decision about the pad, not the VIGIL's
+watchmen.
+
+`outcome:retry` was tapped exactly as every prior report did, and got the
+exact same shape: `room n=9/10 room=mooring` re-wiped instantly
+(`crossed from=mooring to=mooring ... closestGot=n/a endedAt=null
+presses=0`, `wiped ... wipes=3`), retried again, re-wiped identically
+(`wipes=4`), and the evening gave up: `fault:evening-stuck
+{"at":"mooring","after":"wipe","rooms":10}` at 1086.3s. `end.png` is the
+identical DEFEAT-screen shape as every other #271 screenshot: "THE MOORING",
+"0.0s · 0 down", every damage-board row a flat `-`/`0`, PULL AGAIN
+highlighted. The final `state` matches every other #271 report's numbers
+exactly: `hero.hp=0/1485`, `alive:false`, every ability slot
+`"status":"locked"`, `outcome:"wipe"`. The `evening` summary line names it
+plainly:
+`walked=[...,"westclimb(travel,wipe,18s)","mooring(travel,wipe,0s)",
+"mooring(travel,wipe,0s)"]`, `reached=... -> westclimb -> mooring`,
+`endedAt=mooring`.
+
+This answers the ninth confirmation's open question directly: a travel-mode
+wipe *outside* THE VIGIL fails to retry the exact same way, with the exact
+same symptom (`hero.hp=0`, every slot `locked`, instant 0-second re-wipes).
+"At least in THE VIGIL" no longer holds as a qualifier -- twelve confirmations
+found the wall only where they looked for it, and the thirteenth found it
+the first time it looked somewhere else. One wrinkle worth flagging for
+whoever reads this next: the room the evening calls "stuck" (`mooring`) is
+not the room the party actually died in (`westclimb`) -- the death landed
+mid-pad-ride, so the stuck room name follows the pad's destination, not the
+death's location. Worth checking from source (`scripts/playbot.ts`'s
+`cross()`/pad-ride handling alongside `src/main.ts`'s own retry path) before
+this is filed: whether the bug is "a travel wipe never retries" full stop,
+or specifically "a wipe that lands while a pad-ride is in flight never
+retries," which this one sighting cannot tell apart on its own. Not filed --
+fourteen open `playtest` issues held the gate shut -- but this is the
+strongest single candidate this line has produced for actually narrowing
+#271's own scope beyond "THE VIGIL," and the reproduction
+(`playtest/plans/2026-09-29-23.play`, `playtest/out/2026-09-29-23/`) is a
+full evening script rather than a single-corridor `mode=walk`, so it also
+exercises the retry wall from a genuinely different setup path (`#b=marrow
+&s=25&h=1` unlock into `mode=clear`) than any prior #271 report.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
