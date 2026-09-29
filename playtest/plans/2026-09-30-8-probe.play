@@ -1,0 +1,11 @@
+# Probe for the 2026-09-30 cell: mode=battleground map=flags spec=paladin:holy
+# style=melee view=1280x800 save=carried. Confirming exact control labels
+# (class:paladin:holy, map:flags) before writing the timed match script, per
+# docs/playtest.md's own rule that menus are not on a clock.
+open
+tap battleground
+targets
+shot bg-menu
+tap map:flags
+targets
+shot flags-picked

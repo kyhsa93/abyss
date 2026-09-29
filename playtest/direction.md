@@ -4936,6 +4936,63 @@ takenPerMin=1182 died=true byMechanic={}`. Gate held shut at fourteen open
 issues; not filed. Reproduction: `playtest/plans/2026-09-30-5.play`,
 `mid1.png`/`mid2.png`/`mid3.png`.
 
+**2026-09-30, the first pure-healer kit under `melee`, and the first time
+this line has shown the zero-press shape costing a body its own survival
+tools rather than only its damage.** `playpick` gave `map=flags` (Ebb and
+Flow), `spec=paladin:holy`, `style=melee`, `1280x800`, carried (behaves as
+fresh per #273) -- paladin:holy's first battleground pull of any kind (its
+one prior outing was `mode=raid`, `style=wander`) and the first time any
+healer spec has been given `melee` style. Every prior `melee` reading on
+this line (marksmanship hunter on this same map, elemental shaman on
+escort, protection paladin on escort) was a spec that could in principle
+deal damage close up; a holy paladin's whole bar is heals and one shield,
+so this asks a sharper version of the standing question: does `melee`'s
+walk-at-the-nearest-enemy steering fail a support kit the same way, or
+differently?
+
+The same, and worse. `playtest/plans/2026-09-30-8.play`: `state` right
+after `pull` showed four of five slots (`holy_light`, `beacon_of_light`,
+`lay_on_hands`, `divine_shield`) already `ready` -- a real chance to use
+something before the fight even started moving. It never took it:
+`play melee 90` walked the body straight at the nearest red player and it
+was dead by `fightTime=15` (`-120`/`DOWN`, `mid1.png`), `bill` reading
+`hits=0 hitsPerMin=0 taken=1585 takenPerMin=6284.1 died=true
+byMechanic={}` -- the same zero-press shape [[#7]] already has for
+marksmanship/elemental/protection under `melee`, but this is the first
+time the presses that never happened were **heals it could have cast on
+itself**, not damage it could have dealt to something. Reading
+`scripts/playbot.ts:952-954,1016-1019`: `melee`'s own loop only reaches the
+ability-press branch when `want === null` (nothing left to walk toward),
+and stays in the steer branch the entire time `far > 4` from the nearest
+enemy -- a distance measured to a target the body has no reason to close
+with when its own kit has nothing to do there, so the four ready heals sat
+unpressed for the full fifteen seconds it took the enemy team to kill it.
+The bar even carried a `'WORTH MOST ON THE TANK'` prompt on screen the
+whole time (`bg-start.png`, `src/render/hud.ts:1794`) -- a real in-game
+hint naming a teammate to help, that `melee`'s steering has no vocabulary
+to read.
+
+The revival matches the map's own established shape rather than adding a
+new one: alive again by `fightTime=21` (`mid3.png`, `hp=1530/1530`), three
+of the four heals now reading `"range"` (`holy_light`/`beacon_of_light`/
+`lay_on_hands`), same "out of range of anyone to heal" reading this line's
+2026-09-26 `auto`-restoration-druid entry already found on this exact map
+-- except that entry blamed `auto`'s total lack of steering, and this one
+shows `melee`'s steering produces the identical dead bar by pointing the
+body at the enemy team instead of at no one in particular. The raid's own
+progress carried on regardless: `mid3.png`'s banner reads "theirs taken by
+Bastion" -- a teammate scored a capture while the healer was dead, the same
+"AI carries the match, the passive body does not help it" shape [[#7]]'s
+opening line already names.
+
+`ui` on this cell reproduced #276's own under-44 and ability-cluster
+overlap findings (`under44=["party 84x32","settings 172x32"]`,
+`overlapping` the same `ability:5`/`ability:4`-vs-neighbour slivers as
+every prior desktop `ui` read) -- nothing new, an open issue already. Gate
+held shut at fourteen open issues; not filed. Reproduction:
+`playtest/plans/2026-09-30-8.play`, `bg-start.png`/`mid1.png`/`mid2.png`/
+`mid3.png`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

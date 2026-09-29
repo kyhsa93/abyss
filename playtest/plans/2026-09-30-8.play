@@ -1,0 +1,44 @@
+# Cell from playpick: mode=battleground map=flags (Ebb and Flow), spec=paladin:holy,
+# style=melee, view=1280x800, save=carried (behaves as fresh per #273 -- playbot's
+# own port is per-run, so localStorage's origin never actually carries between
+# invocations).
+#
+# First paladin:holy on any battleground this job has run (its one prior outing
+# was mode=raid, style=wander), and the first time a pure healer kit has been
+# given `melee` style anywhere: direction.md's #7 already found that
+# `style=auto`'s restoration druid on this same map stood still and never healed
+# (auto has no steering at all), but `melee` does steer -- straight at the
+# nearest enemy -- and then presses whatever ability the bar shows `ready` first,
+# without regard to what that ability actually does. For a holy paladin the bar
+# is almost entirely heals, so this cell asks a different question than auto did:
+# what does a healer that walks into enemy melee range and presses its own
+# healing kit actually do to itself and its team, on the one map #7 already
+# showed has an automatic flag-carry penalty for anyone caught standing near a
+# dropped flag.
+open
+tap battleground
+tap map:flags
+targets
+tap class:paladin:holy
+shot class-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+state
+ui
+play melee 90
+shot mid1
+state
+bill
+wait 3
+play melee 90
+shot mid2
+state
+bill
+wait 3
+play melee 90
+shot mid3
+state
+bill
+says
+targets
