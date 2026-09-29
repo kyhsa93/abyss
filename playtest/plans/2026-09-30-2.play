@@ -1,0 +1,53 @@
+# playpick cell: mode=daily boss=crowns (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md #1's driver-lesson note)
+# spec=priest:shadow style=dodge view=1280x800 save=carried.
+#
+# Probe (2026-09-30-2-probe.play) found today's actual daily is The
+# Bloodgorged, 25-player normal, FALTERING (healing lands for a quarter
+# less). class:6 = "Priest DPS" on the daily grid, which is priest's only
+# damage spec (shadow) -- first priest:shadow daily on record and the first
+# time `dodge` has met this boss/size/difficulty/affix combination.
+#
+# Also the first daily+carried session to check something past the pull
+# itself: direction.md #5 says a `carried` save never survives a *second*
+# separate `playbot` invocation (different pid -> different port -> different
+# localStorage origin, filed as #273) but no session has yet checked whether
+# "no attempt yet today" on the daily screen updates *within* one script, on
+# the same Page, right after a real attempt completes. That isolates a
+# same-session display bug from the already-filed cross-invocation one if it
+# turns up.
+open
+tap daily
+targets
+tap class:6
+targets
+shot class-picked
+tap start
+waitscreen fight 15
+state
+shot start
+
+play dodge 90
+state
+shot mid1
+bill
+
+play dodge 90
+state
+shot mid2
+bill
+
+play dodge 90
+state
+shot mid3
+bill
+
+play dodge 60
+state
+shot end
+bill
+says
+
+key escape
+targets
+shot after-escape

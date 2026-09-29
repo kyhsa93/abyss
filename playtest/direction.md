@@ -5459,6 +5459,58 @@ and `playtest/plans/2026-09-29-27-diag-bests.mjs` as the two reproductions,
 `/tmp/pt-30-1-share-progress/` as the screenshot evidence, and
 `src/main.ts:2536-2541` plus `src/bests.ts:66-95` named as the fix site.
 
+**2026-09-30, escaping a daily fight leaves the class-select screen telling
+you the wrong room is next.** `playpick` gave `mode=daily boss=crowns
+spec=priest:shadow style=dodge view=1280x800 save=carried`. Probed first
+(`playtest/plans/2026-09-30-2-probe.play`): today's actual daily is The
+Bloodgorged, 25-player normal, FALTERING. `playtest/plans/2026-09-30-2.play`
+ran it under `dodge` (first priest:shadow daily on record, first `dodge`
+against this boss/size/difficulty/affix) and wiped at `fightTime=128` boss
+13%, `aliveParty=22/25`, `byMechanic={"fester":12,"gorge":4,"champion":3,
+"spill":1}` -- the player died at 479/1350 by 88s while `inDanger` read 0%
+both readings, consistent with `fester`/`gorge`/`champion` being
+target-picked hits rather than ground the player stood in. Its closing `key
+escape` (lowercase, exactly as `docs/playtest.md`'s own command table spells
+it) threw `driver-threw: keyboard.press: Unknown key: "escape"` --
+already-known (2026-09-26-10's finding, standing in this file already:
+Playwright wants `Escape` capitalized), not new by itself.
+
+Redone with the right case (`playtest/plans/2026-09-30-3.play`,
+`-4.play`) to reach what -10's session never got to: what happens after.
+`key Escape` from the daily fight (tried both after a full wipe and 3s into
+an untouched pull -- same result either time) lands on the ordinary RAID
+class-select screen, and that screen's own banner reads **"first room — The
+Bloodgorged — give it nothing, and carry what it takes"**
+(`roster-after-escape.png`) -- naming the daily's boss as the very next room
+of a raid evening. It is not: pressing that screen's own WALK IN button
+starts a real evening at `chamber=threshold` (`after-pull.png`, "THE
+THRESHOLD / onward — The Vigil", `boss=null`), which is the citadel's actual
+first room and has nothing to do with The Bloodgorged.
+
+Read rather than guessed: `src/main.ts:1787` sets the shared `encounter`
+variable to `daily.encounter` when a daily fight is built, and `roster.ts:294`
+prints `"first room — " + headline.name` straight off whatever `encounter`
+currently holds. The *only* place that resets it to the citadel's real first
+fight is `updateRaidSetup`'s own `next` handler (`main.ts:1841-1844`,
+`encounter = firstFight()`), which fires on the raid size/difficulty
+screen's NEXT press -- a screen this path never visits. Escaping a fight
+(`main.ts:2282-2287`, `takeMenuRequest()`) never touches `encounter` either,
+so a daily's boss sits in it until something on the raid setup screen
+overwrites it. The mechanism is general to any fight escaped without going
+through raid setup first, but daily is the one case this session found where
+the label and the truth visibly disagree, because a daily's own boss is
+never the citadel's first room.
+
+This is exactly `docs/playtest.md`'s own "a menu that says something untrue
+about the game behind it" -- not a taste note. **Not filed -- fourteen open
+`playtest` issues held the gate shut all session** (283, 282, 281, 279, 278,
+276, 275, 274, 273, 272, 271, 269, 267, 266). File as a bug the first session
+the gate opens, with `playtest/plans/2026-09-30-4.play` as the reproduction
+(shortest path: `open` -> daily -> pick a class -> start -> `key Escape` ->
+`tap pull`) and `roster-after-escape.png` / `after-pull.png` as the
+screenshot evidence, `src/main.ts:1787`, `1841-1844`, `2282-2287` and
+`src/render/roster.ts:294` named as the mechanism.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

@@ -1,0 +1,28 @@
+# Follow-up to 2026-09-30-2.play, same cell (mode=daily boss=crowns(label)
+# spec=priest:shadow style=dodge view=1280x800 save=carried). That run found
+# `key escape` (lowercase, exactly as docs/playtest.md's own command table
+# writes it) throws driver-threw -- already known (direction.md, session
+# 2026-09-26-10: Playwright wants "Escape" capitalized) so not new by
+# itself. Redone here with the correct case to reach the thing that run
+# never got to: whether the daily screen's "no attempt yet today" updates
+# within *one* script/Page right after a real attempt finishes, which
+# isolates a same-session display bug from #273's already-filed
+# cross-invocation port/localStorage-origin bug (direction.md [[#5]]) --
+# no prior session has checked this specific question.
+open
+tap daily
+targets
+shot before-attempt
+tap class:6
+tap start
+waitscreen fight 15
+state
+
+play dodge 140
+state
+shot fight-end
+bill
+
+key Escape
+targets
+shot after-escape

@@ -1,0 +1,11 @@
+# playpick cell: mode=daily boss=crowns (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md #1's driver-lesson note)
+# spec=priest:shadow style=dodge view=1280x800 save=carried.
+#
+# Probe to find what today's actual daily run is before committing to a full
+# script -- docs/playtest.md's own method for anything not on a clock.
+open
+tap daily
+targets
+shot daily-setup
+state

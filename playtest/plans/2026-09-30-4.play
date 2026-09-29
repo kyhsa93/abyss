@@ -1,0 +1,29 @@
+# Follow-up probe, same cell family. -3.play found that pressing `key
+# Escape` from a daily fight (any daily fight, class:6=priest:shadow was
+# used there) lands on the ordinary RAID roster/class-select screen, and
+# that screen's "first room" banner named the *daily's* boss (The
+# Bloodgorged) rather than the citadel's real first fight -- src/main.ts's
+# updateRaidSetup() only sets `encounter = firstFight()` when NEXT is
+# pressed on the actual raid size/difficulty screen, which this path never
+# goes through. This checks what pressing the roster's own PULL/"WALK IN"
+# button actually does from that state: a real raid walk-in with a stale
+# label, or an attempt to fight the daily's boss as if it were the
+# citadel's front door. Escaping early (not waiting for the fight to
+# resolve) to save the ~130s a full wipe costs -- the earlier run showed
+# `encounter` is whatever the daily set regardless of outcome, so nothing
+# about *when* Escape is pressed should matter to this question.
+open
+tap daily
+tap class:6
+tap start
+waitscreen fight 15
+wait 3
+key Escape
+targets
+shot roster-after-escape
+state
+tap pull
+waitscreen fight 15
+state
+shot after-pull
+targets
