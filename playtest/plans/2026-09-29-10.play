@@ -1,0 +1,47 @@
+# playpick cell: mode=daily boss=confluence (coverage label only -- daily.boss
+# is not a real playpick axis, see direction.md) spec=paladin:protection
+# style=melee view=390x844,touch save=fresh.
+#
+# Probed first (2026-09-29-10-probe.play): today's actual daily is The
+# Bloodgorged, 25-player normal, FALTERING ("healing lands for a quarter
+# less"). Bloodgorged's own fester mechanic (direction.md hypothesis 1,
+# 2026-09-26) is written specifically to punish a healer who never acts --
+# every prior pull of this boss (paladin:holy/wander, priest:discipline/idle,
+# priest:shadow/wander, druid:feral/auto, paladin:protection/wander) used a
+# style with no combat behaviour of its own; this is the first melee-style
+# pull of Bloodgorged on record, and the second paladin:protection reading of
+# it (the first was wander). melee presses a rotation and steers into range
+# rather than away from telegraphs, so this tests whether an actively-wrong
+# tank fares differently than a passive one against the one boss this file's
+# hypothesis 1 already narrowed around.
+# class:2 = Paladin Tank (confirmed via probe screenshot: row1 col3, pink label).
+open
+tap daily
+tap class:2
+targets
+tap start
+waitscreen fight 15
+state
+shot start
+bill
+
+play melee 60
+state
+shot mid1
+bill
+
+play melee 60
+state
+shot mid2
+bill
+
+play melee 60
+state
+shot mid3
+bill
+
+play melee 60
+state
+shot mid4
+bill
+says

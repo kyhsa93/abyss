@@ -1566,6 +1566,46 @@ shape has held across two consecutive kills inside one continuous evening,
 which is a stronger claim than "one fight can be won standing still" -- it is
 "an evening can be won standing still, more than once in a row."
 
+**2026-09-29, Bloodgorged's own `gorge` punishes an actively-wrong style the
+same way its `fester` punishes a passive one -- and the `daily.boss` coverage
+label cost two prior sessions a boss they never actually fought.** `mode=daily`
+gave `boss=confluence` (a coverage label only) with paladin:protection,
+`style=melee`, fresh save, 390x844 touch (`playtest/plans/2026-09-29-10.play`).
+Probed first: today's actual daily is The Bloodgorged, 25-player **normal**,
+FALTERING ("healing lands for a quarter less") -- and checking `sessions.jsonl`
+against this line's own driver-lesson on `daily.boss` first showed that the
+two prior sessions labelled `"boss": "gorged"` under `mode=daily`
+(2026-09-27, priest:shadow/`wander`; 2026-09-28, paladin:protection/`wander`)
+both rolled a different real fight that day (The Three Crowns, The Skyward
+Deck) and never touched Bloodgorged at all. So this is the first tank reading
+of this boss to actually land on it, the first at 25-normal (the three real
+priors were 25-heroic twice and 10-normal once), and the first `melee`-style
+pull of it on record.
+
+`melee`'s own steering (`scripts/playbot.ts`, already read into this file
+above) walks the player onto the boss's raw coordinate and swings there, with
+no telegraph awareness -- and `says` caught the exact telegraph it never
+answered: "Off the boss, it is about to spit" / "Leave that one alone," five
+lines of it across the pull, none acted on. `bill` at each checkpoint:
+`t=57 hits=2 byMechanic={"gorge":2}`, `t=118 hits=12 byMechanic={"gorge":12}`,
+wipe at `t=143 hits=18 byMechanic={"gorge":18} taken=6435 takenPerMin=2699.4
+died=true` -- every mechanic hit this pull recorded was `gorge`, and its rate
+is more than double the 2026-09-26 `good` pull's total taken-per-minute
+(1114.9, only 6 of which were `gorge`) and nearly double the `idle` pull's
+(1383.3, dominated by `fester` instead). The tank died at `bossHp=2%`
+(6113/375200) with `aliveParty=22/25` -- the raid otherwise intact and the
+boss a handful of seconds from dead.
+
+This reads as a second, distinct mechanism on the same boss: `fester`
+(this hypothesis's 2026-09-26 entry above) punishes a healer that never acts;
+`gorge` punishes a body that never leaves melee range, which `melee`'s own
+steering guarantees. Not a disprove or confirm of this line itself (`melee`
+is neither `idle` nor `good`), but it sharpens the same Bloodgorged thread
+into a boss with two independently-confirmed, differently-shaped answers to
+"what does idle-shaped play cost you" -- on top of being the clearest case yet
+of the isPlayer-outcome bug under *Not yet filed* below (2% boss health,
+22/25 raid alive, the fight still called a flat wipe).
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -4685,6 +4725,21 @@ same instance, kept on disk) as the two reproductions, and a note asking
 upkeep's own job to check whether `harness.ts`'s win-rate loop should test
 `livingParty` non-empty rather than `s.outcome` before trusting any band
 this number moves.
+
+**2026-09-29, a second boss, a closer margin, and three deaths rather than
+one.** `mode=daily` gave paladin:protection, `melee`, fresh, 390x844 touch
+(`playtest/plans/2026-09-29-10.play`, full detail under hypothesis 1's
+matching entry above). Today's actual daily (probed first) was The
+Bloodgorged, 25-normal FALTERING, not The Skyward Deck -- a different boss
+than every prior confirmation of this bug, and the first where more than one
+raider was down (`aliveParty=22/25`, not `24/25`) when `s.outcome` flipped.
+The margin is the sharper part: boss at 2% (`6113/375200`), not the 26-33%
+the three Skyward Deck readings showed -- this pull was seconds, not tens of
+seconds, from a real kill when the instant-on-player-death rule ended it as a
+flat `wipe`. Confirms the mechanism generalises past one boss and past the
+"exactly one body down" shape; still the same `sim.ts:783-788`/
+`harness.ts:28,791` pair, still not filed (gate shut), no new reproduction
+needed beyond adding this plan to the two already on file.
 
 ## Tried and dropped
 
