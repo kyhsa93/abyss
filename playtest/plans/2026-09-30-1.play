@@ -1,0 +1,57 @@
+# playpick cell: mode=raid boss=whisper spec=warrior:protection style=mash
+# size=10 difficulty=normal view=390x844,touch save=fresh
+#
+# What is new here: mash-style has never been paired with warrior:protection
+# on record (grep of sessions.jsonl for style=mash + spec=warrior:protection
+# is empty), and the one prior warrior:protection pull of The Last Whisper
+# (2026-09-28, idle style, 844x390 landscape) never pressed anything at all.
+# mash round-robins ability slots 1-5 with no movement of its own
+# (scripts/playbot.ts: mash is absent from every steering branch), so a tank
+# under mash stands on its spawn point and randomly presses its own kit
+# instead of using cooldowns with any judgment -- a different failure shape
+# than idle's "never touch a slot" for the same class/boss/size/difficulty
+# pairing, and the first read on whether a tank's own rotation (taunt/block
+# slots) does anything useful when fired blind. The probe
+# (2026-09-30-1-probe.play) confirmed the roster screen's tile name after a
+# direct #b=whisper&s=10&h=0 link is "class:warrior:protection" (2026-09-29-2's
+# script named its tile with no "class:" prefix -- that looks like a mistake
+# in that script, not a real difference between sessions, since the probe run
+# just now shows every tile on this screen carrying the "class:" prefix).
+open #b=whisper&s=10&h=0
+shot roster
+targets
+tap class:warrior:protection
+shot picked
+targets
+tap pull
+shot pulling
+waitscreen fight 15
+state
+
+play mash 90
+shot mid1
+state
+says
+bill
+
+play mash 90
+shot mid2
+state
+says
+bill
+
+play mash 60
+shot outcome
+state
+says
+bill
+
+# outcome.png caught enrage at 2s left (bossHp 41%, heroHp 969/2790, hitsPerMin
+# under 2 the entire fight) -- extending to see whether enrage actually wipes
+# the raid or is a lesser penalty, since no session on record has run a mash
+# pull past a timed enrage on this boss.
+play mash 40
+shot enrage-check
+state
+says
+bill

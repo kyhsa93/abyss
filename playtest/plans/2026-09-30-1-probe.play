@@ -1,0 +1,12 @@
+# playpick cell: mode=raid boss=whisper spec=warrior:protection style=mash
+# size=10 difficulty=normal view=390x844,touch save=fresh
+#
+# Probe only: confirm the roster screen's control name for the spec pick
+# after a direct #b=whisper&s=10&h=0 link (2026-09-29-2.play named the
+# shaman:restoration tile just "shaman:restoration" with no "class:" prefix
+# on this same screen, while the raid-setup flow reached via "tap raid" names
+# tiles "class:warrior:protection" -- confirm which applies here before
+# spending the mash pull).
+open #b=whisper&s=10&h=0
+shot roster
+targets

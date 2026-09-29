@@ -1678,6 +1678,44 @@ repeat with more pulls (the spec's own default is nine) once there is room,
 to see whether pull 3's zero-hit anomaly is a real skill state the learner
 reached and then lost, or noise from one lucky mechanic-target roll.
 
+**2026-09-30, first `mash`-style pull of any tank spec, and the cost of doing
+nothing turns out to land on the player, not the raid.** `mode=raid`
+(boss=whisper, warrior:protection, `mash`, 10-normal, fresh, 390x844 touch --
+`playtest/plans/2026-09-30-1.play`). `mash` round-robins ability slots 1-5
+with no steering of its own, so a tank under it stands on its spawn point the
+whole pull and presses its own kit blind. Ran the identical script twice
+(fresh `open` each time, so a fresh seed both times, per `docs/playtest.md`'s
+own note that only the *first* pull after `open` is fixed):
+
+```
+seed A: played mash 240s total, outcome=ongoing phase=2 bossHp=41%
+  heroHp=969/2790 (35%) hits=5 hitsPerMin=1.3 enrage countdown=2s at cutoff
+seed B: played mash 121s total, outcome=victory phase=3 bossHp=0%
+  heroHp=1864/2790 (67%) hits=7 hitsPerMin=3.6 aliveParty=10/10 throughout
+```
+
+Both seeds show the same shape as this line's other entries -- `aliveParty`
+never dropped below 10/10 in either run, and the raid's own nine bodies did
+essentially all of the killing (7 landed hits from the player across the
+whole of seed B's clean win). What is new here is where the cost of that
+actually lands: not on the raid's outcome, which is fine either way, but on
+the *player's own* survival margin, which is not fine either way -- seed A's
+mash tank stood in a repeating `decay` ground effect it never stepped out of
+(mash has no steering) and was one enrage tick from finding out what a wipe
+under this line looks like, at 35% of its own health, while seed B cleared
+without incident in half the time on the same script. A style built to prove
+"nothing you do is a decision" for the *raid* found a case where it is very
+much a decision for the *character holding the controls* -- just one the
+raid's win condition does not price in.
+
+**Not filed** -- fourteen open issues held the gate shut. Also not a clean
+disprove-or-confirm (mash is not `good`), so this sharpens rather than
+resolves the line: worth an `idle` vs `mash` pair on this exact cell once
+there is room, to see whether standing still *without* pressing anything
+would have taken the same `decay` tick mash's blind presses did nothing to
+avoid, or whether mash's own button-mashing is what kept the player rooted
+in it.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
