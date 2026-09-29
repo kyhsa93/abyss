@@ -3953,6 +3953,55 @@ applies to `hound`/`flight` timing. Driver lesson, not filed as a game finding
 (gate shut at fourteen open issues); `scripts/playbot.ts` is outside what this
 job may touch.
 
+**2026-09-29, a sixth confirmation, and the free ride does not survive the
+very next boss.** `mode=walk`, `boss=marrow` (a coverage label only -- the
+walk starts at the door same as any other), hunter:marksmanship, `auto`,
+25-heroic, carried (behaves as fresh per #273), 844x390 touch
+(`playtest/plans/2026-09-29-24.play`) -- the first `auto`+marksmanship
+reading inside an actual evening (multiple rooms and corridors) rather than
+a single `mode=clear` sitting, and a direct answer to the caution the entry
+above ends on: read a spec's own positioning demand against the room, not
+against "auto" in general.
+
+THE VIGIL crossed clean in 25.6s (`presses=3`) -- a further confirmation of
+[[#6]]'s "25-heroic crosses clean regardless of style" pattern, now
+unsurprising after a dozen-plus confirmations, not written up there again.
+Bonegrinder-heroic woke immediately after and died clean at `fightTime=86`,
+`aliveParty=24/25`, `heroHp=1620/1620` (full health), `presses=0
+inDanger=4%` -- the fifth entry's free ride repeating on the same boss this
+line has now seen it on twice. Two more corridors crossed clean into The
+Last Whisper heroic, and there the shape inverted completely: the room ran
+out its full 240s budget at `fightTime=237`, boss at 43%, `aliveParty=24/25`,
+`heroHp=1050/1620` (65%, so the body was taking real damage, just landing
+none), and `bill` read `hits=1 hitsPerMin=0.3 taken=3129 takenPerMin=790.8
+byMechanic={"volley":1}` -- one landed ability in nearly four minutes.
+`end.png` (zoomed) shows why: the distance widget read `+0% AT RANGE`, not
+the `+35%` the fifth entry's Bonegrinder pull found, and `state`'s own ability
+bar (`steady_shot`/`serpent_sting`/`aimed_shot`) read `status:"range"` --
+`src/sim/combat.ts:1317`'s out-of-range block -- at both the opening check
+and 237 seconds later. Two different range gates, both failing at once:
+`src/render/hud.ts:1751`'s bonus needs `dist(player,target) > 150` and the
+ability's own cast needs `gap <= ability.range + target.radius`, so a fixed
+opening position can land a marksmanship body in the gap between them --
+too close for the standing-still bonus, still too far to swing -- and
+`auto`'s own no-steering defect (established above) means nothing ever
+closes it. The whole fight's damage board shows the cost directly: 28th of
+25-ish ranked bodies at 14 dps, last on the board.
+
+**Sharpens [[#1]] rather than [[#6]]'s or the fifth entry's own line**: the
+raid did not wipe, and did not even come close (`aliveParty` held at 24/25
+the whole evening, same as the Bonegrinder pull) with the one body in the
+room contributing one landed hit across an entire boss encounter --
+another instance of this line's own shape (a body doing nothing does not
+cost the raid), this time produced by `auto`'s driver gap rather than a
+style choice, and on the very next room after the same spec/style pairing
+looked like it had found a systematic advantage. The fifth entry's own
+reading was positional luck specific to Bonegrinder's fixed engagement
+point, not a marksmanship-plus-`auto` synergy -- worth remembering before
+crediting `auto` with "working" on a spec again without checking the
+specific room's own geometry first. Driver lesson, not filed as a game
+finding (gate shut at fourteen open issues).
+
 **2026-09-26, driver lesson, not a game finding.** `melee` (and by the same
 logic, `good`'s own toward-boss term) steers at `hud().boss`'s raw
 coordinate and nothing else -- fine on every fight that has one hittable

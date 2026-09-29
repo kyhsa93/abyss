@@ -1,0 +1,37 @@
+# playpick cell: mode=walk boss=marrow (coverage label only -- evening steers
+# at no boss, the walk starts at the door same as any other) spec=hunter:marksmanship
+# style=auto size=25 difficulty=heroic view=844x390,touch save=carried (behaves
+# as fresh per #273 -- the dev-server port is pid-derived so localStorage never
+# actually carries across separate playbot invocations). #b=marrow&s=25&h=1
+# unlocks the 25-heroic tier the same way every other 25-heroic carried-cell
+# script in this ledger does.
+#
+# Checked sessions.jsonl first: hunter:marksmanship has two prior mode=walk
+# appearances (flee/25-heroic/390x844, flee/10-normal/1280x800, both #271/#6
+# corridor-stall confirmations) and one mode=clear/auto/25-heroic/820x1180
+# reading (2026-09-29-7.play) that found marksmanship's own "+35% AT RANGE"
+# HUD bonus turns auto's never-moves defect into a near-solo Bonegrinder kill.
+# This cell has never been run: auto has never been paired with
+# hunter:marksmanship inside an actual evening (mode=walk, multiple rooms and
+# corridors, not a single mode=clear sitting) at 844x390 touch. Two questions
+# open: does THE VIGIL cross clean under auto+marksmanship the way it did
+# under flee twice before ([[#6]]'s style-independence-at-25-heroic pattern),
+# and does the marksmanship free-ride from the clear-mode reading above repeat
+# across a whole evening's worth of boss rooms rather than just one.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:hunter:marksmanship
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening auto 240 10
+shot end
+state
+says
+bill
