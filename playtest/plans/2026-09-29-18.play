@@ -1,0 +1,49 @@
+# playpick cell: mode=daily boss=host (coverage label only -- daily.boss is
+# not a real playpick axis, the actual daily is whatever the date computes)
+# spec=paladin:retribution style=dodge view=844x390,touch save=fresh.
+#
+# Probed first (2026-09-29-18-probe.play): today's actual daily is The
+# Bloodgorged, 25-player normal, FALTERING -- the identical boss/size/
+# difficulty/affix and almost certainly the identical day-key a 2026-09-29
+# session already fought as paladin:protection/melee (playtest/plans/
+# 2026-09-29-10.play), which found the single-actor-death bug (sim.ts:
+# 783-788 ending the pull the instant the player's own body dies rather than
+# the whole raid) costing a kill that was 2% (6113/375200) from landing, with
+# three raiders down (aliveParty=22/25). This repeats the same instance as a
+# different role entirely -- ranged dps rather than tank -- and dodge rather
+# than melee, to see whether the same bug fires when the tracked body is not
+# the one standing in melee range. Class grid confirmed via probe: Paladin
+# DPS (retribution) is class:4 (row1: Warrior Tank/DPS, then Paladin Tank/
+# Heal/DPS).
+open
+tap daily
+tap class:4
+targets
+tap start
+waitscreen fight 15
+state
+shot start
+targets
+ui
+bill
+
+play dodge 90
+state
+shot mid1
+bill
+
+play dodge 90
+state
+shot mid2
+bill
+
+play dodge 90
+state
+shot mid3
+bill
+
+play dodge 90
+state
+shot mid4
+bill
+says

@@ -1,0 +1,12 @@
+# playpick cell: mode=daily boss=host (coverage label only -- daily.boss is
+# not a real playpick axis, the actual daily is whatever the date computes)
+# spec=paladin:retribution style=dodge view=844x390,touch save=fresh.
+#
+# Probe first: today's actual daily boss/size/difficulty/affix, and the exact
+# class-tile label for paladin:retribution on this viewport before committing
+# to a full script.
+open
+tap daily
+targets
+state
+shot today

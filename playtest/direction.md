@@ -4975,6 +4975,42 @@ viewport, now confirmed on a second class with a differently-labelled bar
 Nothing new here -- both shapes were already understood -- so not written up
 as its own line.
 
+**2026-09-29, the same day's instance fought twice, and the single-actor-death
+bug caught inflating an outcome rather than only deflating one.** `mode=daily`
+gave paladin:retribution, `dodge`, fresh, 844x390 touch
+(`playtest/plans/2026-09-29-18.play`, probed first via `-18-probe.play`).
+Today's daily was, again, The Bloodgorged, 25-normal FALTERING -- the
+identical boss/size/difficulty/affix a same-day session had already fought a
+few hours earlier as paladin:protection/`melee` (`2026-09-29-10.play`,
+written up above), and per `docs/playtest.md`'s own account of `mode=daily`
+("the same fight for everybody, until midnight") and the daily-retry bug's
+own source citation (`createState(daily.seed, 0, ...)`, always attempt zero)
+both runs are pull one of the exact same seed -- the closest thing to a
+controlled pair this line has had, one role and style swapped for another on
+a fight neither could steer.
+
+The protection/melee run wiped at boss 2% (`6113/375200`) with
+`aliveParty=22/25` -- a raid three bodies down, seconds from a kill, called a
+flat loss because the player itself (standing in melee range) was the one
+death. This retribution/`dodge` run never let its own body take a mechanic at
+all (`inDanger=0%` the whole way, `bill`'s only `byMechanic` entry across the
+whole fight is `gorge`, a direct-target hit rather than a floor patch, so
+dodge's floor-avoidance policy had nothing to do here) and read a clean
+`outcome=victory` at `fightTime=156`, `bossHp=0%` -- with `aliveParty=14/25`,
+eleven of twenty-five dead, a worse raid than the one the melee run's session
+called a wipe over. The tracked body's own health (`heroHp=250/1800` at the
+end, down from `609/1800` at the 87s mark, never zero) is the entire reason
+the two readings point opposite ways on the same seed: a raid at 88% strength
+lost because one body died, a raid at 56% strength won because that same slot
+didn't. Same mechanism as the three entries above
+(`sim.ts:783-788`/`harness.ts:28,791`), same non-filing (gate still shut at
+fourteen open issues), but the sharpest pairing yet, because it is not two
+different days' instances compared by argument -- it is the identical fight,
+read twice, disagreeing with itself in both directions depending on which
+body happened to be the tracked one. Reproduction on file:
+`2026-09-29-10.play` (the wipe) and `2026-09-29-18.play` (the victory), same
+day-key, both attempt zero.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
