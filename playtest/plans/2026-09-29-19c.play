@@ -1,0 +1,31 @@
+# Same cell as -19b.play (a fresh pull rolls its own terrain/seed, so this is
+# a new match, not a resumption): -19b got the mash tank to fightTime=278/300
+# with the enemy cart at 88% stopped and 22s left, but the script ran out
+# before a result screen. This run uses the same one-play-then-poll shape
+# from the start, aiming to actually see WIN/DEFEAT on this map/spec/style
+# for the first time today.
+open
+tap battleground
+tap map:escort
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+
+play mash 100
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 10
+state
+shot final
+says
+targets

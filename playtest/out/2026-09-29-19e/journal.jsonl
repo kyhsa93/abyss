@@ -1,0 +1,12 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-19e","view":"1280x800","touch":false,"seed":847798,"url":"http://127.0.0.1:5302/","at":1.2,"kind":"session"}
+{"hash":"/","screen":"home","mode":"raid","outcome":"ongoing","at":1.9,"kind":"open"}
+{"label":"battleground","box":[336,72],"screen":"battleground","mode":"raid","outcome":"ongoing","at":2.1,"kind":"tap"}
+{"label":"map:escort","box":[400,72],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.3,"kind":"tap"}
+{"label":"class:druid:guardian","box":[240,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"label":"pull","box":[1008,48],"screen":"fight","mode":"battleground","outcome":"ongoing","at":2.6,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"battleground","outcome":"ongoing","at":2.6,"kind":"waitscreen"}
+{"style":"mash","seconds":100,"outcome":"ongoing","fightTime":97,"phase":1,"aliveParty":"2/5","heroHp":"2373/4140","bossHp":"100%","presses":459,"inDanger":"0%","at":102.7,"kind":"played"}
+{"screen":"fight","mode":"battleground","outcome":"defeat","chamber":null,"hud":{"time":300.000000000023,"tick":9000,"phase":1,"countdown":0,"outcome":"defeat","auto":false,"touch":false,"zoom":3,"party":5,"alive":2,"me":{"name":"You","spec":"guardian","role":"tank","hp":4140,"maxHp":4140,"power":100,"maxPower":100,"alive":true,"casting":null,"bar":[{"slot":1,"id":"swipe","status":"range"},{"slot":2,"id":"maul","status":"range"},{"slot":3,"id":"growl","status":"ready"},{"slot":4,"id":"wild_charge","status":"ready"},{"slot":5,"id":"frenzied_regen","status":"ready"}]},"boss":{"name":"Corvin","hp":1350,"maxHp":1350,"x":-576.916765059653,"y":-15.085551792208753}},"at":312.8,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-19e/shots/final.png","screen":"fight","mode":"battleground","outcome":"defeat","at":312.9,"kind":"shot"}
+{"lines":[],"at":312.9,"kind":"says"}
+{"on":"fight","list":["party@1092,160 88x32","settings@1048,200 176x32","ability:5@1156,708 56x56","ability:4@1216,712 64x64","outcome:retry@544,732 176x56","outcome:party@736,732 176x56","ability:3@1128,760 64x64","ability:2@1188,760 56x64","ability:1@1244,760 56x64"],"at":312.9,"kind":"targets"}

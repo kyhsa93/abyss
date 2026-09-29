@@ -1,0 +1,44 @@
+# Follow-up to 2026-09-29-19.play. That run (druid:guardian, mash, escort,
+# 1280x800) had the tracked body die at fightTime~107 and every further
+# chained `play` call abort in 0s on the already-documented hero()===null
+# driver gap ("Tried and dropped" in direction.md), so the match's real
+# outcome was never seen -- only that both carts read a near-static 31%/57%
+# right up to the point polling stopped, which does not look like the rout
+# 2026-09-27-19's conquest tank-mash pull produced (126-400). This script
+# does the workaround that note names but nobody has run yet: mash to first
+# blood, then drop chained `play` entirely and poll with bare wait/state so
+# a death does not stop the driver from watching the rest of the match.
+open
+tap battleground
+tap map:escort
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+state
+
+play mash 100
+shot mid1
+state
+bill
+
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+shot late
+bill
+says

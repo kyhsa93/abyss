@@ -4559,6 +4559,62 @@ spec agreeing with the first `wander` pull's direction, and the first to show
 what a full, undisturbed `wander` match actually looks like end to end. Gate
 held shut at fourteen open issues; not filed.
 
+**2026-09-29, the second tank-spec `mash` pull this line asked for, matched
+on viewport to the first, and the first time this line has actually watched
+a battleground run its own clock out.** `playpick` gave `map=escort spec=
+druid:guardian style=mash view=1280x800 save=carried` (behaves as fresh per
+[[#5]]) -- exactly the follow-up the 2026-09-27 conquest entry above asked
+for: same role, same style, same 1280x800 desktop viewport, a different map.
+
+The first attempt (`playtest/plans/2026-09-29-19.play`) reproduced the
+already-understood driver gap rather than the game: the tank died at
+`fightTime~107` (`heroHp=0/4140`, three of five teammates already dead by
+97s) and every further chained `play` call aborted in 0s on `hero()===null`
+(`FAULT not-a-number` x2), the same "Tried and dropped" artifact the
+wander/escort entry above hit. But the state read just before the abort
+showed something the conquest pull never did: both cart bars reading
+`31%`/`57%`, one `held` and the other freshly gone from `pushing` to
+`stopped` -- not the rout shape a dead tank produced on conquest.
+
+Three follow-up runs (`-19b`, `-19c`, `-19d.play`) switched to bare
+`wait`/`state` polling after the first `play mash 100` chunk instead of
+chaining more `play` calls, specifically to watch past a death without
+tripping the abort. All three showed the same pattern: the tracked tank
+died and revived on the normal battleground respawn clock (`RESPAWN_EARLY=6`/
+`RESPAWN_LATE=11`, matching [[#7]]'s 2026-09-26 conquest confirmation) rather
+than staying down, `aliveParty` oscillated 2-4/5 the whole match, and both
+cart bars stayed in the 30s-90s percent range, `held` or `stopped`, never
+`pushing` all the way to an arrival -- `-19c.play` reached `fightTime=227`
+at `36%`/`78%` `held`/`held`, `-19d.play` reached `fightTime=297.5`
+(`"3s left"` on screen) at `37%`/`94%` `held`/`stopped`. A last run
+(`-19e.play`, same cell, long enough to poll past the cap) finally caught a
+real result: `outcome=defeat time=300` -- **`The Long Haul · 300s · 0 – 0`**,
+neither cart ever arriving. The damage board there confirms `mash`'s tank
+contributed almost nothing (`You`: `dps=7 hps=6 taken=6.1k`, against
+teammates' `dps` 40-85 and `taken` 6k-19k) and died once at 109s, matching
+every other `mash` reading this line has -- the mechanism (`mash` never
+leaves its pull spot, per source, so a tank given it never tanks) is
+unchanged from the conquest pull.
+
+What is new is the outcome shape, not the mechanism: the conquest tank-mash
+pull lost a blowout, `126-400`, in 153s; four escort tank-mash attempts on
+the identical role/style/viewport never once produced a rout, and the one
+that ran the full clock timed out at a dead heat, `0-0`. That directly
+complicates last session's tentative reading -- "losing the tank
+specifically is worse" was one comparison on one map, and the second map
+under the same passive-tank condition shows the opposite shape: escort's
+own pace (a slow tug-of-war that both sides can leave "held" or "stopped"
+for most of a match, per its own README description) looks more resistant
+to one absent role than conquest's contested point, not less. **Sharpened
+rather than confirmed:** [[#7]]'s core claim (a passive body costs its own
+team, where a raid's AI would carry it) still holds -- the mash tank never
+did what a tank does, on every one of five readings now, across two maps --
+but "which role you lose" does not generalize the way one data point
+suggested, and the map is doing at least as much work as the role. Gate held
+shut at fourteen open issues; not filed. Reproduction: `playtest/plans/
+2026-09-29-19.play` through `-19e.play`, `playtest/out/2026-09-29-19e/shots/
+final.png` for the `0-0` board.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

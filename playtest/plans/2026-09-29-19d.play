@@ -1,0 +1,36 @@
+# Third attempt at the same cell (mode=battleground map=escort spec=druid:
+# guardian style=mash, 1280x800), long enough this time to reach the map's own
+# 300s cap. -19c got to 227s with both carts merely "held" at 36%/78%, neither
+# side having arrived -- this run polls all the way to the cap to see the
+# actual result screen for a mash tank on escort for the first time.
+open
+tap battleground
+tap map:escort
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+
+play mash 100
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+wait 20
+state
+shot final
+says
+targets

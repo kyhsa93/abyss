@@ -1,0 +1,47 @@
+# playpick gave mode=battleground map=escort spec=druid:guardian style=mash
+# view=1280x800 save=carried. #7 in direction.md has one tank-spec mash pull
+# on record (2026-09-27-19, conquest, fresh) and it lost eighteen seconds
+# faster and 110 points worse than a dps-mash pull on the same map -- the
+# argument being that mash never leaves its pull spot (no steer term in
+# scripts/playbot.ts) so parking the team's only tank there, rather than an
+# interchangeable dps, costs more. Escort has never seen mash at all (six
+# prior sessions: dodge x2, melee x2, wander x2) and never seen a tank spec
+# either (the one tank on this map, 2026-09-29-something paladin:protection,
+# was melee-style). This is the second tank-mash battleground pull ever, on a
+# different map, matched on viewport (1280x800 desktop) to the first -- worth
+# seeing whether "losing the tank specifically is worse" holds on a map whose
+# whole win condition is a moving cart rather than a held point.
+open
+targets
+shot front
+
+tap battleground
+tap map:escort
+targets
+shot escort-picked
+
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play mash 100
+shot mid1
+state
+bill
+
+wait 5
+play mash 100
+shot mid2
+state
+bill
+
+wait 5
+play mash 100
+shot mid3
+state
+bill
+says
+targets

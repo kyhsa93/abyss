@@ -1,0 +1,27 @@
+# Same cell once more, -19d got to "3s left" (fightTime=297.5) with the
+# enemy cart at 94% stopped and ours at 37% held, cut off just before the
+# 300s clock actually expired. This is a short final chunk purely to catch
+# the result screen the last run just missed.
+open
+tap battleground
+tap map:escort
+tap class:druid:guardian
+tap pull
+waitscreen fight 15
+
+play mash 100
+wait 20
+wait 20
+wait 20
+wait 20
+wait 20
+wait 20
+wait 20
+wait 20
+wait 20
+wait 20
+wait 10
+state
+shot final
+says
+targets

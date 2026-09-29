@@ -1,0 +1,14 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-19",
+  "seed": 730529,
+  "view": "1280x800",
+  "entries": 28,
+  "faults": [
+    {
+      "hero": null,
+      "hp": 0,
+      "at": 113.4,
+      "kind": "fault:not-a-number"
+    }
+  ]
+}
