@@ -1,0 +1,41 @@
+# playpick cell: mode=clear spec=rogue:assassination style=good size=25
+# difficulty=heroic view=820x1180,touch save=carried (behaves as fresh, #273 --
+# carried never actually carries across separate playbot invocations because
+# the dev-server port is derived from the process pid).
+#
+# A fresh/carried save only opens Bonegrinder 10-normal by default, so
+# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
+# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
+# driver-lesson recipe).
+#
+# What no session has done before: rogue:assassination has been walked/cleared
+# under melee, auto, idle and wander (direction.md's #6 thread), but never
+# `good` -- the one style whose steering is an explicit beeline at a target,
+# not a fixed heading or a random one. direction.md's #6 has already pinned
+# rogue:assassination's own clean VIGIL crossings on its flat moveSpeed=178,
+# the fastest in the roster, and separately found that `good`'s own beeline
+# steering is what got a battleground body killed in under fifteen seconds on
+# four separate specs (walking a body straight into a hostile cluster with no
+# notion of how fragile it is). This cell is the first place both variables
+# land on the same body at once: the fastest class in the roster, under the
+# one style shown elsewhere to steer straight into danger, in a raid evening
+# rather than a battleground -- where getting to the boss fast might cross
+# corridors cleanly, or might carry the same walk-into-a-cluster habit into
+# THE VIGIL's own watchmen and Bonegrinder heroic's bonestorm aura (#267,
+# already measured as reversing melee's own hit ratio for a body that cannot
+# leave its reach).
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening good 200 8
+state
+shot end
+says
+bill
