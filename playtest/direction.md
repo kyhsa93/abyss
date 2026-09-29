@@ -5339,6 +5339,88 @@ second instance of the same root cause. Nothing sharper than that earlier
 note says already, so not written up as its own line -- left for whoever
 picks up #283.
 
+**2026-09-29, a personal best is only ever saved to disk on the pull that
+beats an existing one, so a normal playthrough that kills each boss once
+never has a single one on record.** `mode=menus`, 820x1180 touch, carried
+(behaves as fresh per #273). The one thing no prior menus session had tried:
+the front page's own SHARE button (tested clean by 2026-09-28-27 and
+2026-09-29-22, both against an empty `bests` record) with an actual kill on
+the board first, to read the "N of M bosses down" / "`<boss>` in `<time>`s"
+half of `gameMessage()` that "a player who has done nothing yet claims
+nothing" was always covering for.
+
+A one-off Playwright script
+(`playtest/plans/2026-09-29-26-share-progress.mjs`, its own `vite`, a fresh
+`Page` per phase per hypothesis-1's own same-document-navigation lesson so
+each `#hash` open is a real navigation) read the front page's SHARE before
+touching anything (`"Abyss — a raid boss, or five people who would rather
+you left\nhttp://.../"`, `before.png`), then opened `#b=marrow&s=10&h=0`,
+picked warrior:arms and pulled, idle style. The fight read
+`outcome=victory` at `fightTime=122.4` (`kill.png` -- a clean KILL,
+`OPENED 10-man heroic` banner earned, matching hypothesis 1's own idle-wins
+shape). A fresh `Page` back on the front page (`home-after-kill.png`,
+confirming `screen()==="home"`) then pressed SHARE again -- and read back
+the exact same string as before the kill, byte for byte, no boss count, no
+kill line.
+
+Read `src/main.ts:2536-2541` rather than guess why:
+
+```ts
+const moved = beat(bests, state)
+bests = moved.bests
+if (moved.beaten.length > 0) {
+  saveBests(bests)
+  ...
+```
+
+`saveBests` only runs inside the `beaten.length > 0` branch. `beat()`
+(`src/bests.ts:66-95`) itself is correct and says why in its own comment --
+"the first time something is recorded is not a personal best... an
+announcement that fires every time announces nothing" -- so a first-ever kill
+of a boss deliberately produces `beaten: []` while still writing
+`next.kills[boss.id] = time` into the *in-memory* `bests` object it returns.
+`main.ts` reads that comment as "nothing to save" instead of "nothing to
+announce", and the two are not the same thing: the updated record sits in the
+`bests` variable for the rest of the tab's life but is never handed to
+`saveBests`, so `localStorage['abyss.bests']` never receives it. A second
+diagnostic script (`playtest/plans/2026-09-29-27-diag-bests.mjs`) confirmed
+directly rather than inferred: `localStorage.getItem('abyss.bests')` read
+`null` both before the pull and immediately after the victory (same `Page`,
+no navigation at all, so this is not a reload/origin artifact) -- while
+`localStorage.getItem('abyss.history')` in the same breath held the full
+attempt record (`{"boss":"marrow","seconds":124.3,"outcome":"victory",...}`),
+proving `history` and `bests` are written on genuinely different schedules
+and only `bests` is silently skipped. `saveBests` has exactly one call site
+in the whole file (grepped), so there is no second path that could catch this
+later.
+
+The practical shape: **any player who kills each boss once, in order, the way
+the chain is built to be played, will never have a single boss on their own
+`bests` record** -- it only starts saving from the first time a *repeat* kill
+of the same boss happens to be faster or cleaner than the one before it, or a
+pull happens to out-damage a previous best by more than 2%. That silently
+breaks two things README promises rather than one: the front page's own
+"Sharing" line (`gameMessage()`'s "N of M bosses down" / furthest-boss-in-Ts
+line, the entire reason that share message is worth sending "next to the
+record"), and the awards/results-screen personal-best banners
+("Getting better at it": "personal bests announce themselves as they are
+beaten" -- true only once one already exists to beat). The kill-to-kill trend
+line on the results screen is unaffected, because it reads `history`, which
+saves correctly and unconditionally.
+
+**Not filed -- fourteen open `playtest` issues held the gate shut all
+session** (283, 282, 281, 279, 278, 276, 275, 274, 273, 272, 271, 269, 267,
+266) -- but this is a source-confirmed bug with a one-line fix (save `bests`
+unconditionally after `beat()`, the same way `unlocked`/`saveSetup()` a few
+lines above it already does), not a taste note, and it is the first session
+to actually exercise the record-carrying half of the front page's SHARE
+message rather than only its empty-record fallback. File as a bug the first
+session the gate opens, with `playtest/plans/2026-09-29-26-share-progress.mjs`
+and `playtest/plans/2026-09-29-27-diag-bests.mjs` as the two reproductions,
+`before.png`/`kill.png`/`home-after-kill.png`/`after.png` under
+`/tmp/pt-30-1-share-progress/` as the screenshot evidence, and
+`src/main.ts:2536-2541` plus `src/bests.ts:66-95` named as the fix site.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
