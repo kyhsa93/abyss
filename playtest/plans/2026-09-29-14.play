@@ -1,0 +1,46 @@
+# playpick gave battleground/escort (The Long Haul), mage:frost, wander,
+# fresh save, 390x844 touch. Direction.md's [[#7]] has exactly one prior
+# `wander` pull on this map (2026-09-28-19, priest:discipline, carried) and it
+# never reached a result screen (still ongoing at 154.3s of the 300s cap) --
+# this is the second ever, the first on a fresh save, the first non-healer,
+# and the first on a narrow phone viewport. Starting at the front page since
+# there is no invite hash into a battleground.
+open
+targets
+ui
+shot front
+
+tap battleground
+targets
+ui
+shot bgsetup
+
+tap map:escort
+targets
+shot classpick
+
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+state
+targets
+shot pulled
+
+# Three checked segments rather than one long blind one, so a death or a
+# result screen shows up in the journal close to when it actually happened.
+play wander 100
+bill
+state
+shot mid1
+
+play wander 100
+bill
+state
+shot mid2
+
+play wander 100
+bill
+says
+state
+targets
+shot mid3

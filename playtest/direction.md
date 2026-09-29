@@ -4841,6 +4841,41 @@ the list correctly exits to home -- the hit test answers the same
 lied, and it did not. `src/notes.ts` and its screen work exactly as
 commented, on the first real playthrough of them.
 
+**2026-09-29, the second `wander` pull on escort ever, the first on a fresh
+save and the first on a dps rather than a healer, and a third distinct way a
+`wander` body has died on this map.** `mode=battleground`, `map=escort` (The
+Long Haul), mage:frost, `style=wander`, fresh save, 390x844 touch
+(`playtest/plans/2026-09-29-14.play`). The only prior `wander` pull on escort
+(2026-09-28-19, priest:discipline, carried) died at `fightTime=54` near a
+hazard ring and then drifted, isolated, for the rest of what the script saw.
+
+For the first 97 seconds the body stood completely apart from the fight --
+`mid1.png` shows a lone token with "Out of range" printed over it and
+nothing else in the visible frame, the damage board crediting it 0 against
+teammates' 17-106 despite 374 presses (`bill`: `hits=0 hitsPerMin=0`), every
+ability locked at `"range"` the whole time. It then died between `fightTime`
+97 and 120 (`taken=1624` in that window, `aliveParty` 3/5 -> 2/5), still
+isolated by position rather than caught in an opening scrum -- a third
+distinct death shape for `wander` on this map, after the healer's ring-death
+and this one's solitary one.
+
+The match never reached a result screen again: the second `play wander 100`
+call aborted after 0 seconds (`FAULT not-a-number {hero:null}`), the exact
+already-documented "Tried and dropped" driver artifact (a chained `play`
+giving up once `hero()===null`), now reproduced on a fresh save and a dps
+for the first time. `wander`/escort is 0-for-2 on ever reaching a result
+screen in this job's history, but both failures are the driver's own polling
+gap, not a game symptom -- confirmed by the cart-hold percentages still
+ticking between `mid2.png` and `mid3.png` (33%/70%, timestamps 1.1s apart)
+while the journal itself stood still.
+
+**Not filed** -- gate shut at fourteen open issues, and the driver half of
+this is already covered by "Tried and dropped" rather than filable on its
+own. Worth a future session: drive a `wander`/escort pull past a death with
+bare `wait`/`state` polling instead of a chained `play` (the workaround
+"Tried and dropped" already names for this exact gap), to see for the first
+time whether this pairing ever reaches 300s or a cart arrival.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
