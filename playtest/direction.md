@@ -4922,6 +4922,59 @@ bare `wait`/`state` polling instead of a chained `play` (the workaround
 "Tried and dropped" already names for this exact gap), to see for the first
 time whether this pairing ever reaches 300s or a cart arrival.
 
+**2026-09-29, a third confirmation of the single-actor-death bug, and the
+first showing what it actually costs a live evening.** `mode=walk`
+(`boss=skyward`, a coverage label only), priest:discipline, `good`, 25-heroic,
+carried (behaves as fresh per #273), 820x1180 touch
+(`playtest/plans/2026-09-29-17.play`) -- the first `good`-style, first
+touch-viewport, and first priest:discipline evening at this size/difficulty.
+THE VIGIL crossed door to door in 31.1s (`10.0s` in, `41.3s` out, `presses=9`),
+a sixth-or-so clean 25-heroic crossing against [[#6]]'s now-consistent
+zero-stall record at this tier, and The Bonegrinder woke immediately on
+arrival (`boss-woken` at the same tick the corridor let go).
+
+What followed is the finding: four straight `outcome=wipe` readings on that
+one boss, at `fightTime` 132, 136, 132 and 145 seconds, with `bossHp` reading
+8%, 4%, 6% and 1% and `aliveParty` reading 24/25, 21/25, 24/25 and 21/25 each
+time -- the raid itself never below 21 of 25 standing, and the boss within a
+single-digit percent of dead on every single attempt, while `heroHp` read
+flat `0/1350` at every wipe: the priest itself, and only the priest, was ever
+the reason `s.outcome` flipped. The fifth attempt (`room n=6/10`) killed it
+clean (`aliveParty=23/25 heroHp=1350/1350 bossHp=down presses=41`), and the
+evening carried on through eastclimb, oratory and two pad rides with no
+further fault before its 10-room budget ran out.
+
+This is the same mechanism the two 2026-09-29 `mode=daily` entries above
+named from source (`sim.ts:783-788`'s `s.actors.find(a => a.isPlayer)` check
+firing before the real all-dead check on the next line) but the first time
+it has been seen inside a live `mode=walk` evening rather than a standalone
+pull, and the first time the cost has been visible end to end: four retries
+and roughly 530 seconds of `played` time spent re-fighting a boss the raid
+had already all but killed four times over, because the one body a person
+steers happened to be the one that died each time on what a raid win-check
+would have called a win. `PULL AGAIN` itself worked correctly on every one of
+these four (unlike #271's corridor-wipe wall -- this is a boss room, not
+THE VIGIL, and the room counter advanced normally each retry: n=3/10 through
+6/10), so this is purely the outcome field lying, not a stuck evening. Not
+filed -- fourteen open `playtest` issues held the gate shut -- but this
+sharpens rather than merely repeats the standing note: file it as the same
+bug the first session the gate opens, with this plan and its four wipe/retry
+journal lines added as the reproduction that shows real cost, not just a
+single anomalous pull.
+
+Same run, `ui` on priest:discipline's healer bar at 820x1180 touch (never
+checked before -- the two prior priest:discipline `ui` calls were at 390x844
+and 1280x800): `under44=["map 84x28","party 84x28","settings 172x28"]`,
+already #276's own finding reproduced on a third spec, and
+`overlapping=["auto / ability:5","auto / ability:4","ability:5 / ability:3",
+"ability:5 / ability:2","ability:4 / ability:2","ability:4 / ability:1"]` --
+the same `auto`-vs-neighbour sliver 2026-09-29's druid:guardian entry
+measured as a true, if tiny (~1px of radius), overlap at this exact
+viewport, now confirmed on a second class with a differently-labelled bar
+(`Flip Away`/`Rebuke`/`Quick Mend`/`Steady Mend`/`Mend`, not a dps kit).
+Nothing new here -- both shapes were already understood -- so not written up
+as its own line.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet

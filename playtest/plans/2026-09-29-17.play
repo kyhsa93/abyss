@@ -1,0 +1,39 @@
+# playpick cell: mode=walk boss=skyward (coverage label only -- evening steers
+# at no boss, the walk starts at the door same as any other) spec=priest:discipline
+# style=good size=25 difficulty=heroic view=820x1180,touch save=carried (behaves
+# as fresh per #273 -- the dev-server port is pid-derived so localStorage never
+# actually carries across separate playbot invocations). #b=marrow&s=25&h=1
+# unlocks the 25-heroic tier the same way every other 25-heroic carried-cell
+# script in this ledger does.
+#
+# Checked sessions.jsonl first: priest:discipline has three prior mode=walk
+# appearances (wander/25-heroic/1280x800/fresh, melee/25-heroic/844x390/carried,
+# flee/10-normal/844x390/carried, the last one this line's #6/#281 disprove-
+# attempt) but never good-style, and never at this touch viewport (820x1180).
+# It also has never had a `ui` check run on its own bar at 820x1180 -- the two
+# prior priest:discipline `ui` calls were both 390x844 and 1280x800 -- so this
+# is the first look at whether a healer's smaller ability set (heals, not a
+# 5-slot dps bar) avoids the auto/ability overlap sliver 2026-09-29's
+# druid:guardian session found at this exact viewport, or reproduces it under
+# a different button layout. [[#6]]'s running theory is that 25-heroic crosses
+# THE VIGIL clean regardless of style (five clean crossings on record, zero
+# stalls) -- this adds a sixth style/spec combination to that count if it holds,
+# and narrows it if it does not.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:priest:discipline
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening good 240 10
+shot end
+state
+says
+bill

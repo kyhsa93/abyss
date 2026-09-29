@@ -1,0 +1,69 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-17","view":"820x1180","touch":true,"seed":410587,"url":"http://127.0.0.1:5293/","at":1.2,"kind":"session"}
+{"hash":"#b=marrow&s=25&h=1","screen":"roster","mode":"raid","outcome":"ongoing","at":2,"kind":"open"}
+{"label":"back","box":[104,48],"screen":"home","mode":"raid","outcome":"ongoing","at":2.3,"kind":"tap"}
+{"label":"raid","box":[344,104],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-17/shots/raid-setup.png","screen":"raid","mode":"raid","outcome":"ongoing","at":2.6,"kind":"shot"}
+{"label":"next","box":[640,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.7,"kind":"tap"}
+{"label":"class:priest:discipline","box":[256,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.9,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-17/shots/class-selected.png","screen":"roster","mode":"raid","outcome":"ongoing","at":3.3,"kind":"shot"}
+{"label":"pull","box":[560,48],"screen":"fight","mode":"travel","outcome":"ongoing","at":3.5,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":3.5,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.13333333333333333,"tick":4,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"discipline","role":"healer","hp":1350,"maxHp":1350,"power":1050,"maxPower":1050,"alive":true,"casting":null,"bar":[{"slot":1,"id":"heal","status":"ready"},{"slot":2,"id":"renew","status":"ready"},{"slot":3,"id":"flash_heal","status":"ready"},{"slot":4,"id":"smite","status":"range"},{"slot":5,"id":"fade","status":"ready"}]},"boss":null},"at":3.6,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-17/shots/start.png","screen":"fight","mode":"travel","outcome":"ongoing","at":3.7,"kind":"shot"}
+{"on":"fight","list":["minimap@748,128 120x128","map@544,168 80x32","party@632,168 80x32","settings@588,200 168x32","auto@724,1028 56x56","ability:5@696,1080 64x64","ability:4@756,1080 56x64","ability:3@664,1128 64x64","ability:2@724,1128 56x64","ability:1@784,1128 64x64"],"at":3.8,"kind":"targets"}
+{"on":"fight","glass":"820x1180","controls":10,"list":["minimap 128x124 at 684,68","map 84x28 at 504,152","party 84x28 at 592,152","settings 172x28 at 504,188","auto 56x56 at 696,1000","ability:5 60x64 at 664,1048","ability:4 64x64 at 724,1048","ability:3 60x68 at 636,1096","ability:2 56x68 at 696,1096","ability:1 64x68 at 752,1096"],"under44":["map 84x28","party 84x28","settings 172x28"],"offGlass":[],"overlapping":["auto / ability:5","auto / ability:4","ability:5 / ability:3","ability:5 / ability:2","ability:4 / ability:2","ability:4 / ability:1"],"at":3.9,"kind":"ui"}
+{"n":"1/10","room":"threshold","mode":"travel","at":4,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@139"],"lit":["threshold"],"rode":[],"padHere":true,"at":4,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":60,"endedAt":{"x":-27.932916162450958,"y":-962.1210475789128},"presses":0,"secondsAtTheDoor":0,"stillAlive":192,"nearest":"The Damned,The Damned,The Damned,The Damned","at":10,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":10.1,"kind":"walked-on"}
+{"n":"2/10","room":"vigil","mode":"travel","at":10.2,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1279","threshold@31"],"lit":["threshold"],"rode":[],"padHere":false,"at":10.3,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":8,"endedAt":{"x":-0.4712270476471479,"y":-5716.905192506297},"presses":9,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":41.3,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":41.3,"kind":"boss-woken"}
+{"outcome":"wipe","time":132,"phase":3,"at":176.2,"kind":"fight-over"}
+{"style":"good","seconds":135,"outcome":"wipe","fightTime":132,"phase":3,"aliveParty":"24/25","heroHp":"0/1350","bossHp":"8%","presses":33,"inDanger":"2%","at":176.3,"kind":"played"}
+{"at_":"vigil","outcome":"wipe","wipes":1,"journalKeyClash":true,"at":176.4,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,48],"screen":"fight","mode":"raid","outcome":"ongoing","at":177,"kind":"tap"}
+{"n":"3/10","room":"spire","mode":"raid","at":177.2,"kind":"room"}
+{"hero":null,"hp":15,"at":316.1,"kind":"fault:not-a-number"}
+{"style":"good","seconds":139,"outcome":"wipe","fightTime":136,"phase":3,"aliveParty":"21/25","heroHp":"0/1350","bossHp":"4%","presses":44,"inDanger":"2%","at":316.2,"kind":"played"}
+{"at_":"spire","outcome":"wipe","wipes":2,"journalKeyClash":true,"at":316.3,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,48],"screen":"fight","mode":"raid","outcome":"ongoing","at":316.8,"kind":"tap"}
+{"n":"4/10","room":"spire","mode":"raid","at":346.9,"kind":"room"}
+{"outcome":"wipe","time":132,"phase":3,"at":452,"kind":"fight-over"}
+{"style":"good","seconds":105,"outcome":"wipe","fightTime":132,"phase":3,"aliveParty":"24/25","heroHp":"0/1350","bossHp":"6%","presses":32,"inDanger":"3%","at":452,"kind":"played"}
+{"at_":"spire","outcome":"wipe","wipes":3,"journalKeyClash":true,"at":452.1,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,48],"screen":"fight","mode":"raid","outcome":"ongoing","at":452.3,"kind":"tap"}
+{"n":"5/10","room":"spire","mode":"raid","at":482.7,"kind":"room"}
+{"outcome":"wipe","time":145,"phase":3,"at":600.2,"kind":"fight-over"}
+{"style":"good","seconds":118,"outcome":"wipe","fightTime":145,"phase":3,"aliveParty":"21/25","heroHp":"0/1350","bossHp":"1%","presses":33,"inDanger":"4%","at":600.3,"kind":"played"}
+{"at_":"spire","outcome":"wipe","wipes":4,"journalKeyClash":true,"at":600.3,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,48],"screen":"fight","mode":"raid","outcome":"ongoing","at":600.6,"kind":"tap"}
+{"n":"6/10","room":"spire","mode":"raid","at":630.8,"kind":"room"}
+{"style":"good","seconds":240,"outcome":"ongoing","fightTime":130,"phase":1,"aliveParty":"23/25","heroHp":"1350/1350","bossHp":"down","presses":41,"inDanger":"3%","at":871.3,"kind":"played"}
+{"room":"spire","at":871.4,"kind":"boss-down"}
+{"n":"7/10","room":"spire","mode":"travel","at":871.5,"kind":"room"}
+{"room":"spire","took":"eastclimb","why":"unvisited","ways":["eastclimb@922","vigil@1005","westclimb@1099"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":871.8,"kind":"door"}
+{"from":"spire","to":"eastclimb","aimedAt":"door","closestGot":143,"endedAt":{"x":1499.657320621654,"y":-5833.787433834629},"presses":5,"secondsAtTheDoor":0,"stillAlive":143,"nearest":"Blighted Abomination,Blighted Abomination,Plague Scientist,Pustulating Horror","at":882.3,"kind":"crossed"}
+{"from":"spire","to":"eastclimb","at":882.4,"kind":"walked-on"}
+{"n":"8/10","room":"eastclimb","mode":"travel","at":882.5,"kind":"room"}
+{"room":"eastclimb","took":"oratory","why":"unvisited","ways":["spire@39","oratory@394"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":882.7,"kind":"door"}
+{"from":"eastclimb","to":"oratory","aimedAt":"door","closestGot":28,"endedAt":{"x":820.3676596523464,"y":-7609.083909201287},"presses":6,"secondsAtTheDoor":0,"stillAlive":143,"nearest":"Blighted Abomination,Blighted Abomination,Plague Scientist,Pustulating Horror","at":895.7,"kind":"crossed"}
+{"from":"eastclimb","to":"oratory","at":895.8,"kind":"walked-on"}
+{"n":"9/10","room":"oratory","mode":"travel","at":895.9,"kind":"room"}
+{"label":"pad","box":[336,208],"screen":"citadel","mode":"raid","outcome":"ongoing","at":912.9,"kind":"tap"}
+{"label":"room:threshold","box":[88,48],"screen":"fight","mode":"travel","outcome":"ongoing","at":914.7,"kind":"tap"}
+{"from":"oratory","to":"threshold","wanted":"threshold","lit":["threshold"],"at":914.7,"kind":"took-the-pad"}
+{"from":"oratory","to":"threshold","aimedAt":"boss:whisper","closestGot":300,"endedAt":{"x":-59.99999999999998,"y":-108},"presses":0,"secondsAtTheDoor":0,"stillAlive":135,"nearest":"Blighted Abomination,Blighted Abomination,Plague Scientist,Pustulating Horror","at":914.7,"kind":"crossed"}
+{"from":"oratory","to":"threshold","at":914.8,"kind":"walked-on"}
+{"n":"10/10","room":"threshold","mode":"travel","at":914.8,"kind":"room"}
+{"label":"pad","box":[344,208],"screen":"citadel","mode":"travel","outcome":"ongoing","at":916.8,"kind":"tap"}
+{"label":"room:oratory","box":[88,40],"screen":"fight","mode":"travel","outcome":"ongoing","at":918.3,"kind":"tap"}
+{"from":"threshold","to":"oratory","wanted":"oratory","lit":["oratory"],"at":918.3,"kind":"took-the-pad"}
+{"from":"threshold","to":"oratory","aimedAt":"door","closestGot":"n/a","endedAt":{"x":203.13818963164096,"y":-7710.275071290551},"presses":0,"secondsAtTheDoor":0,"stillAlive":135,"nearest":"Blighted Abomination,Blighted Abomination,Plague Scientist,Pustulating Horror","at":918.3,"kind":"crossed"}
+{"from":"threshold","to":"oratory","at":918.4,"kind":"walked-on"}
+{"rooms":10,"wipes":4,"walked":["threshold(travel,ongoing,6s)","vigil(travel,wipe,166s)","spire(raid,wipe,139s)","spire(raid,wipe,105s)","spire(raid,wipe,118s)","spire(raid,ongoing,241s)","spire(travel,ongoing,11s)","eastclimb(travel,ongoing,13s)","oratory(travel,ongoing,19s)","threshold(travel,ongoing,4s)"],"reached":"threshold -> vigil -> spire -> eastclimb -> oratory","endedAt":"oratory","at":918.4,"kind":"evening"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-17/shots/end.png","screen":"fight","mode":"travel","outcome":"ongoing","at":918.5,"kind":"shot"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"oratory","hud":{"time":0.16666666666666666,"tick":5,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":23,"me":{"name":"You","spec":"discipline","role":"healer","hp":1350,"maxHp":1350,"power":1050,"maxPower":1050,"alive":true,"casting":null,"bar":[{"slot":1,"id":"heal","status":"ready"},{"slot":2,"id":"renew","status":"ready"},{"slot":3,"id":"flash_heal","status":"ready"},{"slot":4,"id":"smite","status":"range"},{"slot":5,"id":"fade","status":"ready"}]},"boss":null},"at":918.5,"kind":"state"}
+{"lines":[],"at":918.5,"kind":"says"}
+{"fightTime":0,"outcome":"ongoing","hits":0,"hitsPerMin":0,"taken":0,"takenPerMin":0,"died":false,"byMechanic":{},"at":918.5,"kind":"bill"}
