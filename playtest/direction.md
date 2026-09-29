@@ -5117,6 +5117,63 @@ body happened to be the tracked one. Reproduction on file:
 `2026-09-29-10.play` (the wipe) and `2026-09-29-18.play` (the victory), same
 day-key, both attempt zero.
 
+**2026-09-29, the DAILY screen's own SHARE and a kill screen's own SHARE,
+each pressed by a session for the first time, with real clipboard
+permission granted from the start.** `mode=menus`, 820x1180 touch, carried
+(behaves as fresh per #273). Not a bug: a confirmation, kept here so the
+next session does not spend a cell re-deriving it.
+
+`README.md`'s "Sharing" section names three SHARE buttons -- front page,
+today's screen, and the results screen -- and only the front page's had
+ever actually been pressed with clipboard access granted: `grep -l 'tap
+share' playtest/plans/*.play` turns up exactly two hits
+(`2026-09-25-19.play`, `2026-09-26-44.play`), both on the front page, and
+2026-09-28-27's own clipboard-permission fix (the one that turned a
+`NO LUCK` reading into a confirmed `COPIED`, by granting
+`clipboard-read`/`clipboard-write` at context creation, which
+`scripts/playbot.ts` itself never does) only ever re-tested that same
+button. The daily and results buttons were untested twice over: never
+tapped by any script, and never tapped with a context that could actually
+read back what landed in the clipboard.
+
+A one-off Playwright script
+(`playtest/plans/2026-09-29-22-share-daily-results.mjs`, its own `vite` on
+a spare port, one context with `permissions: ['clipboard-read',
+'clipboard-write']` granted up front) pressed both. `open` -> `tap daily`
+-> `tap share` read the clipboard as `"Abyss — 2026-09-29\nThe Bloodgorged
+· 25 player · normal\nFaltering: healing lands for a quarter
+less\nnot attempted yet\nhttp://.../#d=20260929"` (`daily-after.png`,
+button reading `COPIED`) -- boss, size, difficulty, the day's affix and its
+own detail line, "not attempted yet" (a fresh profile, no daily result on
+file), and a day-link, matching `dailyMessage()`
+(`src/share.ts:85-101`) field for field. `open #b=marrow&s=10&h=0` -> `tap
+class:warrior:arms` -> `tap pull` -> idle (zero presses, the same style
+hypothesis 1 has repeatedly shown wins this exact pull) to a clean
+`KILL` at `fightTime=124.0` -> `tap outcome:share` read `"Abyss — The
+Bonegrinder\n10 player · normal · killed in 124.0s\nas Warrior DPS, 30
+mechanics eaten\nhttp://.../#b=marrow&s=10&h=0"` (`outcome-after.png`),
+matching `killMessage()` (`src/share.ts:108-123`) exactly, including a
+fight-link rather than a day-link. Both of README's remaining claims hold
+exactly as written, on the first real press either one has ever had.
+
+Driver lesson, not a game finding: the script's first run faulted
+`no-such-control: share` on the outcome screen, because its own hand-rolled
+label matcher only tried an exact match and a `label:` prefix, not the
+`.includes()` fallback `scripts/playbot.ts`'s real `Driver.tap()` also
+carries -- the outcome overlay's actual control is named `outcome:share`,
+not `share`, and only the third fallback catches it. Worth remembering
+before writing another one-off script against `window.__abyss.targets()`:
+copy all three matching rules, not the two that look sufficient.
+
+Incidental to this, not new: `outcome-after.png` reproduces #283's banner
+overlap a second time over -- `First Blood`/`Nobody Fell`/`Nobody Left
+Standing` stacked three deep over the damage board's top three rows (Vale,
+Kestrel, Wren) and partly over the `OPENED 10-man heroic` rung banner
+2026-09-29's earlier win-screen entry above already flagged as a possible
+second instance of the same root cause. Nothing sharper than that earlier
+note says already, so not written up as its own line -- left for whoever
+picks up #283.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
