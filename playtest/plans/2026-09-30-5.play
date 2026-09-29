@@ -1,0 +1,66 @@
+# Cell from playpick: mode=battleground map=conquest spec=rogue:assassination
+# style=wander view=844x390,touch save=fresh.
+#
+# Checked sessions.jsonl and playtest/plans/*.play first. rogue:assassination
+# has been played nine times this job's history and every single one was
+# mode=raid, mode=walk or mode=clear -- never a battleground. Conquest has
+# seen `wander` exactly once before (2026-09-29-8.play, priest:shadow,
+# desktop 1280x800): that body never engaged, took 78 total damage the whole
+# match, and the match still ended in defeat (direction.md [[#7]]). Conquest
+# also has an independent thread on melee/closing-distance: two different
+# good-style casters (druid:balance, druid:restoration) both died at
+# fightTime~9s beelining into the opening scrum, read as "conquest's own
+# opening geometry punishes closing distance in the first ~9 seconds"
+# (direction.md [[#7]], 2026-09-28).
+#
+# This cell crosses those two threads for the first time: a melee spec
+# (rogue, the roster's fastest class per the #271 melee-evening finding)
+# under `wander`, on the one map already flagged for punishing anyone who
+# closes distance early, on a phone touch viewport nobody has used for
+# `wander`+conquest before (prior pull was desktop). `wander` doesn't aim at
+# the enemy cluster on purpose, but being a melee spec means any auto-attack
+# it lands has to happen inside the same danger radius that killed the two
+# casters -- this pull asks whether a melee body that "doesn't try" fails
+# the same way the passive ranged pull did (#7's core shape) or the same way
+# the closing-distance casters did (a third, distinct shape).
+
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:rogue:assassination
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play wander 90
+shot mid1
+state
+bill
+says
+
+wait 5
+play wander 90
+shot mid2
+state
+bill
+
+wait 5
+play wander 90
+shot mid3
+state
+bill
+says
+targets

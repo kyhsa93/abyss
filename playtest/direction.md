@@ -4868,6 +4868,50 @@ shut at fourteen open issues; not filed. Reproduction: `playtest/plans/
 2026-09-29-19.play` through `-19e.play`, `playtest/out/2026-09-29-19e/shots/
 final.png` for the `0-0` board.
 
+**2026-09-30, the first melee spec under `wander`, and the first pull that
+connects this line's two threads instead of adding a third.** `playpick` gave
+`map=conquest spec=rogue:assassination style=wander view=844x390,touch
+save=fresh` -- rogue:assassination's first battleground pull ever (its nine
+priors were all `raid`/`walk`/`clear`) and `wander`'s first phone-touch
+reading (its one prior conquest pull, 2026-09-29-8, was desktop 1280x800).
+
+`playtest/plans/2026-09-30-5.play`: `play wander 90` opened exactly like the
+priest:shadow wander pull above -- `Out of range` on screen (`mid1.png`),
+`bar` reading `"range"` on all three offensive slots, `hits=0 hitsPerMin=0`
+across 364 presses, isolated from every red circle on the minimap, at
+`fightTime=87` `heroHp=662/1530` `aliveParty=3/5`. Sixty-forty **that a melee
+kit would still land nothing while wandering was itself worth confirming**:
+the ranged priest's zero hits could be read as "never gets close enough
+to be in range of anything," but a melee spec's engage range is short
+enough that random wandering should eventually put it inside it by chance
+alone if the movement pattern ever approaches an enemy -- and it still read
+`hits=0` for the entire 106s the fight lasted, so `wander`'s own path isn't
+converging on a target even at melee range, not just failing to close a
+ranged gap.
+
+What's new past that confirmation: the *consequence* diverged from the
+ranged pull's for the first time this line has actually shown, on the same
+map. Between the `fightTime=87` and `fightTime=100` samples the tracked
+body crossed from empty ground into a contested point's own hazard ring
+(`mid2.png`: `You` reads `DOWN` standing inside a red capture-zone circle
+overlapping a second body) and died there, `takenPerMin` jumping from 597
+to 1182 across the transition, `died=true`, zero hits landed in its entire
+time alive. The ranged priest's wander pull (2026-09-29-8) never crossed
+into a hazard at all and survived the full match, hitless but untouched;
+this melee pull also never landed a hit, but the same short range that
+should have been its chance to engage instead put it inside the point's own
+danger radius the moment `wander`'s path happened to cross it, and it died
+there having contributed nothing on the way in. Read together with the
+`good`-style casters that beelined into this same map's opening scrum and
+died at ~9s ([[#7]], 2026-09-28): three different styles now agree that
+conquest's contested-point geometry is lethal to close, whether the body
+is aiming at it (`good`) or wandering through it by accident (`wander`) --
+`flee`/`dodge`, which never engage on purpose, remain the only styles that
+survive it. `bill` for the full pull: `hits=0 hitsPerMin=0 taken=2081
+takenPerMin=1182 died=true byMechanic={}`. Gate held shut at fourteen open
+issues; not filed. Reproduction: `playtest/plans/2026-09-30-5.play`,
+`mid1.png`/`mid2.png`/`mid3.png`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
