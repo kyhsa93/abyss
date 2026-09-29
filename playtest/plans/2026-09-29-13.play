@@ -1,0 +1,40 @@
+# playpick cell: mode=menus view=820x1180,touch save=carried
+#
+# First session to open RECORD's third tab ("bosses", src/render/history.ts)
+# and a boss's own notes page (src/notes.ts) at all -- seventeen prior menus
+# sessions read the pulls and awards tabs but never this one, even though
+# README's "Getting better at it" section is built partly around it. Kill
+# Bonegrinder 10-normal in this invocation, then check whether its page
+# reflects what was actually shown/eaten, whether an unfought boss's page
+# reads honestly blank, and whether the page's own "ALL BOSSES" back label
+# actually returns to the boss list rather than exiting the screen (the hit
+# test is the same {kind:'back'} either way, so the label is the only thing
+# that could lie).
+open #b=marrow&s=10&h=0
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+play mash 150
+shot outcome
+state
+tap outcome:party
+tap back
+tap record
+targets
+shot record-pulls
+tap tab:bosses
+targets
+shot record-bosses-list
+tap boss:0
+targets
+shot record-bosses-page-marrow
+tap back
+tap boss:1
+targets
+shot record-bosses-page-second
+tap back
+targets
+shot record-bosses-list-after
+tap back
+shot record-after-back
+state

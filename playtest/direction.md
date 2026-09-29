@@ -4807,6 +4807,40 @@ flat `wipe`. Confirms the mechanism generalises past one boss and past the
 `harness.ts:28,791` pair, still not filed (gate shut), no new reproduction
 needed beyond adding this plan to the two already on file.
 
+**2026-09-29, the RECORD screen's third tab, opened for the first time this
+job has ever opened it.** `mode=menus`, 820x1180 touch, carried (behaves as
+fresh per #273). Not a bug: a confirmation, kept here so the next session
+does not spend a cell re-deriving it.
+
+Seventeen prior `mode=menus` sessions had read the PULLS and AWARDS tabs
+(the AWARDS tab first on 2026-09-26) but never BOSSES, and so never a boss's
+own notes page (`src/notes.ts`) -- the mechanism `README.md`'s "Getting
+better at it" leans on for the game's whole "nothing on the character gets
+stronger, so what a pull pays out is knowing the fight" claim.
+
+`open #b=marrow&s=10&h=0` (Bonegrinder, 10-man normal), `warrior:arms`,
+`play mash 150` to a kill at `fightTime=114`
+(`playtest/plans/2026-09-29-13.play`), then `tap outcome:party` -> `tap
+back` -> `tap record` -> `tap tab:bosses`, all in one invocation so the
+carried profile survives (`docs/playtest.md`'s own `#273` lesson). Zero
+driver faults across 30 journal lines. The list read "3 of 62 mechanics
+met", Bonegrinder alone at the top in red with "1 pull . 1 kill . 3/3" and
+every other boss dimmed with "never pulled . 0/N" (`record-bosses-list.png`)
+-- opening Bonegrinder's own page named its three mechanics by their real
+names and hit counts, "the cold line caught you 15x", "the spikes never
+caught you", "the storm caught you 12x" (`record-bosses-page-marrow.png`),
+matching `mash`'s own `byMechanic` tally exactly in shape (three distinct
+mechanics landing, none at zero given a blind-mash style). A second boss's
+page (The Last Whisper, never pulled) read honestly blank: "never pulled --
+everything below is still ahead of you", all seven of its mechanics listed
+by name and "not met" (`record-bosses-page-second.png`). The page's own
+"ALL BOSSES" back label (`src/render/history.ts`'s `drawBack`) does return
+to the boss list rather than exiting the screen, and a second `back` from
+the list correctly exits to home -- the hit test answers the same
+`{kind:'back'}` either way, so the label was the only thing that could have
+lied, and it did not. `src/notes.ts` and its screen work exactly as
+commented, on the first real playthrough of them.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
