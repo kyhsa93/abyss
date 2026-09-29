@@ -2074,6 +2074,53 @@ full evening script rather than a single-corridor `mode=walk`, so it also
 exercises the retry wall from a genuinely different setup path (`#b=marrow
 &s=25&h=1` unlock into `mode=clear`) than any prior #271 report.
 
+**2026-09-29, fourteenth confirmation and the mechanism, read from source
+rather than played.** The picked cell (`mode=clear`, shaman:elemental, `flee`,
+10-normal, fresh, 390x844 touch, `playtest/plans/2026-09-29-25.play`) is the
+first `flee`+shaman:elemental clear evening and the first for this spec at
+its own default tier rather than 25-heroic carried. THE VIGIL wiped at 35.3s
+(`closestGot=10`), `outcome:retry` was tapped, and it re-wiped instantly
+(`closestGot=n/a`) exactly as every prior report: a second retry the same,
+`fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}` at 96.2s, final
+state `hp=0/1440 alive=false` with all five ability slots `"status":"locked"`
+(`end.png` matches every other #271 screenshot's DEFEAT shape pixel for
+pixel: "0.0s · 8 down", flat `-`/`0` board, PULL AGAIN highlighted). No pad
+was involved -- a plain `cross()` corridor wipe -- which already narrows the
+thirteenth confirmation's open question toward "any travel wipe," not just
+one landing mid-pad-ride.
+
+While the gate held this shut anyway (still fourteen open `playtest`
+issues), this session read `src/main.ts` rather than adding a fifteenth spec,
+and the read explains all fourteen confirmations at once. `restart()` (1470),
+on a travel room, resets `run.carried` via `wipedRoom()` and then calls
+`reenter()` -> `walkTo()` (1274). `walkTo()`'s own first line is `harvest()`
+(1039), which only acts while `state.mode === 'travel'` -- true here, because
+`state` is still the just-died corridor, not yet replaced. `harvest()` reads
+`carriedOut(state)` off that dead state (a dead actor's share is `-1`) and
+writes it back into `run.carried`, clobbering the reset `wipedRoom()` made one
+line earlier. `walkTo()` then sets `roomCarried = [...run.carried]` (now all
+`-1`), builds a fresh corridor `SimState`, and calls `carryInto(state)` (859),
+which turns any actor with a negative `roomCarried` share into `alive=false,
+hp=0` -- so the brand-new corridor is painted dead before its first tick.
+Boss-room retries (`enterRoom()`) never call anything with this shape while
+`state.mode` is `'raid'`, so `harvest()` no-ops there, which is the whole
+reason a boss-room PULL AGAIN works and a corridor one never has. Commented
+the mechanism on #271 with these line numbers rather than filing (a comment
+is not one of the two issues, and the practice of adding findings to #271
+under a shut gate is already established on this line). Not yet actually
+fixed by anyone -- this is a reading, not a patch, and the fix belongs to
+`docs/upkeep.md`'s gate -- but the open question this line has carried since
+the ninth confirmation ("is PULL AGAIN broken full stop, or only for a wipe
+that lands mid-pad-ride") is answered: it is not about pads at all, it is
+`harvest()` running once too many times.
+
+**This sub-line is done.** Sharpened all the way to a source-level cause and
+a comment on #271 with it; nothing further to add by playing more cells. The
+outer hypothesis (a travel-mode wipe cannot be retried) stays standing only
+in the sense that nobody outside this job can act on it until `docs/upkeep.md`
+picks it up -- fourteen confirmations plus a mechanism is the ceiling this
+line can reach from inside a shut gate.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five

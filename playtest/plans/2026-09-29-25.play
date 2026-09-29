@@ -1,0 +1,40 @@
+# playpick cell: mode=clear spec=shaman:elemental style=flee size=10
+# difficulty=normal view=390x844,touch save=fresh.
+#
+# Checked sessions.jsonl first (grepped every shaman:elemental line and every
+# mode=clear line): shaman:elemental has two prior clear-mode evenings, both
+# 25-heroic on a carried save (good, then melee) -- never flee, and never at
+# this spec's own default 10-normal/fresh tier. flee itself has run through
+# mode=clear/walk many times (direction.md's #3, thirteen confirmations) but
+# never paired with this class. This is also the first fresh-save touch clear
+# evening (390x844) for shaman:elemental at all.
+#
+# Also worth watching for, from a source read this session did while the gate
+# was shut (src/main.ts): harvest() (~line 1039) only fires while
+# state.mode==='travel', and walkTo() (~line 1274) calls harvest() before
+# resetting roomCarried from run.carried -- so a corridor retry re-harvests
+# the still-dead state's shares (all -1) into run.carried an instant after
+# restart()'s own wipedRoom() reset, and carryInto() (~line 859) then paints
+# those dead shares onto the freshly built corridor actors. That would explain
+# #271's hp=0/locked-on-arrival shape without needing a pad ride at all. Not
+# something this session can fully confirm by playing -- it is a reading of
+# the code, not a measurement -- but if this cell wipes in a corridor, this is
+# what to look at in the journal: does run.carried go negative between
+# wipedRoom() and the retry's first tick.
+open
+tap raid
+shot raid-setup
+tap next
+tap class:shaman:elemental
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening flee 240 10
+shot end
+state
+says
+bill

@@ -1,0 +1,32 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-25","view":"390x844","touch":true,"seed":799624,"url":"http://127.0.0.1:5343/","at":1.2,"kind":"session"}
+{"hash":"/","screen":"home","mode":"raid","outcome":"ongoing","at":2,"kind":"open"}
+{"label":"raid","box":[344,72],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.2,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-25/shots/raid-setup.png","screen":"raid","mode":"raid","outcome":"ongoing","at":2.2,"kind":"shot"}
+{"label":"next","box":[240,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"label":"class:shaman:elemental","box":[120,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.5,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-25/shots/class-selected.png","screen":"roster","mode":"raid","outcome":"ongoing","at":2.5,"kind":"shot"}
+{"label":"pull","box":[192,56],"screen":"fight","mode":"travel","outcome":"ongoing","at":2.7,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":2.7,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.06666666666666667,"tick":2,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":10,"alive":10,"me":{"name":"You","spec":"elemental","role":"dps","hp":1440,"maxHp":1440,"power":950,"maxPower":950,"alive":true,"casting":null,"bar":[{"slot":1,"id":"lightning_bolt","status":"range"},{"slot":2,"id":"flame_shock","status":"range"},{"slot":3,"id":"chain_lightning","status":"range"},{"slot":4,"id":"earth_shock","status":"range"},{"slot":5,"id":"astral_shift","status":"ready"}]},"boss":null},"at":2.7,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-25/shots/start.png","screen":"fight","mode":"travel","outcome":"ongoing","at":2.7,"kind":"shot"}
+{"on":"fight","list":["minimap@348,72 56x64","map@212,112 56x32","party@276,112 56x32","settings@244,152 120x32","auto@320,732 32x40","ability:5@300,768 40x48","ability:4@340,768 40x48","ability:3@284,800 40x48","ability:1@364,800 40x48","ability:2@324,804 40x40"],"at":2.8,"kind":"targets"}
+{"on":"fight","glass":"390x844","controls":10,"list":["minimap 64x64 at 316,40","map 56x28 at 184,100","party 56x28 at 248,100","settings 120x28 at 184,136","auto 36x40 at 304,712","ability:5 40x40 at 280,748","ability:4 44x40 at 320,748","ability:3 44x44 at 260,780","ability:2 36x44 at 304,780","ability:1 40x44 at 340,780"],"under44":["map 56x28","party 56x28","settings 120x28","auto 36x40","ability:5 40x40","ability:4 44x40","ability:2 36x44","ability:1 40x44"],"offGlass":[],"overlapping":["auto / ability:5","auto / ability:4","ability:5 / ability:3","ability:5 / ability:2","ability:4 / ability:2","ability:4 / ability:1"],"at":2.8,"kind":"ui"}
+{"n":"1/10","room":"threshold","mode":"travel","at":2.8,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@138"],"lit":["threshold"],"rode":[],"padHere":true,"at":2.9,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":48,"endedAt":{"x":-22.748735208840703,"y":-935.0167416134436},"presses":0,"secondsAtTheDoor":0,"stillAlive":186,"nearest":"The Damned,The Damned,The Damned,The Damned","at":8,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":8,"kind":"walked-on"}
+{"n":"2/10","room":"vigil","mode":"travel","at":8,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1306","threshold@46"],"lit":["threshold"],"rode":[],"padHere":false,"at":8,"kind":"door"}
+{"from":"vigil","to":"vigil","aimedAt":"door","closestGot":10,"endedAt":null,"presses":5,"secondsAtTheDoor":0,"stillAlive":182,"nearest":"The Damned,The Damned,The Damned,The Damned","at":35.3,"kind":"crossed"}
+{"at_":"vigil","outcome":"wipe","wipes":1,"journalKeyClash":true,"at":35.3,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,56],"screen":"fight","mode":"travel","outcome":"wipe","at":35.4,"kind":"tap"}
+{"n":"3/10","room":"vigil","mode":"travel","at":65.7,"kind":"room"}
+{"from":"vigil","to":"vigil","aimedAt":"door","closestGot":"n/a","endedAt":null,"presses":0,"secondsAtTheDoor":0,"stillAlive":177,"nearest":"The Damned,The Damned,The Damned,The Damned","at":65.8,"kind":"crossed"}
+{"at_":"vigil","outcome":"wipe","wipes":2,"journalKeyClash":true,"at":65.8,"kind":"wiped"}
+{"label":"outcome:retry","box":[184,56],"screen":"fight","mode":"travel","outcome":"wipe","at":65.9,"kind":"tap"}
+{"at_":"vigil","after":"wipe","rooms":3,"journalKeyClash":true,"at":96.2,"kind":"fault:evening-stuck"}
+{"rooms":3,"wipes":2,"walked":["threshold(travel,ongoing,5s)","vigil(travel,wipe,27s)","vigil(travel,wipe,0s)"],"reached":"threshold -> vigil","endedAt":"vigil","at":96.2,"kind":"evening"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-09-29-25/shots/end.png","screen":"fight","mode":"travel","outcome":"wipe","at":96.3,"kind":"shot"}
+{"screen":"fight","mode":"travel","outcome":"wipe","chamber":"vigil","hud":{"time":0.03333333333333333,"tick":1,"phase":1,"countdown":0,"outcome":"wipe","auto":false,"touch":true,"zoom":3,"party":10,"alive":9,"me":{"name":"You","spec":"elemental","role":"dps","hp":0,"maxHp":1440,"power":950,"maxPower":950,"alive":false,"casting":null,"bar":[{"slot":1,"id":"lightning_bolt","status":"locked"},{"slot":2,"id":"flame_shock","status":"locked"},{"slot":3,"id":"chain_lightning","status":"locked"},{"slot":4,"id":"earth_shock","status":"locked"},{"slot":5,"id":"astral_shift","status":"locked"}]},"boss":null},"at":96.3,"kind":"state"}
+{"lines":[],"at":96.3,"kind":"says"}
+{"fightTime":0,"outcome":"wipe","hits":0,"hitsPerMin":0,"taken":0,"takenPerMin":0,"died":false,"byMechanic":{},"at":96.3,"kind":"bill"}
