@@ -5946,6 +5946,67 @@ reproduction (`open` -> `tap record` -> `tap tab:bosses`) and
 evidence, `src/render/history.ts:75-123` and `:412-416` named as the
 mechanism.
 
+**2026-09-30, the browser's own back button exits the game entirely from any
+depth, and forward does not restore it -- source-confirmed, not a one-off
+reading.** `mode=menus`, `view=820x1180,touch`, `save=carried` -- the
+twenty-second `menus` cell (`save` is moot here, per #273, and nothing below
+touches a save). The `.play` vocabulary has no command for a real browser
+back/forward or a mid-session resize, and no session or line in this file had
+ever tried either (grepped for "browser.back"/"goBack"/"resize": zero hits),
+so this went around the vocabulary with a one-off Playwright script,
+`playtest/plans/2026-09-30-17-navigation.mjs`, per `docs/playtest.md`'s own
+instruction for exactly this case.
+
+Checked source first: `grep -rn "pushState\|replaceState\|popstate" src/`
+returns exactly one hit, `src/main.ts:2145-2146`, a single one-shot
+`replaceState` that strips the invite hash after reading it (README's
+"Sharing" section: "read once at startup and then cleared out of the address
+bar"). Nothing anywhere calls `pushState`. So the prediction going in was that
+the app never records a screen change as a history entry, and the browser's
+"back" therefore cannot know any in-game navigation happened at all, however
+deep it went.
+
+Confirmed live, four taps deep: front page -> `tap raid` -> `tap next`
+(roster/class-select) -> `tap compose` (composition, the ten-slot screen).
+`page.goBack()` did not return to the roster, or to the front page, or to
+the raid-setup screen -- it left the app entirely: `hasAbyss=false`,
+`screen=null`, `location.href="about:blank"`, and the screenshot
+(`/tmp/pt-nav-04-after-back.png`) is a blank white page. `page.goForward()`
+afterward did not restore the composition screen either -- it reloaded the
+app from scratch at the front page (`screen="home"`), with no trace of the
+four taps (`/tmp/pt-nav-05-after-forward.png` shows a fresh, un-navigated
+front page, roster/composition entirely gone). One `goto` at the top of a
+script is one history entry no matter how many in-game screens follow it, so
+a phone's edge-swipe-back gesture -- which is exactly this API, not something
+special to Playwright -- takes a player out of the game from any menu depth,
+and swiping forward again does not put them back where they were; it starts
+over. This falls under `docs/playtest.md`'s "a route a player would not
+find": the natural mobile gesture for "go back one screen" instead exits the
+whole thing.
+
+The same script also resized mid-menu, without any reload, at the two
+richest menu screens by control count: roster (20 controls: 17 spec tiles +
+`back`/`compose`/`pull`) and composition (13: 10 slot pickers +
+`back`/`auto`/`reroll`), each measured at 820x1180, then live-resized to
+390x844, then 1280x800, then back to 820x1180, using the same grid-walk
+`under44`/`offGlass`/`overlapping` measurement `ui` uses
+(`window.__abyss.targets(4)`). All twelve measurements came back clean
+(`under44=[] offGlass=[] overlapping=[]` every time), and the screenshots
+confirm it visually: composition reflows from two columns of five at 390px
+wide to four columns of three at 1280px wide with every tile fully legible,
+no overlap, nothing cut off. **Not a finding** -- recorded so the next
+session does not spend a cell re-deriving that resize-mid-menu is fine here.
+
+**Not filed -- fourteen open `playtest` issues held the gate shut all
+session** (283, 282, 281, 279, 278, 276, 275, 274, 273, 272, 271, 269, 267,
+266). File the back/forward finding as a bug the first session the gate
+opens, with `playtest/plans/2026-09-30-17-navigation.mjs` as the
+reproduction and `/tmp/pt-nav-03-composition.png` /
+`/tmp/pt-nav-04-after-back.png` / `/tmp/pt-nav-05-after-forward.png` as the
+screenshot evidence (regenerate by re-running the script if the tmp files are
+gone), and `src/main.ts:2145-2146` named as the one place history is touched
+at all. The resize-mid-menu half needs no issue.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
