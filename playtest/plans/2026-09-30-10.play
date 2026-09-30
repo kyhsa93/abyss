@@ -1,41 +1,46 @@
-# playpick cell: mode=clear spec=rogue:assassination style=good size=25
-# difficulty=heroic view=820x1180,touch save=carried (behaves as fresh, #273 --
-# carried never actually carries across separate playbot invocations because
-# the dev-server port is derived from the process pid).
+# playpick cell: mode=daily boss=gorged (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md's driver-lesson note) spec=warrior:protection
+# style=good view=390x844,touch save=fresh.
 #
-# A fresh/carried save only opens Bonegrinder 10-normal by default, so
-# #b=marrow&s=25&h=1 unlocks the whole chain up to 25-heroic before backing
-# out to a real RAID -> WALK IN at the door (direction.md's 2026-09-26
-# driver-lesson recipe).
-#
-# What no session has done before: rogue:assassination has been walked/cleared
-# under melee, auto, idle and wander (direction.md's #6 thread), but never
-# `good` -- the one style whose steering is an explicit beeline at a target,
-# not a fixed heading or a random one. direction.md's #6 has already pinned
-# rogue:assassination's own clean VIGIL crossings on its flat moveSpeed=178,
-# the fastest in the roster, and separately found that `good`'s own beeline
-# steering is what got a battleground body killed in under fifteen seconds on
-# four separate specs (walking a body straight into a hostile cluster with no
-# notion of how fragile it is). This cell is the first place both variables
-# land on the same body at once: the fastest class in the roster, under the
-# one style shown elsewhere to steer straight into danger, in a raid evening
-# rather than a battleground -- where getting to the boss fast might cross
-# corridors cleanly, or might carry the same walk-into-a-cluster habit into
-# THE VIGIL's own watchmen and Bonegrinder heroic's bonestorm aura (#267,
-# already measured as reversing melee's own hit ratio for a body that cannot
-# leave its reach).
-open #b=marrow&s=25&h=1
-tap back
-tap raid
-tap next
-tap class:rogue:assassination
-tap pull
+# Probe (2026-09-30-10-probe.play) found today's actual daily is The Crimson
+# Gift, 25-player normal, HASTENED (enrage arrives more than two minutes
+# early) -- the first time this job has fought this boss as itself; its two
+# prior "gift"-labelled daily sessions (2026-09-25-15, 2026-09-26-9) both
+# turned out to be The Two Flasks once probed, since playpick's boss axis for
+# mode=daily is unreachable and just a coverage label. class:0 = Warrior Tank,
+# confirmed by the probe's own screenshot (top-left tile, matching 2026-09-26-9's
+# note). This is also the first good-style protection-warrior daily on a fresh
+# save and a portrait phone viewport -- the one prior good+warrior:protection
+# daily pull (2026-09-26-45) was 844x390 landscape, carried, and a different
+# boss (The Three Crowns).
+open
+tap daily
+tap class:0
+targets
+ui
+shot setup
+tap start
 waitscreen fight 15
 state
-shot start
+shot open
 
-evening good 200 8
+play good 60
+bill
+state
+shot mid1
+
+play good 60
+bill
+state
+shot mid2
+
+play good 60
+bill
+state
+shot mid3
+
+play good 60
+bill
+says
 state
 shot end
-says
-bill

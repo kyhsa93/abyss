@@ -1769,6 +1769,48 @@ every other `auto` reading, a wider spread on the same axis rather than a
 different axis. **Not filed** -- fourteen open issues still held the gate
 shut (unchanged since the last ledger line; nothing closed to re-verify).
 
+**2026-09-30, a third confirmation of tank-exclusion-by-design, and the first
+on a boss's own titular mechanic rather than a side one.** `mode=daily`
+(today's actual instance -- a daily's boss is drawn from the date and
+unreachable as a `playpick` axis, see this line's earlier driver-lesson note),
+The Crimson Gift, 25-player normal, HASTENED, warrior:protection, `good`,
+fresh save, 390x844 touch (`playtest/plans/2026-09-30-10.play`) -- the first
+time this job has fought this boss as itself; its two prior "gift"-labelled
+cells (2026-09-25-15, 2026-09-26-9) both probed into The Two Flasks instead,
+since `playpick`'s `boss` axis for `mode=daily` is a coverage label with no
+control behind it.
+
+A clean kill, `fightTime=137 outcome=victory aliveParty=25/25
+heroHp=2763/2790 presses=102`, the raid earning `Full Raid`/`Nobody
+Fell`/`Held It` alongside `First Blood` (`end.png`) -- but `bill`'s own
+`byMechanic` never once named `gift`, `bond`, `stain`, `turning` or `crimson`
+across three samples spanning the whole fight (57s/117s/137s): every one of
+844 recorded hits came back tagged `flight`, the one mechanic on this boss's
+six-item kit that is raid-wide and unavoidable rather than assigned to a
+body. Read `scheduleGift` (`src/sim/boss.ts:3698-3706`) rather than guess why,
+and the answer is in the function's own comment, not just its filter:
+`livingParty(s).filter((a) => a.role !== 'tank' && !hasHeld(s, a.id))`, with
+"Never the tank, because holding one means walking to somebody who has never
+held one, and a tank that walks takes the fight with it" written directly
+above it. `gift` also only ever fires once a pull (`s.next.gift = 9999` after
+the first assignment -- "the raid makes the rest"), so everything downstream
+of it -- `bond`, `stain`, `turning`, and `crimson` ("the bill for all of it")
+-- is chained to whoever holds that one gift, which by design can never be
+the body this job steers.
+
+This is the third boss this line has found excluding the tank role from a
+mechanic by design rather than by survivability (Confluence's `infection`,
+several bosses' `hound`), but the first where it is not a side mechanic --
+it is the fight's own titular one, the thing its `demand` line calls "pass it
+and it doubles; drop it and it is one of you." A tank playing The Crimson
+Gift, however it is played, structurally cannot meet the mechanic the fight
+is named for. **Not a bug** -- the source comment says exactly why it is not
+-- so this closes out the tank-exclusion thread on this line rather than
+opening a new question: three confirmations across three different mechanic
+families (a side-effect dot, a chaser, and now a fight's own core pass) is
+enough to call the pattern deliberate and consistent, not worth a fourth pull
+chasing it further.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
