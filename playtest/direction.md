@@ -5079,6 +5079,48 @@ held shut at fourteen open issues; not filed. Reproduction:
 `playtest/plans/2026-09-30-8.play`, `bg-start.png`/`mid1.png`/`mid2.png`/
 `mid3.png`.
 
+**2026-09-30, the first tank-role battleground pull this line has run, and
+the sharpest reading yet of what a passive body costs a team rather than
+itself.** `playpick` gave `map=escort` (The Long Haul), `spec=paladin:
+protection`, `style=auto`, `820x1180,touch`, carried (behaves as fresh per
+#273) -- every prior battleground pull on this line has been DPS or a
+healer (shadow priest, marksmanship hunter, elemental shaman, feral/
+balance/restoration druid, destruction warlock, holy paladin); this is the
+first tank, and the first time `auto`'s already-established lack of
+steering (opened 2026-09-26 on a restoration druid) meets a kit whose
+signature ability exists to protect *other people* rather than itself.
+
+`playtest/plans/2026-09-30-13.play`: `hud.auto` flipped true after the tap
+and stayed true for the full 274s watched across three `play auto 90`
+calls. `bill` read `hits=0 hitsPerMin=0` the entire time -- the same
+zero-press shape every prior `auto`/passive-style battleground reading on
+this line has shown -- and the bar shows why: `avengers_shield` and
+`hand_of_reckoning` (the class's actual taunt, per `src/sim/classes.ts:510`)
+spent the whole fight alternating between `"range"` and `"locked"`,
+never once `"ready"`-then-pressed, because `auto` never walks the body
+anywhere. What is new is the shape of the match around that stillness:
+`aliveParty` went `5/5 -> 3/5 (87s) -> 4/5 (180s, one revive) -> 1/5
+(274s)` while the tracked body itself stayed alive throughout, taking only
+chip damage (`2745 -> 2604 -> 2504 -> 2412`, `takenPerMin` falling from
+96.9 to 80.1 to 73 across the three samples -- never in real danger,
+`inDanger=0%` every sample). `hud.boss` ("Corvin") is a red-team member's
+name/hp per this line's own 2026-09-25 reading of `RED_NAMES`, not an
+objective, so its 100%->47% drop over the fight says only that someone on
+the team was landing hits on that one target -- not the tracked body,
+which is confirmed at `hits=0`.
+
+So: a tank whose whole kit is built to pull threat and shield teammates
+sat fully safe the entire match while four of its five teammates went down
+around it, its own taunt never once in range to use. This sharpens rather
+than replaces the standing shape -- #7 already established that a passive
+body survives while the team does not benefit -- but it is the first
+reading where the passive role in question is specifically the one whose
+job description is "help the team," and the gap between "safe" and
+"useful" could not be more literal: the ability named for pulling danger
+off somebody else never fired once while somebody else needed it to. Gate
+held shut at fourteen open issues; not filed. Reproduction:
+`playtest/plans/2026-09-30-13.play`, `mid1.png`/`mid2.png`/`mid3.png`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

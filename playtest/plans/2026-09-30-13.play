@@ -1,0 +1,41 @@
+# Cell from playpick: mode=battleground map=escort (The Long Haul),
+# spec=paladin:protection, style=auto, view=820x1180,touch, save=carried
+# (behaves as fresh per #273 -- playbot's own port is per-run, so
+# localStorage's origin never actually carries between invocations).
+#
+# direction.md's #7 has one prior style=auto battleground reading
+# (2026-09-26, druid:restoration on flags/touch): auto never steers, so a
+# healer stood at its opening position the whole match and its heals sat
+# out of range. This cell asks the same question on a body auto's lack of
+# steering should punish differently: a tank spec, whose kit is mitigation
+# and threat rather than ranged heals, on escort -- the one map on this
+# line where the passive-body losses (dodge, good-dies-in-13s) were
+# already measured, but never yet under auto, and never yet under any
+# tank spec on any battleground map.
+open
+tap battleground
+tap map:escort
+targets
+tap class:paladin:protection
+shot class-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+state
+ui
+play auto 90
+shot mid1
+state
+bill
+wait 3
+play auto 90
+shot mid2
+state
+bill
+wait 3
+play auto 90
+shot mid3
+state
+bill
+says
+targets
