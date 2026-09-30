@@ -1,0 +1,48 @@
+# playpick cell: mode=raid boss=gift (The Crimson Gift) spec=warrior:arms
+# style=good size=25 difficulty=heroic view=390x844,touch save=fresh
+#
+# What is new here: every prior session on this boss reached it either through
+# mode=daily (where the boss is picked by the date, not by the session --
+# 2026-09-25-15 and 2026-09-26-9 both landed on The Two Flasks instead) or
+# mode=walk (an evening in transit, no direct pull). This is the first time
+# playpick's raid axis has put The Crimson Gift itself in a direct
+# #b=gift&s=25&h=1 pull, which is also what makes today's ledger line
+# (2026-09-30T15:40:00Z, protection warrior, mode=daily) an incomplete read on
+# its own: src/sim/boss.ts:3706's scheduleGift filters `role !== 'tank'`, so a
+# tank can never be tagged -- that session's "no gift/bond/stain/turning ever
+# billed" finding is exactly what the source predicts for a tank and proves
+# nothing about whether the mechanic fires for anyone else. warrior:arms is
+# dps, so this tracked body is eligible to be the very first holder
+# (scheduleGift's `rng.pick(clean)` over every living non-tank who has never
+# held one) and to receive a doubled pass later (updateGifts, boss.ts:3739).
+# style=good is the one style built to react to a telegraph at all, so this is
+# also the first look at whether "good" actually passes the gift on in time or
+# eats the wipe-by-numbers path the comment at boss.ts:3748 describes (every
+# body holding one at 60s, dead to the bill at 64s in a measured 25-man).
+#
+# Reached the documented way: an invite hash unlocks the tier it names and
+# everything below it, since a fresh save only opens Bonegrinder 10N.
+open #b=gift&s=25&h=1
+tap class:warrior:arms
+tap pull
+waitscreen fight 15
+state
+shot open
+
+play good 70
+bill
+state
+says
+shot mid1
+
+play good 70
+bill
+state
+says
+shot mid2
+
+play good 70
+bill
+state
+says
+shot end

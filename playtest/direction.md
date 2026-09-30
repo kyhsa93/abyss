@@ -1811,6 +1811,40 @@ families (a side-effect dot, a chaser, and now a fight's own core pass) is
 enough to call the pattern deliberate and consistent, not worth a fourth pull
 chasing it further.
 
+**2026-09-30, same evening, the eligible role misses it too -- and the
+source's own timing says how rarely any one body can expect to see it.**
+The tank pull above only rules out the tank; `playpick`'s raid axis, run
+directly for the first time on this boss (`#b=gift&s=25&h=1`, no daily/walk
+detour), put warrior:arms -- dps, and therefore in `scheduleGift`'s `clean`
+pool -- on a 25-heroic pull instead (`playtest/plans/2026-09-30-14.play`,
+`good`, fresh, 390x844 touch). Clean kill, `fightTime=135 outcome=victory
+aliveParty=25/25 heroHp=1579/1890 presses=86`, `inDanger=0%` on all three
+`play`/`bill` samples across the whole fight -- and `byMechanic` again never
+named `gift`, `souring`, `stain` or `turning`, only `bond` (250) and `flight`
+(844). A role the source does not exclude still went a full pull without
+ever holding the boss's own mechanic.
+
+Not a contradiction of the read above -- the same source explains this one
+too, by the numbers rather than the filter. `scheduleGift` assigns exactly
+one holder, once, by `rng.pick` over every non-tank who has never held one
+(roughly 24 candidates in a 25-man); this pull's tracked body was simply not
+the one in ~24 chosen. The first phase's `gift: 15` beat plus the "sixty
+seconds of holding it and then ten to hand it on" clock the code comment
+gives (`boss.ts:3748-3753`) means the one doubling this pull had time for
+lands around t=85 (15 + 60 + 10), turning 1 holder into 2 out of 25 -- and
+the pull ended at 135, one doubling wave short of a second. So even a fully
+eligible role has good odds of finishing this fight having never been within
+reach of the 2 (of 25) bodies who ever carried it, which is arithmetic, not a
+bug: `docs/upkeep.md`'s balance tables and this job's own `bill` are both
+built around what the *tracked* body experienced, and for a mechanic this
+boss hands to a small, randomly-chosen slice of the raid, "the tracked body
+never saw it" is now two-for-two (tank and dps) and says nothing about
+whether the other 24 bodies are being served correctly by it. Worth knowing
+for any future session tempted to call this boss's mechanic broken from a
+single pull's `bill`: on this fight, `bill` needs several pulls before a
+clean-body absence means anything at all. **Not filed** -- not a bug, and the
+gate was shut regardless (fourteen open, unchanged).
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
