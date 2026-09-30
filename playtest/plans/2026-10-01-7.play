@@ -1,0 +1,33 @@
+# Cell from playpick: mode=daily, boss=whisper, spec=mage:frost, style=melee,
+# view=1280x800, save=carried. The daily screen (playtest/plans/2026-10-01-6-probe.play)
+# showed today is actually The Crimson Gift, 25-player normal, HASTENED --
+# playpick's `boss` axis is not reachable for mode=daily (the day picks the
+# fight; direction.md already has this driver lesson from 2026-09-25, not new).
+# Mage has one spec in this game (src/sim/classes.ts: {classId:'mage',spec:'frost'}),
+# shown as a single "Mage" tile, already highlighted from the carried save.
+# New here: first session ever to play mage:frost or The Crimson Gift in this
+# job (zero prior lines for either), and the first time `melee` style -- close
+# to the boss and swing -- has been given to a pure-ranged caster whose only
+# damage ability is a 1.4s-cast bolt with no melee attack at all.
+open
+tap daily
+targets
+shot daily-screen
+tap class:13
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+ui
+play melee 240
+shot after-fight
+state
+says
+bill
+targets
+shot report
+tap daily
+shot daily-after
+state

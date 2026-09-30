@@ -1,0 +1,6 @@
+# Probe: what does the daily screen show for a carried save before today's
+# attempt, and what class controls are on it.
+open
+tap daily
+targets
+shot daily-screen

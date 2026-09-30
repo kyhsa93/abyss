@@ -2006,6 +2006,49 @@ finding on its own (the decoy mechanism is already named from source under
 this line), and the gate held shut at fourteen open issues, unchanged since
 the last ledger line.
 
+**2026-10-01, the mirror case: the worst positioning choice available to a
+ranged spec still costs nothing the raid cannot absorb.** `mode=daily`
+(today's actual instance, probed first per this line's own driver-lesson:
+The Crimson Gift, 25-player normal, HASTENED), mage:frost, `melee`, carried
+save, 1280x800 (`playtest/plans/2026-10-01-7.play`). First session ever to
+play mage:frost or The Crimson Gift under `melee` -- `melee` has run on
+fourteen prior pulls, all of them classes with an actual melee kit; this is
+the first time it has been handed to a spec whose entire bar is a 1.4s-cast
+bolt (`frostbolt`) and three other ranged spells, with no melee attack to
+fall back on once it closes the distance.
+
+Clean kill, `fightTime=152 outcome=victory aliveParty=25/25 presses=81`. The
+kill screen's own damage board (`report.png`) puts "You" dead last in damage
+(73) as expected for a caster spending the fight in point-blank range instead
+of casting freely, but the same row carries the single highest `taken`
+(5.3k, next-highest Iris at 5.2k) and the single highest `mechanics` score of
+all 25 bodies (2746, next-highest Fen at 1925) -- `bill` names it
+`byMechanic={"flight":1266,"stain":1480}`. `stain` has never appeared on this
+line before now (grepped: zero prior hits across every earlier Crimson Gift
+entry, all of which only ever saw `flight`, `bond` or `gift`); reading
+`leaveStain` (`src/sim/boss.ts:3780-3794`) next to `scheduleGift`
+(`:3740-3769`) explains why without needing a new mechanism: every gift-pass
+that lands near another player leaves a lingering floor patch at the spot it
+happened (`kitHas(s, 'stain')`, gated on the boss's own kit rather than
+difficulty), and a body running `melee`'s close-and-swing steering spends far
+more time inside the cluster where passes happen than `idle`, `good` or
+`flee` ever do at range. The mechanic's own doc comment says the design
+intent directly: "its answer is not walking out of it: it is choosing where
+to be standing when the pass happens" -- exactly the choice a forced-melee
+ranged caster cannot make.
+
+Despite carrying the raid's worst `taken` and `mechanics` numbers by a wide
+margin, the raid still finished at 25/25 alive and the fight cost nothing
+this line's read of the Crimson Gift's own `played`/`idle` gap (0, per
+`docs/upkeep.md`'s table) does not already predict. This is [[#1]]'s shape
+read from the opposite direction: not just that doing nothing wins, but that
+doing something actively self-destructive -- chasing melee range as a spec
+that cannot use it -- loses nothing either, on a fight already known not to
+reward or punish positioning at this size and difficulty. **Not filed** --
+not a bug (`stain` behaves exactly as its own source comment describes) and
+the gate held shut at fourteen open issues, unchanged since the last ledger
+line.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
