@@ -1,0 +1,46 @@
+# playpick cell: mode=raid boss=crowns spec=paladin:holy style=good size=25
+# difficulty=heroic view=390x844,touch save=fresh.
+#
+# boss=crowns in mode=raid is not a coverage label -- direction.md's #7 thread
+# (2026-09-27-3.play and others) already confirmed the direct invite-hash
+# pulls this exact fight, The Three Crowns. That thread's whole finding is
+# that toward-boss styles (melee/good/idle) beeline at whatever body
+# hud().boss currently names, which is sometimes the untouchable decoy, and
+# park the whole fight parked in its thirst radius instead of the real crown
+# -- but every `good` pull on record so far (warrior:protection normal,
+# paladin:retribution heroic, both 2026-09-26/27) was a damage spec walking
+# onto a damage target. This is the first `good`-style *healer* against this
+# fight: paladin:holy's `good` steering presumably targets the lowest-hp
+# living ally to heal rather than a boss-faction body to hit, so the question
+# this asks that no dps pull could: does a healer's `good` command even walk
+# toward hud().boss at all, or does it stay near the raid instead and dodge
+# the decoy trap by accident, the same way `dodge`'s style already does for a
+# different reason (no toward-boss term at all).
+open #b=crowns&s=25&h=1
+targets
+tap class:paladin:holy
+tap pull
+waitscreen fight 15
+state
+shot start
+
+play good 90
+bill
+state
+shot mid1
+
+play good 90
+bill
+state
+shot mid2
+
+play good 90
+bill
+state
+shot mid3
+
+play good 60
+bill
+says
+state
+shot end

@@ -1946,6 +1946,44 @@ second `wander` pull on this same boss/affix, watched for whether the
 distance grows as fast on average, is what would tell seed noise from a real
 lean.
 
+**2026-10-01, the first `good`-style healer against The Three Crowns, and the
+deepest any `good` pull has ever pushed this fight.** `mode=raid` direct
+(`open #b=crowns&s=25&h=1`), paladin:holy, fresh save, 390x844 touch
+(`playtest/plans/2026-10-01-1.play`). Every `good` pull of this fight on
+record before this one (warrior:protection normal 2026-09-26,
+paladin:retribution heroic 2026-09-27) was a damage spec walking onto
+whatever body `hud().boss` currently names, which is sometimes the
+untouchable decoy -- the open question this left was whether a healer's
+`good` steering, which presumably targets the lowest-hp ally rather than a
+boss-faction body, would walk onto the crown at all.
+
+It did. `mid1.png` shows the same shape those dps pulls already have: the
+player's own token standing inside the crown's red ring while three other
+party tokens nearby read "Out of its reach". `bill` at the four checkpoints
+(82s/163s/251s/308s of played time) read `byMechanic` almost entirely
+`thirst` throughout (1010 -> 3362 -> 5983 -> 7661 hits, against a flat 30
+`prison` hits after 163s) -- so a healer's `good` command walks onto the
+decoy by the same `hud().boss`-beelining mechanism [[#1]]'s own prior entries
+already named from source, not something role-specific.
+
+What is new is how far it got before running out of script: boss dropped
+100% -> 72% -> 43% -> 20% -> 3% across the four windows, still
+`outcome=ongoing` when the script's own 330s play budget ended, next to the
+two prior `good` pulls' `outcome=enrage` at 22-36% around 248-287s. Self-
+healing (holy_light/holy_shock, both landing on the player's own body per
+the HUD's `casting` field) kept the healer alive through the same stacking
+`thirst` drain that killed the dps pulls' progress early, at the cost of
+finishing the window at `heroHp=234/1530` (15%) and `aliveParty=23/25` (a
+gradual 25->25->24->23 bleed, not a single enrage spike). Whether this pull
+would have finished the kill or joined the enrage-wipe list is unresolved --
+the script stopped at 336s with the boss still up -- but this is the deepest
+measured progress against this fight under any toward-boss style on record,
+and it says the decoy-walking bug costs less against a spec that can out-heal
+its own mistake than against one that cannot. **Not filed** -- not a new
+finding on its own (the decoy mechanism is already named from source under
+this line), and the gate held shut at fourteen open issues, unchanged since
+the last ledger line.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
