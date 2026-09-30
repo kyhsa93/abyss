@@ -2466,6 +2466,31 @@ as #272, with both play-script segments and the screenshots showing the
 selected-map screen before the reload and the RAID-highlighted front page
 after it.
 
+**2026-10-01, narrowed: the loss is specific to a page reload, not to in-app
+BACK navigation.** `mode=menus`, 844x390 touch landscape, carried (first
+menus session at this exact size/save combination -- the reload-based #272
+repro above was 820x1180) -- `playtest/plans/2026-10-01-2.play`. Picked The
+Long Haul on the battleground setup screen (`tap map:escort`), which moved
+straight to the class-pick screen exactly as picking conquest does; backed
+out via the in-app `BACK` button (never `open`/reload) all the way past the
+picker, and the setup screen reappeared with **The Long Haul still
+highlighted** (`after-back-from-bgsetup.png`). Same test on the class pick:
+`class:hunter:marksmanship`, back to `home`, back into `RAID` -> `next`, and
+the roster screen reappeared with **Hunter still highlighted green**
+(`class-select-reentered.png`). Both survive in-app navigation; only a reload
+loses the map pick.
+
+That is exactly what `loadMode()`'s own code (quoted above) predicts: it is
+read once, at page load, off `localStorage`, and falls back to raid on
+anything it does not recognise. In-app back-navigation never calls it at
+all -- it just re-reads the live `mode.bg` the setup screen already holds in
+memory, which was never lost. So the bug is narrower than "remembered less
+reliably": the pick is remembered perfectly at runtime and mis-read on
+exactly one path, a page load. This confirms the fix #272 already names
+(widen `loadMode()`'s accepted set to include `escort`) is the whole fix --
+there is no second bug hiding in the runtime state, so nothing here changes
+what #272 asks for, only how sure the fix is to be complete.
+
 **Disproved by** a fix landing and a reload after picking escort coming back
 on BATTLEGROUND/escort rather than RAID.
 

@@ -1,0 +1,71 @@
+# playpick cell: mode=menus view=844x390,touch save=carried
+#
+# First mode=menus session at 844x390 landscape combined with a carried
+# profile (the one prior 844x390 menus session, 2026-09-30-17-navigation.mjs,
+# was 820x1180; the one prior carried-menus session at this exact size does
+# not exist). #272 ("pick The Long Haul, leave, come back, selection reverts
+# to RAID") was only ever reproduced via a full page `open` (reload) in
+# playtest/plans/2026-09-25-7.play. That leaves an open question this session
+# answers: does the in-app BACK button lose the pick the same way, or only a
+# reload does -- which would narrow the bug from "not persisted to storage"
+# to "not restored from live JS state on back-navigation" or vice versa.
+#
+# Also checks class-pick memory (README: "your pick is remembered between
+# visits") through the same in-app back path rather than a reload, and runs
+# `ui` at this squat 390px-tall shape on both the battleground setup and
+# class-pick screens, which no prior session has measured at 844x390.
+
+open
+targets
+shot frontpage
+ui
+
+# Pick a battleground map, then leave via in-app BACK (not reload/open).
+tap battleground
+targets
+shot bgsetup-conquest
+ui
+tap map:escort
+targets
+state
+shot bgsetup-escort-picked
+ui
+
+tap back
+targets
+state
+shot after-back-from-bgsetup
+
+# Re-enter battleground setup: is escort still selected in-app?
+tap battleground
+targets
+state
+shot bgsetup-reentered
+ui
+
+tap back
+
+# Now the class-pick memory question, same in-app-back path.
+tap raid
+targets
+shot raid-roster
+ui
+tap next
+targets
+shot class-select
+ui
+tap class:hunter:marksmanship
+targets
+state
+shot class-picked
+tap back
+tap back
+targets
+state
+shot after-back-from-class
+
+tap raid
+tap next
+targets
+shot class-select-reentered
+ui
