@@ -1,0 +1,49 @@
+# playpick cell: mode=daily boss=cold (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md's driver-lesson note) spec=druid:feral
+# style=flee view=844x390,touch save=fresh.
+#
+# Probe (2026-09-30-16-probe.play) found today's actual daily is The Crimson
+# Gift again, 25-player normal, HASTENED (enrage arrives more than two minutes
+# early) -- the same boss/affix/size the 09-30-10 session already fought this
+# morning, but that run was style=good, warrior:protection (tank), portrait
+# phone, and reached the fight through mode=daily too. This run changes three
+# things at once: druid:feral (a dps class this line has never sent at this
+# boss), style=flee (never used in mode=daily before -- checked the ledger,
+# flee has only ever appeared in raid/battleground/clear), and a landscape
+# phone viewport (844x390) rather than portrait. class:10 = Druid Feral,
+# confirmed by the probe's own targets list and screenshot (third row, first
+# tile). The question this asks that no session has: does HASTENED's early
+# enrage catch a style that presses nothing and only runs from telegraphs --
+# every prior never-press win on direction.md's #1 was against an un-hastened
+# clock.
+open
+tap daily
+tap class:10
+targets
+ui
+shot setup
+tap start
+waitscreen fight 15
+state
+shot open
+
+play flee 60
+bill
+state
+shot mid1
+
+play flee 60
+bill
+state
+shot mid2
+
+play flee 60
+bill
+state
+shot mid3
+
+play flee 60
+bill
+says
+state
+shot end

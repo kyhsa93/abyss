@@ -1845,6 +1845,62 @@ single pull's `bill`: on this fight, `bill` needs several pulls before a
 clean-body absence means anything at all. **Not filed** -- not a bug, and the
 gate was shut regardless (fourteen open, unchanged).
 
+**2026-09-30, a fourth boss for the "enrage kills the passive style alone"
+sub-thread (Last Whisper 2026-09-26, Three Crowns 2026-09-27 x2), and the
+first time the mechanism is `bond` rather than a standing-still drain.**
+`mode=daily` (today's actual run, probed first: The Crimson Gift again, but
+for the first time this line has met it as itself rather than through
+`mode=raid` -- 25-player **normal**, HASTENED, the same "enrage two minutes
+early" affix the Three Crowns `wander` pull above already named),
+druid:feral, `flee`, fresh save, 844x390 touch (`playtest/plans/2026-09-30-16.play`).
+First `flee` in `mode=daily` on record, and the first druid:feral this line
+has run under any never-press style.
+
+Sixty and then a further sixty seconds looked exactly like every other entry
+on this line: `phase=2 aliveParty=25/25 heroHp=1499/1575 bossHp=55% presses=0
+inDanger=0%` at 57s, then `phase=3 aliveParty=25/25 heroHp=1366/1575
+bossHp=20% presses=0 inDanger=0%` at 118s, `bill` both times reading only
+`flight` (161, then 842 hits -- the raid-wide, unavoidable tick [[#1]] already
+read from `updateFlight` on this same boss's cousins). Eleven seconds later
+the pull was over: `fight-over outcome=enrage time=129 phase=3`, boss at 10%,
+`aliveParty=24/25`, the player itself the only death (`heroHp=0/1575
+died=true`), `bill` now carrying `bond:72` alongside `flight:842`.
+
+Read `updateBonds` (`src/sim/boss.ts:3845-3859`) next to `flee`'s own steering
+(`scripts/playbot.ts:958-959`, `want = hero - boss`, the *only* term the style
+has) rather than guess: `bond` charges continuously for however far a paired
+body is past `BOND_REACH` from its partner, with no cap and no decay, and
+`flee` has no code path that could ever close that distance -- it runs a
+straight line away from the boss forever, so once bonded it is not merely
+exposed to `bond`, it is guaranteed to drift further from its partner for as
+long as the pairing lasts. That is a sharper case than `idle`'s: `idle` never
+moves, so a `bond` pairing costs whatever the starting distance already was
+and no more, but `flee`'s one directive is structurally opposed to `bond`'s
+one demand ("do not leave your partner"), so the two together are close to a
+guaranteed, growing drain rather than a fixed one. What turned that drain
+lethal in eleven seconds rather than costing a slow trickle for the rest of
+the fight is `combat.ts:947-951`'s enrage multiplier -- HASTENED moved that
+clock more than two minutes early, and the multiplier applies to *any*
+`school !== 'none'` damage a party member takes while the boss carries the
+`enrage` aura, `bond`'s magic-school tick included, doubling and then
+doubling again every thirty seconds past it.
+
+The same read explains why the raid was still 24/25 and the boss still at
+10% when the pull ended: `sim.ts:783-787` flips `s.outcome` to `enrage` (or
+`wipe`) the instant `player.alive` is false, full stop, independent of how
+many of the other twenty-four bodies are still standing or how close the boss
+is to dead. Twenty-four AI raiders and a boss twelve seconds from what
+would very plausibly have been a kill did not matter once the one body this
+job steers hit zero -- a fourth confirmation, on a fourth boss and a third
+distinct mechanic family (`thirst`/`prison`'s drain-from-standing, now
+`bond`'s drain-from-distance), of the same shape: a style with no
+toward-anything term survives everything the fight throws at it as a
+telegraph, right up until the enrage clock turns whatever passive damage
+it was still quietly eating into a kill, and the pull ends on that one
+death regardless of the raid around it. **Not filed** -- already explained
+by source, already an established sub-thread on this line, and the gate held
+shut at fourteen open issues.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

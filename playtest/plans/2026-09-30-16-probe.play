@@ -1,0 +1,13 @@
+# playpick cell: mode=daily boss=cold (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md's driver-lesson note) spec=druid:feral
+# style=flee view=844x390,touch save=fresh.
+#
+# Probe only: find today's actual daily boss/size/affix and confirm which
+# class:N tile is Druid Feral before committing to the full script. Also the
+# first time style=flee has been asked for in mode=daily at all (checked the
+# ledger: flee has only ever run in raid/battleground/clear before), and the
+# first druid:feral pairing with flee on any mode.
+open
+tap daily
+targets
+shot daily-setup
