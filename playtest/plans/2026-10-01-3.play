@@ -1,0 +1,43 @@
+# Cell from playpick: mode=clear, spec=warlock:destruction, style=wander,
+# size=10, difficulty=normal, view=1280x800, save=fresh.
+#
+# Checked sessions.jsonl and direction.md first. Fourteen playtest issues
+# are open (283,282,281,279,278,276,275,274,273,272,271,269,267,266), so
+# the gate is shut: this session files nothing new, plays the assigned
+# cell, and sharpens direction.md instead. `gh issue list --state closed
+# --label playtest` shows only #268 (closed 2026-09-25), already reflected
+# in the ledger long before the last line (2026-10-01T02:05:00Z), so there
+# is nothing to re-verify this session.
+#
+# What is actually new: warlock:destruction has never run mode=clear or
+# mode=walk at all (checked every "clear" line in sessions.jsonl -- druid,
+# hunter, mage, paladin, priest, rogue, shaman, warrior each have at least
+# one, warlock has none). This is also the first evening on a class whose
+# moveSpeed (158, src/sim/classes.ts) ties the slowest tier (warrior/
+# paladin/priest/warlock) under `wander` specifically -- every prior
+# 10-normal `wander` clear stalled or wiped at THE VIGIL (druid:guardian,
+# mage:frost) on faster classes (167/167), so a 158-speed class adds a
+# genuine new data point to #6's running "seed/watchman-luck, not class
+# speed" theory rather than repeating a combination already on record.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+targets
+tap next
+tap class:warlock:destruction
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening wander 250 10
+shot after-evening
+state
+says
+targets
+ui
+bill

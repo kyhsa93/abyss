@@ -2442,6 +2442,28 @@ every other #271 screenshot exactly: "0.0s · 0 down". Recorded for the axis
 coverage and nothing else -- the mechanism was already read from source on
 2026-09-29 and this changes no part of it.
 
+**2026-10-01, sixteenth confirmation, and the first warlock:destruction
+evening this job has ever run in any mode.** `mode=clear`, `wander`,
+10-normal, genuinely fresh save, 1280x800 desktop
+(`playtest/plans/2026-10-01-3.play`) -- checked `sessions.jsonl` first:
+every other class has run `mode=clear`/`mode=walk` at least once, warlock
+never had. Also the first `wander`-style 10-normal clear on a
+`moveSpeed=158` class ([[#6]]'s slowest tier, shared with warrior/paladin/
+priest); every prior 10-normal `wander` clear that reached this shape used
+a 167-speed class. THE VIGIL wiped at 35.5s (`closestGot=22`),
+`outcome:retry` tapped, instant re-wipe (`closestGot=n/a`) at 66.1s, a
+second `evening` call over the same stuck room produced the identical
+shape, `fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}` at
+96.6s, final state `hp=0/1485 alive=false`, all five ability slots
+`"status":"locked"`. `after-evening.png` matches the DEFEAT-screen shape
+of every other #271 report exactly ("0.0s · 0 down"). No new information
+on the mechanism -- already read from source on 2026-09-29 -- but it adds
+a class this line had never actually put through the wall, and it is one
+more 10-normal `wander` stall against zero clean 10-normal `wander`
+crossings on record, which keeps that specific pairing (not [[#6]]'s
+broader "any style" claim, already narrowed to seed-luck) looking worse
+than the rest of the cross product.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
