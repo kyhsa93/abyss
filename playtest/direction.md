@@ -3176,6 +3176,33 @@ weakens "idle-style is the trigger" specifically, since the one variable
 held constant here (style) produced the one outcome that changed. Not
 filed -- fourteen open `playtest` issues held the gate shut.
 
+**2026-09-30, the first idle-style wipe THE VIGIL has ever produced, and on
+touch specifically.** `mode=clear`, priest:shadow, `idle`, 10-normal,
+genuinely fresh save, 390x844 touch (`playtest/plans/2026-09-30-18.play`) --
+idle had crossed THE VIGIL clean three times before this (paladin:
+retribution 25-heroic touch, druid:feral and warrior:arms both 10-normal
+desktop), and every #271 confirmation of a VIGIL wipe on record so far had
+used a style other than idle. This is the first cell to combine idle with a
+touch viewport at 10-normal, and the first idle evening this job has ever
+run on a caster with no melee option at all. THE VIGIL wiped at 33.7s
+(`closestGot=9` -- the closest any wipe on this line has landed to the door,
+against 10-16 units for the wipes under other styles), `outcome:retry`
+tapped and produced the identical #271 shape (`closestGot=n/a`, instant
+re-wipe), a second `evening` call over the same stuck room repeated it,
+`fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}` at 94.7s,
+final state `hp=0/1350 alive=false` with all five ability slots `"locked"`,
+`after-evening.png` matching the DEFEAT-screen shape of every other #271
+report exactly ("0.0s · 0 down"). This does not touch #271's own mechanism
+(already read from source, above) but it does complicate this hypothesis's
+own reading: "idle crosses VIGIL clean" was three-for-three before this,
+across two viewports and both sizes, and is now three-for-four -- the
+`closestGot=9` reading argues the threshold's watchmen came close to missing
+this pull too, which fits the running theory that a clean crossing is about
+whether the watchmen happen to catch the party this particular run rather
+than about style, class or viewport at all. Not filed -- #271 already
+covers the retry-never-recovers half of this, and the gate held shut at
+fourteen open `playtest` issues regardless.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

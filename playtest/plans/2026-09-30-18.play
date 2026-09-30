@@ -1,0 +1,47 @@
+# Cell from playpick: mode=clear, spec=priest:shadow, style=idle, size=10,
+# difficulty=normal, view=390x844,touch, save=fresh.
+#
+# Checked sessions.jsonl and direction.md first. Gate is shut (14 open
+# playtest issues) so this session files nothing new; it plays the
+# assigned cell and re-verifies/sharpens direction.md instead. Nothing
+# has closed since the last ledger line (2026-09-30T21:05Z), so there is
+# nothing to re-verify from gh.
+#
+# What is actually new: direction.md's #6 (THE VIGIL stalls any evening)
+# and #271/#3 (a travel-mode wipe never recovers) have both been run
+# against idle-style mode=clear/mode=walk evenings before, but only ever
+# on a desktop/mouse viewport (2026-09-27-10 druid:feral, 2026-09-29-12
+# warrior:arms, both 1280x800) or on a different style entirely on touch.
+# priest:shadow has never run under idle in any mode, and has never run
+# mode=clear at all. This is the first idle-style mode=clear evening on:
+#   - a genuine touch viewport (390x844,touch)
+#   - a ranged/caster dps role (the two prior idle clears were both melee)
+#   - priest:shadow specifically
+# #6's own note already argues idle crosses THE VIGIL clean regardless of
+# class because cross() ignores style; what a touch viewport adds is
+# whether the touch-overlay steering (a virtual stick, not keys) makes any
+# difference to that corridor-crossing shape, and whether a caster with no
+# melee range at all still gets carried through Bonegrinder the way idle's
+# five prior mode=clear/mode=raid roles have.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+targets
+tap next
+tap class:priest:shadow
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening idle 200 8
+shot after-evening
+state
+says
+targets
+ui
+bill
