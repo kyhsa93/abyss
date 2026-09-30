@@ -1,0 +1,6 @@
+# Probe only -- confirm today's actual daily boss/affix and the
+# druid:restoration class tile label before writing the real script.
+open
+tap daily
+targets
+shot daily-screen

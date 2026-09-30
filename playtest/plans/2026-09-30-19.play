@@ -1,0 +1,51 @@
+# playpick cell: mode=daily boss=flasks (coverage label only -- daily.boss is
+# not a real playpick axis, see direction.md's driver-lesson note on this)
+# spec=druid:restoration style=wander view=820x1180,touch save=carried.
+#
+# Probe (2026-09-30-19-probe.play) found today's actual daily is The Crimson
+# Gift again, 25-player normal, HASTENED -- the same instance two earlier
+# sessions today already fought (2026-09-30-14: raid-mode direct pull,
+# warrior:arms, style=good; 2026-09-30-16: mode=daily, druid:feral,
+# style=flee, died alone at 129s to the bond mechanic once HASTENED's early
+# enrage made the growing distance lethal). Neither of those was a healer,
+# and neither was wander. This is the first druid:restoration under wander in
+# any mode (checked the ledger: wander has only ever been sent as guardian,
+# paladin:holy/heal roles, shaman:restoration -- never this spec), and the
+# first wander-style pull of this fight. wander has no toward- or away-boss
+# steering term (direction.md's #1 write-up on this exact style), unlike
+# flee's straight-line-away, so the question this asks that -16 could not:
+# does a body with *no* deliberate steering at all fare any differently
+# against the bond-drift-then-enrage mechanism than one deliberately running.
+# class:8 = Druid Heal, confirmed by this session's own probe screenshot
+# (third row, third tile) against the daily screen's targets list.
+open
+tap daily
+tap class:8
+targets
+ui
+shot setup
+tap start
+waitscreen fight 15
+state
+shot open
+
+play wander 60
+bill
+state
+shot mid1
+
+play wander 60
+bill
+state
+shot mid2
+
+play wander 60
+bill
+state
+shot mid3
+
+play wander 60
+bill
+says
+state
+shot end

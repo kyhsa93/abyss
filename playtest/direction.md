@@ -1901,6 +1901,51 @@ death regardless of the raid around it. **Not filed** -- already explained
 by source, already an established sub-thread on this line, and the gate held
 shut at fourteen open issues.
 
+**2026-09-30, a fifth entry on the same sub-thread, and the first time `bond`
+killed the tracked body with no enrage in play at all.** Same daily instance
+family as the entry above (`mode=daily`, The Crimson Gift, 25-player normal,
+HASTENED), but `druid:restoration` -- a healer, and the first restoration
+druid this line has ever sent under `wander` in any mode -- rather than
+`flee` (`playtest/plans/2026-09-30-19.play`, fresh probe confirmed `class:8`
+= Druid Heal, 820x1180 touch, carried). `wander` shares `flee`'s one relevant
+property (`scripts/playbot.ts` gives it no toward- or away-boss steering term
+either -- it presses a random ability slot and walks a random heading each
+cycle) but not its direction: where `flee` is guaranteed to increase distance
+from a bonded partner, `wander`'s heading is unbiased.
+
+The pull opened with `enrage 230s` on the HUD (`open.png`) -- more than two
+minutes further out than the `flee` pull's had room to matter -- and was over
+at `fight-over outcome=wipe time=56 phase=2`, `aliveParty=24/25`, only the
+tracked body dead (`heroHp=0/1440`), `bill`: `hits=320 hitsPerMin=340.8
+taken=1627 takenPerMin=1732.9 byMechanic={"bond":191,"flight":129}`. The end
+screen reads plain `WIPE`, not `ENRAGE WIPE` (`mid1.png`), and the healing
+board's own `You` row shows why the numbers are so lopsided: `hps=3` for the
+whole pull next to `taken=1.6k` and `mechanics=320` -- 191 bond hits in 56
+seconds, about one every 0.3s, next to the `flee` pull's 72 hits over 129s
+(about one every 1.8s). The player was dead a full 174 seconds before its own
+enrage clock would have fired.
+
+This does not contradict the "enrage is what turns the drain lethal" read
+above -- it sharpens it in the direction that read had not yet been pushed:
+`flee`'s steering guarantees the distance from a bonded partner only grows,
+so a slow-and-certain drain needed the enrage multiplier to become lethal in
+the pull's own lifetime; `wander`'s steering has no such guarantee either
+way, and this pull's random walk apparently spent enough of its 56 seconds
+far from its partner to tick `bond` six times as often as `flee` managed
+without any multiplier's help at all. One pull is a seed, not a proof --
+`updateBonds` (`src/sim/boss.ts:3845-3859`) charges off raw distance every
+tick regardless of *why* the gap opened, so an unlucky heading sequence under
+`wander` is exactly as able to produce this as a genuine bias would be, and
+the source gives no reason to expect `wander` to be worse than `flee` on
+average. What is measured rather than inferred: a style with no steering
+term at all is not a safe default against this mechanic just because it
+lacks `flee`'s deliberate direction -- the randomness alone was enough to
+kill a healer in under a minute, no affix required. **Not filed** -- gate
+held shut at fourteen open issues, unchanged since the last ledger line; a
+second `wander` pull on this same boss/affix, watched for whether the
+distance grows as fast on average, is what would tell seed noise from a real
+lean.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
