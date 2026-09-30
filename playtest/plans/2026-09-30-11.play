@@ -1,0 +1,43 @@
+# playpick cell: mode=clear spec=shaman:restoration style=mash size=25
+# difficulty=heroic view=844x390,touch save=carried (behaves as fresh, #273).
+# carried/fresh only opens Bonegrinder 10-normal by default, so #b=marrow&s=25&h=1
+# unlocks the whole chain up to 25-heroic before backing out to a real
+# RAID -> WALK IN at the door (direction.md's 2026-09-26 driver-lesson recipe),
+# rather than landing on the invite's own single-fight "visiting" framing.
+#
+# Checked sessions.jsonl and direction.md first (grepped every "mode": "clear"
+# line and every shaman:restoration line directly, not from memory): mash has
+# had exactly one prior full evening, druid:restoration, 25-heroic, 820x1180
+# portrait touch (2026-09-27) -- and shaman:restoration has three prior
+# evenings (flee, melee, and a battleground) but never mash. This is the
+# first time this exact healer spec gets a mash evening, and the first mash
+# evening at a landscape-phone viewport (844x390) rather than portrait touch
+# or desktop -- mash has no movement branch at all (direction.md's #1/#7
+# entries), so the body never leaves its spawn point regardless of viewport,
+# but the touch overlay's own layout (stick + buttons) differs by orientation
+# and nothing has checked whether a blind, unmoving mash healer still reads
+# its own bar correctly in landscape specifically.
+#
+# Also worth watching: the one prior mash evening (druid:restoration) logged
+# the highest shade-mechanic hit count this line has ever measured on a
+# stationary body (42 hits over 218s on The Last Whisper) because a mark's
+# own chase-and-tick never breaks off someone who never moves. A second
+# healer, same style, same size/difficulty, is the first chance to see
+# whether that number is a property of mash itself or one pull's own roll.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+
+evening mash 300 10
+shot end
+state
+says
+bill
