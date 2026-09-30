@@ -1408,6 +1408,28 @@ infection-carrier's idle standstill was shown to cause on 2026-09-28. Worth an
 idle pull on the remaining untried role (healer) before this line calls the
 role split settled.
 
+**2026-10-01, narrowed again by the first ranged non-tank idle pull of this
+exact boss.** `mode=raid`, shaman:elemental, `idle`, 10-normal, fresh save,
+390x844 touch (`playtest/plans/2026-10-01-5.play`) -- same boss, size and
+difficulty as the two entries above, changing the spec from the 2026-09-28
+rogue (melee dps) to a ranged caster, to test whether that pull's loss was
+about the infection/ooze mechanism (which births the ooze wherever the
+carrier is standing, with no distance check, per `birthOoze`,
+`boss.ts:2677`) or about something specific to standing in the boss's melee
+range. It lost the same way: `outcome=wipe fightTime=102 phase=3
+aliveParty=7/10 heroHp=0/1440 bossHp=13% presses=0 inDanger=84%`, `bill`:
+`taken=2899 takenPerMin=1700.3 died=true
+byMechanic={"spray":3,"infection":24,"engulf":1}` -- the player itself dead
+with `28` taken-mechanics on the damage board, second-highest of the raid
+(`end.png`). Range from the boss made no difference: a ranged idle body still
+gets infected, still never moves off the ooze it births, and still dies to
+it, confirming the mechanism reads on any non-tank role regardless of melee
+or ranged, and narrowing the open question to the one role genuinely left --
+healer. The raid held together better than the rogue's pull did (7/10 alive
+against 3/10), consistent with this boss's existing high-variance caution
+rather than a contradiction -- the player's own death is the number that
+repeats, not the raid's.
+
 **2026-09-28, sharpened by the first `dodge`-style evening on a melee dps, and
 the first evening to carry a never-attacking body through two boss kills in a
 row.** `mode=clear`, warrior:arms, `dodge`, 10-normal, fresh save, 1280x800

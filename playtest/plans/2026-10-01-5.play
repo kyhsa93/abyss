@@ -1,0 +1,40 @@
+# Cell from playpick: mode=raid, boss=confluence (The Confluence),
+# spec=shaman:elemental, style=idle, size=10, difficulty=normal,
+# view=390x844,touch, save=fresh.
+#
+# direction.md #1 has two idle pulls of this exact boss/size/difficulty so
+# far: rogue:assassination (melee dps, 2026-09-28-22.play) wiped badly
+# (aliveParty=3/10, heroHp=0), and druid:guardian (tank, 2026-09-30-9.play)
+# won clean (aliveParty=6/10) because scheduleInfection excludes the tank
+# role outright (src/sim/boss.ts:2653, checked by that session). Both idle
+# pulls tried so far are either melee-range or immune-by-role; nobody has
+# run idle on a *ranged* non-tank spec, so it is still open whether the
+# rogue's loss was about the infection/ooze mechanism (which births the ooze
+# wherever the carrier is standing and should catch a ranged body just as
+# hard as a melee one, since it does not check distance to the boss) or
+# about something specific to being in melee range of the boss itself.
+# Elemental shaman is a ranged caster, eligible for infection the same as
+# the rogue was (non-tank), so this pull should settle that: if it loses the
+# same way the rogue did, the mechanism is confirmed geometric-and-role-based
+# regardless of range; if it survives like the tank did, range from the boss
+# turns out to matter after all.
+#
+# Reached the documented way: an invite hash unlocks the tier it names and
+# everything below it, since a fresh save only opens Bonegrinder 10N.
+open #b=confluence&s=10&h=0
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+state
+shot open
+
+play idle 130
+bill
+state
+shot mid1
+
+play idle 130
+bill
+state
+says
+shot end
