@@ -5596,6 +5596,48 @@ before this counts as more than "it appears." Gate held shut at fourteen
 open issues; not filed. Reproduction: `playtest/plans/2026-09-30-21.play`,
 `mid1.png`/`mid3.png`.
 
+**2026-10-01, the first `mash`-style battleground pull on record, and the
+clearest confirmation yet that steering rather than pressing is what this
+line actually turns on.** `playpick` gave `map=conquest` (The Three Cairns),
+`spec=druid:feral`, `style=mash`, `844x390,touch`, fresh -- checked every
+`.play` under `playtest/plans/` and every session on this line first: `mash`
+had appeared in raids and evenings many times but never once on a
+battleground, of any map. Read `scripts/playbot.ts`'s own want-computation
+before playing it: `mash` is missing from the steering branch entirely
+(only `dodge`/`good`/`melee`/`wander`/`flee`/`learn` ever set `want`), so it
+releases the stick and stands exactly where the pull started for the whole
+match while round-robining ability slots 1-5 every cycle -- the one style
+that is maximally active with its buttons and totally inert with its feet,
+a corner this line has not had a clean reading of: flee/dodge never press,
+good/melee press *and* steer (and die in 9-16s on a beeline into the enemy
+cluster), auto steers nothing and presses only what the bar allows.
+
+`playtest/plans/2026-10-01-8.play`: three `play mash 90` chunks read
+`hits=0 hitsPerMin=0 taken=0 takenPerMin=0` in every `bill`, 572 presses
+total across the match and not one of them landed -- `mid1.png` shows "Out
+of range" hanging over the token at fightTime=87s while three ability slots
+sit in `status:"range"` the whole time, exactly the healer-`auto` shape
+from 2026-09-26 but on a melee spec mashing its own rotation instead of a
+ranged one holding a toggle. The match itself ended at fightTime=145s,
+`outcome=defeat`, score 117-400 -- the first battleground on this line to
+end by the point cap rather than the 300s clock (README: "400 points, or
+300s"), with `aliveParty` at 4/5 the whole time the player was tracked and
+the tracked body itself untouched (`heroHp=1575/1575`, `inDanger=0%`)
+start to finish. The end screen's damage board (`mid2.png`) shows why this
+reads as zero rather than merely low: every other row carries a real dps or
+hps number, and "You" carries a bare dash where the number would go.
+
+**Not a new mechanism, and not filed (gate shut at fourteen).** This is the
+same conclusion the `auto`-healer and `auto`-tank entries above already
+reached, now on a style that presses constantly rather than one that holds
+a toggle: the output is identical to `dodge`/`flee`'s hits=0 either way,
+which says the driver's missing steering branch is doing all the work here,
+not anything about `mash` as a hypothesis about a player. Worth remembering
+before a future session reads a `mash` battleground reading as evidence
+about the *game* rather than about this one style's own gap in
+`scripts/playbot.ts` -- the fix, if one is wanted, is a `want` branch for
+`mash` (even a plain toward-nearest-enemy term), not anything in `src/`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

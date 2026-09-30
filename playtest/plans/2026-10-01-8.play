@@ -1,0 +1,61 @@
+# Cell from playpick: mode=battleground map=conquest spec=druid:feral
+# style=mash view=844x390,touch save=fresh.
+#
+# Checked sessions.jsonl and every .play under playtest/plans/ first: `mash`
+# has never been run on any battleground before, on any map. direction.md's
+# #7 ("a battleground does not carry a passive body the way a raid does")
+# has flee/dodge (zero presses, never steers), good/melee (steers + presses,
+# dies in ~9-15s on every map tried so far) and auto (no steering at all,
+# presses only what the bar allows -- mostly nothing, since nobody walks
+# into range). `mash`'s own steering branch is missing entirely from
+# scripts/playbot.ts's want-computation (only dodge/good/melee/wander/flee/
+# learn compute a `want`), so mash releases the stick and stands exactly
+# where it is for the whole match while round-robining ability slots 1-5 --
+# a body that is maximally active with its buttons and totally inert with
+# its feet. That's a different corner from anything #7 has on record: not
+# "never fights" (dodge/flee) and not "fights then dies fast" (good/melee on
+# a melee spec that beelines into the enemy cluster) but "fights whatever
+# wanders into range, from a fixed spot, forever." Feral druid is melee, so
+# if nothing ever comes to it, mash should read identically to dodge/flee on
+# the output side (hits=0) despite being constantly pressing -- worth
+# checking bill for exactly that.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:druid:feral
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play mash 90
+shot mid1
+state
+bill
+says
+
+wait 5
+play mash 90
+shot mid2
+state
+bill
+
+wait 5
+play mash 90
+shot mid3
+state
+bill
+says
+targets
