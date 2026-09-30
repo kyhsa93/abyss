@@ -5360,6 +5360,46 @@ off somebody else never fired once while somebody else needed it to. Gate
 held shut at fourteen open issues; not filed. Reproduction:
 `playtest/plans/2026-09-30-13.play`, `mid1.png`/`mid2.png`/`mid3.png`.
 
+**2026-09-30, a fourth `good`-via-`auto`-fallback death in the same 9-16s
+band, on flags this time, and the first live sighting of the battleground
+rally.** `playpick` gave `map=flags` (Ebb and Flow), `spec=druid:balance`,
+`style=auto`, `1280x800`, carried (behaves as fresh per #273) -- checked the
+ledger first: druid:balance had fought on conquest twice (`good` ~9s death,
+`mash`) but never on flags, and the only prior `auto`/flags pull was
+druid:restoration on real touch (2026-09-26, above). At 1280x800 there is no
+touch toggle to tap (`FAULT no-such-control {"want":"auto",...}`), so
+`playbot` fell back to `good` exactly as documented, making this the second
+`good`-style ranged caster tried on flags specifically (after shaman:
+restoration).
+
+Same shape, fourth-to-fifth confirmation: dead at `fightTime=16.2`
+(`pulled.png` shows the whole 5-body party spawning clustered directly
+around Corvin, same as every prior flags/conquest `good` death), `bill`
+`hits=0 hitsPerMin=0 taken=1831 takenPerMin=6753.7 died=true byMechanic={}`.
+The chained `play auto 90` calls after that reproduced the already-
+understood *Tried and dropped* driver artifact too -- the second call
+returned in 0s of simulated time because `hero()` read null at its own
+start, not because anything was stuck (`playtest/plans/2026-09-30-21.play`).
+Nothing new about the mechanism; `good`/`auto`-fallback now reads the same
+immediate-death shape on both of this line's most-visited maps.
+
+What *is* new: `mid3.png` (fightTime=48.7s, still dead, "up in 7s") shows a
+filled red disc with a progress dial around the player's own corpse and
+"ours taken by Grimsby" on the banner line -- `src/render/draw.ts`'s
+`drawRally`, README's "rally" (a scheduled contest on the perpendicular
+bisector of the two bases, live once its 9s telegraph runs out, paid once).
+No prior session's screenshots or journal lines mention the rally at all
+(grepped this file for "rally": zero hits before this entry), so this is
+the first confirmation this job has that the mechanic exists in a real
+match rather than only in the README's description. It rendered exactly as
+described -- team-tinted fill, a progress arc -- and is not itself a
+finding: the dead body happened to be lying inside it, which said nothing
+about whether the rally is reachable or contested correctly, only that it
+is drawn. Worth a session that lives long enough to actually contest it
+before this counts as more than "it appears." Gate held shut at fourteen
+open issues; not filed. Reproduction: `playtest/plans/2026-09-30-21.play`,
+`mid1.png`/`mid3.png`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

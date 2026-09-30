@@ -1,0 +1,51 @@
+# playpick gave mode=battleground map=flags spec=druid:balance style=auto
+# view=1280x800 save=carried. Checked the ledger and direction.md's #7 first:
+# druid:balance has fought on flags's two sibling maps (conquest/good,
+# conquest/mash) but never on flags itself; style=auto at a desktop/mouse
+# viewport has no touch toggle to tap (README: "touch only"), so
+# scripts/playbot.ts's own play() falls back to `good` here, same as the
+# 2026-09-25 druid:feral/flags/auto session did. So this is, in effect, the
+# first `good`-style ranged-caster pull on flags itself -- every prior
+# `good`-style battleground death on record (druid:feral/flags ~15s,
+# warlock:destruction/escort ~13s, druid:balance/conquest ~9s,
+# shaman:restoration/flags ~14-16s) died almost immediately from a beeline-at-
+# hud().boss steering that walks straight into the enemy's own spawn cluster.
+# Point of this pull: does a second ranged caster on flags specifically die
+# the same way, or does surviving long enough to reach a flag change anything
+# (flags is the one map where standing still can turn a body into a carrier
+# by proximity alone, per the 2026-09-27 mage:frost/flee finding).
+open
+targets
+shot front
+
+tap battleground
+tap map:flags
+targets
+shot flags-picked
+
+tap class:druid:balance
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play auto 90
+shot mid1
+state
+bill
+says
+
+wait 5
+play auto 90
+shot mid2
+state
+bill
+
+wait 5
+play auto 90
+shot mid3
+state
+bill
+says
+targets
