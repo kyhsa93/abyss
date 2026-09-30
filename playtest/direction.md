@@ -3363,6 +3363,52 @@ note not to read that as a finding. Zero wipes, zero #271 confirmations, zero
 shut at fourteen open `playtest` issues regardless, but this run had nothing
 in it that would have earned one even with the gate open.
 
+**2026-10-01, a westclimb stall lands on the same `y` to twelve decimal
+places as an unrelated one three days earlier, and the `x` is within twenty
+units.** `mode=walk` (`boss=skyward`, a coverage label only), rogue:
+assassination, `flee`, 25-heroic, carried (behaves as fresh per #273),
+820x1180 touch (`playtest/plans/2026-10-01-4.play`) -- first rogue:
+assassination evening under `flee` (five prior rogue readings were `melee`,
+`auto`, `idle`, `wander`), and a fourth spec/size/difficulty combination to
+cross THE VIGIL clean under `flee` specifically (priest:discipline, shaman:
+restoration and hunter:marksmanship had each already done so at 25-heroic;
+this makes it four for four there). THE VIGIL crossed clean in 25.4s
+(`10.6s` in to `36.1s` out, `closestGot=10`), and Bonegrinder heroic died
+inside the crossing -- but not for free this time: `aliveParty=20/25` after
+the kill, five raid deaths, the highest cost this line has recorded for a
+`flee`-style evening kill (the twelfth confirmation's `flee` kill of the
+same boss at 10-normal cost one body; the fourth confirmation's 25-heroic
+`flee` kill of it on shaman:restoration cost one; this is five). Worth a
+line for [[#1]] more than for this one -- `flee`'s "free carry" shape is not
+unconditional at the harder tier.
+
+The room after is the sharp part. Room 3, `westclimb`, burned its whole 260s
+budget: `fault:fight-outlasted-its-budget {"room":"westclimb",
+"hero":{"x":-1382.4761267933534,"y":-6610.624094474852}}`, `closestGot=553`.
+The twelfth confirmation above logged the identical fault in the identical
+room on 2026-09-29, under a different spec (druid:restoration), a different
+size and difficulty (10-normal, not 25-heroic), and a different seed, at
+`{"x":-1402.493038090908,"y":-6610.624094474852}`, `closestGot=553` --
+checked against both sessions' own `journal.jsonl` directly, not the prose
+write-up, because a match this exact reads like a transcription error
+until it is not. The `y` is bit-for-bit identical across thirteen decimal
+digits and the `x` differs by twenty units out of about fourteen hundred.
+Two evenings that share nothing else -- different raid size, different
+difficulty, different class, different day, only `flee` and the room in
+common -- stopped within a hand's width of the same point in a 900-unit-wide
+arena. That is not "the party got stuck somewhere in westclimb"; that is
+`cross()` computing the same steering target regardless of who is walking
+it, which is exactly [[#6]]'s own claim about THE VIGIL extended to a second
+room with a number precise enough to stop calling it a coincidence.
+
+**Not filed -- #281 is titled to THE VIGIL specifically and fourteen open
+`playtest` issues held the gate shut regardless** -- but this is the
+strongest single piece of evidence this line has produced that the "stalls
+at one fixed point" mechanism is not room-specific, and it belongs on #281
+or a sibling issue the first session the gate opens, with both
+`playtest/plans/2026-09-29-16.play` and `playtest/plans/2026-10-01-4.play`
+(and their `journal.jsonl`s) as the paired reproduction.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

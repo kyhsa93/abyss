@@ -1,0 +1,29 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-01-4","view":"820x1180","touch":true,"seed":580491,"url":"http://127.0.0.1:5307/","at":1.2,"kind":"session"}
+{"hash":"#b=marrow&s=25&h=1","screen":"roster","mode":"raid","outcome":"ongoing","at":3.8,"kind":"open"}
+{"label":"back","box":[104,48],"screen":"home","mode":"raid","outcome":"ongoing","at":4.4,"kind":"tap"}
+{"label":"raid","box":[344,104],"screen":"raid","mode":"raid","outcome":"ongoing","at":4.6,"kind":"tap"}
+{"label":"next","box":[640,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":4.8,"kind":"tap"}
+{"label":"class:rogue:assassination","box":[256,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":4.9,"kind":"tap"}
+{"label":"pull","box":[560,48],"screen":"fight","mode":"travel","outcome":"ongoing","at":5.1,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":5.2,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.2333333333333333,"tick":7,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"assassination","role":"dps","hp":1530,"maxHp":1530,"power":100,"maxPower":100,"alive":true,"casting":null,"bar":[{"slot":1,"id":"sinister_strike","status":"range"},{"slot":2,"id":"rupture","status":"range"},{"slot":3,"id":"eviscerate","status":"range"},{"slot":4,"id":"sprint","status":"ready"},{"slot":5,"id":"evasion","status":"ready"}]},"boss":null},"at":5.3,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-01-4/shots/start.png","screen":"fight","mode":"travel","outcome":"ongoing","at":5.5,"kind":"shot"}
+{"n":"1/6","room":"threshold","mode":"travel","at":5.5,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@139"],"lit":["threshold"],"rode":[],"padHere":true,"at":5.5,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":62,"endedAt":{"x":-28.96313638691275,"y":-965.6296510220216},"presses":0,"secondsAtTheDoor":0,"stillAlive":192,"nearest":"The Damned,The Damned,The Damned,The Damned","at":10.6,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":10.7,"kind":"walked-on"}
+{"n":"2/6","room":"vigil","mode":"travel","at":10.7,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1276","threshold@30"],"lit":["threshold"],"rode":[],"padHere":false,"at":10.8,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":10,"endedAt":{"x":-0.47085488370118633,"y":-5716.613250308336},"presses":2,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":36.1,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":36.1,"kind":"boss-woken"}
+{"style":"flee","seconds":260,"outcome":"ongoing","fightTime":91,"phase":1,"aliveParty":"20/25","heroHp":"711/1530","bossHp":"down","presses":0,"inDanger":"1%","at":296.3,"kind":"played"}
+{"room":"vigil","at":296.3,"kind":"boss-down"}
+{"n":"3/6","room":"westclimb","mode":"travel","at":296.3,"kind":"room"}
+{"room":"westclimb","took":"oratory","why":"unvisited","ways":["oratory@650","spire@845"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":296.3,"kind":"door"}
+{"from":"westclimb","to":"westclimb","aimedAt":"door","closestGot":553,"endedAt":{"x":-1382.4761267933534,"y":-6610.624094474852},"presses":12,"secondsAtTheDoor":0,"stillAlive":188,"nearest":"The Damned,The Damned,The Damned,The Damned","at":556.4,"kind":"crossed"}
+{"room":"westclimb","seconds":260,"hero":{"x":-1382.4761267933534,"y":-6610.624094474852},"boss":null,"away":null,"at":556.5,"kind":"fault:fight-outlasted-its-budget"}
+{"rooms":3,"wipes":0,"walked":["threshold(travel,ongoing,5s)","vigil(travel,ongoing,286s)","westclimb(travel,ongoing,260s)"],"reached":"threshold -> vigil -> westclimb","endedAt":"westclimb","at":556.5,"kind":"evening"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"westclimb","hud":{"time":351.0000000000636,"tick":10530,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":true,"zoom":3,"party":25,"alive":20,"me":{"name":"You","spec":"assassination","role":"dps","hp":1335,"maxHp":1530,"power":100,"maxPower":100,"alive":true,"casting":null,"bar":[{"slot":1,"id":"sinister_strike","status":"range"},{"slot":2,"id":"rupture","status":"range"},{"slot":3,"id":"eviscerate","status":"range"},{"slot":4,"id":"sprint","status":"locked"},{"slot":5,"id":"evasion","status":"locked"}]},"boss":null},"at":556.6,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-01-4/shots/after-evening.png","screen":"fight","mode":"travel","outcome":"ongoing","at":556.7,"kind":"shot"}
+{"lines":[],"at":556.7,"kind":"says"}
+{"fightTime":351,"outcome":"ongoing","hits":0,"hitsPerMin":0,"taken":0,"takenPerMin":0,"died":false,"byMechanic":{},"at":556.7,"kind":"bill"}

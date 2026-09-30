@@ -1,0 +1,39 @@
+# Cell from playpick: mode=walk, boss=skyward (coverage label only --
+# evening steers at no boss, the walk starts at the door same as any
+# other), spec=rogue:assassination, style=flee, size=25, difficulty=heroic,
+# view=820x1180,touch, save=carried (behaves as fresh per #273 -- the
+# dev-server port is pid-derived so localStorage never actually carries
+# across separate playbot invocations, so #b=marrow&s=25&h=1 is used to
+# unlock the chain up to 25-heroic the same way every other "carried at
+# heroic" cell in this job has).
+#
+# Checked sessions.jsonl and direction.md's #6/#271 lines first. rogue:
+# assassination has been played five times before (melee, auto, idle,
+# wander) and never once under flee. flee at 25-heroic has been given to
+# three specs so far (priest:discipline, shaman:restoration, hunter:
+# marksmanship) and crossed THE VIGIL clean every single time at that
+# size/difficulty -- a fourth style/spec pair at 25-heroic would be a fifth
+# clean crossing in a row there, or the first stall at that tier. Rogue is
+# also the one class on record with a clean THE VIGIL crossing under
+# *melee* specifically (moveSpeed 178, the fastest in the roster, 2026-09-25)
+# -- [[#6]]'s 2026-09-28 entry found that a slower class wiped under the
+# same melee style and concluded raw speed, not the style, did the work in
+# that one pass. flee moves the player away from danger rather than at the
+# boss, so this is the first chance to see whether rogue's speed advantage
+# still shows up under a style with the opposite steering term, or whether
+# it was melee-specific all along.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening flee 260 6
+state
+shot after-evening
+says
+bill
