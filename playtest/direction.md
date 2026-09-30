@@ -2254,6 +2254,21 @@ in the sense that nobody outside this job can act on it until `docs/upkeep.md`
 picks it up -- fourteen confirmations plus a mechanism is the ceiling this
 line can reach from inside a shut gate.
 
+**2026-09-30, fifteenth confirmation, no new information.** `mode=clear`,
+priest:discipline, `melee`, 10-normal, genuinely fresh save, 1280x800 desktop
+(`playtest/plans/2026-09-30-12.play`) -- the eighth confirmation already ran
+this exact spec/style pair at 25-heroic on a touch viewport; this fills in the
+one remaining cell (10-normal, genuinely fresh, desktop) without changing the
+shape at all. Wiped in THE VIGIL at 39.8s (`closestGot=10`), `outcome:retry`
+tapped, instant re-wipe at 70.3s (`presses=0`, `closestGot=n/a`), a second
+`evening` call over the same stuck room produced the identical shape a room
+later, `fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}` at
+100.7s, final state `hp=0/1350 alive=false` with all five ability slots
+`"status":"locked"`. `after-evening.png` matches the DEFEAT-screen shape of
+every other #271 screenshot exactly: "0.0s · 0 down". Recorded for the axis
+coverage and nothing else -- the mechanism was already read from source on
+2026-09-29 and this changes no part of it.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five

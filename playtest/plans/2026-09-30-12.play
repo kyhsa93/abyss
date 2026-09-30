@@ -1,0 +1,42 @@
+# Cell from playpick: mode=clear, spec=priest:discipline, style=melee, size=10,
+# difficulty=normal, view=1280x800, save=fresh.
+#
+# 10-normal on a genuinely fresh save is progress.ts's own first rung, open
+# with no unlock trick needed.
+#
+# Checked sessions.jsonl for every priest:discipline line before writing this:
+# seven prior evenings/pulls on this spec, every single one at 25-heroic
+# (clear/flee, raid/idle, walk/wander, battleground/wander, walk/melee, walk/
+# good) -- this is the first priest:discipline evening at 10-normal, and the
+# first at a desktop/mouse viewport (all seven priors were touch: 844x390,
+# 390x844, 820x1180). direction.md's #6 line also has exactly two melee-style
+# VIGIL readings on record: rogue:assassination (moveSpeed 178, the roster's
+# fastest) crossed clean twice, while warlock:destruction and this same
+# priest:discipline spec (both moveSpeed 158, both at 25-heroic) wiped/stalled
+# under melee. Priest is a slow class at its *easiest* difficulty this time --
+# the missing cell in that table -- so this either wipes the same way the
+# other slow classes did (arguing melee's failure is about speed, not
+# difficulty) or crosses clean (arguing 10-normal is just more forgiving of a
+# slow melee body than 25-heroic was).
+open
+targets
+shot front
+tap raid
+shot raid-setup
+targets
+tap next
+tap class:priest:discipline
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening melee 240 8
+shot after-evening
+state
+says
+targets
+ui
+bill
