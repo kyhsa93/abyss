@@ -1,0 +1,37 @@
+# playpick cell: mode=walk boss=skyward (coverage label only -- evening steers
+# at no boss) spec=paladin:retribution style=dodge size=25 difficulty=heroic
+# view=1280x800 save=carried (behaves as fresh, #273).
+#
+# What is new: this exact spec/style/size/difficulty/save combo already
+# produced the deepest zero-wipe evening on record
+# (playtest/plans/2026-09-28-29-extended.play, touch 844x390) -- THE VIGIL
+# clean, Bonegrinder-heroic clean, Last Whisper taken to 26%. Never tried at a
+# desktop/mouse viewport. This script also reuses the short-per-room-budget
+# trick 2026-09-27-12.play used to catch a pull honestly `ongoing` (not a wipe
+# or a stall) and then presses the corner map button mid-pull -- direction.md's
+# still-open "map -> back -> raid erases a live pull's progress" finding, found
+# twice on touch (820x1180 and 844x390) and never on a desktop/mouse viewport.
+# If the drop reproduces here too, it is confirmed pointer-independent, which
+# is the missing axis the existing writeup names as worth checking before the
+# gate reopens and it can be filed.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:paladin:retribution
+tap pull
+waitscreen fight 15
+state
+evening dodge 60 3
+state
+shot mid-pull
+tap minimap
+tap map
+state
+shot citadel-mid-fight
+tap back
+state
+shot after-back
+tap raid
+state
+shot after-raid-retap

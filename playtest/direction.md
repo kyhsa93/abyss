@@ -4669,6 +4669,53 @@ strong candidate for the first slot once it reopens, with both scripts
 the three screenshots (`mid-evening.png`, `citadel-mid-fight.png`,
 `after-raid-retap.png`).
 
+**2026-09-30, a third confirmation, first at 25-heroic and the first on a
+desktop/mouse viewport -- closing both open questions the 2026-09-27 writeup
+left.** `mode=walk` (`boss=skyward`, a coverage label only), paladin:
+retribution, `dodge`, 25-heroic, carried (behaves as fresh per #273), 1280x800
+desktop (`playtest/plans/2026-09-30-15.play`) -- every prior confirmation of
+this thread was 10-normal on a touch viewport (820x1180, 844x390). `evening
+dodge 60 3` crossed THE VIGIL clean (9.2s to 40.3s, `presses=0`) and caught
+Bonegrinder-heroic honestly `ongoing` when the 60s room budget ran out:
+`fault:fight-outlasted-its-budget` at `fightTime=57 phase=2 bossHp=58%
+aliveParty=25/25`. One driver wrinkle first: the script's `tap minimap` step
+(copied from the touch reproductions, which need it to reveal the corner
+group before `map` appears) faulted `no-such-control` here -- `targets`
+already listed `map` directly (`saw:["map","party","settings","ability:5",
+"ability:4","ability:3","ability:2","ability:1"]`). Not a game bug, a driver
+lesson: touch collapses the corner controls behind a minimap toggle that
+desktop's mouse UI does not.
+
+`tap map` moved to `screen=citadel` with `state` still reading `mode=raid
+outcome=ongoing chamber=spire`, boss hp ticking down underneath it (178,356 ->
+177,065 across two `state` calls) exactly as both touch reports found --
+`citadel-mid-fight.png` shows the live pull's own party dots rendered on the
+room graph, mid-fight, under "25-man heroic — where you are, and what is
+still shut", same as `citadel-view.png` did on touch. `tap back` landed on
+`screen=home` with the same live `mode=raid outcome=ongoing chamber=spire`
+reading. `tap raid` reproduced the drop exactly: `screen=fight mode=travel
+outcome=ongoing chamber=spire hud.time=0 tick=0 phase=1 countdown=89`, boss hp
+reset to full (`308200/308200`, from 177,065), position reset to the room's
+origin, every ability back to `"range"` from `"ready"` -- a fresh pull, not a
+resume, the same fields changing as both 10-normal reports.
+`after-raid-retap.png` shows the "pull 1 / phase 1 / 0.0s / enrage 240s"
+countdown-3 screen with the boss's health bar full again. The player's own hp
+carried over rather than resetting (1800 max, sitting at 1138 by the retap,
+down from 1454 the instant before) -- only the encounter's own progress is
+erased, matching the 2026-09-27 report's own "party survived, hp intact from
+where the fight left it" reading exactly.
+
+Third confirmation, and it closes both things 2026-09-27 left open: whether
+this holds at a size/difficulty other than 10-normal, and whether it is a
+touch-specific interaction with the corner buttons rather than the drop
+itself. Neither survives -- 25-heroic drops the pull the same way 10-normal
+does, and a mouse tap on a control that needs no reveal step drops it the
+same way a touch tap on one that does does. Not filed -- gate held shut at
+fourteen open `playtest` issues -- still the strongest single candidate this
+line has for the first slot once it reopens, now with three scripts and six
+screenshots covering both input schemes and both difficulty tiers this job
+has on record.
+
 **2026-09-27, sharpened by the first tank spec `mash` has ever been given on
 a battleground, and the first time this line has separated "a passive body"
 from "the specific role that body vacated."** `mode=battleground`,
