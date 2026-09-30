@@ -3248,6 +3248,36 @@ than about style, class or viewport at all. Not filed -- #271 already
 covers the retry-never-recovers half of this, and the gate held shut at
 fourteen open `playtest` issues regardless.
 
+**2026-09-30, the first `dodge`-style evening at 10-normal, and the first on
+a touch viewport.** `mode=walk` (`boss=cold`, a coverage label only),
+hunter:marksmanship, `dodge`, 10-normal, genuinely fresh save, 844x390 touch
+(`playtest/plans/2026-09-30-20.play`) -- `dodge` had only walked an evening
+twice before this, both 25-heroic on a desktop/mouse viewport (paladin:
+protection 2026-09-26, paladin:retribution 2026-09-30). Checked
+`scripts/playbot.ts` before running it: `dodge`'s own steering only reacts to
+a hazard already underfoot (`want = away` off the nearest standing patch, no
+boss-directed term outside `good`) -- a different shape than every style
+that has met THE VIGIL's watchmen so far -- but this line's own running
+theory already answers what that predicts: `cross()` steers every travel-mode
+room itself and takes no `style` argument at all, so a style's own steering
+never actually runs during a crossing regardless of what it would have done.
+
+The result fits the seed-luck reading better than a style effect either way.
+THE VIGIL crossed clean (`7.8s` in, `34s` out, `closestGot=8` -- a near-miss
+margin in the same range as the priest:shadow idle wipe's `closestGot=9`
+above, yet this one went through), and Bonegrinder died inside the crossing
+for free (`fightTime=65 presses=0 heroHp=1620/1620 aliveParty=10/10
+bossHp=down`) -- [[#1]]'s shape again, first time under `dodge` at this size/
+difficulty. `spire -> westclimb -> oratory` crossed clean too (8-13s each,
+zero presses, zero faults), and the evening's 5-room budget ran out mid-pull
+on The Last Whisper (`fault:fight-outlasted-its-budget`, boss at 39%,
+`aliveParty=10/10 heroHp=1356/1620`) -- real ongoing progress cut short by
+the script's own budget, not a stall or a wipe, per `docs/playtest.md`'s own
+note not to read that as a finding. Zero wipes, zero #271 confirmations, zero
+#6 stalls, the whole 5-room budget used cleanly. Nothing to file -- gate held
+shut at fourteen open `playtest` issues regardless, but this run had nothing
+in it that would have earned one even with the gate open.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

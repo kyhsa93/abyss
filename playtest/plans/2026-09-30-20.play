@@ -1,0 +1,44 @@
+# playpick cell: mode=walk boss=cold spec=hunter:marksmanship style=dodge
+# size=10 difficulty=normal view=844x390,touch save=fresh. boss=cold is a
+# coverage label only -- `evening` steers at no boss (direction.md's own
+# repeated note under [[#6]]) -- so this walks in fresh at the door same as
+# any other 10-normal evening.
+#
+# What is actually new here: `dodge` has only ever been run through an
+# evening twice before, and both were 25-heroic on a desktop/mouse viewport
+# (2026-09-26, paladin:protection; 2026-09-30, paladin:retribution) -- never
+# at 10-normal, never on a touch viewport, and never on this spec. That
+# matters specifically for THE VIGIL and #271 (the "wipe here and the evening
+# never comes back" bug, eleven confirmations across seven specs and four
+# other styles at this exact size/difficulty/save cell). Every one of those
+# eleven confirmations used a style that actively moves toward or away from
+# the boss the whole time (flee runs straight off the boss's own position;
+# melee/good/wander/auto all close or wander). Read scripts/playbot.ts before
+# writing this: `dodge`'s steering (line ~929) only reacts to what is
+# currently underfoot -- `want = away` off the nearest standing hazard, with
+# no boss-directed term at all outside `good` -- so in a corridor with no
+# ground patches, just chasing watchmen, dodge may not steer *away from the
+# watchmen* the way flee does, and could sit still (want=null) until
+# something is actually standing on it. That is a genuinely different
+# steering shape than every style that has met THE VIGIL's watchmen so far,
+# and no session has asked whether #271's wipe shape depends on the style
+# actively fleeing the threat versus one that only reacts to hazards already
+# under it.
+open
+targets
+shot front
+
+tap raid
+shot raid-setup
+tap next
+tap class:hunter:marksmanship
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening dodge 200 5
+state
+bill
+shot end
