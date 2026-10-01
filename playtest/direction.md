@@ -2806,9 +2806,45 @@ separate session's state was running on a fresh origin in disguise, and any
 session that concluded something from "the profile remembered X" needs to
 have actually stayed inside one script to say so.
 
-**Disproved by** a fix (a fixed port for a given `--profile`, or an explicit
-localStorage snapshot/restore step) landing, and a `carried` session across
-two separate `playbot` invocations actually reading back a prior one's state.
+**2026-10-02, the fix side tested, not just the failure side.** Every prior
+reading reproduced the loss; none had tried the repair the "Disproved by" line
+names. `mode=menus`, 844x390 touch landscape, carried (this session's picked
+cell) — `playtest/plans/2026-10-02-4-fixed-port-carry.mjs`, a one-off script
+since two *separate* invocations need two separate `node` processes, not two
+`.play` lines. It ran the exact lifecycle `playbot.ts` goes through once per
+invocation — `spawn('vite', ['--port', P, '--strictPort', ...])`,
+`launchPersistentContext(profile)`, work, `context.close()`, kill the `vite`
+child — twice in a row, back to back, both times on the identical fixed port
+(5900) against the same scratch profile dir (not `playtest/profile`, so the
+real carried save stays untouched).
+
+Phase 1: a fresh profile's own default roster has slot 0 at `mage:frost`
+(confirmed read before touching anything); changed it to `warrior:arms` via
+the real composition screen, and set the name field to `PORTFIX1` via the
+real settings input, then tore the whole invocation down. Phase 2: a brand
+new `vite` process on the same port 5900, a brand new
+`launchPersistentContext` call against the same profile dir, page loaded
+fresh. The raw `localStorage` read on load, before a single tap, already
+showed `name: "PORTFIX1"` and slot 0 at `warrior:arms` — confirmed back
+through the real UI too, not just storage: the settings name field read
+`PORTFIX1` while editing, and `composition.png` from phase 2 is pixel-
+identical to phase 1's own after-writes shot, both reading "You — D Warrior
+DPS".
+
+This answers the open half of the line's own "Disproved by" clause: holding
+the port fixed is sufficient on its own. No explicit snapshot/restore step is
+needed — the state was never actually lost, only unreachable through a second
+origin. That narrows what #273 is asking for: a fixed port per `--profile`
+(or any scheme that keeps one port per profile across invocations) is the
+whole fix, not half of one. The hypothesis itself stands exactly as before —
+`playbot.ts` still picks a new port every real invocation, so a `carried`
+session through the actual tool still does not carry — this only confirms
+which repair closes it.
+
+**Disproved by** a fix (now known to need nothing more than a fixed port per
+`--profile`) landing in `playbot.ts` itself, and a `carried` session across
+two separate real `playbot` invocations actually reading back a prior one's
+state.
 
 ### 6. THE VIGIL stalls any evening at one fixed point, win or lose
 
