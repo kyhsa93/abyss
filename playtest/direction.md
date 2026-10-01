@@ -3474,6 +3474,43 @@ or a sibling issue the first session the gate opens, with both
 `playtest/plans/2026-09-29-16.play` and `playtest/plans/2026-10-01-4.play`
 (and their `journal.jsonl`s) as the paired reproduction.
 
+**2026-10-01, a clean crossing on the one spec/style pair that had only ever
+been read through the 10-normal fallback.** `mode=clear`, paladin:retribution,
+`wander`, 25-heroic, fresh save, 390x844 touch (`playtest/plans/2026-10-01-10.play`).
+This exact cell was run once before, on 2026-09-24, but the invite-hash recipe
+(`#b=marrow&s=25&h=1` -> back -> raid -> next) that lets a fresh save actually
+reach heroic did not exist yet, so that session's whole reading -- the vigil
+wipe that opened #271 -- was 10-normal wearing a 25-heroic label (the raid
+screen defaulted to the locked tier and the script never caught it; its own
+ledger line says so). This is the first time the real cell has been played.
+
+It did not stall and did not wipe. THE VIGIL crossed in 8.9s (`closestGot=43`),
+Bonegrinder died inside the crossing at `fightTime=51s` while `wander` threw
+738 presses at nothing in particular -- a free kill in wall-clock terms but
+not in bodies: `aliveParty` went from 25/25 to 20/25, five lost to a boss
+dead in under a minute, the highest-presses, highest-cost Bonegrinder-in-the-
+vigil reading on record (contrast the dodge-style 10-normal reading two
+sessions ago: zero presses, zero cost, same free-kill shape). The evening
+kept going clean for three more rooms with zero wipes (`westclimb`, `spire`,
+`eastclimb`, each crossed in 7-15s on the first attempt, no retries) before
+reaching `oratory` and waking The Last Whisper, where the 200s play budget
+ran out at boss 53% (`fault:fight-outlasted-its-budget`, `away=1259` --
+`wander`'s own screenshot, `end.png`, shows the player standing in an
+"Out of range" ring over a thousand units from the fight it is nominally in).
+Six rooms, zero wipes, the deepest a `wander`-style evening has gone on
+record at 25-heroic.
+
+Read together with the fifth-style clean-crossing note above and the
+melee/idle clean crossings further up: **four of the eight styles this job
+can run (`melee`, `idle`, now `wander` twice -- once stalling, once not) have
+each produced both a stall and a clean crossing of THE VIGIL on different
+seeds.** The corridor's own watchmen placement is seed-rolled per the
+README, so the honest reading is narrowing further: this was never "style X
+stalls, style Y does not," it is a seed-dependent trap any style can land in
+or miss, and `wander`'s own 2026-09-25 stall and this session's clean run are
+the first pair to show that for a single style directly rather than across
+styles.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

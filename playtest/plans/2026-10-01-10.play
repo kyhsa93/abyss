@@ -1,0 +1,45 @@
+# playpick cell: mode=clear spec=paladin:retribution style=wander size=25
+# difficulty=heroic view=390x844,touch save=fresh.
+#
+# A fresh profile locks 25-heroic, so #b=marrow&s=25&h=1 unlocks the tier the
+# same way every other 25-heroic clear/walk script in this ledger does since
+# the 2026-09-26 driver-lesson, then backs out to a real RAID -> WALK IN at
+# the door rather than the invite's single-fight "visiting" framing.
+#
+# Checked sessions.jsonl first: this exact spec/style/size/difficulty cell
+# was already run once, on 2026-09-24 (plans/2026-09-25-4.play), before that
+# recipe existed -- it never actually reached heroic at all, because the
+# script walked in from the raid-setup screen's own locked default (10N) and
+# the ledger line says so outright ("25-heroic is locked on a fresh save so
+# the walk ran on the setup screen default"). So every reading that session
+# produced -- the vigil wipe, the stuck PULL AGAIN -- is a 10-normal reading
+# wearing a 25-heroic label. This is the first time paladin:retribution under
+# wander is actually walked through the citadel at real 25-heroic, and the
+# first time this exact cell runs on a portrait phone viewport (the 2026-09-24
+# attempt was 844x390 landscape; every other 390x844-touch clear-mode session
+# on record used a different spec or style).
+#
+# direction.md's #6 (vigil stalls any evening near y=-1560..-1573 regardless
+# of style) and #3 (a travel-mode wipe's PULL AGAIN never revives the party)
+# are both already confirmed across six-plus specs/styles/saves/viewports, so
+# this cell's main news value is the real-vs-fallback-difficulty distinction
+# above -- but watching for either shape anyway, since no paladin has yet run
+# wander through a genuine heroic vigil.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:paladin:retribution
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening wander 200 6
+shot end
+state
+says
+bill
