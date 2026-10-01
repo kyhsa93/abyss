@@ -3603,6 +3603,37 @@ or miss, and `wander`'s own 2026-09-25 stall and this session's clean run are
 the first pair to show that for a single style directly rather than across
 styles.
 
+**2026-10-01, a third flee/westclimb match, the tightest yet.** `mode=clear`,
+warrior:arms, `flee`, 10-normal, genuinely fresh save, 1280x800 desktop
+(`playtest/plans/2026-10-01-18.play`) -- the picked cell, and the first
+`flee`+warrior:arms evening on record (its two prior `mode=clear` readings
+were `dodge` and `idle`). THE VIGIL crossed clean (`closestGot=13`, 37s door
+to door) and Bonegrinder died free inside the crossing
+(`fightTime=118 aliveParty=10/10 heroHp=1890/1890 presses=0` -- [[#1]]'s
+shape again, unremarkable on its own). Room 3, `westclimb`, burned its whole
+250s budget the same way as both priors: `fault:fight-outlasted-its-budget
+{"room":"westclimb","hero":{"x":-1383.3322276528656,
+"y":-6610.624094474852}}`, `closestGot=551`, the door log naming
+`"took":"oratory"` against a `crossed` event logging
+`"from":"westclimb","to":"westclimb"` -- the same source-equals-destination
+self-loop the 2026-09-28 druid:feral session traced into `cross()`'s own
+door-pick/arrival mismatch. `after-evening.png` shows the identical shape
+too: the party bunched on the room's diagonal wall, the HUD's own "onward"
+label reading "The Oratory" (matching the door log, not the self-looped
+`crossed` event), all bars full, nothing fighting.
+
+The `y` is bit-for-bit identical, to all thirteen decimal digits, to both
+prior readings on this line (druid:restoration, 10-normal, 2026-09-29; rogue:
+assassination, 25-heroic, 2026-10-01), and this run's `x` (-1383.33) lands
+less than a single unit from the rogue:assassination reading (-1382.48) --
+tighter than that pair's own twenty-unit spread from the druid:restoration
+one. A third class and a third size/difficulty pairing have now landed on the
+same computed point to the same precision. Not filed -- fourteen open
+`playtest` issues held the gate shut -- but this is not new scope, it is the
+same finding already queued above for #281 or a sibling issue, one match
+tighter: three flee evenings, three classes, two different raid
+sizes/difficulties, one coordinate.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

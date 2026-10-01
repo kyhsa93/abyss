@@ -1,0 +1,46 @@
+# Cell from playpick: mode=clear, spec=warrior:arms, style=flee,
+# size=10, difficulty=normal, view=1280x800, save=fresh.
+#
+# Checked sessions.jsonl and direction.md first. Fourteen playtest issues
+# are open (283,282,281,279,278,276,275,274,273,272,271,269,267,266), so
+# the gate is shut: this session files nothing new, plays the assigned
+# cell, and sharpens direction.md instead. `gh issue list --state closed
+# --label playtest` shows only #268 (closed 2026-09-25), already reflected
+# long before the last ledger line (2026-10-01T15:10:00Z), so there is
+# nothing new to re-verify.
+#
+# What is actually new: grepped sessions.jsonl for every mode=clear
+# warrior:arms line -- dodge and idle both exist at this exact
+# size/difficulty/save/view, flee does not. Direction.md's #271/#281 line
+# (THE VIGIL retry-stuck wall) already has seventeen confirmations and the
+# mechanism was read from source on 2026-09-29, so this isn't chasing the
+# mechanism again -- it's filling in flee's own record against that wall:
+# flee has crossed VIGIL clean exactly once (druid:restoration) and wiped
+# there twice (hunter:marksmanship, paladin:holy), never yet on a melee dps
+# class. warrior:arms is this job's slowest moveSpeed tier (158,
+# src/sim/classes.ts), shared with paladin (wiped under flee) but not
+# hunter (173, also wiped) -- a third flee/VIGIL data point either way
+# narrows whether class speed or plain seed-luck decides the watchmen
+# convergence, which [[#6]]'s own entries are still arguing about.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+targets
+tap next
+tap class:warrior:arms
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+evening flee 250 10
+shot after-evening
+state
+says
+targets
+ui
+bill
