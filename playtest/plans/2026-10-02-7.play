@@ -1,0 +1,35 @@
+# playpick cell: mode=walk boss=marrow spec=rogue:assassination style=auto
+# size=10 difficulty=normal view=1280x800 save=fresh
+#
+# boss=marrow is a coverage label only -- `evening` steers at no boss, so this
+# walks in at the door same as any other. 1280x800 is a non-touch view, so
+# `auto` hits the known fallback (no autocast toggle on screen or key for it --
+# plays `good` instead, scripts/playbot.ts:833-839). The only prior rogue
+# evening on record (2026-09-25-25.play, boss=saved, melee, 844x390 touch,
+# fresh) crossed THE VIGIL clean in 26s and then wiped to The Bonegrinder eight
+# times straight without a single win, because a melee body standing in
+# bonestorm's aura has no idle-style way to leave its reach (#267). This is the
+# first rogue:assassination evening played *well* rather than tunnel-visioned
+# in -- `good` dodges -- so it is really asking whether that changes the
+# Bonegrinder outcome for this spec, and, if it clears that room, whether it
+# reaches the same door-mislabeling stall direction.md's #6 found on a
+# different spec at this exact size/difficulty/save/view (druid:feral,
+# 2026-09-28-16.play: clean Bonegrinder kill, then spire's own door log names
+# a destination the arrival event does not match).
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:rogue:assassination
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening auto 300 8
+state
+shot after-evening
+bill

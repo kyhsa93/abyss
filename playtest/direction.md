@@ -3862,6 +3862,52 @@ exact same mislabel on a different spec, style and viewport, which is further
 confirmation it is a property of `evening()`'s own logging rather than
 anything about this cell. Not re-filed, not re-described at length here.
 
+**2026-10-02, a third spec on the spire junction's own door-destination
+mismatch, and a clean Bonegrinder kill that sharpens #267 instead of
+repeating it.** `mode=walk` (`boss=marrow`, a coverage label only),
+rogue:assassination, `auto` (no toggle on a 1280x800 desktop view -- falls
+back to `good` per the known rule, `scripts/playbot.ts:833-839`), 10-normal,
+genuinely fresh save (`playtest/plans/2026-10-02-7.play`). THE VIGIL crossed
+clean, door to door, in about 34s (`9.2s` in, `25.2s` to cross it), and
+Bonegrinder died inside the crossing: the last sample before the `raid`->
+`travel` mode drop read `aliveParty=10/10 heroHp=1530/1530` (full health),
+`presses=88 inDanger=1%`. The only other rogue:assassination evening on
+record (2026-09-25-25.play, `melee`-style, identical spec/size/difficulty/
+save) wiped to this exact boss eight times running, player dead every time,
+because a tunnel-visioned `melee` body has no way to leave bonestorm's aura
+(#267). A `good`-style rogue dodges fine -- the earlier finding was about the
+`melee` *driver style*, not about melee specs as a class of body; worth the
+distinction since #267's own wording does not make it.
+
+Past Bonegrinder, the druid:feral session's mechanism (2026-09-28-16.play)
+repeated almost line for line on this new spec. Spire's door log picked
+`westclimb` ("why":"unvisited") and the party actually got there (9s, the one
+leg that worked this time). Westclimb's door log then picked `oratory`
+("why":"unvisited", the only other way listed), but the `crossed` event four
+seconds later logged `"from":"westclimb","to":"spire"` -- back where it came
+from, not the announced destination, same shape as the feral-druid session's
+`took: oratory` / `to: spire` mismatch. Spire's door log then picked
+`eastclimb` ("why":"unvisited", `@2019` units against `@1455`/`@430` for the
+other two candidates -- the farthest-unvisited pattern the feral-druid session
+also showed) and never arrived anywhere: `"from":"spire","to":"spire",
+"closestGot":1889` at the full 300s budget, `fault:fight-outlasted-its-
+budget`. The `evening` loop itself stopped at 5 of the requested 8 rooms on
+that fault. `after-evening.png` shows the same shape every stall on this line
+has shown: the whole party clustered together in open ground, full health,
+nothing fighting or dying.
+
+Third spec now on this exact junction (paladin:retribution/idle,
+druid:feral/good, rogue:assassination/`auto`->`good`), same
+spire/westclimb/oratory/eastclimb rooms, same "announces a destination,
+arrives somewhere else or nowhere" shape, same farthest-unvisited door pick.
+Still not filed -- fourteen open `playtest` issues held the gate shut all
+session (283, 282, 281, 279, 278, 276, 275, 274, 273, 272, 271, 269, 267,
+266). Belongs with #281 (filed for THE VIGIL's own stall) if the gate opens
+and the mechanism turns out to be the same one room-walking routine misfiring
+everywhere it runs, or as a fresh issue if it is not -- reproduction
+`playtest/plans/2026-10-02-7.play`, screenshot `after-evening.png` under this
+session's `--out`.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
