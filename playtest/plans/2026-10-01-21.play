@@ -1,0 +1,52 @@
+# playpick cell: mode=walk boss=gift spec=shaman:restoration style=melee
+# size=25 difficulty=heroic view=1280x800 save=carried.
+#
+# save=carried behaves as fresh here -- #273, still open: playbot's PID-
+# derived port gives every invocation a fresh localStorage origin, so
+# --profile never actually carries anything between separate playbot runs.
+# So this follows the same recipe every other 25-heroic walk/clear cell in
+# this ledger has used since 2026-09-26: `open #b=marrow&s=25&h=1` to unlock
+# the rung, then back out to a real front-door RAID -> WALK IN.
+#
+# `boss=gift` is a coverage label only (direction.md's running note on
+# mode=walk): `evening` steers at no boss, so this starts at the door same
+# as any other walk. gift (The Crimson Gift) sits at room `sanctum`,
+# encounter 7, reached threshold -> vigil -> spire(marrow,0) -> climb ->
+# oratory(whisper,1) -> mooring(encounter 10) -> rise(gorged,3) -> crossing
+# -> crimson(crowns,6) -> sanctum(gift,7) -- six raid fights and seven
+# corridor hops away, read off src/dungeon.ts's ROOMS/DOORS tables. Given
+# how this ledger's last nine #271/[[#6]] confirmations have gone, reaching
+# gift itself is not the likely outcome of this script; the corridor is.
+#
+# Checked sessions.jsonl first: shaman:restoration has been played seven
+# times before this (raid/daily/clear/battleground) and never once inside
+# mode=walk -- this is its first evening, full stop. style=melee +
+# 25-heroic + carried + boss=gift is the exact shape 2026-09-28-23.play
+# already ran on priest:discipline (eighth #271/[[#6]] confirmation,
+# wiped in THE VIGIL at 39.6s, stuck at 100.6s) -- the new axis here is the
+# spec. shaman's moveSpeed is 167 (src/sim/classes.ts), same tier as
+# druid:restoration and mage:frost, both of which still got caught by the
+# corridor's watchmen under `mash`/`auto`/`flee` despite not being the
+# slowest class in the roster -- so this also tests whether a 167-speed
+# healer under `melee` specifically (beelines at hud().boss, no
+# away-from-danger term) fares any differently than the 158-speed
+# priest:discipline did on the identical style/size/difficulty/save/boss
+# shape, or lands on the same wall regardless.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:shaman:restoration
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening melee 200 10
+shot end
+state
+says
+bill

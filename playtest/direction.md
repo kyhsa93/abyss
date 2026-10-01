@@ -3675,6 +3675,31 @@ same finding already queued above for #281 or a sibling issue, one match
 tighter: three flee evenings, three classes, two different raid
 sizes/difficulties, one coordinate.
 
+**2026-10-01, a sixth clean crossing under `melee`, and #267's bonestorm
+mechanism on a healer for the first time.** `mode=walk` (`boss=gift`, a
+coverage label only), shaman:restoration, `melee`, 25-heroic, carried
+(behaves as fresh per #273), 1280x800 desktop, `open #b=marrow&s=25&h=1` ->
+RAID -> WALK IN -> `evening melee 200 10`
+(`playtest/plans/2026-10-01-21.play`). THE VIGIL crossed clean both legs
+(`8.8s threshold->vigil`, `38.2s vigil->spire`), matching the rogue:
+assassination `melee` crossing above rather than any of the stalls -- a
+second style/spec pair where `melee` reaches the first boss's room in under
+a minute at this size/difficulty.
+
+Past THE VIGIL, the same downstream shape as the rogue session repeated
+almost exactly, this time at 25-heroic on a healer: the evening spent its
+entire ten-room budget wiping on The Bonegrinder, **nine times running,
+never once winning.** `heroHp=0/1485` on all nine wipes, every time, while
+`aliveParty` held between 19/25 and 24/25; boss hp bounced between 1% and
+49% with no visible learning curve (1% on wipe 8, then 49% on the
+budget-truncated wipe 9). `end.png` shows "You" standing dead, at 0 hp,
+inside the boss's own ring of effects -- the screenshot #267's rogue report
+could not have had, since a melee dps's death there reads as unremarkable
+but a *healer's* reads as the mechanism caught a spec with every reason to
+stand off and kite. Commented on #267 rather than filing a duplicate --
+first healer, first heroic, first 25-player confirmation of the same
+"player alone dies, raid survives, no learning curve" shape.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
