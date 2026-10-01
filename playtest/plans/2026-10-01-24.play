@@ -1,0 +1,38 @@
+# playpick cell: mode=clear spec=hunter:marksmanship style=flee size=10
+# difficulty=normal view=390x844,touch save=fresh.
+#
+# Checked sessions.jsonl and direction.md first. hunter:marksmanship/flee/
+# 10-normal/fresh has been run once before (2026-09-28-6.play), but under
+# mode=walk on a 1280x800 desktop viewport: it crossed THE THRESHOLD in
+# 8.2s and then wiped inside THE VIGIL at 34.6s to the corridor's chasing
+# watchmen, PULL AGAIN producing #271's usual stuck shape
+# (fault:evening-stuck at vigil after wipe). hunter:marksmanship's own
+# mode=clear history is 25-heroic only (auto style, carried-as-fresh,
+# 820x1180 and 844x390 touch) -- this is the first time this exact spec
+# has been put through a *clear* evening (not walk) at its default
+# 10-normal/fresh tier, and the first on this exact phone viewport
+# (390x844,touch) for this spec at any size/mode. [[#6]]'s running argument
+# is that size/difficulty decides whether a corridor stalls or wipes, not
+# style or class, with one competing read that a fast class (hunter's
+# moveSpeed 173, second only to rogue's 178) might cross clean regardless
+# -- this cell is a direct second look at the one hunter/flee/10-normal
+# reading on record, now controlling mode and viewport instead.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:hunter:marksmanship
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+ui
+
+evening flee 300 10
+state
+shot after-evening
+says
+bill

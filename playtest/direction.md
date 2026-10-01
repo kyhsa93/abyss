@@ -3736,6 +3736,34 @@ stand off and kite. Commented on #267 rather than filing a duplicate --
 first healer, first heroic, first 25-player confirmation of the same
 "player alone dies, raid survives, no learning curve" shape.
 
+**2026-10-01, a fourth flee pairing, and the first same-cell-minus-wall-clock
+flip for `flee` specifically.** `mode=clear`, hunter:marksmanship, `flee`,
+10-normal, genuinely fresh save, 390x844 touch
+(`playtest/plans/2026-10-01-24.play`) -- the picked cell, and nearly identical
+to the 2026-09-28 seventh [[#3]] confirmation (same spec, same style, same
+size/difficulty, same fresh-save state), differing only in viewport (390x844
+touch here, 1280x800 desktop there) and playpick's own mode label (`clear` vs
+`walk`, bookkeeping only -- `cross()` reads neither). That run wiped in THE
+VIGIL at 34.6s, caught by the threshold's chasing watchmen (`closestGot=16`).
+This one crossed clean: 26.3s door to door (`7.9s` in, `34.2s` out),
+`presses=4`, `closestGot=11`. Bonegrinder died free in the crossing
+(`fightTime=153 aliveParty=10/10 heroHp=1620/1620 presses=0` -- [[#1]]'s shape
+again). The one same-cell pair this hypothesis has for `flee` specifically now
+shows both outcomes, with no axis held responsible (class, style, size,
+difficulty, save state all identical) -- the cleanest evidence yet, for this
+one style, that the wall clock (and so the fresh save's `Date.now()`-keyed
+`roomSeed`) is what decides, not anything about `flee` itself.
+
+The evening then went ten rooms deep with zero travel-mode wipes: Bonegrinder
+died free, The Last Whisper wiped once *inside its own room*
+(`mode=raid`, not `travel` -- `heroHp=0/1620 aliveParty=8/10 bossHp=40%`) and
+PULL AGAIN worked exactly as advertised ([[#3]]'s own narrowing that
+boss-room retries are fine and only travel-mode ones are not, holds again),
+killing it clean on the retry. The tenth room, Mooring, wiped the player
+alone in two seconds flat on The Skyward Deck and the evening's ten-room
+budget ran out mid-retry -- 0 faults recorded across 68 journal lines, the
+entire run.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
