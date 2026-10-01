@@ -2215,6 +2215,54 @@ shut at fourteen open issues regardless. `end.png` also shows the known
 `DOWN`-over-`KILL`-banner overlap (#275, already open) on this heroic-25
 kill screen -- not re-filed, already tracked.
 
+**2026-10-02, the first `good`-style reading on druid:feral at all, and the
+closest an active style has come to killing The Last Whisper heroic.**
+`mode=clear`, druid:feral, `good`, 25-heroic, fresh, 820x1180 touch
+(`playtest/plans/2026-10-02-9.play`). Checked sessions.jsonl first: this class
+has eight prior readings across battleground/walk/raid/daily and five styles
+(auto, idle, mash, dodge, flee) but never `good`, in any mode -- so this is
+the first time it has run a real rotation anywhere. It is also the first
+`mode=clear` evening on this class at real 25-heroic; the one prior clear
+reading (2026-09-27, `idle`, 10-normal) never even reached a 25-heroic cell.
+
+THE VIGIL crossed clean both legs (5.6s to the door, 29.1s door to spire), and
+Bonegrinder died inside the crossing at `fightTime=104` with `aliveParty=24/25
+heroHp=1575/1575` (full) `presses=51 inDanger=2%` -- [[#1]]'s usual free ride,
+now with a body actually pressing things. Two more corridors crossed clean
+(6.9s, 12.2s), and the evening engaged The Last Whisper normally the moment it
+entered Oratory (`boss-woken` 7.1s after arriving, no pad-skip the way
+2026-09-27's `idle` run on this same room once showed -- another confirming
+data point for 2026-09-29's finding that that skip was a seed artifact, not a
+style one).
+
+The pull itself wiped once, at `fightTime=239` (phase 3), boss left at 24%,
+`aliveParty=23/25 heroHp=0/1575 presses=44 inDanger=16%` -- PULL AGAIN
+recovered it cleanly inside the boss room (mode stayed `raid`, no
+`evening-stuck`), the usual boss-room-vs-corridor split [[#3]] already holds.
+The retry then drove the boss down to **5%** (19,155/388,600) by
+`fightTime=243`, `aliveParty=24/25 heroHp=410/1575 presses=66 inDanger=0%`,
+`ENRAGE` just having fired in the chat log and on screen -- and stopped there
+only because this script's own 260s room budget ran out
+(`fault:fight-outlasted-its-budget`, `away=8` units from the boss, i.e.
+standing right on top of it, not lost or stalled). `bill` on the retry:
+`hits=24 hitsPerMin=5.9 taken=1968 takenPerMin=484.9 byMechanic=
+{"volley":10,"shade":14}`.
+
+Worth setting next to the one other reading of this exact boss/size/difficulty
+on this line: 2026-09-27's `auto`-style warlock (never steers at all) ran out
+a 200s budget at **41%** boss hp, `presses=0`. This `good` pull, real
+rotation and real positioning across a wipe and a retry (109 presses total,
+`inDanger` swinging from 16% on the wipe to 0% on the retry), got within one
+script-budget's reach of a kill on the same fight. Not a controlled same-class `idle`/`good` pair -- it
+needed a retry, which `auto`'s single clean attempt did not -- so it does not
+settle [[#1]]'s own disprove condition outright, but it is the first sign on
+this specific boss/difficulty that active play reaches meaningfully further
+than passive play, and worth a same-class `idle` vs `good` pair on The Last
+Whisper heroic specifically before calling this fight's own gap closed either
+way. Not filed -- fourteen open `playtest` issues held the gate shut, and the
+budget fault here is this script's own 260s room allowance being too tight
+for a wipe-then-near-kill pair on a ~240s heroic boss, not a game fault.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

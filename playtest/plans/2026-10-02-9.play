@@ -1,0 +1,41 @@
+# playpick cell: mode=clear spec=druid:feral style=good size=25
+# difficulty=heroic view=820x1180,touch save=fresh.
+#
+# Checked sessions.jsonl first: druid:feral has eight prior readings across
+# every other mode (battleground, walk, raid, daily) and five styles (auto,
+# idle, mash, dodge, flee) but never once under `good` -- this is the first
+# good-style reading this job has ever taken on this class, in any mode. The
+# only prior mode=clear reading on this class was idle/10-normal/fresh/
+# 1280x800 (2026-09-27), so this is also the first time the class has been
+# walked through a real heroic 25-player evening rather than a normal 10-man
+# one, and the first time on a 820x1180 portrait touch viewport in this mode.
+#
+# A fresh save locks 25-heroic, so #b=marrow&s=25&h=1 unlocks the tier the
+# same way every other 25-heroic clear/walk script in this ledger does since
+# the 2026-09-26 driver-lesson, then backs out to a real RAID -> WALK IN at
+# the door rather than the invite's single-fight "visiting" framing.
+#
+# direction.md's #6 (THE VIGIL stalls any evening at one fixed point) and #3
+# (a travel-mode wipe's PULL AGAIN never revives the party) are both already
+# confirmed across many specs/styles/saves/viewports, so this cell's news
+# value is the good-style/feral-druid combination and the portrait-touch
+# viewport -- watching for either known shape anyway, since no feral druid
+# has run a real rotation through a genuine heroic evening yet.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:druid:feral
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening good 260 10
+shot end
+state
+says
+bill
