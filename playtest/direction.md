@@ -2049,6 +2049,36 @@ not a bug (`stain` behaves exactly as its own source comment describes) and
 the gate held shut at fourteen open issues, unchanged since the last ledger
 line.
 
+**2026-10-01, a third role on the same per-boss exception, and one suspicion
+ruled out rather than confirmed.** `mode=daily` (today's actual instance:
+The Bloodgorged, 25-player heroic, HASTENED), warrior:protection, `good`,
+fresh save, 844x390 touch (`playtest/plans/2026-10-01-12.play`). First
+warrior on this line and the first time this boss has been played by a tank
+running a real rotation rather than `idle`, `wander`, `melee`-stand or
+`dodge`.
+
+Clean kill, `fightTime=140 outcome=victory presses=119 inDanger=0%`,
+`bill`: `hits=25 hitsPerMin=10.7 taken=10149 takenPerMin=4343.4
+byMechanic={"gorge":25}` -- every hit the tank took was the boss's own
+melee attack, which is the job. The raid finished `aliveParty=20/25`, five
+down, despite the tank itself never once in danger. No `idle` counterpart
+was run on this seed, so this is not a comparison for the line, just a third
+role confirming the already-established per-boss exception holds under a
+tank too: `good` wins Bloodgorged, same as the discipline priest and holy
+paladin before it.
+
+The kill screen's stacked award banners (`report.png`) read "Full Raid --
+Kill it with twenty-five" over a raid that had just lost five -- worth
+checking rather than assuming it was a second bug riding #283's known
+overlap. It is not: `achievements.ts`'s `raid_kill` rule is
+`party(s).length === 25`, the roster size, and dead members stay in that
+array -- "Full Raid" means a twenty-five-player raid, not a raid that kept
+everyone, which is `flawless`/"Nobody Fell" a few lines below it. Ruled out,
+not filed. The banner-over-damage-board overlap itself is #283 again, same
+shape as every prior kill screen this job has looked at. **Not filed** --
+no bug found, and the gate held shut at fourteen open issues, unchanged
+since the last ledger line.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

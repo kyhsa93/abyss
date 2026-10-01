@@ -1,0 +1,10 @@
+# Cell from playpick: mode=daily, boss=marrow (unreachable for daily, see
+# direction.md's own driver lesson from 2026-09-25/2026-10-01-7), spec=warrior:protection,
+# style=good, view=844x390,touch, save=fresh. Probe first: what is today's
+# actual daily fight, at a landscape phone viewport, which no prior
+# warrior:protection/daily/good session has used (all three prior hits on
+# that combo were portrait 390x844 or desktop).
+open
+tap daily
+targets
+shot daily-screen

@@ -1,0 +1,34 @@
+# Cell from playpick: mode=daily, boss=marrow (unreachable for daily -- see
+# direction.md's own driver lesson), spec=warrior:protection, style=good,
+# view=844x390,touch, save=fresh. Probe (2026-10-01-12-probe.play) found
+# today's actual daily is The Bloodgorged, 25-player heroic, HASTENED;
+# class:0 = Warrior Tank.
+#
+# New here: The Bloodgorged has five prior readings in this job (holy
+# paladin/wander, discipline priest/idle+good, protection paladin/melee,
+# retribution paladin/dodge, shadow priest/dodge) and never once a warrior,
+# never once a tank played with a real rotation (good) rather than idle,
+# wander, melee-stand or dodge, and never at this landscape-touch viewport
+# (844x390) in mode=daily. This is the first good-style tank reading of it.
+open
+tap daily
+targets
+shot daily-screen
+tap class:0
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+ui
+play good 220
+shot after-fight
+state
+says
+bill
+targets
+shot report
+tap daily
+shot daily-after
+state
