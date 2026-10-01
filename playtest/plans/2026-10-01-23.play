@@ -1,0 +1,50 @@
+# Cell from playpick: mode=menus, view=820x1180,touch, save=carried.
+#
+# Grepped direction.md and sessions.jsonl for "reroll" first: one hit, a
+# 2026-09-26 session's own target list naming `reroll` as a control it
+# deliberately left untapped ("no reroll, no auto, nothing"). Twenty-five
+# prior mode=menus sessions have opened the composition screen, picked
+# individual slots, pressed `auto`, and even raced two tabs over its save --
+# nobody has ever pressed `reroll` itself. Read src/compose.ts first:
+# pressReroll calls randomAround(size, you, random) with real Math.random
+# (not the sim's seeded stream -- this is UI state, not simulation, so that
+# is not a determinism violation by itself) and keeps the player's own pick
+# fixed at slot 0 while reshuffling who else fills the other nine.
+# Worth seeing live: does it actually reshuffle, does the screen reflect it,
+# does the player's own slot ever move, and does the result stay legal enough
+# to pull. carried behaves as fresh per #273.
+open
+targets
+tap raid
+targets
+tap next
+targets
+tap compose
+targets
+ui
+shot compose-initial
+
+tap reroll
+targets
+shot compose-reroll-1
+
+tap reroll
+targets
+shot compose-reroll-2
+
+tap auto
+targets
+shot compose-auto
+
+tap reroll
+targets
+shot compose-reroll-3
+
+tap back
+tap back
+targets
+shot roster-after-compose
+tap pull
+waitscreen fight 15
+state
+shot fight-started

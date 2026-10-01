@@ -6791,6 +6791,48 @@ own storage key -- the fix is different, since this one reproduces inside a
 single origin with no port involved at all, and a fix for #273 would not
 touch it.
 
+**2026-10-01, the composition screen's REROLL control, pressed for the first
+time this job has ever pressed it.** `mode=menus`, 820x1180 touch, carried
+(behaves as fresh per #273). Grepped `direction.md` and `sessions.jsonl` for
+"reroll" first: one hit, a 2026-09-26 session's own target list naming
+`reroll` as a control it deliberately left untapped. Twenty-five prior
+`mode=menus` sessions had opened the composition screen, picked individual
+slots and pressed `auto`, even raced two tabs over its save -- none had
+pressed `reroll` itself.
+
+Read `src/compose.ts` first: `pressReroll` calls `randomAround(size, you,
+random)` with real `Math.random`, not the sim's seeded stream -- not a
+fourth-law violation, since this is UI state written to `localStorage`, not
+anything `src/sim/` reads to replay a fight.
+
+Pressed it three times running against the same 10-man board
+(`playtest/plans/2026-10-01-23.play`). `compose-initial.png` ->
+`compose-reroll-1.png` -> `compose-reroll-2.png` -> `compose-auto.png` ->
+`compose-reroll-3.png`: `You` stayed `D Mage` in slot 0 on every single
+shot -- the player's own pick is never touched, matching `randomAround`'s own
+signature -- and the nine other names (Bastion, Wren, Kestrel, Vale, Orin,
+Nara, Elm, Pike, Rook) stayed pinned to their slot position throughout, but
+which role and class each one carried reshuffled completely on every press.
+Wren alone read `D Mage` -> `D Hunter` -> `D Priest DPS` -> (`auto`)
+`T Paladin Tank` -> `D Mage`, flipping role as well as class, while `2 tanks
+· 2 healers · 6 damage` never moved off that line on any of the five reads.
+`auto`'s own shot is the contrast: same nine names, but role landed exactly
+where `autoParty`'s fixed role-priority fill predicts for this party-array
+order (tanks at the first two non-player slots, healers at the next two,
+damage for the rest) -- `reroll` is a genuine Fisher-Yates shuffle of
+role-to-slot, `auto` is deterministic priority fill, and both stayed legal on
+every press, matching what `src/compose.ts` and `src/sim/classes.ts` say they
+do.
+
+**Not a finding -- recorded so the next session does not spend a cell
+re-deriving that REROLL works.** The script's own tail overshot (two
+`tap back` from composition lands on the raid size/difficulty screen, not the
+roster the `pull` button lives on) and threw two faults
+(`no-such-control: pull, on raid`; `screen-never-came: fight`) -- a script
+mistake, not a game one; the roster screen's own `pull` button was already
+confirmed present earlier in the same session's `targets` line, before
+`compose` was ever tapped. No issue to file.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
