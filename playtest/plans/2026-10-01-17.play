@@ -1,0 +1,50 @@
+# playpick cell: mode=walk boss=gorged spec=mage:frost style=dodge size=25
+# difficulty=heroic view=844x390,touch save=carried.
+#
+# save=carried behaves as fresh here -- confirmed again this session
+# (2026-10-01-15-probe.play): this profile's RAID setup screen showed 10/
+# Normal, "1 of 11 built rooms open here", the untouched default, which is
+# exactly #273's open finding (playbot's PID-derived port gives every
+# invocation a fresh localStorage origin, so --profile never actually
+# carries anything between separate playbot runs). So this follows the same
+# driver-lesson recipe every other 25-heroic walk/clear cell in this ledger
+# has used since 2026-09-26: `open #b=marrow&s=25&h=1` to unlock the rung,
+# then back out to a real front-door RAID -> WALK IN, confirmed working a
+# second time in 2026-10-01-16-probe.play (raid-setup-after-unlock.png shows
+# 25/Heroic, both 2/2).
+#
+# "walk" aims at a named boss rather than going as far as possible (that is
+# `clear`). gorged (The Bloodgorged) is `rise`, the fourth real fight up the
+# lower spire -- encounters.ts/dungeon.ts: spire=marrow(0), oratory=whisper(1),
+# mooring=an eleventh fight appended out of list order (encounter:10), then
+# rise=gorged(3). So the room order from the threshold is: threshold -> vigil
+# (trash corridor) -> spire(marrow) -> climb -> oratory(whisper) -> mooring
+# (11th boss) -> rise(gorged). Budgeting one evening-step per room plus the
+# corridor hops, with room enough left over to actually fight gorged once
+# reached.
+#
+# No `mage:frost`+`dodge` evening/walk reading exists yet (checked
+# sessions.jsonl: every prior dodge evening was warrior/paladin/druid/hunter
+# tank-or-dps-melee-or-ranged-physical; frost mage is the first pure caster
+# under dodge in mode=walk/clear), and direction.md's #6 (the Vigil stalling
+# near y=-1560..-1573) and #3 (PULL AGAIN never reviving after a travel wipe)
+# are both already confirmed on several specs/styles -- watching for either,
+# not re-filing if seen again.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:mage:frost
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening dodge 130 8
+shot end
+state
+says
+bill

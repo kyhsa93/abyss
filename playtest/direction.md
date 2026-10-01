@@ -2591,6 +2591,36 @@ crossings on record, which keeps that specific pairing (not [[#6]]'s
 broader "any style" claim, already narrowed to seed-luck) looking worse
 than the rest of the cross product.
 
+**2026-10-01, seventeenth confirmation, and the first `dodge`-style wipe
+this line has ever recorded.** `mode=walk` (`boss=gorged`, a coverage label
+only -- `evening` steers at no boss, so this walked in at the door same as
+any other), mage:frost, `dodge`, 25-heroic, carried (behaves as fresh per
+[[#5]]/#273 -- the RAID setup screen showed the untouched 10-Normal default
+before the `#b=marrow&s=25&h=1` unlock recipe ran), 844x390 touch
+(`playtest/plans/2026-10-01-17.play`). Every prior `dodge`-style evening on
+record crossed THE VIGIL clean -- five of them, at both sizes/difficulties,
+explicitly flagged twice above as "zero dodge stalls" -- which made `dodge`
+read as the one style this corridor's watchmen never caught. This one broke
+that run: chased into THE VIGIL exactly like every mash/auto/wander report,
+wiped at 29s (`closestGot=13`, `stillAlive=171`), `outcome:retry` tapped and
+re-wiped instantly at 0s (`closestGot=n/a`, `presses=0`), a second retry the
+same, `fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}` at
+101.1s, final state `hp=0/1305 alive=false`, all five ability slots
+`"status":"locked"`. `end.png` matches the DEFEAT-screen shape of every
+other #271 report exactly: "0.0s · 0 down", a flat `-`/`0` damage board,
+PULL AGAIN highlighted. No new information on the mechanism -- read from
+source on 2026-09-29 -- but it is the first time `dodge` itself has been on
+the losing side of this wall rather than the style that always walks past
+it: the five clean crossings were two tanks, a healer and two dps at a mix
+of sizes, and this is the first ranged pure caster under `dodge`, which
+argues the "dodge never stalls/wipes" shape was a spec gap in what had been
+tried rather than a property of the style's own steering (`dodge` still has
+no toward-boss term and never called an ability -- `bill` read
+`hits=0 hitsPerMin=0 taken=0 takenPerMin=0`, so nothing about this run
+changed `dodge`'s own behaviour; the watchmen simply caught this seed). Not
+filed -- fourteen open `playtest` issues held the gate shut, and this adds
+a style to #271's already-closed case rather than new scope.
+
 ### 4. A battleground's own setup is remembered less reliably than a raid's
 
 **2026-09-24, opened.** First battleground session this job has run (five
