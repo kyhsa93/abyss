@@ -1,0 +1,17 @@
+# Probe only: reach the daily class-select screen and read its real control
+# names before committing to a full script. Testing a new question this
+# session: direction.md already knows escaping a daily fight leaves the
+# shared `roster` screen's "first room" banner naming the daily's boss
+# (main.ts's `encounter` variable only resets on the raid setup screen's own
+# NEXT press, never on escape). No session has checked what happens if a
+# battleground is played and escaped *in between* -- battleground code never
+# touches `encounter` at all (grepped src/main.ts), so the prediction is the
+# stale daily-boss label survives a battleground round trip untouched. This
+# probe just finds the real tap targets for the daily and battleground setup
+# screens on today's actual roll before writing that script.
+open
+targets
+shot front
+tap daily
+targets
+shot daily-setup

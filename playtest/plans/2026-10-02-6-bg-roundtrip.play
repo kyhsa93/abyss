@@ -1,0 +1,48 @@
+# Cell from playpick: mode=menus, view=820x1180,touch, save=carried.
+#
+# What no session has done before: direction.md's 2026-09-30 entry reads
+# `src/main.ts`'s `encounter` variable as the mechanism behind "escaping a
+# daily fight leaves the roster screen's own banner naming the daily's
+# boss" -- it is only ever reset by the raid *setup* screen's own NEXT press
+# (`updateRaidSetup`, main.ts:1841-1844), never by an escape, and the entry
+# calls the bug general to "any fight escaped without going through raid
+# setup first." But every session that touched it only ever escaped
+# straight back to that one stale roster and read the label once. Grepped
+# direction.md/sessions.jsonl for "battleground" next to "escape"/"roster":
+# zero hits, and grepped src/main.ts for "encounter =" near any battleground
+# code: no matches -- a battleground never assigns to the variable.
+# Prediction going in: playing and escaping a battleground in between does
+# not wash the stale daily-boss label out, since nothing on that path
+# touches `encounter`.
+#
+# Real control names found first via -6-probe.play rather than guessed.
+# Also discovered live, this run: `back` from the post-escape `roster`
+# screen lands on the raid *size/difficulty* screen, not home directly --
+# a second `back` is needed, and that screen's own `next` is the only thing
+# in the game that resets `encounter`, so this script stops one press short
+# of it to keep the staleness alive for the battleground half of the test.
+open
+tap daily
+tap class:0
+tap start
+waitscreen fight 15
+wait 3
+key Escape
+shot roster-daily-fresh
+
+tap back
+tap back
+tap battleground
+tap map:conquest
+shot roster-bg-fresh
+
+tap pull
+waitscreen fight 15
+play mash 20
+shot bg-mid
+state
+
+key Escape
+targets
+state
+shot roster-after-bg-escape

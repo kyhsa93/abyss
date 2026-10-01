@@ -6821,6 +6821,58 @@ the gate opens, with `playtest/plans/2026-09-30-4.play` as the reproduction
 screenshot evidence, `src/main.ts:1787`, `1841-1844`, `2282-2287` and
 `src/render/roster.ts:294` named as the mechanism.
 
+**2026-10-02, the same bug narrowed rather than widened: a battleground
+detour does not carry the stale banner, and does not clear it either.**
+`mode=menus`, 820x1180 touch, carried (behaves as fresh per #273). The
+2026-09-30 entry above calls this bug "general to any fight escaped without
+touching raid setup," but no session had tried a *second* mode in between.
+Grepped `src/main.ts` for `encounter =` near any battleground code first:
+no matches anywhere -- a battleground never touches the variable, same as
+daily's escape path never resets it. Two predictions followed: the stale
+red line should not appear on a battleground screen (its own banner reads
+off the chosen map, not `encounter`), and it should still be sitting there,
+untouched, the moment the player is back on the raid side.
+
+Both held, measured rather than guessed. `playtest/plans/2026-10-02-6-bg-roundtrip.play`:
+daily (`class:0`) -> `start` -> `key Escape` lands on `roster` with the red
+line reading "first room — The Bloodgorged — give it nothing, and carry
+what it takes" (`roster-daily-fresh.png`, matching the 2026-09-30 reading
+exactly). `back` -> `back` -> `battleground` -> `map:conquest` reaches the
+*same* `roster` screen (shared code, confirmed by identical `targets`
+output both times) showing a completely clean headline instead --
+"The Three Cairns — hold ground, and the clock does the rest," no red line
+at all, button reading "ENTER — THE THREE CAIRNS" (`roster-bg-fresh.png`).
+Pulling it, playing 20s (`mash`, killed the enemy point-defender `Corvin`
+to 0/1350 hp, `aliveParty=3/5`), and escaping with `key Escape` landed back
+on `roster` one more time -- `roster-after-bg-escape.png` is still clean,
+still "The Three Cairns," still no red line, even though the fight just
+played was a real, finished battleground action and `encounter` was never
+touched by any of it. Zero faults across 23 journal lines.
+
+So the banner is not a frozen read of a poisoned variable; it is
+mode-aware, and `mode=battleground`'s own branch never consults `encounter`
+at all. The red line is specific to the `mode=raid` render path, confirmed
+by the second script
+(`playtest/plans/2026-10-02-6-compose-roundtrip.play`): from the same
+stale `roster`, `tap compose` opens the ordinary composition screen (25
+slots this run, matching the carried daily's own 25-player roll -- not a
+bug, the same screen every "THE RAID" tile session has already tested, just
+reached by a route no prior session had tried), and `back` from there
+returns to `roster` with the red line byte-identical
+(`roster-after-compose-roundtrip.png`) -- composition only ever writes
+`abyss.party`, never `encounter`, exactly as source predicts. Zero faults.
+
+Narrows, not drops: the 2026-09-30 finding is exactly as persistent as it
+first looked (nothing this session tried, battleground or composition,
+clears it) and exactly as narrow as source predicts (it never leaks into a
+screen whose own banner does not key off `encounter`). **Not filed --
+fourteen open `playtest` issues held the gate shut all session** -- same
+bug, same fix site, now with three independent "does it survive a detour"
+reproductions instead of one direct reading. File alongside
+`2026-09-30-4.play` once the gate opens, with this session's two scripts
+and four screenshots as the added evidence that the staleness is a raid-
+side rendering gap, not a global one.
+
 **2026-09-30, the RECORD screen's boss list has no scroll, and on a landscape
 phone that hides most of it forever.** `playpick` gave `mode=menus
 view=844x390,touch save=fresh` -- the twentieth `menus` cell run, but the

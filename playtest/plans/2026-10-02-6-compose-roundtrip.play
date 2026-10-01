@@ -1,0 +1,23 @@
+# Cell from playpick: mode=menus, view=820x1180,touch, save=carried.
+# Final step of this session's chain: `compose` from the stale-banner raid
+# roster opened the ordinary 25-slot composition screen (same screen every
+# prior "THE RAID" tile session has already tested -- auto/reroll present,
+# nothing new there). Last open question: does backing out of composition
+# back to the roster still show the red stale "first room" banner, or did
+# visiting composition clear it? `applyComposition`/`saveSetup` only ever
+# touch `abyss.party` (read in this session's own direction.md entries on
+# the two-tab race and REROLL), never `encounter`, so the prediction is the
+# red line is still there, untouched.
+open
+tap daily
+tap class:0
+tap start
+waitscreen fight 15
+wait 3
+key Escape
+
+tap compose
+tap back
+targets
+shot roster-after-compose-roundtrip
+state
