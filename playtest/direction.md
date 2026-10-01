@@ -6413,3 +6413,45 @@ clean ~10s revival the first two confirmations found. Worth remembering that
 even near-bare sampling can still land inside the abort-on-death gap if a
 `play` call runs anywhere nearby -- only a `play` call followed by pure
 `wait`/`state` settles it.
+
+**2026-10-01, `tap refresh` on the SETTINGS screen crashes `playbot`'s own
+driver, not the game.** `mode=menus`, 820x1180 touch, carried. First session
+ever to press the UPDATE row's RELOAD FRESH button (grep of this file and
+`sessions.jsonl` for "reload fresh"/"reloadFresh" was empty going in) under
+either vocabulary. The `.play` version
+(`playtest/plans/2026-10-01-9.play`) died the instant `tap refresh` ran:
+`FAULT driver-threw {"message":"page.evaluate: TypeError: Cannot read
+properties of undefined (reading 'screen')"}`. Read rather than guessed:
+`scripts/playbot.ts`'s `tap()` (338-375) sleeps 80ms after every touch, then
+reads `where().screen` back for its own log line -- and `src/cache.ts`'s
+`reloadFresh()` (bound to this one button, `main.ts:1907-1913`) ends its
+async body with a bare `location.reload()`, which destroys the page's JS
+execution context before that 80ms read-back lands. Every other button this
+job has ever pressed leaves the same document in place; this is the one
+button whose entire job is to not.
+
+Gone around with a one-off script
+(`playtest/plans/2026-10-01-9-reload-fresh.mjs`, driving `touchscreen.tap`
+directly and racing `page.waitForNavigation` instead of `tap()`'s read-back)
+to see whether the button itself works, not just that the wrapper around it
+does not. It does: a fingerprinted name (`"ReloadProbe"`, written straight to
+`localStorage['abyss.name']` and reloaded once so the app's own start-up read
+would pick it up) survived the reload intact, the page landed back on
+`screen=home` with no console or page error either side of it, and
+re-opening SETTINGS afterward showed the same name back in the real NAME
+field (`/tmp/pt-9-settings-after.png`) -- not just present in storage, but
+read back through the control a player would actually look at. `dev` mode
+registers no service worker at all (`main.ts:3122`'s `import.meta.env.PROD`
+gate), so the unregister half of `reloadFresh()` is untestable against
+`npx vite`; `getRegistrations().length` read `0` before and after, which is
+consistent with "nothing to unregister" rather than evidence the unregister
+path works.
+
+Not a game bug -- the one thing this button promises (throw the stale build
+away, keep what was saved, land back on a working page) held under direct
+measurement. Driver lesson, same shape as the respawn-polling entries above:
+`tap()`'s universal 80ms-then-read-back assumes the document it just touched
+is still the document a moment later, which is false for exactly one control
+in the whole game. Worth remembering before scripting RELOAD FRESH into a
+`.play` file again -- go straight to a one-off script, the way this session
+did, rather than filing the crash as a game fault.

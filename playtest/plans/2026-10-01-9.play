@@ -1,0 +1,16 @@
+# The SETTINGS screen's UPDATE row (RELOAD FRESH) has never been pressed by
+# any session on record -- grep of this job's whole history turns up zero
+# hits for "reload fresh" or "reloadFresh". src/cache.ts's reloadFresh()
+# unregisters any service worker, clears Cache Storage, then calls
+# location.reload() -- the one button in the game that reloads the page on
+# purpose. Worth seeing what actually happens to a carried profile across it.
+open
+targets
+tap settings
+targets
+shot settings-before
+tap refresh
+wait 3
+state
+shot after-reload
+targets
