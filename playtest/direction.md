@@ -2079,6 +2079,38 @@ shape as every prior kill screen this job has looked at. **Not filed** --
 no bug found, and the gate held shut at fourteen open issues, unchanged
 since the last ledger line.
 
+**2026-10-01, a fourth instance of the same shape, and the first genuine
+`mode=raid` pull of this specific boss.** `mode=raid`, `boss=host` (The
+Reeking Host), shaman:elemental, `melee`, 10-player normal, fresh save,
+390x844 touch (`playtest/plans/2026-10-01-14.play`). Every prior
+`"boss": "host"` line in `sessions.jsonl` was `mode=daily` or `mode=walk`,
+and this line's own notes on those sessions already flagged that `playpick`'s
+`boss` label on a daily cell is a coverage tag only -- the actual daily
+instance is read off-screen, not chosen by that axis -- so none of the six
+prior "host" sessions had actually tested this fight as a raid pull before
+now. Reached it directly with `open #b=host&s=10&h=0`, which the invite
+handler treats as a single-fight link (`tap pull`, not `tap raid`), same
+convention as every other boss-labelled `mode=raid` cell on this line.
+
+Clean kill, `fightTime=111 outcome=victory aliveParty=10/10 presses=71
+inDanger=0%`. `bill`: `hits=50 hitsPerMin=27.1 taken=1028 takenPerMin=556.5
+byMechanic={"blight":40,"pungent":1,"vilegas":9}`, finishing at
+`heroHp=688/1440` (48%). This boss is already on `docs/upkeep.md`'s "raid
+rewarding play" table at idle=100%/played=100%, gap=0 -- the one fight on
+that table the harness itself already says play does not change -- and
+`melee` here repeats the same shape the frost-mage/Crimson-Gift and
+warrior/Bloodgorged entries above found: a ranged caster with no melee kit
+walked into the boss's own melee range, absorbed mechanic hits a `good` or
+`idle` pull at range would not have taken (`blight`/`vilegas` together are
+49 of the 50 hits logged), and it cost nothing the raid could not shrug off
+-- ten of ten alive, never once `inDanger`. Fourth role/boss pair now
+confirming this specific sub-shape, first one on a 10-player normal rather
+than a 25-player instance, and the first to land on a fight the harness
+already rates as play-neutral rather than one only this line's own daily
+readings had measured. **Not filed** -- the gap=0 reading is
+`docs/upkeep.md`'s own number, not a new finding, and the gate held shut at
+fourteen open issues, unchanged since the last ledger line.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

@@ -1,0 +1,37 @@
+# playpick: mode=raid boss=host spec=shaman:elemental style=melee size=10
+# difficulty=normal view=390x844,touch save=fresh
+#
+# First genuine mode=raid pull of The Reeking Host this job has logged --
+# every "boss":"host" line in sessions.jsonl so far was mode=daily or
+# mode=walk, and this job's own notes on those sessions say playpick's boss
+# label on a daily cell is "a coverage tag only" (the actual daily boss is
+# read off-screen, not chosen by that axis) -- so none of those six prior
+# sessions actually tested this specific fight as a raid pull.
+# docs/upkeep.md's own "raid rewarding play" table already has this boss at
+# idle=100%/played=100%, gap=0 -- the one fight on that table where the
+# harness says play changes nothing at all. style=melee walks a ranged
+# caster with no melee kit into the boss's own melee range, the same
+# forced-bad-positioning shape #7's daily sessions found costly on The
+# Crimson Gift and The Two Flasks; checking whether the Host's own gap=0
+# holds under a style built to put the player somewhere a caster has no
+# reason to stand.
+open #b=host&s=10&h=0
+targets
+ui
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+state
+shot melee-open
+
+play melee 150
+bill
+says
+state
+shot melee-mid
+
+play melee 150
+bill
+says
+state
+shot melee-end
