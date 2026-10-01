@@ -1,0 +1,47 @@
+# Cell from playpick: mode=battleground map=escort (The Long Haul),
+# spec=paladin:holy, style=mash, view=820x1180,touch, save=carried (behaves
+# as fresh per #273 -- playbot's own port is per-run, so localStorage's
+# origin never actually carries between invocations).
+#
+# New: paladin:holy under mash has never been run, on any mode. Its four
+# prior battleground readings are idle/wander-adjacent raid pulls plus one
+# melee battleground pull (2026-09-30-8, flags, died at 15s walking straight
+# into melee range with four ready heals never pressed). mash is the
+# opposite shape -- scripts/playbot.ts has no `want` branch for acting ===
+# 'mash' at all, so the body never steers and stays wherever it opened at,
+# but it does round-robin all five bar slots blindly every ~160ms regardless
+# of ready/range, which a melee pull never gets the chance to do before it
+# dies. Escort has one prior mash reading (2026-09-29-19, druid:guardian, a
+# tank) showing mash's stationary body times the match out near a dead heat
+# rather than routing; nobody has asked what a *stationary, blindly-pressing
+# healer* does to that same slow tug-of-war -- does standing at the opening
+# spot put it in heal range of anyone, or does mash's round-robin spend the
+# whole match swinging empty like the restoration druid under auto already
+# did on flags?
+open
+tap battleground
+tap map:escort
+targets
+tap class:paladin:holy
+shot class-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+state
+ui
+play mash 90
+shot mid1
+state
+bill
+wait 3
+play mash 90
+shot mid2
+state
+bill
+wait 3
+play mash 90
+shot mid3
+state
+bill
+says
+targets

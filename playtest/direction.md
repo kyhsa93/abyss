@@ -6003,6 +6003,54 @@ shut at fourteen open issues; not filed. Reproduction:
 `playtest/plans/2026-10-01-13.play`, `pulled.png`/`mid1.png`/`mid2.png`/
 `mid3.png`.
 
+**2026-10-01, third `mash`-style battleground pull, first on a pure healer,
+and the first reading on this line to use the on-screen healing meter rather
+than `bill`.** `playpick` gave `map=escort` (The Long Haul), `spec=paladin:
+holy`, `820x1180,touch`, carried (behaves as fresh per #273) --
+`playtest/plans/2026-10-01-25.play`. The two prior `mash` battleground
+entries above (conquest/druid:feral, flags/warlock:destruction) were both
+damage specs, where `bill`'s `hits=0` is the right number to read; a healer
+under the same missing-`want`-branch gap does not damage anything on
+purpose, so `hits`/`taken` only say whether the body was ever hit, not
+whether it ever healed. `bill` read `hits=0 hitsPerMin=0 taken=0
+takenPerMin=0 died=false` in all three chunks and `heroHp` sat at exactly
+`1530/1530` the entire 274 seconds watched -- the "safe" half of the
+conquest/flags split, not the "dies on repeat" half -- but that number alone
+would read as "did nothing wrong" rather than "did nothing," so this is the
+first `mash`-battleground entry to check the actual healing-per-second
+panel in the screenshots instead.
+
+It says what `bill` could not: `mid1.png` (fightTime=87.5s) and `mid2.png`
+(180.6s) both show two stacked `Out of range` banners over the player's own
+token, standing alone on empty ground well below the cart lane while the
+healing-per-second leaderboard reads `1 You 7` then `1 You 3` against a raid
+total in the low-to-mid 200s -- a single-digit contribution for three
+minutes running, not a rounding artefact of `bill`'s own metric choice.
+`mid3.png` (273.8s) is the one frame where the body is not alone -- `THE TANK
+NEEDS YOU` is flashing on the banner line and the player is standing next to
+a living `Kestrel` with a cast ring visibly spinning around its own token
+(matching that sample's raw `state`, which reads `"casting":"holy_light"`
+for the first time all match) -- and the healing meter has crept to `1 You
+13`. That proximity is not the body's own doing (`mash` has no `want` branch
+at all, same as the two prior entries), it is wherever the fight's own
+geometry happened to drift a teammate relative to a stationary spawn point;
+for the two samples before it, nobody drifted close enough and the body cast
+nothing.
+
+The cart bars underline what that single cast bought: `25%/54%` (ours
+`held`, theirs `1 pushing`) at 87.5s, `27%/78%` at 180.6s, `31%/84%` at
+273.8s with `26s left` on the clock -- the enemy cart crept to the edge of
+arrival while ours barely moved, and `aliveParty` read `2/5 -> 4/5 -> 3/5`
+across the same three samples, so the four teammates who were actually
+fighting lost ground for the whole match regardless of what the fifth body
+was doing. Matches [[#7]]'s own shape (a passive body costs its team, not
+itself) with the sharpest healing-specific evidence yet, and adds a driver
+lesson of its own: on a healer, `bill`'s `hits`/`taken` pair cannot show
+whether the line's claim holds -- read the healing-per-second panel in the
+shots instead. Gate held shut at fourteen open issues; not filed.
+Reproduction: `playtest/plans/2026-10-01-25.play`,
+`bg-start.png`/`mid1.png`/`mid2.png`/`mid3.png`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
