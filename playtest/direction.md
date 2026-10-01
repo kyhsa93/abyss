@@ -2111,6 +2111,47 @@ readings had measured. **Not filed** -- the gap=0 reading is
 `docs/upkeep.md`'s own number, not a new finding, and the gate held shut at
 fourteen open issues, unchanged since the last ledger line.
 
+**2026-10-01, the first healer under `auto`, and the first case where the
+single press in `auto` produced output that actually competed with the
+AI.** `mode=raid`, `boss=saved` (The One You Save), druid:restoration,
+`style=auto`, 25-heroic, carried-behaves-as-fresh per [[#5]]
+(`playtest/plans/2026-10-01-19.play`). Every prior `auto` reading on this
+line was a dps spec, and the settled sub-finding at 2026-09-27 above is that
+a melee spec gets nothing from `auto` (no `acting === 'auto'` branch in
+`scripts/playbot.ts`'s steering, so the body never closes range) while a
+ranged one gets full value because it never needed to move. A healer is a
+third case neither reading covers: its targets are the raid's own bodies,
+already standing in a cluster around the player at pull, so "never move"
+costs it nothing it would have spent moving for anyway.
+
+One tap (`tap auto`), then zero presses and zero steering for the whole
+187-second kill. The healing board at the kill screen: `Quill(AI) 32, You
+28, Elm(AI) 14, Reed(AI) 7` -- second of four healers on the board, and the
+mid-fight meter (`98s` mark) had the player *leading* it outright, `1 You
+27` ahead of `2 Quill 26`. `aliveParty=25/25` the entire fight,
+`heroHp=1251/1440` (87%) at the kill, `inDanger` 12% then 14% across the two
+`play` windows. This is the sharpest case yet of this line's own shape: not
+"the player's presses have no consequence" but "the one press that
+mattered was the toggle," since everything downstream of that tap produced
+output a real healer would be proud of, unprompted.
+
+**Worth weighing against the line rather than simply folding into it.** The
+fight itself is the one on the roster that is "a race against a fixed
+clock" (the encounter's own comment in `src/sim/encounters.ts`: "no partial
+credit... a raid either closes the wound often enough to out-climb the
+drain or it does not") and the source comment's own measured figure for a
+tuned pull is "about 170 seconds of a 190-second clock." This `auto` pull
+finished at 186.6s against `enrage=190s` -- 3.4 seconds of margin, 98% of
+the clock used, markedly tighter than the ~170s/190s (89%) the encounter's
+own tuning comment treats as the normal case. Zero faults and a clean kill,
+so this is not a disproof -- the fight was won -- but it is the first
+reading on this line where a hands-off style's margin reads as *thin*
+rather than comfortable, on the one fight built to have no comfortable
+margin by design. Worth a `good`-style pull on the same spec/boss/size
+before reading this as "auto costs time on a hard-clock fight" rather than
+one seed's placement of the shared-RNG draws this line's Two-Flasks entries
+above already flagged as a confound.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

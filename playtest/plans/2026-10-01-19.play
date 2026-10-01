@@ -1,0 +1,37 @@
+# playpick: mode=raid boss=saved spec=druid:restoration style=auto size=25
+# difficulty=heroic view=820x1180,touch save=carried
+#
+# The One You Save has had six prior sessions on direction.md's line-1 and
+# elsewhere, but every one of them reached it through mode=daily or
+# mode=walk, and none of them was a healer spec -- this is the first direct
+# mode=raid pull of it, the first restoration druid this job has ever
+# played, and the first time a healer spec has met the one fight on the
+# roster whose entire victory condition is a bar going up rather than a
+# boss's health going down (src/sim/encounters.ts's own comment: "the
+# victory condition itself had to become a parameter"). style=auto also
+# means the player steers nowhere and presses nothing once the toggle is
+# on (scripts/playbot.ts's acting==='auto' branch has no movement case and
+# is absent from both the mash/wander and good/melee/learn ability
+# branches) -- so this reads what the game's own autocast does with a
+# healing kit on a fight that is itself about healing, completely hands
+# off.
+open #b=saved&s=25&h=1
+targets
+ui
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+state
+shot saved-open
+
+play auto 100
+bill
+says
+state
+shot saved-mid
+
+play auto 100
+bill
+says
+state
+shot saved-end
