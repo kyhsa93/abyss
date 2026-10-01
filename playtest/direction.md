@@ -6229,6 +6229,35 @@ for. Two specs, two styles, two viewports, one identical wrong countdown.
 Same reproduction and fix sites as above; nothing left to sharpen here
 before it is filed.
 
+**2026-10-02, confirmed on a second boss, exactly as the gap this entry left
+open asked for.** `mode=daily` gave priest:discipline, `dodge`, carried
+(behaves as fresh per #273), 1280x800 (`playtest/plans/2026-10-02-2.play`,
+probed first via `-2-probe.play`) -- the first priest:discipline session this
+job has ever run in `mode=daily`. Today's actual daily had rolled over to The
+Bloodgorged, 25-heroic, HASTENED -- a different boss from every prior reading
+of this bug, which all sat on The Skyward Deck. Worth running precisely
+because the 2026-09-28 entry above named the test that would settle it: "a
+same-day HASTENED pull that survives past `s.time=125` on a *different* boss
+would show the same wrong countdown and confirm this is not specific to The
+Skyward Deck's own numbers."
+
+The Bloodgorged's own `enrage` is `240` (`src/sim/encounters.ts`), so the
+raw-formula countdown this bug reads is `240 - s.time`. `mid2.png`, taken at
+`s.time=98.1`, shows the minimap reading `enrage 142s` -- `240 - 98.1 =
+141.9`, rounding to the exact number on screen, the same arithmetic match
+the two Skyward Deck readings showed against `260`. The real, affix-adjusted
+attach point is `240 - affixEnrage('hastened')` = `240 - 135 = 105`: the pull
+survived well past it, to `fight-over outcome=enrage time=125.3`, boss at
+12%, three named raid deaths (`Thane` at 116s, `Reed` at 124s, `Quill` at
+125s) plus the tracked priest itself at 125s -- a genuine multi-death enrage
+wipe, not the single-actor-outcome artifact the 2026-09-29 entries below
+describe, so this pull is clean evidence for the display bug specifically and
+not entangled with that other one. Two bosses, three specs, three styles, one
+identical arithmetic tell (`encounter.enrage - s.time`, never the
+affix-adjusted `enrageAt`). Nothing left to sharpen before it is filed; add
+`playtest/plans/2026-10-02-2.play` and its `mid2.png` as a second
+boss's reproduction alongside the existing Skyward Deck ones.
+
 **2026-09-28, the credits screen, the settings screen's sound/volume/backdrop
 rows, and a heading that runs clean off the edge of the canvas -- the first
 session on any of these.** `mode=menus`, 820x1180 touch, carried (behaves as

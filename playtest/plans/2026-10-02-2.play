@@ -1,0 +1,47 @@
+# playpick cell: mode=daily boss=whisper (coverage label only -- daily.boss
+# is not a real playpick axis, see direction.md #1's driver-lesson note)
+# spec=priest:discipline style=dodge view=1280x800 save=carried (behaves as
+# fresh per #273).
+#
+# Probe (2026-10-02-2-probe.play) found today's actual run is The
+# Bloodgorged, 25-player heroic, HASTENED. First priest:discipline session
+# this job has ever run in mode=daily. Also the first HASTENED daily on a
+# boss other than The Skyward Deck since direction.md's "Not yet filed"
+# section flagged a source-confirmed enrage-countdown bug there (hud.ts:1572
+# and combat.ts:947-952 both read the raw, un-affixed encounter.enrage
+# instead of boss.ts's affix-adjusted enrageAt) and explicitly asked for a
+# different boss to confirm it is not Skyward-Deck-specific. The Bloodgorged's
+# own enrage is 240s (src/sim/encounters.ts) and affixEnrage('hastened') is
+# 135s (src/sim/affix.ts), so the real enrage attaches at s.time=105 -- the
+# script runs well past that point to read the minimap countdown on both
+# sides of it.
+open
+tap daily
+targets
+tap class:5
+targets
+tap start
+waitscreen fight 15
+state
+shot start
+
+play dodge 60
+state
+shot mid1
+bill
+
+play dodge 40
+state
+shot mid2
+bill
+
+play dodge 40
+state
+shot mid3
+bill
+
+play dodge 60
+state
+shot mid4
+bill
+says
