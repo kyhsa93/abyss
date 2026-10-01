@@ -1,0 +1,39 @@
+# Cell from playpick: mode=clear, spec=rogue:assassination, style=auto,
+# size=10, difficulty=normal, view=1280x800, save=fresh.
+#
+# What no session has done before: rogue:assassination has had three prior
+# mode=clear/mode=walk evenings (melee/10-normal/touch, mash/10-normal/touch,
+# auto/25-heroic/carried/touch) but never auto at 10-normal from a fresh save,
+# and never on a desktop (non-touch) viewport at all. direction.md already
+# knows `auto` has no toggle to tap on a desktop viewport and falls back to
+# `good` with a logged `no-autocast-toggle` fault (confirmed five times
+# before this) -- that part is not new. What IS new: this is the fastest
+# class in the roster (moveSpeed 178), effectively played `good`, walking
+# THE VIGIL at 10-normal -- the exact size/difficulty where #281/[[#6]]'s
+# four stalls happened (wander, good, flee all converged on the same spot)
+# and where this same class's one-off `melee` crossing (26s, touch) and
+# `mash` crossing (25.9s, touch) are direction.md's only two clean passes,
+# both read as a possible class-speed effect rather than a style effect.
+# A clean crossing here, under a third style and a different (desktop)
+# viewport, would be real evidence for "fast class crosses regardless of
+# style"; a stall would undercut that and point back at style/steering.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:rogue:assassination
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening auto 400 12
+shot after-evening
+state
+says
+targets
+ui
+bill
