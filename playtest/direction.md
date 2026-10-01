@@ -3764,6 +3764,41 @@ alone in two seconds flat on The Skyward Deck and the evening's ten-room
 budget ran out mid-retry -- 0 faults recorded across 68 journal lines, the
 entire run.
 
+**2026-10-02, a sixth clean crossing under `good`, and the deepest 10-normal
+evening this line has measured -- two full kills, not one partial one.**
+`mode=walk` (`boss=host`, a coverage label only), druid:guardian, `good`,
+10-normal, genuinely fresh save, 844x390 touch
+(`playtest/plans/2026-10-02-1.play`) -- checked sessions.jsonl first: this
+spec's one prior `good`-style evening was 25-heroic/carried/820x1180
+(2026-09-28-31.play, the fourth clean crossing above), never 10-normal/fresh,
+and no druid:guardian session of any kind had used an 844x390 landscape touch
+viewport before. THE VIGIL crossed door to door in 29.9s (`5s` in, `29.9s`
+out, `closestGot=8`) -- the same ~30s clean band every prior clean crossing on
+this line shares, regardless of size or difficulty. Bonegrinder then died
+inside the crossing (`fightTime=113 aliveParty=10/10 heroHp=4140/4140
+presses=237 inDanger=1%`) -- a tank under `good` is the first style/spec pair
+on this line to press ability buttons by the hundreds during a "free" corridor
+kill (every prior free-in-the-crossing kill on [[#1]] was `presses=0`), since
+`good`'s steering has the tank actually tanking rather than idling through it.
+Two more corridors crossed clean (eastclimb 8.3s, oratory-bound 11.3s), then
+The Last Whisper died too (`fightTime=18 aliveParty=10/10 heroHp=3869/4140
+presses=47 inDanger=9%`), and a sixth room (westclimb) was reached before the
+script's budget ran out -- zero faults, zero wipes, two full boss kills, the
+whole raid alive throughout. The 25-heroic `good` run on this same spec
+reached five rooms and left The Last Whisper at 21% when its budget ran out;
+this 10-normal run reached six rooms and killed it. Another point against
+size/difficulty predicting a stall by itself -- the harder cell on the same
+spec and style got *less* done, not more stalled.
+
+The `boss-down` line's own `room` field read `vigil` for a kill that
+`boss-woken` (three lines earlier, same fight) correctly named `spire` --
+already read as a driver-side log quirk, not a game fault, in the
+2026-09-28 entry above (`boss-down` logs where the party stood at the start
+of the room's turn, not a fresh `chamber()` read); this run reproduces the
+exact same mislabel on a different spec, style and viewport, which is further
+confirmation it is a property of `evening()`'s own logging rather than
+anything about this cell. Not re-filed, not re-described at length here.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never

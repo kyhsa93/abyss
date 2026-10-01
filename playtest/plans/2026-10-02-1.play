@@ -1,0 +1,44 @@
+# playpick cell: mode=walk boss=host spec=druid:guardian style=good
+# size=10 difficulty=normal view=844x390,touch save=fresh. boss=host (The
+# Reeking Host) is a coverage label only -- direction.md's [[#6]] has said
+# this every time a mode=walk cell shows up: `evening` steers at no boss, so
+# this starts at the door same as any other 10-normal evening and whatever
+# room it reaches is whatever it reaches.
+#
+# Checked sessions.jsonl first (grep for druid:guardian, 7 prior appearances):
+# this spec has been played in mode=clear (wander, flee), mode=battleground
+# (mash x2), mode=raid (idle) and mode=walk (good, but only at carried/
+# 25-heroic/820x1180). `good`-style evening on this spec at 10-normal/fresh
+# has never run, and no druid:guardian session of any kind has used an
+# 844x390 landscape touch viewport -- every prior touch reading for this
+# spec was portrait (390x844 or 820x1180).
+#
+# Why the spec matters for [[#6]]/#271 specifically: every style that has
+# crossed THE VIGIL clean or wiped there so far was read as a DPS or healer
+# body reacting to hazards/distance. `good`'s own steering (scripts/playbot.ts)
+# computes threat/positioning generically, but a guardian druid is the
+# roster's tank -- taunt range and threat-holding behaviour inside a corridor
+# full of watchmen (not a boss room) has not been exercised by this line at
+# all yet, since every prior #271 confirmation used a dps or healer spec. If
+# the tank's own aggro-holding changes how many watchmen the party is fighting
+# at once mid-crossing, that would be a genuinely new variable in a stall this
+# well-confirmed already, not a twentieth repeat of the same shape.
+open
+targets
+shot front
+
+tap raid
+shot raid-setup
+tap next
+tap class:druid:guardian
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening good 220 6
+state
+bill
+shot end
+says
