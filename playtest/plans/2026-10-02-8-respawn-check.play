@@ -1,0 +1,35 @@
+# Follow-up to 2026-10-02-8.play: that run's rogue:assassination died at
+# fightTime=47 under `mash` on flags and read alive:false, bar:locked clean
+# through fightTime=105 -- 58 seconds dead, well past the ~10s clean revival
+# (RESPAWN_EARLY=6/RESPAWN_LATE=11) this file's own "Tried and dropped"
+# section already established for chained `play` calls. That section's own
+# diagnosis is that a chained `play` gives up the instant hero()===null and
+# never polls again, producing exactly this kind of stuck-looking read; the
+# fix it names is one short `play` to get the death, then bare `wait`/`state`
+# polling with no further `play` call. This settles which one happened here.
+open
+tap battleground
+tap map:flags
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+
+play mash 60
+state
+shot died
+
+wait 5
+state
+shot plus5
+
+wait 5
+state
+shot plus10
+
+wait 5
+state
+shot plus15
+
+wait 10
+state
+shot plus25

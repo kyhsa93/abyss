@@ -1,0 +1,65 @@
+# Cell from playpick: mode=battleground map=flags spec=rogue:assassination
+# style=mash view=844x390,touch save=carried.
+#
+# Checked direction.md's #7 and sessions.jsonl first: rogue:assassination has
+# seven readings on record (melee/auto/idle/wander/flee, mode=raid/walk only)
+# and none of them is a battleground -- this is the first rogue cell of any
+# style on either battleground map. It also lands on the exact gap #7's
+# 2026-09-28 entry closed for `melee` style but never asked of `mash`: that
+# entry showed a melee-capable kit changes nothing under `melee` specifically
+# (paladin:protection, hits=0 both pulls, same shape as the two ranged-spec
+# priors). `mash` is a different steering shape, not just a different press
+# pattern -- scripts/playbot.ts's want-computation (lines 928-998) has no
+# branch for `mash` at all, so it releases the stick at the spawn point and
+# round-robins ability slots 1-5 forever from wherever that is, same as the
+# 2026-10-01-8 (druid:feral, conquest) and 2026-10-01-13 (warlock:destruction,
+# this exact map) readings already on file. Both of those were ranged kits
+# reading hits=0; this is the first time a melee weapon's own very short
+# reach (scripts/playbot.ts:954, `far > 4` for `melee` style's own threshold)
+# is paired with a style that never closes that gap on its own. If flags'
+# spawn clusters bodies close enough (as 2026-10-01-12's druid:balance `good`
+# pull found, dying at fightTime=16 right on top of the enemy), a melee body
+# might land hits by accident where a ranged one could not; if it still reads
+# zero, that is the sharper version of "melee style loses" #7 already asked
+# for, now isolated to spawn proximity rather than reach at all.
+open
+shot front
+targets
+
+tap battleground
+shot bg-menu
+targets
+
+tap map:flags
+shot class-pick
+targets
+
+tap class:rogue:assassination
+shot rogue-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+ui
+
+play mash 90
+shot mid1
+state
+bill
+says
+
+wait 10
+play mash 90
+shot mid2
+state
+bill
+
+wait 10
+play mash 90
+shot mid3
+state
+bill
+says
+targets

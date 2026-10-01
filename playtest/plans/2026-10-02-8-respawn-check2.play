@@ -1,0 +1,39 @@
+# Second follow-up: get the rogue to the point of death with one bounded
+# `play`, then poll only with bare wait/state (no further `play` call) all
+# the way through a revival, to settle whether 2026-10-02-8.play's 58-second
+# "stuck dead" reading was a real stall or the already-documented chained-
+# play-gives-up-on-hero-null artifact.
+open
+tap battleground
+tap map:flags
+tap class:rogue:assassination
+tap pull
+waitscreen fight 15
+
+play mash 100
+state
+shot afterplay
+
+wait 5
+state
+shot p5
+
+wait 5
+state
+shot p10
+
+wait 5
+state
+shot p15
+
+wait 5
+state
+shot p20
+
+wait 5
+state
+shot p25
+
+wait 5
+state
+shot p30

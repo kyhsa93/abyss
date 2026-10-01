@@ -6195,6 +6195,57 @@ shots instead. Gate held shut at fourteen open issues; not filed.
 Reproduction: `playtest/plans/2026-10-01-25.play`,
 `bg-start.png`/`mid1.png`/`mid2.png`/`mid3.png`.
 
+**2026-10-02, fourth `mash`-style battleground pull, and the first on a
+melee-capable kit.** `playpick` gave `map=flags` (Ebb and Flow), `spec=rogue:
+assassination`, `844x390,touch`, carried (behaves as fresh per #273) --
+`playtest/plans/2026-10-02-8.play`, the first battleground reading of any
+style this job has ever given rogue:assassination (its seven prior readings
+were all `mode=raid`/`walk`). The three `mash` entries already on this line
+(conquest/druid:feral, flags/warlock:destruction, escort/paladin:holy) are
+all kits with real range; this is the first with a weapon whose own `melee`-
+style threshold is four units (`scripts/playbot.ts:954`), which left open
+whether `mash`'s zero-output shape was about the missing `want`-branch at
+all or specifically about standing at spawn with nothing in a caster's reach.
+
+It read the same as every prior `mash` entry: the action bar showed
+`sinister_strike`/`rupture`/`eviscerate` all `"range"` from the very first
+read, before a single `play` call (`state` at 2.9s, pull still at its
+three-second count-down), and stayed that way or worse for the whole match
+-- `bill` read `hits=0 hitsPerMin=0` in all three chunks (fightTime 47s,
+95s, 105s), the body died at fightTime=47 (`taken=1698`, `aliveParty` 3/5)
+and the match was still `outcome=ongoing`, un-concluded, when the script's
+105-second budget ran out. `pulled.png` shows why distance was never the
+issue this kit's own range would predict: the whole five-body party spawns
+already clustered inside the contested point's capture ring, `mid1.png`
+(taken after death) shows the token marked `DOWN` with a queued `Out of
+range` banner sitting directly on the point with teammates. A melee weapon
+at zero range still produced the identical shape as two ranged kits before
+it. Fourth confirmation, fourth kit shape, same cause: `mash` has no `want`
+branch (`scripts/playbot.ts:928-998`), so whatever a body's own reach is,
+standing wherever it spawned is what decides the output, and this line's
+"melee vs ranged" question is closed -- it was never about reach.
+
+Driver lesson, not a game finding: the same run's first chunk ended in
+`fault:not-a-number {hero:null, hp:0}` and the second and third chunks
+(chained `play mash` calls back to back) read `alive:false`/`bar:locked`
+unbroken from fightTime=47 through fightTime=105 -- 58 seconds dead, far past
+the ~10s clean revival this file's own *Tried and dropped* section already
+established. Worth checking rather than trusting as a real stall, since a
+chained `play` giving up the instant `hero()===null` is the exact shape that
+section already names. Two follow-up scripts confirmed it is that artifact
+and nothing else: `2026-10-02-8-respawn-check2.play` got the same spec to
+die at fightTime=25.7 with one bounded `play`, then polled with bare
+`wait`/`state` only (no further `play`) -- still dead at +5s (30.8s), alive
+again with `hp=1315/1530` at +10s (35.9s), the same clean window this line
+has now confirmed on every kit tried against it. The 58-second reading was
+the driver repeating a stale look at a body it had stopped actually
+checking, not a stuck respawn.
+
+Gate held shut at fourteen open issues; not filed. Reproduction:
+`playtest/plans/2026-10-02-8.play` (the finding),
+`playtest/plans/2026-10-02-8-respawn-check2.play` (the driver-artifact
+follow-up), `pulled.png`/`mid1.png`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
