@@ -1,0 +1,61 @@
+# Cell from playpick: mode=battleground map=flags spec=warlock:destruction
+# style=mash view=1280x800 save=carried.
+#
+# Checked sessions.jsonl and direction.md's #7 first: `mash` has now run on
+# exactly one battleground (2026-10-01-8, conquest, druid:feral, fresh) and
+# read hits=0 the whole match because scripts/playbot.ts's want-computation
+# has no steering branch for `mash` -- it releases the stick at the spawn
+# point and round-robins ability slots 1-5 from wherever that is, forever.
+# That reading was explicitly not treated as a game finding: a melee spec
+# stranded at spawn has nothing in range to press into. This cell is the
+# first chance to test the actual hypothesis under it -- is the zero-output
+# shape about steering at all, or just about melee range? -- because
+# warlock:destruction is ranged and Ebb and Flow's own spawn has shown
+# bodies clustered close to the enemy team on this exact map before
+# (2026-10-01-12's own druid:balance `good` pull died at fightTime=16 with
+# the whole five-body party spawning right on top of Corvin). If a
+# stationary ranged body can reach someone from its own spawn tile, `mash`
+# should show nonzero hits despite never moving; if it still reads hits=0,
+# that is a second, stronger data point that nothing spawns in spell range
+# either, not just melee range.
+open
+shot front
+targets
+
+tap battleground
+shot bg-menu
+targets
+
+tap map:flags
+shot class-pick
+targets
+
+tap class:warlock:destruction
+shot warlock-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+ui
+
+play mash 90
+shot mid1
+state
+bill
+says
+
+wait 10
+play mash 90
+shot mid2
+state
+bill
+
+wait 10
+play mash 90
+shot mid3
+state
+bill
+says
+targets

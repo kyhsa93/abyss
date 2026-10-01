@@ -5705,6 +5705,49 @@ about the *game* rather than about this one style's own gap in
 `scripts/playbot.ts` -- the fix, if one is wanted, is a `want` branch for
 `mash` (even a plain toward-nearest-enemy term), not anything in `src/`.
 
+**2026-10-01, second `mash`-style battleground pull, same driver gap, opposite
+outcome.** `playpick` gave `map=flags` (Ebb and Flow), `spec=warlock:
+destruction`, `style=mash`, `1280x800`, carried (behaves as fresh per #273) --
+the first ranged spec tried under `mash`, chosen specifically to test whether
+the zero-steering shape the first `mash` reading (conquest, druid:feral,
+melee) found was about melee range specifically or about standing still at
+all. `playtest/plans/2026-10-01-13.play`: `hits=0 hitsPerMin=0` held across
+all three `bill`s exactly as the melee reading did -- the three attack slots
+(`shadow_bolt`/`immolate`/`chaos_bolt`) read `"range"` from the very first
+post-countdown `state` and `"locked"` (dead) in every sample after, so a
+stationary ranged body never got into its own spell range either. The
+hypothesis the cell was chosen to test reads the same way for melee and
+ranged both.
+
+What is new is which side of "nothing happens" this map put the body on.
+Conquest's feral druid finished its match fully `inDanger=0%` and untouched
+(`heroHp=1575/1575` the whole way). Here the warlock died before the first
+`bill` ever read (`fightTime=67`, `taken=342`, `aliveParty=4/5`,
+`byMechanic={}` -- plain combat damage, nothing tagged), and was dead for the
+entire ~103s the script watched. The top-right respawn clock went `16s -> 6s`
+between the first two samples (on course for one revival around
+`fightTime≈83`) and then read `18s` again by the third (`fightTime=103`) -- a
+fresh countdown that only makes sense if the body revived and was killed a
+second time in between, standing exactly where it respawned since nothing
+ever steers it elsewhere. `taken` for the third window alone was `1528`
+against `hits=0`, the heaviest one-sample damage this line has recorded while
+the tracked body did nothing. `mid2.png`/`mid3.png` both show `"You"` still
+reading `DEAD` in the party frame while the banner line carries other
+teammates' names (`"ours taken by Sable"`, `"ours taken by Corvin"`),
+confirming the match kept moving around a body that was not in it.
+
+So the same missing `want` branch for `mash` produces two different real
+outcomes depending on the map's own geometry: conquest's spawn leaves a
+stationary body safe, flags' leaves one exposed enough to die and die again.
+Neither is a fact about `mash` as a hypothesis about a player -- it is still
+the driver's own gap, as the first entry already concluded -- but it
+sharpens what that gap costs: on this map, standing still is not a null
+result, it is a loop of free deaths. `ui` reproduced #276's under-44 and
+ability-cluster overlap readings on this viewport, nothing new. Gate held
+shut at fourteen open issues; not filed. Reproduction:
+`playtest/plans/2026-10-01-13.play`, `pulled.png`/`mid1.png`/`mid2.png`/
+`mid3.png`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
