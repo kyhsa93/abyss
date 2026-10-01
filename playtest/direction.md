@@ -6424,6 +6424,73 @@ screenshot evidence (regenerate by re-running the script if the tmp files are
 gone), and `src/main.ts:2145-2146` named as the one place history is touched
 at all. The resize-mid-menu half needs no issue.
 
+**2026-10-01, two tabs on the same origin silently discard each other's
+composition picks, and a reload hands either tab a roster nobody on it
+chose.** `mode=menus`, 820x1180 touch, carried (two tabs sharing one
+`vite` origin within a single invocation *is* what "carried" means here --
+#273's port-randomization bug only breaks it across separate `playbot`
+invocations). The `.play` vocabulary drives exactly one page, so this went
+around it with a one-off Playwright script
+(`playtest/plans/2026-10-01-11-two-tab-race.mjs`) opening two tabs in one
+browser context -- a thing no prior session had tried (grepped
+`direction.md` and `sessions.jsonl` for "second tab"/"newPage"/"two tabs":
+zero hits across twenty-four prior `mode=menus` sessions).
+
+Read `src/main.ts` before running it, same as this file's own habit:
+`updateComposition`'s own comment says the design plainly -- "every press
+goes through `compose`, and what comes back is written to the party and
+saved immediately — there is no confirm step, because the board is already
+showing the answer." That sentence assumes one board. `loadParty()` reads
+`abyss.party` once, at page load, into each tab's own `party` variable, and
+`applyComposition()` calls `saveSetup()` on every single spec pick, writing
+the *whole* ten-slot array each time -- so two tabs open from a common
+starting point, each unaware of the other, should race: whichever presses
+last overwrites the whole key with its own copy, discarding anything the
+other tab changed first.
+
+That is exactly what happened. Tab A opened composition, both tabs read the
+same starting party. Tab A picked `warrior:arms` into its own slot
+(`slot:0`, "You") -- `localStorage['abyss.party']` updated to show it,
+confirmed by reading the key directly, and `pt-race-a-after-pick.png` shows
+"You / D Warrior DPS" on tab A's own screen. Tab B, still sitting on its
+original in-memory copy from before A's write, then picked `paladin:holy`
+into a different slot ("Bastion") -- its own save overwrote the whole key
+with its own stale copy of every other slot, and A's `warrior:arms` pick
+was gone from disk afterward (checked directly:
+`partyAfterB[0].classId === 'warrior'` read `false`). Tab A's own screen,
+never reloaded, still showed its own pick (`pt-race-a-still-showing.png`,
+unaware anything happened) -- but reloading it, the way a phone restores a
+backgrounded tab, produced `pt-race-a-after-reload.png`: "You" reverted to
+the *original* `D Mage` it started as, not even back to blank, and
+"Bastion" now reads `H Paladin Heal`, a pick tab A never made and has no
+way to know came from somewhere else. Both effects confirmed by reading
+`localStorage['abyss.party']` directly, not just the screenshot: index 0's
+own pick gone, index 1 showing B's.
+
+This is `docs/playtest.md`'s own "a menu that says something untrue about
+the game behind it," sharpened: not a stale label, a roster a player
+assembled with their own taps, silently replaced by a mix of their own
+earlier choice being undone and a choice that was never theirs appearing in
+its place, with no error, no confirmation and no way to tell from the
+screen alone that it happened. A phone player hits this for free any time
+the game is open in two tabs at once -- switching apps and coming back
+through a stale tab, or a PWA install left running next to a browser tab on
+the same page -- which needs no unusual action to trigger, unlike #272/#273's
+reload-specific repros.
+
+**Not filed -- fourteen open `playtest` issues held the gate shut.** File as
+a bug the first session the gate opens, with
+`playtest/plans/2026-10-01-11-two-tab-race.mjs` as the reproduction (run
+`node` on it directly; it starts its own `vite`) and `pt-race-a-after-pick.png`
+/ `pt-race-b-after-pick.png` / `pt-race-a-after-reload.png` (regenerate from
+`/tmp/` by re-running the script if gone) as the screenshot evidence,
+`src/main.ts`'s `applyComposition`/`saveSetup` (the whole-array
+last-write-wins save) named as the mechanism. Related to [[#5]] (the
+`carried`-across-invocations bug) only in that both are about `abyss.party`'s
+own storage key -- the fix is different, since this one reproduces inside a
+single origin with no port involved at all, and a fix for #273 would not
+touch it.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
