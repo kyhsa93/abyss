@@ -4022,6 +4022,38 @@ three DPS specs already measured this way -- the shape this line already had
 ("`good` dies almost immediately on a battleground") turns out not to be
 about role at all.
 
+**2026-10-01, sharpened by the first true `idle`-style battleground match
+played to its own conclusion.** Every prior entry on this line used `flee`/
+`dodge` (zero presses, but the style still steers the body away from danger)
+or active styles that die fast; the closest thing to a real `idle` control
+was 2026-09-26's same-session bare-stick-release poll, thirty seconds long
+and never run to a match result. `playpick` gave `mode=battleground
+map=conquest spec=priest:shadow style=idle view=390x844,touch save=fresh` —
+conquest's first `idle` pull, and the first `idle`-style battleground match
+anywhere on record (checked sessions.jsonl and every `.play` under
+`playtest/plans/`). Three chunks of `play idle 90`, `bill` after each
+(`playtest/plans/2026-10-01-20.play`, `/tmp/pt-20`):
+
+```
+87s  bill hits=0 hitsPerMin=0 taken=0 takenPerMin=0 inDanger=0% aliveParty=4/5
+155s bill hits=0 hitsPerMin=0 taken=0 takenPerMin=0 inDanger=0% aliveParty=2/5
+fight-over outcome=defeat time=155
+```
+
+The player never took a hit and never dealt one — `hp=1350/1350` for the
+entire match, `inDanger=0%` on both reads — while three of the other four
+teammates died one at a time (18s, 13s, 44s) and the match ended in defeat at
+155s, 199–400 (`mid2.png`, the DEFEAT board). `mid1.png` at the 87s mark shows
+why: "You" stands alone at the bottom of the arena, nowhere near where
+"Kestrel" (the one teammate still fighting at that point) and the enemy side
+are contesting ground. This is the cleanest version of this line yet — not a
+body that gets caught and dies passively, but one that is simply never found,
+carried to an actual loss rather than a 30-second snapshot. Still no
+`idle`-or-equivalent battleground run that wins, on any map; **not
+disproved**. Not filed — fourteen open `playtest` issues held the gate shut
+at session start, and this confirms #7's existing shape rather than showing
+anything new about the game.
+
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to

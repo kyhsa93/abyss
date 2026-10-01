@@ -1,0 +1,57 @@
+# Cell from playpick: mode=battleground map=conquest spec=priest:shadow
+# style=idle view=390x844,touch save=fresh.
+#
+# Checked sessions.jsonl and every .play under playtest/plans/ first: no
+# mode=battleground session anywhere on record has ever used style=idle, on
+# any map. direction.md's #7 ("a battleground does not carry a passive body
+# the way a raid does") so far only has flee/dodge (zero presses, but the
+# style still actively steers the body away from danger), good/melee/mash
+# (presses, with or without steering) and auto (presses only what the bar
+# allows). None of those is the direct mirror of #1's raid finding, where
+# `idle` means literally nothing: no presses AND no movement at all, stick
+# released the whole time. This is the first chance to run that exact
+# control on a battleground and see whether a body that does nothing dies
+# passively (as flee/dodge's untouched-the-whole-match readings suggest a
+# truly inert body might) or gets found and killed regardless (as #7's shape
+# for active-but-doomed styles suggests). Three chunks with `bill` after each
+# to watch the trend rather than one end-state snapshot.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:priest:shadow
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play idle 90
+shot mid1
+state
+bill
+says
+
+wait 5
+play idle 90
+shot mid2
+state
+bill
+
+wait 5
+play idle 90
+shot mid3
+state
+bill
+says
+targets
