@@ -1,0 +1,47 @@
+# playpick cell: mode=daily boss=confluence (coverage label only -- daily
+# picks today's real fight) spec=druid:balance style=wander
+# view=844x390,touch save=fresh.
+#
+# Probed first (playtest/plans/2026-10-01-22-probe.play): today's actual
+# daily is The Bloodgorged, 25-player heroic, HASTENED ("the enrage arrives
+# more than two minutes early"). daily-screen.png's class grid, read left to
+# right top to bottom: row2 col5 is "Druid Balance" = class:9.
+#
+# Checked sessions.jsonl first (16 prior wander lines, grepped by hand since
+# the naive grep misses lines where other fields sit between "style" and the
+# value): wander has been run against this exact boss/size/difficulty/affix
+# combo twice before under mode=daily (2026-09-27, priest:shadow, 390x844;
+# 2026-09-28, paladin:protection, 390x844) but never druid:balance, and
+# druid:balance itself has exactly one prior reading in this whole ledger
+# (2026-09-24, `good`, daily, 390x844 portrait). So this is the first
+# druid:balance pull under any style but `good`, the first druid:balance
+# reading at a landscape-touch viewport, and -- checked against direction.md's
+# own wander entries -- the first wander pull of any boss at 844x390,touch
+# specifically (every prior wander/daily session used 390x844 portrait,
+# 1280x800 desktop or 820x1180 portrait).
+#
+# direction.md's own enrage-countdown finding (2026-09-28, not yet filed,
+# gate shut) says the minimap's countdown reads the un-affixed encounter.enrage
+# the whole fight through, wrong by exactly HASTENED's 135s discount for the
+# back half of any pull that reaches it -- watching for the same wrong number
+# again, not re-filing it. Also watching for [[#1]]'s single-actor-death
+# outcome bug (sim.ts's isPlayer-only check firing before the real all-dead
+# check) since a caster under wander, with no steering term toward the boss's
+# own fester/gorge target-picked hits, is a different exposure shape than any
+# prior confirmation of it.
+open
+tap daily
+targets
+tap class:9
+shot class-selected
+tap start
+waitscreen fight 15
+state
+shot start
+targets
+ui
+play wander 220
+shot end
+state
+says
+bill

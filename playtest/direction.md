@@ -2152,6 +2152,42 @@ before reading this as "auto costs time on a hard-clock fight" rather than
 one seed's placement of the shared-RNG draws this line's Two-Flasks entries
 above already flagged as a confound.
 
+**2026-10-01, the first time `wander`'s own blindness has been measured on a
+ranged dps rather than a tank or healer, and the first loss this line has
+logged for the style.** `mode=daily` gave druid:balance, `wander`, fresh
+save, 844x390 touch (`playtest/plans/2026-10-01-22.play`) -- the first
+`wander` pull at this viewport on record, and only the second druid:balance
+reading in this whole ledger (the first was `good`, 2026-09-24). Probed
+first: today's actual daily was The Bloodgorged, 25-player heroic, HASTENED.
+
+`wander` round-robins ability slots and a random heading regardless of what
+is on screen, and the kill-screen damage board shows exactly that: `You`
+finished **last** of twenty-five at `dps=48`, against 503 presses --
+`bill` read `hits=7 hitsPerMin=3 taken=2717 takenPerMin=1150.7
+byMechanic={"gorge":4,"spill":1,"champion":2}`. Every prior reading of
+`wander`'s blind-press shape on this line was a healer (presses landing as
+heals by accident, since the AI's own bodies cluster near the player at
+pull) or a tank (role exclusions doing the work); this is the first time it
+has been quantified on a pure ranged caster, where there is no such accident
+available -- 7 hits in 142 seconds is close to the floor the style can
+produce.
+
+And unlike every other `wander`/`idle`/`flee`-as-dps reading this line has
+on file, **this one lost**: `outcome=enrage time=142 phase=3`, boss at 2%
+(6698/375200), `aliveParty=17/25` -- eight real deaths, not the
+single-actor-death artifact the "Not yet filed" section's 2026-09-29 entries
+describe (that bug needs exactly one body down; this pull lost eight). The
+raid got the boss to 2% almost entirely on its own, the same shape as every
+other win this line has logged, but HASTENED's tightened clock closed the
+fight before the AI could finish what a near-silent player did nothing to
+help or hinder. Read together with the `auto`-style restoration druid entry
+just above (3.4s of margin on a different fixed-clock fight), this is the
+second reading in a row where "the raid carries it anyway" comes right up to
+the edge rather than comfortably clearing it -- worth a `good`-style
+druid:balance pull on this exact boss/affix before treating HASTENED losses
+as further evidence for the line rather than a separate, affix-driven
+ceiling on how close to failing "doing nothing" can come.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

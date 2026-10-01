@@ -1,0 +1,8 @@
+# Cell from playpick: mode=daily, boss=confluence (coverage label only --
+# daily picks today's actual fight, not this one), spec=druid:balance,
+# style=wander, view=844x390,touch, save=fresh. Probe first: what is today's
+# actual daily fight, at a landscape phone viewport.
+open
+tap daily
+targets
+shot daily-screen
