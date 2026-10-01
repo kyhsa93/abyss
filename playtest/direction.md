@@ -2188,6 +2188,33 @@ druid:balance pull on this exact boss/affix before treating HASTENED losses
 as further evidence for the line rather than a separate, affix-driven
 ceiling on how close to failing "doing nothing" can come.
 
+**2026-10-02, the first `idle` pull of The Crimson Gift, and a second tank
+class confirming the tank-exclusion-by-design reading.** `mode=raid`, direct
+(`#b=gift&s=25&h=1`), paladin:protection, `idle`, 25-heroic, fresh, 390x844
+touch (`playtest/plans/2026-10-02-3.play`). No prior session had run this
+boss under a never-press style; the two prior direct `mode=raid` pulls
+(2026-09-30-10/-14) were both `good`, one tank and one dps. This is `idle`
+and tank together, on the role the source already excludes from the fight's
+own titular mechanic (`scheduleGift`, `boss.ts:3706`, `role !== 'tank'`).
+
+Clean kill, zero presses, zero danger the whole way: `fightTime=155
+outcome=victory aliveParty=25/25 heroHp=2745/2745 presses=0 inDanger=0%`
+across all three `play`/`bill` windows -- the player ended at **full**
+health, not just alive, having never cast consecration, avenger's shield or
+any defensive cooldown once. `byMechanic` matches the warrior:protection
+tank pull exactly in shape: only `flight` (1266) and `bond` (722) ever
+named, `gift`/`souring`/`stain`/`turning` absent across the whole kill --
+a second tank class, same design-level exclusion, same clean idle win.
+`upkeep.md`'s gap table already lists this fight at 0 (played=idle=99%); this
+adds that the 0 gap holds at heroic too, and that it holds even when the
+idle body is the one role structurally walled off from the fight's own
+namesake mechanic -- the sharpest version of "nothing you do is a decision"
+this line has on this boss. Not filed -- not a new question, the
+tank-exclusion thread was already closed on 2026-09-30, and the gate held
+shut at fourteen open issues regardless. `end.png` also shows the known
+`DOWN`-over-`KILL`-banner overlap (#275, already open) on this heroic-25
+kill screen -- not re-filed, already tracked.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

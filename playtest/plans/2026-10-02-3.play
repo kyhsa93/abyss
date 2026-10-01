@@ -1,0 +1,47 @@
+# playpick cell: mode=raid boss=gift (The Crimson Gift) spec=paladin:protection
+# style=idle size=25 difficulty=heroic view=390x844,touch save=fresh
+#
+# What is new here: no session has ever run mode=raid boss=gift under idle --
+# the only two direct mode=raid pulls of this boss on record (2026-09-30-10
+# daily and -14 raid, both warrior, both `good`) showed byMechanic never
+# naming gift/bond/stain/turning for the tracked body, for two different
+# source reasons (src/sim/boss.ts:3706 excludes the tank role outright;
+# the dps pull simply was not rng.pick's one-in-~24 holder). Neither of those
+# was idle, so this is the first test of hypothesis 1 (doing nothing wins) on
+# this specific boss, and specifically on the tank role the source already
+# excludes from the titular mechanic by design -- if idle still clears a
+# heroic 25-man clean on the one role structurally walled off from its own
+# fight's namesake mechanic, that is the sharpest version of "the player's
+# presses have no visible consequence" this line has found yet, since even a
+# tank's normal job (holding threat, blocking) is not being asked here.
+# upkeep.md's played/idle gap table already lists this fight at 0 (99%/99%),
+# so the prediction is a clean idle kill; played here anyway, at heroic rather
+# than whatever difficulty that table measured, to see if the gap holds there.
+#
+# Reached the documented way: an invite hash unlocks the tier it names and
+# everything below it, since a fresh save only opens Bonegrinder 10N.
+open #b=gift&s=25&h=1
+tap class:paladin:protection
+tap pull
+waitscreen fight 15
+state
+says
+shot open
+
+play idle 70
+bill
+state
+says
+shot mid1
+
+play idle 70
+bill
+state
+says
+shot mid2
+
+play idle 70
+bill
+state
+says
+shot end
