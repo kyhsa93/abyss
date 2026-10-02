@@ -1,0 +1,44 @@
+# playpick: mode=raid boss=whisper spec=hunter:marksmanship style=flee size=25
+# difficulty=heroic view=1280x800 save=fresh
+#
+# direction.md #1 already has one flee-style loss on this exact spec/boss/size/
+# difficulty (2026-09-26-48.play), but only reached by mode=walk/clear -- an
+# evening that had already spent Bonegrinder and four corridors before Whisper
+# woke, and only on a touch viewport (390x844). That entry's own read, from
+# src/sim/combat.ts, is that the enrage aura amplifies whatever the boss's
+# ordinary hits already land, so a style built entirely around dodging
+# telegraphs has nothing to dodge once plain damage alone is lethal -- a claim
+# about the boss, not about the evening that led into it. This is the direct
+# raid-hash pull of the same cell (no prior rooms, no raid attrition carried
+# in, desktop 1280x800 instead of touch) to see whether the same shape holds
+# with the evening's own confound removed, and whether a same-session retry
+# (a real pull two, sharper AI, not a fresh `open`'s pull one again) still
+# loses the same way or finds the enrage survivable once positioning is the
+# only variable left.
+open #b=whisper&s=25&h=1
+targets
+tap class:hunter:marksmanship
+tap pull
+waitscreen fight 15
+state
+shot start
+play flee 80
+bill
+shot mid1
+state
+play flee 80
+bill
+shot mid2
+state
+tap outcome:retry
+targets
+shot after-retry
+state
+play flee 80
+bill
+shot mid3
+state
+play flee 80
+bill
+shot end
+state

@@ -2630,6 +2630,58 @@ hit radius wider than they are... a press goes to the *nearest* button
 rather than the first one it lands inside"), so this is the shape working as
 documented, not a new report.
 
+**2026-10-03, a second named mechanic on The Last Whisper that beats `flee`,
+and this time it is not the enrage.** `mode=raid`, direct invite hash (`open
+#b=whisper&s=25&h=1`, not an evening), hunter:marksmanship, `flee`, fresh
+save, 1280x800 desktop (`playtest/plans/2026-10-03-6.play`). The one prior
+`flee`-vs-Whisper reading (2026-09-26-48.play, above) came from inside
+`mode=walk`, on a touch viewport, after Bonegrinder and four corridors had
+already spent some of the raid's own slack, and died to the enrage aura at
+251s. This pull removes both confounds at once: a direct hash pull carries no
+prior rooms in, and desktop is a different input path entirely. It also adds
+something that session didn't have -- a real second pull. `tap outcome:retry`
+after the first wipe stays in `mode=raid` (matching [[#3]]'s own reading that
+boss-room retries work and only travel-mode ones don't), so the second attempt
+is a true `attempt=1` with its own roll, not a fresh `open`'s `attempt=0` again.
+
+Both pulls died, and neither reached the enrage. `encounter.enrage` for this
+fight is `240` raw (`src/sim/encounters.ts`, no affix on a plain raid pull),
+and pull 1 wiped at `fightTime=134`, boss at 66%, still phase 1 -- over a
+hundred seconds short of the timer. Pull 2, the real retry, died *faster*:
+`fightTime=100`, boss at 76%, also phase 1. `inDanger` read 0% across every
+`play` chunk in both pulls -- this body was never once sampled standing in a
+telegraph -- and `bill`'s `byMechanic` read `{}` both times despite
+`heroHp` going from full to 0 on schedule (`taken=1899` cumulative on the
+first death, `taken=1643` on the second). The WIPE screen itself shows the
+same zero a human playing this would see: `mid2.png` reads "You · Hunter ·
+died 134s" on a damage board column headed `mechanics`, at `0`, next to
+`taken: 1.9k` -- not a driver-only blind spot, the same number is on the
+screen built to tell a player what just killed them.
+
+That column is `mechanicHits` (`src/render/hud.ts:1947`, "how many *avoidable*
+mechanics each player ate"), not a tally of all damage, so a zero there is
+correct, not a bug, for damage that was never dodgeable in the first place --
+worth writing down since it looks damning out of context and is not. What
+actually fits a zero-avoidable-damage death with no ground telegraph and no
+enrage is `scheduleDominate` (`src/sim/boss.ts:1291-1320`): it turns a
+non-tank raid member hostile for twelve seconds, and that body's own attacks,
+per `strikeTarget` (`src/sim/ai.ts:713-728`), aim "at the raid, and at
+whoever is nearest" -- not at the boss's threat table, not at a fixed point,
+just distance. The mechanic's own comment calls out the zero on purpose: "the
+only one of these that bills nothing... a burst appearing on a body says one
+turned without saying which." A real player sees the cast and the line
+(`says`) and can see which ally is now swinging at them; `flee`'s own
+steering (`scripts/playbot.ts:958-959`) is `hero - boss`, nothing else -- no
+party member's position enters it at all, so there is no position this style
+could ever move to that answers "something that is not the boss is now
+hitting you." This is not a disprove of [[#1]]: it is a third mechanic, after
+Bloodgorged's `fester` and this same boss's own enrage, built to cost a style
+that only reads the boss and the floor, and the first time the mechanism has
+been named from source rather than guessed at from a wipe clock alone. The
+fight's own `demand` string (`src/sim/encounters.ts:1732`) says as much in as
+many words: "cut the shard, swap the hold, and **hold off your own**." Not
+filed -- fourteen open `playtest` issues held the gate shut.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
