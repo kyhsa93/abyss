@@ -1,0 +1,45 @@
+# playpick cell: mode=daily boss=cold spec=warrior:protection style=idle
+# view=1280x800 save=fresh. boss=cold is playpick's own filler label -- daily's
+# boss axis is not reachable as a playpick axis (direction.md's standing note,
+# reconfirmed by this session's own probe: 2026-10-02-19-probe.play). Today's
+# actual daily, read off the probe's daily-screen.png, is The Bonegrinder,
+# 25-player, normal, SWARMING (twice as many thralls, half as often).
+#
+# What is new here: sessions.jsonl has no prior mode=daily + style=idle +
+# warrior:protection reading in any combination (ten prior warrior:protection
+# sessions span good/melee/mash/idle, but the one idle reading is mode=raid,
+# 10-normal, not a daily and not this affix), and no prior idle-style tank
+# reading against The Bonegrinder at 25-player at all -- every idle tank
+# reading on record is either 10-player or against a different boss. SWARMING
+# doubles the thrall count the tank would otherwise be picking up, so this
+# tests whether an idle tank still costs the raid nothing once the one
+# mechanic a tank actually answers (thralls) is turned up.
+#
+# class:0 is Warrior Tank -- the daily screen's own grid only exposes numeric
+# class:N labels, not the class:spec:role labels the composition screen uses
+# (read off the probe's daily-screen.png: row 1 is Warrior Tank, Warrior DPS,
+# Paladin Tank, Paladin Heal, Paladin DPS).
+open
+tap daily
+targets
+shot daily-screen
+tap class:0
+shot class-selected
+tap start
+waitscreen fight 15
+state
+targets
+ui
+play idle 80
+bill
+state
+shot mid1
+play idle 80
+bill
+state
+shot mid2
+play idle 80
+bill
+state
+says
+shot end

@@ -1,0 +1,9 @@
+# playpick cell: mode=daily boss=cold spec=warrior:protection style=idle
+# view=1280x800 save=fresh. boss=cold is playpick's own filler label -- daily's
+# boss axis is not reachable (direction.md's standing note, reconfirmed every
+# prior daily session). Probing first to see what today's actual roll is
+# before committing the real script.
+open
+tap daily
+targets
+shot daily-screen

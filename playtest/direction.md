@@ -2399,6 +2399,41 @@ this file needed at least some cost (a death, a slow kill, an enrage) to
 make the "doing nothing wins" shape complicated. **Disproved by** condition
 unchanged: still no cell found where `idle`/`dodge`-shaped styles lose.
 
+**2026-10-02, the first `idle`-style daily reading on any tank, and the first
+deathless kill this line has recorded against a boss `#267` already names.**
+`mode=daily` (`boss=cold`, a coverage label only -- confirmed again by this
+session's own probe, `playtest/plans/2026-10-02-19-probe.play`: the real
+daily was The Bonegrinder, 25-player, normal, SWARMING), warrior:protection,
+`idle`, fresh save, 1280x800 desktop (`playtest/plans/2026-10-02-19.play`) --
+the picked cell. `sessions.jsonl` has one prior `mode=daily`+`style=idle`
+reading (paladin:holy, 2026-09-26) and it was a healer; every prior
+`idle`/`dodge` tank reading on this hypothesis is `mode=raid`, `walk` or
+`clear`. The first attempt at the real script faulted on its own mistake
+(`no-such-control: class:warrior:protection, on daily` -- the daily screen's
+own class grid only exposes numeric `class:N`, confirmed from the probe's
+`daily-screen.png`; left the pull on whatever class was already selected,
+`mage:frost`, rather than the picked tank) and was rerun clean with
+`class:0` (Warrior Tank, the grid's own first tile).
+
+The corrected pull: `fight-over outcome=victory time=140 phase=3`,
+`aliveParty=25/25 heroHp=2719/2790 (97%) presses=0`, `bill`
+`hits=24 hitsPerMin=10.3 taken=1859 takenPerMin=794.3
+byMechanic={"bonestorm":17,"coldflame":7}`. The end screen's own award
+banners read `First Blood`/`Full Raid`/`Nobody Fell`/`Nobody Left Standing`
+all at once (`end.png`) -- a fresh save's first kill earning every banner a
+flawless clean clear can earn, not a bug (`README.md`'s "stays quiet until
+there is something to beat" is about repetition, not simultaneity). This is
+the first idle-style reading against The Bonegrinder specifically to finish
+with zero deaths anywhere in the raid: SWARMING doubles the thrall count
+feeding `#267`'s own bonestorm aura, and `mid1.png` shows the tank standing
+inside the thrall cluster and the boss's own puddles rather than off to the
+side, yet the 17 bonestorm hits it absorbed cost under 800 effective
+damage/min against a 2790 health pool. `#267` is about melee *players*
+losing a mechanic-hit race to bonestorm's proximity aura when they try to
+play the fight; this reading says the aura is not dangerous on its own terms
+to a body standing in it and doing nothing back -- consistent with, not a
+complication of, this hypothesis. **Disproved by** condition unchanged.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
