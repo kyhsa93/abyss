@@ -1,0 +1,17 @@
+open #b=crowns&s=10&h=0
+tap class:paladin:retribution
+shot classpicked
+tap pull
+waitscreen fight 10
+shot pulled
+play wander 90
+bill
+shot mid1
+play wander 90
+bill
+shot mid2
+play wander 90
+bill
+shot mid3
+state
+says

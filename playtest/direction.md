@@ -2301,6 +2301,56 @@ there. Commented on #267 with this reading rather than filing a duplicate;
 not a new hypothesis, a sharpening of #267's own scope to casters and to
 `mode=daily`.
 
+**2026-10-02, the first clean kill of this fight by a style that never aims at
+it, and the first paladin:retribution reading this job has ever recorded.**
+`mode=raid` direct (`open #b=crowns&s=10&h=0` -> picked `class:paladin:
+retribution` on the roster -> `pull`), 10-player normal, `wander`, fresh save,
+390x844 touch (`playtest/plans/2026-10-02-11.play`). Paladin:retribution has
+never appeared in `sessions.jsonl` before this session, in any mode. The one
+other direct 10-normal `mode=raid` pull of this fight on record
+(`dodge`, 2026-09-27-3) never finished -- it left the boss at 5% when its own
+268s script ended, because `dodge` has no toward-anything steering and simply
+never engages. `wander` has no toward-boss term either (a random heading every
+twelve steps, per `scripts/playbot.ts`), but unlike `dodge` it does press
+abilities round-robin, and on this cell that was enough: `bossHp` fell
+100% -> 53% (87s) -> 5% (178s) -> 0% (190s), `outcome=victory`,
+`aliveParty=10/10` throughout, `heroHp` finishing at 1676/1800 (93%),
+`inDanger=0%` the entire fight.
+
+`byMechanic` read 100% `thirst` at every checkpoint (1217 -> 2139 -> 2139,
+unchanged once the boss died) -- the same parked-on-the-decoy shape this
+thread has already named from source for `melee` and `good`, now shown for a
+style with no toward-boss steering at all. `mid1.png` confirms it visually:
+the player's own token sits inside a drain ring while three named party
+members nearby read "Out of its reach," identical to the `dodge`-tank and
+`good`-healer screenshots already on this thread. The mechanism is simpler
+than "steers toward the boss": the three stands (`encounters.ts`'s
+`stands: [{x:-350,y:202},{x:350,y:202},{x:0,y:-404}]`) sit close to where a
+pull starts, and `wander`'s small random-heading steps never carry the player
+far enough from the dais to leave every stand's drain radius at once --
+reaching the decoy does not require aiming at it.
+
+This also resolves an apparent mismatch with the one prior `wander` reading
+of this fight (2026-09-27, 25-heroic daily, wiped to `prison` at 45s/79%
+boss): `encounters.ts`'s own `gates: { prison: 'heroic' }` means Shadow
+Prison does not exist at normal difficulty at all, so the two `wander` pulls
+were never going to show the same mechanic -- the heroic pull met a cast this
+one's difficulty cannot cast, not a different steering behaviour.
+
+Read together with the rest of this thread: every toward-boss style that has
+been measured on this fight spends the whole pull parked on the decoy and the
+raid absorbs it without complaint at 10-normal, but the three measured
+25-heroic `good` pulls all ended in `outcome=enrage` around 22-36% boss hp
+with a rising death toll, and the one 25-heroic `good`-healer pull got to 3%
+before its own script ran out, still `ongoing`. This is the first pull on the
+easy end of that spread to actually cross the finish line -- confirming the
+"wrong still costs nothing" shape holds all the way to a clean win at
+10-normal, not just to a survivable near-miss, and that it is the raid size
+and difficulty carrying the cost of the decoy bug, not anything about which
+style walks onto it. Not filed -- fourteen open `playtest` issues held the
+gate shut all session, and the decoy mechanism is already named from source
+on this line; this sharpens it rather than adding anything new to file.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
