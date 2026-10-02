@@ -1,0 +1,40 @@
+# playpick cell: mode=clear spec=paladin:holy style=wander size=25
+# difficulty=heroic view=820x1180,touch save=fresh.
+#
+# Checked sessions.jsonl first: paladin:holy has eight prior readings
+# (raid/daily/battleground/walk, styles idle/wander/good/melee/flee) but
+# never once under mode=clear -- every prior reading was a single standalone
+# pull or a single-room walk, never a whole evening. wander+25-heroic has
+# been run before on two other specs (priest:discipline, stalled in VIGIL;
+# paladin:retribution, crossed clean for six rooms, direction.md #6) but
+# never on a healer. wander is also the one style that still presses
+# abilities (round-robin through all five slots, scripts/playbot.ts:1020-25)
+# while steering nowhere in particular -- unlike idle, which presses nothing.
+# README says a heal always targets whoever is furthest from full regardless
+# of who cast it or from where, so this is the first chance to see whether a
+# healer's own automatic heal-targeting keeps the raid up across multiple
+# rooms and pulls even when the body casting it is doing nothing to help
+# itself find a fight or stay near one.
+#
+# A fresh save locks 25-heroic, so #b=marrow&s=25&h=1 unlocks the tier the
+# way every other 25-heroic clear/walk script in this ledger does since the
+# 2026-09-26 driver-lesson, then backs out to a real RAID -> WALK IN at the
+# door rather than the invite's single-fight "visiting" framing.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:paladin:holy
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening wander 80 5
+shot end
+state
+says
+bill

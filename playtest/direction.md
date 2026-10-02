@@ -2552,6 +2552,37 @@ means.
 session, and nothing here crosses into new territory beyond sharpening #1
 with a fourth style/role pairing.
 
+**2026-10-02, the first mode=clear evening on a healer told only to wander,
+and a direct self-cost next to an unharmed raid.** `mode=clear`,
+paladin:holy, `wander`, 25-heroic, fresh save, 820x1180 touch
+(`playtest/plans/2026-10-02-26.play`). Eight prior paladin:holy readings span
+raid/daily/battleground/walk and five styles but never `mode=clear`;
+wander+25-heroic itself has two prior readings ([[#6]]: priest:discipline
+stalled in THE VIGIL, paladin:retribution crossed clean for six rooms) but
+never a healer. THE VIGIL crossed clean in 31.3s door to door (`9.7s` in,
+`41.1s` out, `closestGot=38`/`15`), the same ~30s band every other clean
+25-heroic crossing on [[#6]] shares -- a third wander reading, a second clean
+one, sharpening that line's seed-luck theory further. The Bonegrinder woke
+inside the crossing itself (room `spire`), and one 80s `wander` slice took it
+to 48% (`fightTime=77 aliveParty=25/25 heroHp=540/1530 presses=254
+inDanger=4%`) before this script's own room budget ran out. `bill`:
+`hits=8 hitsPerMin=6.2 taken=1177 takenPerMin=905.8
+byMechanic={"bonestorm":7,"spike":1}` -- a healer under wander, round-robin
+pressing its own five slots (three of them heals), still took direct
+bonestorm damage down to 35% of its own health (`end.png` shows the token
+sitting inside three stacked bonestorm rings) while the raid it was
+nominally healing stayed untouched at 25/25. The on-screen healing panel
+read the player 5th of 5 shown at 14 hps against a raid total of 192 -- heals
+did go out (`beacon_of_light` read `locked` by the end, meaning it had been
+cast, and the README's auto-target-furthest-from-full rule has no reason not
+to have held here), just not enough of them to matter next to three AI
+healers already covering the raid. Extends #267's bonestorm-proximity
+mechanism to a non-melee healer under a style with no boss-awareness at all,
+and gives this line a case where the one body that does act pays a real,
+nearly-fatal cost while the raid it was supposedly helping notices nothing --
+a sharper version of the same shape idle already showed for free. Not filed
+-- fourteen open `playtest` issues held the gate shut all session.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
