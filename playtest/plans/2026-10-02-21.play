@@ -1,0 +1,27 @@
+# Cell from playpick: mode=raid, boss=gorged (The Bloodgorged), spec=warlock:
+# destruction, style=dodge, size=10, difficulty=normal, view=1280x800
+# (desktop, mouse), save=fresh.
+#
+# Checked direction.md first. Hypothesis 1's Bloodgorged thread has two
+# independently-confirmed mechanisms so far, both at 25-player: `fester`
+# punishes a healer that never acts (idle, 25-heroic), and `gorge` punishes a
+# body that never leaves melee range (melee's own blind steering, 25-normal).
+# Neither has been read against a style that moves but never attacks, and
+# neither has been read at 10-player at all -- every Bloodgorged reading on
+# this line so far is 25-heroic or 25-normal. playbot.ts's own dodge branch
+# only steers away from danger and never presses an ability (confirmed in
+# 2026-10-02-18.play's own header), so this is the cleanest test yet of
+# whether staying out of melee range (dodge's whole job) sidesteps `gorge`
+# the way idle's healing-starvation sidesteps nothing -- on a boss, a size and
+# a role (ranged dps) this thread has not yet combined.
+open #b=gorged&s=10&h=0
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+state
+shot opening
+play dodge 150
+state
+shot ending
+says
+bill

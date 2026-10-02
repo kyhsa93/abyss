@@ -1657,6 +1657,45 @@ into a boss with two independently-confirmed, differently-shaped answers to
 of the isPlayer-outcome bug under *Not yet filed* below (2% boss health,
 22/25 raid alive, the fight still called a flat wipe).
 
+**2026-10-02, a third mechanism reading on the same boss: `dodge` (moves, never
+attacks) beats both `gorge` and `fester` where `melee` and `idle` each lost to
+one.** `mode=raid` (`boss=gorged`, warlock:destruction, `dodge`, 10-normal,
+fresh, 1280x800 desktop). Every prior Bloodgorged reading on this line was
+25-player; this is the first at 10, the first ranged-dps reading, and the
+first to pair `dodge` with this boss at all. `playbot.ts`'s `dodge` branch
+only steers away from danger and never presses an ability (confirmed from the
+same source read [[#6]] already made for a different cell), so like `idle` it
+deals no damage on its own -- but unlike `idle` it is never stationary, which
+is what both `gorge` (punishes staying in melee) and `fester` (punishes a
+healer that never acts, read loosely here as "never moves out of the dot")
+are built to catch.
+
+Two separate `playbot` invocations, both pull 1 from a fresh save
+(`playtest/plans/2026-10-02-21.play` at `play dodge 150`,
+`playtest/plans/2026-10-02-22.play` at `play dodge 160` to see the fight all
+the way to its own result screen):
+
+```
+play dodge 150: outcome=ongoing bossHp=1% (894/123200) aliveParty=9/10 heroHp=605/1485 presses=0
+  bill hits=7 takenPerMin=816.0 byMechanic={gorge:2,spill:3,adds:1,champion:1}
+play dodge 160: outcome=victory  fightTime=135 aliveParty=10/10 heroHp=837/1485 presses=0
+  bill hits=21 takenPerMin=1231.6 byMechanic={fester:16,gorge:3,adds:2}
+```
+
+Both pulls read `seed` differently at session start (609710, 814026) despite
+both being pull 1 from fresh -- consistent with this file's own note elsewhere
+that only the boss's own timeline replays to the tick; a press-free style's
+own position is still paced by the wall clock, so which mechanic actually
+lands (`spill`/`champion` in the first, `fester` in the second) can differ
+between two runs of the identical cell. What does not differ: `gorge` landed
+only 2-3 times in either run, nothing like the 18 hits that wiped the
+2026-09-29 `melee` pull at 25-normal, and the one pull that ran long enough to
+finish won clean, full raid alive, at a boss this job has twice already shown
+losing to a *different* kind of non-decision (`fester` under `idle`, `gorge`
+under `melee`). A style that only ever moves is not the same as a style that
+never does anything, and on this boss specifically the difference between the
+two is the difference between losing and winning.
+
 **2026-09-29, first completed 25-heroic reading of The Two Flasks on record,
 under `mash`.** `mode=raid` (`boss=flasks`, druid:feral, `mash`, 25-heroic,
 carried, 820x1180 touch, `playtest/plans/2026-09-29-11.play`). Every prior

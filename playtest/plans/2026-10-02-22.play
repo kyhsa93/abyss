@@ -1,0 +1,12 @@
+# Same cell as 2026-10-02-21.play, same seed (fresh, pull 1 is the same fight
+# to the tick per docs/playtest.md's "Re-evaluating" section) with a longer
+# play window to see whether the boss actually dies rather than just reading
+# 894/123200 at the 150s cutoff.
+open #b=gorged&s=10&h=0
+tap class:warlock:destruction
+tap pull
+waitscreen fight 15
+play dodge 160
+state
+shot ending
+bill
