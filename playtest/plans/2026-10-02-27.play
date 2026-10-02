@@ -1,0 +1,45 @@
+# playpick cell: mode=walk boss=gorged (a coverage label only -- the walk
+# starts at the door same as any other, same as every other mode=walk entry
+# on [[#6]]) spec=druid:balance style=auto size=25 difficulty=heroic
+# view=1280x800 save=carried (behaves as fresh per #273 -- the dev-server
+# port is pid-derived so localStorage never actually carries across separate
+# playbot invocations, so the unlock-hash recipe below is what actually
+# reaches this cell).
+#
+# Checked sessions.jsonl and direction.md's hypothesis 6 first. The
+# spire/westclimb/oratory/eastclimb door-destination mismatch (door log names
+# one room, `crossed` event lands in a different one or nowhere) has three
+# confirmations on record so far -- paladin:retribution/idle,
+# druid:feral/good, rogue:assassination/auto-falls-back-to-good -- and every
+# one of them is 10-normal, fresh save, desktop. Nobody has run that exact
+# junction at 25-heroic, the hardest cell in the game, to see whether the
+# mismatch is a property of the room-walking code (and so holds at any
+# size/difficulty) or something specific to the normal-mode room layout.
+# druid:balance is also a ranged caster -- the auto-fallback's parked-far-
+# from-the-boss shape documented on this line so far (druid:feral melee under
+# auto) has only ever been read on melee specs, never on a spec whose kit is
+# built to be used at range.
+#
+# #b=marrow&s=25&h=1 unlocks the 25-heroic tier the same way every other
+# 25-heroic carried-cell script in this ledger does, then backs out to the
+# raid setup screen for size/difficulty/class exactly like
+# playtest/plans/2026-09-29-17.play.
+
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:druid:balance
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening auto 240 10
+shot end
+state
+says
+bill

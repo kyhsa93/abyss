@@ -1,0 +1,49 @@
+{"out":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-02-10","view":"1280x800","touch":false,"seed":855740,"url":"http://127.0.0.1:5499/","at":1.4,"kind":"session"}
+{"hash":"#b=marrow&s=25&h=1","screen":"roster","mode":"raid","outcome":"ongoing","at":2.2,"kind":"open"}
+{"label":"back","box":[104,48],"screen":"home","mode":"raid","outcome":"ongoing","at":2.4,"kind":"tap"}
+{"label":"raid","box":[336,72],"screen":"raid","mode":"raid","outcome":"ongoing","at":2.5,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-02-10/shots/raid-setup.png","screen":"raid","mode":"raid","outcome":"ongoing","at":2.6,"kind":"shot"}
+{"label":"next","box":[1072,40],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.7,"kind":"tap"}
+{"label":"class:druid:balance","box":[240,64],"screen":"roster","mode":"raid","outcome":"ongoing","at":2.9,"kind":"tap"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-02-10/shots/class-selected.png","screen":"roster","mode":"raid","outcome":"ongoing","at":3,"kind":"shot"}
+{"label":"pull","box":[1008,48],"screen":"fight","mode":"travel","outcome":"ongoing","at":3.1,"kind":"tap"}
+{"want":"fight","screen":"fight","mode":"travel","outcome":"ongoing","at":3.1,"kind":"waitscreen"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"threshold","hud":{"time":0.1,"tick":3,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":false,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"balance","role":"dps","hp":1485,"maxHp":1485,"power":950,"maxPower":950,"alive":true,"casting":null,"bar":[{"slot":1,"id":"wrath","status":"range"},{"slot":2,"id":"moonfire","status":"range"},{"slot":3,"id":"starfire","status":"range"},{"slot":4,"id":"sunfire","status":"range"},{"slot":5,"id":"barkskin","status":"ready"}]},"boss":null},"at":3.1,"kind":"state"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-02-10/shots/start.png","screen":"fight","mode":"travel","outcome":"ongoing","at":3.2,"kind":"shot"}
+{"on":"fight","list":["map@1004,160 88x32","party@1092,160 88x32","settings@1048,200 176x32","ability:5@1156,708 56x56","ability:4@1216,712 64x64","ability:3@1128,760 64x64","ability:2@1188,760 56x64","ability:1@1244,760 56x64"],"at":3.3,"kind":"targets"}
+{"on":"fight","glass":"1280x800","controls":8,"list":["map 84x32 at 964,148","party 84x32 at 1052,148","settings 172x32 at 964,184","ability:5 60x64 at 1128,676","ability:4 60x64 at 1188,676","ability:3 60x64 at 1100,724","ability:2 52x64 at 1160,724","ability:1 60x64 at 1212,724"],"under44":["map 84x32","party 84x32","settings 172x32"],"offGlass":[],"overlapping":["ability:5 / ability:3","ability:5 / ability:2","ability:4 / ability:2","ability:4 / ability:1"],"at":3.4,"kind":"ui"}
+{"n":"1/10","room":"threshold","mode":"travel","at":3.5,"kind":"room"}
+{"room":"threshold","took":"vigil","why":"unvisited","ways":["vigil@139"],"lit":["threshold"],"rode":[],"padHere":true,"at":3.5,"kind":"door"}
+{"from":"threshold","to":"vigil","aimedAt":"door","closestGot":42,"endedAt":{"x":-39.08378174846623,"y":-973.5973686451234},"presses":0,"secondsAtTheDoor":0,"stillAlive":192,"nearest":"The Damned,The Damned,The Damned,The Damned","at":9.1,"kind":"crossed"}
+{"from":"threshold","to":"vigil","at":9.1,"kind":"walked-on"}
+{"n":"2/10","room":"vigil","mode":"travel","at":9.1,"kind":"room"}
+{"room":"vigil","took":"spire","why":"unvisited","ways":["spire@1268","threshold@39"],"lit":["threshold"],"rode":[],"padHere":false,"at":9.2,"kind":"door"}
+{"from":"vigil","to":"spire","aimedAt":"door","closestGot":13,"endedAt":{"x":-9.07537849510616,"y":-5714.930925837609},"presses":3,"secondsAtTheDoor":0,"stillAlive":1,"nearest":"The Bonegrinder","at":38.7,"kind":"crossed"}
+{"room":"spire","from":"vigil","at":38.7,"kind":"boss-woken"}
+{"want":"auto","on":"fight","saw":["map","party","settings","ability:5","ability:4","ability:3","ability:2","ability:1"],"at":38.8,"kind":"fault:no-such-control"}
+{"note":"no toggle on screen and no key for it -- playing good instead","at":38.8,"kind":"no-autocast-toggle"}
+{"outcome":"wipe","time":132,"phase":3,"at":174,"kind":"fight-over"}
+{"style":"auto->good","seconds":135,"outcome":"wipe","fightTime":132,"phase":3,"aliveParty":"24/25","heroHp":"0/1485","bossHp":"5%","presses":59,"inDanger":"4%","at":174,"kind":"played"}
+{"at_":"vigil","outcome":"wipe","wipes":1,"journalKeyClash":true,"at":174.1,"kind":"wiped"}
+{"label":"outcome:retry","box":[176,56],"screen":"fight","mode":"raid","outcome":"ongoing","at":174.5,"kind":"tap"}
+{"n":"3/10","room":"spire","mode":"raid","at":174.7,"kind":"room"}
+{"note":"no toggle on screen and no key for it -- playing good instead","at":174.8,"kind":"no-autocast-toggle"}
+{"style":"auto->good","seconds":240,"outcome":"ongoing","fightTime":104,"phase":1,"aliveParty":"25/25","heroHp":"1485/1485","bossHp":"down","presses":74,"inDanger":"2%","at":414.9,"kind":"played"}
+{"room":"spire","at":414.9,"kind":"boss-down"}
+{"n":"4/10","room":"spire","mode":"travel","at":414.9,"kind":"room"}
+{"room":"spire","took":"westclimb","why":"unvisited","ways":["eastclimb@1049","vigil@1001","westclimb@971"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":415,"kind":"door"}
+{"from":"spire","to":"westclimb","aimedAt":"door","closestGot":177,"endedAt":{"x":-1453.093962358619,"y":-5857.665238067401},"presses":0,"secondsAtTheDoor":0,"stillAlive":143,"nearest":"Blighted Abomination,Blighted Abomination,Plague Scientist,Pustulating Horror","at":424.6,"kind":"crossed"}
+{"from":"spire","to":"westclimb","at":424.7,"kind":"walked-on"}
+{"n":"5/10","room":"westclimb","mode":"travel","at":424.8,"kind":"room"}
+{"room":"westclimb","took":"oratory","why":"unvisited","ways":["oratory@202","spire@40"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":425,"kind":"door"}
+{"from":"westclimb","to":"spire","aimedAt":"door","closestGot":111,"endedAt":{"x":-1021.3113315114967,"y":-6298.724933151715},"presses":0,"secondsAtTheDoor":0,"stillAlive":143,"nearest":"Blighted Abomination,Blighted Abomination,Plague Scientist,Pustulating Horror","at":429.4,"kind":"crossed"}
+{"from":"westclimb","to":"spire","at":429.6,"kind":"walked-on"}
+{"n":"6/10","room":"spire","mode":"travel","at":429.6,"kind":"room"}
+{"room":"spire","took":"eastclimb","why":"unvisited","ways":["eastclimb@1994","vigil@1449","westclimb@444"],"lit":["threshold","oratory"],"rode":[],"padHere":false,"at":429.8,"kind":"door"}
+{"from":"spire","to":"spire","aimedAt":"door","closestGot":1889,"endedAt":{"x":-768.3013977087,"y":-6703.179842186238},"presses":0,"secondsAtTheDoor":0,"stillAlive":143,"nearest":"Blighted Abomination,Blighted Abomination,Plague Scientist,Pustulating Horror","at":669.9,"kind":"crossed"}
+{"room":"spire","seconds":240,"hero":{"x":-768.3013977087,"y":-6703.179842186238},"boss":null,"away":null,"at":670.1,"kind":"fault:fight-outlasted-its-budget"}
+{"rooms":6,"wipes":1,"walked":["threshold(travel,ongoing,6s)","vigil(travel,wipe,165s)","spire(raid,ongoing,240s)","spire(travel,ongoing,10s)","westclimb(travel,ongoing,5s)","spire(travel,ongoing,240s)"],"reached":"threshold -> vigil -> spire -> westclimb","endedAt":"spire","at":670.1,"kind":"evening"}
+{"file":"/home/young/workspace/abyss-playtest/playtest/out/2026-10-02-10/shots/end.png","screen":"fight","mode":"travel","outcome":"ongoing","at":670.3,"kind":"shot"}
+{"screen":"fight","mode":"travel","outcome":"ongoing","chamber":"spire","hud":{"time":359.9000000000707,"tick":10797,"phase":1,"countdown":0,"outcome":"ongoing","auto":false,"touch":false,"zoom":3,"party":25,"alive":25,"me":{"name":"You","spec":"balance","role":"dps","hp":1485,"maxHp":1485,"power":950,"maxPower":950,"alive":true,"casting":null,"bar":[{"slot":1,"id":"wrath","status":"range"},{"slot":2,"id":"moonfire","status":"range"},{"slot":3,"id":"starfire","status":"range"},{"slot":4,"id":"sunfire","status":"range"},{"slot":5,"id":"barkskin","status":"ready"}]},"boss":null},"at":670.4,"kind":"state"}
+{"lines":[],"at":670.4,"kind":"says"}
+{"fightTime":360,"outcome":"ongoing","hits":0,"hitsPerMin":0,"taken":210,"takenPerMin":35,"died":false,"byMechanic":{},"at":670.5,"kind":"bill"}

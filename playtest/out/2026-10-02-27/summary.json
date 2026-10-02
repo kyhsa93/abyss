@@ -1,0 +1,36 @@
+{
+  "out": "/home/young/workspace/abyss-playtest/playtest/out/2026-10-02-10",
+  "seed": 855740,
+  "view": "1280x800",
+  "entries": 47,
+  "faults": [
+    {
+      "want": "auto",
+      "on": "fight",
+      "saw": [
+        "map",
+        "party",
+        "settings",
+        "ability:5",
+        "ability:4",
+        "ability:3",
+        "ability:2",
+        "ability:1"
+      ],
+      "at": 38.8,
+      "kind": "fault:no-such-control"
+    },
+    {
+      "room": "spire",
+      "seconds": 240,
+      "hero": {
+        "x": -768.3013977087,
+        "y": -6703.179842186238
+      },
+      "boss": null,
+      "away": null,
+      "at": 670.1,
+      "kind": "fault:fight-outlasted-its-budget"
+    }
+  ]
+}

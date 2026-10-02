@@ -4276,6 +4276,53 @@ everywhere it runs, or as a fresh issue if it is not -- reproduction
 `playtest/plans/2026-10-02-7.play`, screenshot `after-evening.png` under this
 session's `--out`.
 
+**2026-10-02, a fourth spec, and the first confirmation past 10-normal --
+the exact same three-leg shape at 25-heroic.** `mode=walk` (`boss=gorged`, a
+coverage label only), druid:balance, `auto` (no toggle on a 1280x800 desktop
+view -- falls back to `good` per the known rule), 25-heroic, carried
+(behaves as fresh per #273) (`playtest/plans/2026-10-02-27.play`). Checked
+first: every prior sighting of the spire/westclimb/oratory/eastclimb
+mismatch (paladin:retribution/idle, druid:feral/good, rogue:assassination/
+auto->good) was 10-normal: this is the first test of whether the mechanism
+holds at the hardest cell in the game, and the first ranged-caster spec on
+this junction.
+
+THE VIGIL crossed clean (9.1s threshold->vigil, 29.6s vigil->spire). Boss
+room differed from every prior 10-normal reading, as expected at heroic:
+Bonegrinder was not free in the crossing -- it wiped once at `fightTime=132`
+(`heroHp=0/1485 aliveParty=24/25 bossHp=5%`), then died clean on the retry
+(`fightTime=104 aliveParty=25/25 heroHp=1485/1485`). Past that the room
+graph did exactly what it did on three prior specs at 10-normal, down to the
+individual door picks: `spire` named `westclimb` (`why=unvisited`) and the
+party actually arrived there (9.8s); `westclimb` named `oratory`
+(`why=unvisited, @202` against `spire@40`) but the `crossed` event four
+seconds later logged `"from":"westclimb","to":"spire"` -- back where it
+came from, not the announced destination; `spire` then named `eastclimb`
+(`why=unvisited`, `@1994` against `vigil@1449`/`westclimb@444` -- the
+farthest-unvisited pattern every prior sighting also shows) and never
+arrived anywhere, `"from":"spire","to":"spire","closestGot":1889` at the
+full `240s` room budget, `fault:fight-outlasted-its-budget`. `end.png` shows
+the identical tell every stall on this line has shown: the whole 25-body
+party in one small cluster on open ground, most at full health, the HUD's
+own "onward" label reading a fourth room name ("The West Climb") that
+matches none of the three the door log announced across this slice, and the
+minimap still reading "143 left in it."
+
+Fourth spec, fourth confirmation of the same mechanism, first one off
+10-normal -- same rooms, same two-stage pattern (one leg silently reverts to
+the room it left, the next leg picks the farthest unvisited candidate and
+self-loops), same screenshot shape. This settles the question the
+2026-09-28 entry above left open under hypothesis 6's own disproof
+condition: size and difficulty do not predict it, so whatever misreads
+`asleep()` or races `cross()`'s pad decision at this junction is a property
+of the room graph itself, not of the normal-mode layout specifically. Gate
+held shut at 14 open issues (283, 282, 281, 279, 278, 276, 275, 274, 273,
+272, 271, 269, 267, 266); not filed. Belongs with #281 if the gate opens and
+the mechanism turns out to be the same one, or as a fresh issue naming the
+spire junction specifically if a source read shows otherwise. Reproduction:
+`playtest/plans/2026-10-02-27.play`, screenshot `end.png` under
+`playtest/out/2026-10-02-27/shots/`.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
