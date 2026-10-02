@@ -1,0 +1,59 @@
+# Cell from playpick: mode=battleground map=conquest spec=paladin:protection
+# style=idle view=390x844,touch save=fresh.
+#
+# Checked sessions.jsonl first: conquest has one prior true idle-style match
+# (2026-10-01-20.play, priest:shadow) confirming direction.md's #7 -- a body
+# that presses and moves nothing takes zero damage all match while the team
+# loses around it. That reading is a squishy ranged dps. No tank spec has
+# ever been put through idle on any battleground, and no paladin:protection
+# pull of any kind has ever happened on conquest specifically (its one prior
+# battleground reading was style=melee on escort). A tank carries far more
+# max hp and passive mitigation than a shadow priest, which is the one thing
+# that could make "idle survives untouched" break down differently here: a
+# body too big and too slow to be worth the AI's notice stays alive on both
+# readings so far, but a tank is also the class the role-count roll most
+# wants anchoring a point -- worth seeing whether an idle tank still gets
+# treated as irrelevant or gets converged on simply for standing nearer the
+# fight. Three chunks with `bill` after each, same shape as the priest run,
+# so the two are a same-map, same-style, cross-role comparison rather than a
+# one-off.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:paladin:protection
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play idle 90
+shot mid1
+state
+bill
+says
+
+wait 5
+play idle 90
+shot mid2
+state
+bill
+
+wait 5
+play idle 90
+shot mid3
+state
+bill
+says
+targets

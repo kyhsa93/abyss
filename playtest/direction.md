@@ -4702,6 +4702,45 @@ disproved**. Not filed — fourteen open `playtest` issues held the gate shut
 at session start, and this confirms #7's existing shape rather than showing
 anything new about the game.
 
+**2026-10-03, the first tank under `idle` on any battleground, and the
+sharpest loss this line has recorded.** `mode=battleground map=conquest
+spec=paladin:protection style=idle view=390x844,touch save=fresh`
+(`playtest/plans/2026-10-03-3.play`) — checked sessions.jsonl first: no
+`paladin:protection` battleground reading exists on conquest at all (its one
+prior reading was `melee` on escort), and no tank spec of any kind has ever
+been put through `idle` specifically; the only true-`idle` battleground
+match on record (2026-10-01, priest:shadow, this same map/style/viewport)
+was a squishy ranged dps. A tank's own `maxHp` (2745, against the priest's
+1350 on the same cell) is the one variable this reading isolates that the
+priest run could not.
+
+It did not survive better; it survived the same way and the match went
+worse. `bill` read `hits=0 hitsPerMin=0 taken=0 takenPerMin=0 died=false
+byMechanic={}` across all three 90-second chunks — the tank itself was never
+found or touched, exactly like the priest. But every one of the other four
+AI teammates died (`Vale` 11s, `Wren` 21s, `Kestrel` 18s, `Bastion` 34s, read
+off the DEFEAT board), against three of four for the priest's identical
+cell, and the match ended at `fightTime=132` (126–400) rather than the
+priest's `fightTime=155` (199–400) — faster and further behind. `mid1.png`
+shows why: "You" stands alone in open ground near the top of the minimap, a
+good screen's width from where the one or two teammates still alive are
+fighting, the same "never found" shape the priest's `mid1.png` showed.
+
+Worth flagging past a third #7 confirmation: `README.md`'s own battleground
+table fixes the shape at exactly one tank, one healer, three damage, so an
+idle tank is not one-fifth of the team standing off, it is *the team's only
+front line* standing off — nobody else on the five-person roster can read as
+a replacement tank. That the loss came faster and with a fourth death this
+time, on the one role whose absence should cost the most mitigation, is the
+first evidence on this line that *which* slot is passive matters, not only
+whether one is. Not filed — fourteen open `playtest` issues held the gate
+shut — but this is a sharper read than a fourth idle confirmation would
+normally be, and worth a `good`-or-equivalent tank pull on the same cell
+before trusting "the tank slot costs more" over "this was this match's own
+seed," since every `good`-style battleground death on this line so far has
+been a non-tank dying in under fifteen seconds and none has tested whether a
+played tank actually anchors the point any better than an idle one does.
+
 Findings with nowhere to go yet: either the issue gate was shut when they turned
 up, or they have only been seen once and once is an observation. A line here
 either becomes an issue, gets promoted to a standing hypothesis, or goes to
