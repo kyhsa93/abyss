@@ -1,0 +1,35 @@
+# playpick cell: mode=walk boss=skyward spec=priest:discipline style=wander
+# size=10 difficulty=normal view=1280x800 save=fresh
+#
+# boss=skyward is a coverage label only -- `evening` steers at no boss, so
+# this walks in at the door same as every other mode=walk entry on [[#6]].
+# Checked sessions.jsonl and direction.md's hypothesis 6 first: wander+
+# 10-normal+fresh+1280x800 is the exact recurring cell that opened #6/#281
+# (druid:guardian, 2026-09-25-17.play: parked in THE VIGIL at hero=
+# (274.5,-1572.7), no wipe, bill hits=0 taken=0) and has been re-run twice
+# since on different classes -- mage:frost (2026-09-26-23.play) and
+# warlock:destruction (2026-10-01-3.play) -- both of which instead wiped to
+# the corridor's watchmen and then hit #271's retry-never-restarts wall.
+# Zero clean 10-normal wander crossings are on record for this cell. All
+# three priors were a tank or a dps; this is the first healer run through
+# it, and priest:discipline's own kit (self-mitigation, a direct self-heal)
+# is the one that most plausibly survives the watchmen long enough to find
+# out whether the stall-without-wiping shape or the wipe-and-stuck shape is
+# what a body that does not die here meets.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:priest:discipline
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening wander 300 10
+state
+shot after-evening
+bill

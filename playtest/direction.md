@@ -4372,6 +4372,31 @@ spec/style pairing itself. Gate held shut at fourteen open issues; nothing
 filed. Belongs with #281 if the gate opens and the speed-threshold reading
 holds up against the druid:guardian/melee test above.
 
+**2026-10-03, the first healer through the recurring 10-normal `wander`
+stall cell, and a fourth reading of it.** `mode=walk`, priest:discipline
+(`moveSpeed=158`, `classes.ts:564`, the slow tier), `wander`, 10-normal,
+fresh, 1280x800 (`playtest/plans/2026-10-03-5.play`) -- the same
+size/difficulty/style/save/view cell `druid:guardian` first stalled on
+(2026-09-25-17.play, parked with no wipe), and that `mage:frost`
+(2026-09-26-23.play) and `warlock:destruction` (2026-10-01-3.play) later
+hit as a wipe instead. Priest did too: wiped mid-crossing at 35s
+(`closestGot=9` -- the same tight near-miss margin every other reading on
+this corridor shows, whichever way it ends), `PULL AGAIN` produced an
+instant re-wipe at 65.4s (`closestGot=n/a`, hero dead on arrival), and the
+evening declared itself stuck at 95.8s: `fault:evening-stuck
+{"at":"vigil","after":"wipe","rooms":3}`. `after-evening.png` shows the
+same DEFEAT-screen shape #271's other reports already carry -- zero on the
+damage board for all ten party members, `PULL AGAIN` highlighted, the
+party-locked ability bar. A self-mitigating healer surviving no longer than
+a warlock or a mage settles the one open question this spec could have
+answered: the wipe is not a matter of the body being squishy enough to
+die to the watchmen, since the one spec built to keep itself alive died
+just as fast. 10-normal `wander` is now three wipe-and-stuck readings
+against one stall-without-wiping, no clean crossing on record at this
+cell under this style at any class speed tried (158, 167, 167). Not filed
+-- a fourth confirmation of #271/#281's already-filed shape, and the gate
+was shut at fourteen open issues regardless.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
