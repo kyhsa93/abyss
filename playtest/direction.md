@@ -6506,6 +6506,80 @@ Gate held shut at fourteen open issues; not filed. Reproduction:
 `playtest/plans/2026-10-02-8-respawn-check2.play` (the driver-artifact
 follow-up), `pulled.png`/`mid1.png`.
 
+**2026-10-02, the first genuine-touch `auto` reading on a ranged damage spec,
+and the first passive/`auto` battleground body this line has ever measured
+dealing real, ranked damage.** `playpick` gave `map=escort` (The Long Haul),
+`spec=mage:frost`, `style=auto`, `844x390,touch`, carried (behaves as fresh
+per #273) -- `playtest/plans/2026-10-02-20.play`. Every prior genuine-touch
+`auto` reading on this line was a healer (druid:restoration, flags) or a tank
+(paladin:protection, escort); the only DPS spec tried under `auto` fell back
+to `good` on a desktop viewport before the toggle ever mattered
+(druid:balance, flags). This is the first time `auto`'s touch toggle has
+actually been pressed on a kit whose whole job is ranged damage.
+
+Zero faults across 27 journal entries, the cleanest `auto` reading this line
+has produced. The ability bar did something none of the prior `auto` entries'
+bars ever showed: it left `"range"`/`"locked"` and genuinely entered a cast --
+`"casting":"pyroblast"` at `fightTime=87.4` (`mid1.png`) and
+`"casting":"frostbolt"` at `fightTime=273.6` (`mid3.png`), with `power`
+ticking down from `1000` to `954` by the second reading, real mana spent, not
+a stuck toggle. `bill` read `hits=0` in all three windows, but checked
+`scripts/playbot.ts:1765` rather than read that as "dealt nothing" the way
+several earlier entries on this line have: `bill`'s `hits` field is
+`tally().mechanicHits` -- `src/sim/combat.ts:1063`, incremented when the
+*player* is hit by a ground mechanic -- and `docs/playtest.md`'s own table
+already says so ("mechanic hits, damage taken"). It has never measured the
+player's own landed attacks, on a raid or a battleground; zero here says only
+that nothing hit the mage with a telegraphed mechanic; it is silent on
+offence.
+
+The number that actually answers the output question is on the meter, in all
+three screenshots: `mid1.png` (87.4s) reads `1 Vale 68 · 2 Kestrel 46 · 3 You
+44`; `mid2.png` (180.5s) reads `1 Vale 66 · 2 Kestrel 49 · 4 You 28`; `mid3.png`
+(273.6s) reads `1 Vale 63 · 2 Kestrel 64 · 3 You 38` -- a real, nonzero,
+ranked damage-per-second entry for the tracked body in every single sample,
+third or fourth of five each time and within shouting distance of the top
+two, never a bare dash the way every prior `auto`/passive-style DPS reading
+on this line has shown (druid:balance's fallback-to-`good` death, every
+`mash` entry's "You carries a bare dash"). `hud().boss` (Corvin, the red
+team's named `BOSS_ID` actor per this line's own 2026-09-28 source reading)
+swung `100% -> 84% (87s) -> 0%, dead (180s) -> 77%, alive again (274s)` across
+the match, consistent with a mixed raid actually landing damage on him,
+this body included. `aliveParty` read `3/5 -> 4/5 -> 4/5`, holding rather
+than collapsing to `1/5` the way the `auto` tank's escort reading did.
+
+Not a disproof of [[#7]] -- the match never reached a result screen in the
+279s watched (escort ends at a cart arrival or 300s, and this run's own
+`waitscreen`/`play` budget ran out first), so whether this body's real output
+was enough to turn a loss around is still unmeasured -- but it narrows the
+line's own prior claim (from the 2026-09-26 restoration-druid entry) that
+"even a body actively trying to act... gets reduced to the same zero-output
+shape every purely passive style... produces." That was true for a healer
+whose spells need an ally in range and a tank whose taunt needs an enemy to
+pull off someone else; it is not true for a kit that only needs *a* target in
+range of its own ranged attack, however briefly, and apparently escort's own
+geometry brings one close enough to a stationary mage periodically that
+`auto`'s missing steering stops mattering as much as it does for the other
+two roles. Worth a second ranged-DPS `auto` reading, ideally on a map other
+than escort, before trusting this as "ranged DPS is fine under auto on any
+battleground" rather than "this one map's traffic happens to pass a
+stationary mage's casting range."
+
+Driver lesson worth keeping for whoever reads `bill` next on a battleground:
+`hits`/`hitsPerMin` is mechanics-taken, never attacks-landed, on any mode --
+several earlier entries on this line used `bill hits=0` as corroborating
+evidence that a style's presses never connected, and in those cases the
+ability-bar `"range"`/`"locked"` readings and the meter's own bare-dash rows
+independently supported the same conclusion, so nothing already written here
+needs correcting -- but this session is the first where `bill hits=0` sat
+right next to a real, nonzero, ranked meter number for the same body, and
+reading only the `bill` line would have reported this as "dealt nothing,"
+which the meter shows is false. Gate held shut at fourteen open issues; not
+filed -- this is a sharpening of the standing line and a correction to how
+this line reads its own instrument, not a bug. Reproduction:
+`playtest/plans/2026-10-02-20.play`, `mid1.png`/`mid2.png`/`mid3.png` under
+`/tmp/pt-20-1/shots/`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

@@ -1,0 +1,45 @@
+# Cell from playpick: mode=battleground map=escort (The Long Haul),
+# spec=mage:frost, style=auto, view=844x390,touch, save=carried (behaves as
+# fresh per #273 -- playbot's own port is per-run, so localStorage's origin
+# never actually carries between invocations).
+#
+# New: every prior style=auto battleground reading on direction.md's #7 was
+# either a healer (druid:restoration, flags, genuine touch) or a tank
+# (paladin:protection, escort, genuine touch), plus one damage spec that
+# only ever fell back to `good` because its viewport had no touch toggle
+# (druid:balance, flags, 1280x800 desktop). Nobody has run a ranged damage
+# spec under auto on a real touch viewport, on any map -- this is that
+# reading, and it lands on escort specifically, the one map where auto has
+# already shown a passive tank survive untouched while its team lost ground.
+# A mage's own kit needs nothing but a target in range (no ally-health
+# precondition a heal has, no self-only defensive a tank's taunt needs to
+# land on someone else) -- so if auto's missing steering ever lets a
+# stationary body connect anything at all on this map, a ranged nuker
+# sitting at its own spawn point is the best-case kit to show it.
+open
+tap battleground
+tap map:escort
+targets
+tap class:mage:frost
+shot class-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+state
+ui
+play auto 90
+shot mid1
+state
+bill
+wait 3
+play auto 90
+shot mid2
+state
+bill
+wait 3
+play auto 90
+shot mid3
+state
+bill
+says
+targets
