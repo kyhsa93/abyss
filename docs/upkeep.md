@@ -127,7 +127,9 @@ cheap greps and each one has caught a real thing in this repository before:
 3. **Nothing on your character gets stronger.** No gear, no level, no currency,
    no stat that persists between pulls. Unlocks open content, never power.
 4. **The simulation is deterministic.** No `Math.random()` under `src/sim/`, no
-   `Date.now()` in anything the sim reads.
+   `Date.now()` in anything the sim reads. The gate holds this one now
+   (`npm run lawcheck`, which also holds the party's judgement to not learn
+   with attempts); the audit is whether lawcheck still runs in `npm run check`.
 
 ## Rules
 
