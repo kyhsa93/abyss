@@ -1,0 +1,30 @@
+# Cell from playpick: mode=daily, boss=marrow, spec=mage:frost, style=good,
+# view=390x844,touch, save=fresh.
+#
+# Probe (2026-10-03-8-probe.play) showed playpick's "marrow" label is once
+# again not the real daily -- today's actual run is still The Bonegrinder,
+# 25-player normal, SWARMING, the same instance 2026-10-03-1 already played
+# this session as an idle paladin:protection tank (killed 138s, 0 presses,
+# 25/25 alive). That earlier session used save=carried; this cell calls for
+# fresh, so the two are not a pull-for-pull replay, but same day-key means
+# same seed and same boss -- the first same-day idle/good pair on this
+# fight, and a ranged DPS class against a tank's idle clear for the first
+# time on it, the comparison hypothesis 1 has run on three other bosses.
+open
+targets
+tap daily
+tap class:13
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+ui
+play good 200
+shot after-fight
+state
+says
+bill
+targets
+shot report

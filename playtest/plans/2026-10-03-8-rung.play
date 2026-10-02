@@ -1,0 +1,32 @@
+# Follow-up to 2026-10-03-8.play / 2026-10-03-8-idle.play: the daily's own
+# win screen showed a "25-MAN HEROIC" advance button and a "next: The
+# Bonegrinder - 25 player heroic" banner on a FRESH save whose only real
+# unlock should be Bonegrinder 10-normal. Reading src/progress.ts's chain
+# (Bonegrinder 10N -> 10H -> 25N -> 25H -> ...) and src/main.ts's advanceTier
+# (1511-1528) against updateDaily's start handler (1782-1787, which sets
+# `encounter`/`difficulty`/`party` straight off the daily, not off the real
+# chain) suggests the daily's own fixed 25-player setting feeds `setting()`
+# the same as an ordinary pull would, so clearing it and tapping NEXT would
+# set `unlocked` to the 25-heroic rung -- skipping 10-heroic and 25-normal,
+# neither of which this fresh save has ever actually cleared in a real raid.
+# This checks what pressing the button actually does, not just what the code
+# says it should.
+open
+tap daily
+tap class:13
+tap start
+waitscreen fight 15
+play idle 200
+state
+shot daily-kill
+targets
+tap outcome:next
+waitscreen fight 10
+shot after-next
+state
+key escape
+shot post-escape
+targets
+tap raid
+shot raid-screen
+targets

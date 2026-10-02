@@ -2682,6 +2682,42 @@ fight's own `demand` string (`src/sim/encounters.ts:1732`) says as much in as
 many words: "cut the shard, swap the hold, and **hold off your own**." Not
 filed -- fourteen open `playtest` issues held the gate shut.
 
+**2026-10-03, the first idle/good pair on this line to hold class, spec,
+boss, size, difficulty and save state all constant and change only the
+style -- on the one fight `docs/upkeep.md`'s own table still credits play
+for winning.** `mode=daily`, mage:frost, fresh save, 390x844 touch, two
+separate `playbot` invocations against the same day-key (The Bonegrinder,
+25-player normal, SWARMING -- the identical instance a `carried`-save
+paladin:protection `idle` tank had already won this session,
+`playtest/plans/2026-10-03-1.play`, so this pair adds the DPS side of that
+same reading rather than repeating it). Every prior pair on this line
+changed spec along with style (Long Cold: restoration shaman both ways, but
+a different boss; the warrior:protection pair above: same spec, different
+boss). This is the first time boss, spec and save all hold still at once:
+
+```
+good: fightTime=134 aliveParty=25/25 heroHp=475/1305 (36%) presses=65
+      inDanger=3%  hits=34 hitsPerMin=15.3 taken=2943 takenPerMin=1320.7
+      byMechanic={"bonestorm":34}
+idle: fightTime=139 aliveParty=25/25 heroHp=988/1305 (76%) presses=0
+      inDanger=10% hits=20 hitsPerMin=8.6  taken=2291 takenPerMin=987.0
+      byMechanic={"bonestorm":18,"coldflame":2}
+```
+
+Both won, inside five seconds of each other on fight length -- `good`'s
+sixty-five presses bought essentially nothing on the clock (134s against
+139s, 4% faster) while costing more than double the eaten mechanic hits (34
+against 18, both entirely `bonestorm`, #267's own aura) and a third more
+damage per minute (1320.7 against 987.0), finishing at less than half idle's
+own health (36% against 76%). This is The Bonegrinder specifically --
+`docs/upkeep.md`'s own "raid rewarding play" table has it as the smallest
+surviving gap of the four fights left on that list (played 68% / idle 48%,
++20) -- so this is the sharpest cell available for a counter-example, and it
+still was not one: both styles won, and idle's margin was wider on every
+axis that is not itself a proxy for effort. **Not a disprove, and not filed**
+-- fourteen open `playtest` issues held the gate shut, and this is a played
+pull landing the same direction as upkeep's own number, not a new question.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -8168,6 +8204,82 @@ Reproduction: `playtest/plans/2026-10-03-7-offline-pwa.mjs` (run after
 journal and shots under `playtest/out/2026-10-03-7-offline-pwa/`
 (`2-second-visit-controlled.png` for the working online shell,
 `3-offline-reload.png` for the blank offline one).
+
+**2026-10-03, a daily kill's own NEXT button unlocks real chain rungs the
+player never earned, and the fix the repo already has for exactly this
+shape is simply not called here.** `mode=daily` gave mage:frost, `good` then
+`idle` (the matched pair above), fresh save, 390x844 touch
+(`playtest/plans/2026-10-03-8.play`, `-8-idle.play`, `-8-rung.play`). Both
+kills of today's actual daily (The Bonegrinder, 25-player normal, SWARMING)
+ended on a win screen reading, in full: `25-MAN HEROIC` as the advance
+button's own label and `next: The Bonegrinder — 25 player heroic` as its
+caption (`playtest/plans/..` screenshots `report.png`/`daily-kill.png`) — on
+a save that had never played a single real raid pull and whose only
+honestly-earned rung is Bonegrinder 10-normal.
+
+Read rather than guessed, and the repo's own comments name the exact bug:
+`src/progress.ts`'s `cleared()` (112-121) exists specifically so "a kill can
+land far ahead of where the chain is" without handing over everything in
+between — its own worked example is this identical shape one boss over
+("beat the second boss with five people on normal and the chain would open
+the *first* one at twenty-five heroic") — and it is wired in correctly at
+kill-time: `src/main.ts:2487`'s `cleared(unlocked, state.encounter,
+state.party.length, state.difficulty)` runs on every victory, daily
+included (`main.ts:2463`'s own comment: "the daily included: they are all
+that boss doing that to you"), capping the real unlock to exactly one rung
+past wherever the player actually was.
+
+But pressing the win screen's own advance button does not go through that
+function at all. `main.ts:2340-2347`'s tap handler for `next` only calls
+`cleared()`'s path when inside an evening room (`run && roomId`); everything
+else — a daily, a direct invite-hash pull, any standalone fight — falls to
+`else advanceTier()`, and `advanceTier()` (`main.ts:1511-1528`) sets
+`unlocked = Math.max(unlocked, tierOf(next.encounter, next.size,
+next.difficulty))` where `next = nextSetting(setting())` — `setting()`
+being whatever was just fought (the daily's own fixed 25-player setting),
+and `nextSetting` (`progress.ts:283-287`) a purely sequential "one past
+this" with no reference to `unlocked` at all. The two code paths agree by
+coincidence exactly when the fought setting already sits at the frontier of
+`unlocked`, and disagree exactly when it does not — which a daily always
+risks, since `README.md`'s own words fix its size at twenty-five regardless
+of the chain, and a fresh save's chain has only reached Bonegrinder
+10-normal, two rungs short of 25-normal and three short of the 25-heroic
+`advanceTier()` actually opened.
+
+Confirmed live, not just read: `-8-rung.play` killed the daily, tapped
+`outcome:next`, and landed straight back in a fresh countdown on The
+Bonegrinder with no setup screen in between (`after-next.png`,
+`state`'s `hud.time=0 countdown=85`) — the same silent-advance shape
+`main.ts:2340-2347`'s `else advanceTier()` predicts, with no step where a
+fresh player could notice three rungs just opened under them. (Boss max hp
+reads identical, 308200, either side — `README.md`'s own "health is left
+alone entirely" between difficulties, so hp is not a usable tell here; the
+win screen's own button label and caption text are the evidence, and they
+say it outright.)
+
+**Not filed -- fourteen open `playtest` issues held the gate shut** -- but
+this is the sharpest kind of finding this job can produce: a safeguard the
+repo already wrote, with a comment naming this precise failure mode,
+simply not reached by a second code path doing the same job. File as a bug
+the first session the gate opens, naming `main.ts:2340-2347`'s `else
+advanceTier()` branch as needing the same `cleared()` call `main.ts:2487`
+already makes (or `advanceTier()` itself rewritten to route through it),
+with `playtest/plans/2026-10-03-8.play` (the kill), `-8-rung.play` (the
+NEXT press and its aftermath), and `report.png`/`daily-kill.png`/
+`after-next.png` as the reproduction.
+
+**Driver lesson, not a game finding, from the same session:** `key escape`
+(`playtest/plans/2026-10-03-8-rung.play`) threw `driver-threw
+{"message":"keyboard.press: Unknown key: \"escape\""}` — `scripts/
+playbot.ts:1666`'s `key` command passes its argument straight to
+`page.keyboard.press()` uncapitalised, but Playwright's own key names are
+case-sensitive (`main.ts`'s own `Escape` elsewhere in the driver,
+`playbot.ts:483`, is capitalised correctly). `docs/playtest.md`'s own
+command table documents `key <k>` examples in lowercase (`escape`, `r`,
+`m`), so this was the documented spelling. Not filable -- `scripts/` is
+outside what this job may touch -- but worth remembering before scripting
+`key escape` again: it has never worked, on any viewport, because of a
+capitalisation mismatch in the driver, not because the game ignores Esc.
 
 ## Tried and dropped
 

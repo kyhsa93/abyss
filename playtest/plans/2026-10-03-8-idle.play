@@ -1,0 +1,14 @@
+# Same-day discrimination pair for 2026-10-03-8.play: identical boss, class
+# and save state, style=idle instead of good, to test the idle-vs-good shape
+# hypothesis 1 already runs on other bosses -- the first time it is run with
+# class and spec held constant (prior pairs on this line change spec along
+# with style; this one does not).
+open
+tap daily
+tap class:13
+tap start
+waitscreen fight 15
+play idle 200
+shot after-fight-idle
+state
+bill
