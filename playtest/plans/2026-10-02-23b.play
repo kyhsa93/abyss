@@ -1,0 +1,33 @@
+# Follow-up to 2026-10-02-23.play: the camera row visibly re-zooms the
+# settings screen's own backdrop (FAR pulls the whole raid into view, FACE
+# shrinks it to almost nothing behind the BACKDROP row). Next question: does
+# the FACE extreme still let a real pull be played, or does it zoom in past
+# the point a telegraph can be read?
+#
+# Two prior attempts in this same session both tried a second `open #hash`
+# after the settings leg and landed back on `screen=home` with the hash
+# silently ignored -- direction.md's own driver lesson (line 1579: a second
+# `open #hash` in one script is a same-document fragment-navigation trap,
+# `page.goto` to a hash-only URL does not reload the document, so
+# `parseInvite`'s one-time read at module load never runs again). Worked
+# around by never re-opening at all: normal in-app navigation (tap raid ->
+# next -> classpick) is real SPA routing, not a `page.goto`, so it carries
+# the zoom setting `saveZoom` already wrote to localStorage.
+
+open
+tap settings
+tap camera:6
+note camera set to FACE (closest), before entering a real pull
+tap back
+
+tap raid
+targets
+tap next
+targets
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+shot face-opening
+play idle 20
+shot face-mid
+state

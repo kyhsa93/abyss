@@ -1,0 +1,34 @@
+# Cell from playpick: mode=menus, view=820x1180,touch, save=carried.
+#
+# Checked direction.md first: the settings screen's seven-button CAMERA row
+# (FAR/BACK/MID/IN/OVER/TAUT/FACE, src/render/theme.ts's ZOOM_NAMES) has been
+# measured for size three separate times (under44 hits at three different
+# viewports) but grepping every .play file in playtest/plans for "tap camera"
+# turns up nothing -- no session has ever actually pressed a zoom level and
+# watched what it does. src/render/theme.ts says the setting multiplies the
+# fitted arena radius the live camera uses, and the SETTINGS screen's own
+# BACKDROP ("a real fight, running itself behind the menus") is rendered
+# through that same camera, so cycling the row should be visible without even
+# leaving the settings screen -- and then should carry into a real pull.
+#
+# #273 is open (carried behaves as fresh across separate playbot invocations,
+# PID-derived port), so this stays inside one invocation throughout.
+
+open
+tap settings
+targets
+shot settings-default
+
+tap camera:0
+shot settings-far
+note camera level 0 (FAR), backdrop behind settings
+
+tap camera:6
+shot settings-face
+note camera level 6 (FACE), backdrop behind settings
+
+tap camera:3
+shot settings-mid
+note camera level 3 (IN), back to roughly the default
+
+tap back

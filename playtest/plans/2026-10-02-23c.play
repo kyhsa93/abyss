@@ -1,0 +1,18 @@
+# Same as 2026-10-02-23b.play but camera:0 (FAR) instead of camera:6 (FACE),
+# for a direct side-by-side comparison of the zoom extremes in a live pull.
+
+open
+tap settings
+tap camera:0
+note camera set to FAR (farthest), before entering a real pull
+tap back
+
+tap raid
+tap next
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+shot far-opening
+play idle 20
+shot far-mid
+state

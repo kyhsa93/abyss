@@ -7591,6 +7591,58 @@ and README both say it should, confirmed on the actual rendered screen rather
 than assumed from the parser alone -- recorded so the next session does not
 spend a cell re-deriving that invite-hash validation holds up when played.
 
+**2026-10-02, the settings screen's CAMERA row, pressed for the first time
+this job has ever pressed it.** `mode=menus`, 820x1180 touch, carried
+(behaves as fresh per [[#5]]/#273). Grepped every `.play` file under
+`playtest/plans/` for `"tap camera"` before starting: zero hits. Three prior
+sessions (2026-09-26, 2026-09-28, 2026-09-30, all cited under #282) had
+measured the row's seven buttons for size with `ui` and found one a few
+pixels under the 44px floor at three different viewports, but none had ever
+actually tapped a level and watched what it does. `src/render/theme.ts` says
+the setting multiplies the fitted arena radius the live camera uses, and the
+SETTINGS screen's own BACKDROP ("a real fight, running itself behind the
+menus") renders through that same camera, so this started without even
+leaving the settings screen (`playtest/plans/2026-10-02-23.play`): tapping
+`camera:0` (FAR) pulled the whole backdrop raid into frame
+(`settings-far.png`), tapping `camera:6` (FACE) shrank it to a faint glow
+with the raid barely visible at all (`settings-face.png`), and `camera:3`
+(IN, the default) landed back on the same framing as the untouched opening
+shot (`settings-default.png` vs `settings-mid.png`, pixel-identical by eye).
+The control works exactly as `theme.ts` says.
+
+Carrying the setting into a real pull took two wrong turns before the right
+one: a second `open #b=marrow&s=10&h=0` after the settings leg landed back on
+`screen=home` with the hash silently ignored both times (`hud.zoom` still
+read the tapped level, proof `saveZoom` had written it, but the game itself
+never re-ran `parseInvite`) -- this is the already-known fragment-navigation
+trap this file's own line 1579 names, re-found rather than re-documented.
+The way around it: never re-open at all. Normal in-app navigation (`tap raid`
+-> `next` -> `class:mage:frost` -> `pull`) is real SPA routing, not a
+`page.goto`, and it carried the zoom cleanly
+(`playtest/plans/2026-10-02-23b.play` for FACE, `-23c.play` for FAR, zero
+faults in either, `state`'s own `hud.zoom` reading 6 and 0 respectively).
+
+Neither extreme breaks the fight screen, but they trade in opposite
+directions. FACE (`face-mid.png`, `fightTime=20`, THE THRESHOLD corridor):
+individual party tokens and their telegraph rings are large and legible, but
+the room itself is cropped to almost nothing -- no sense of what is still
+ahead. FAR (`far-mid.png`, same moment, same seed-class of pull): the whole
+room is visible at once, torches, patrol mobs and the far door all in frame,
+but the clustered party's own nameplates ("Kestrel Vale Bastion Pike...")
+overlap into an unreadable stack at the bottom of the screen, and "You" is
+not obviously distinguishable from the other nine tokens by sprite alone.
+Neither shape is a fault -- a camera control is supposed to trade detail for
+coverage -- but the FAR-zoom nameplate pile-up is the first time this job has
+actually seen the cost side of that trade rather than assuming the row was
+cosmetic.
+
+**Not filed** -- fourteen open `playtest` issues held the gate shut, and this
+is a confirmation plus an observation, not a measured bug: nothing here
+crosses the 44px/overlap/off-glass bar `ui` would need to call the nameplate
+crowding a fault rather than a taste note. Worth a future session if the
+gate opens and nameplate legibility at FAR zoom comes up again independently
+-- one reading is an observation, not yet a pattern.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
