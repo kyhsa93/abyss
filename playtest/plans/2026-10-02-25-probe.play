@@ -1,0 +1,10 @@
+# playpick cell: mode=daily boss=flasks spec=hunter:marksmanship style=mash
+# view=844x390,touch save=carried. boss=flasks is playpick's own filler label --
+# daily's boss axis is not reachable (direction.md's standing note, reconfirmed
+# every prior daily session). Probing first to see what today's actual roll is
+# and which numeric class:N tile is Hunter on the daily screen's grid before
+# committing the real script.
+open
+tap daily
+targets
+shot daily-screen

@@ -1,0 +1,41 @@
+# playpick cell: mode=daily boss=flasks spec=hunter:marksmanship style=mash
+# view=844x390,touch save=carried. boss=flasks is playpick's own filler label --
+# daily's boss axis is not reachable as a playpick axis (direction.md's standing
+# note, reconfirmed by this session's own probe: 2026-10-02-25-probe.play).
+# Today's actual daily, read off the probe's daily-screen.png, is The
+# Bonegrinder, 25-player, normal, SWARMING -- the same instance an earlier
+# session today (2026-10-02-19, warrior:protection/idle) already read as a
+# zero-death idle-tank win.
+#
+# What is new here: no prior session has run hunter:marksmanship under mash in
+# any mode (sessions.jsonl has 17 mash readings, none on this spec), no prior
+# mash reading exists against The Bonegrinder at all, and this is the second
+# daily reading of today's exact SWARMING instance -- a direct same-seed
+# contrast against this morning's idle tank: a ranged DPS blindly mashing every
+# button versus a tank pressing nothing, on the identical fight.
+#
+# class:15 is Hunter (read off the probe's daily-screen.png grid, row 4 col 1).
+open
+tap daily
+targets
+shot daily-screen
+tap class:15
+shot class-selected
+tap start
+waitscreen fight 15
+state
+targets
+ui
+play mash 80
+bill
+state
+shot mid1
+play mash 80
+bill
+state
+shot mid2
+play mash 80
+bill
+state
+says
+shot end

@@ -2511,6 +2511,47 @@ sharpens the hypothesis: "doing nothing wins" still holds in aggregate, but
 "away from every mechanic," and `hound` is the first one this line has
 caught it on.
 
+**2026-10-02, a fourth style and a same-seed contrast against this morning's
+idle tank.** Picked cell: `mode=daily`, `boss=flasks` (playpick's filler
+label -- daily's boss axis is unreachable, as every prior daily entry on
+this line already establishes), hunter:marksmanship, `mash`, 844x390 touch,
+carried (`playtest/plans/2026-10-02-25.play`, probed first at
+`-25-probe.play`). Today's actual daily, read off the probe's
+`daily-screen.png`, is The Bonegrinder, 25-player, normal, SWARMING -- the
+identical instance an earlier session today (`2026-10-02-19`,
+warrior:protection/`idle`) already read as a zero-death win. `mash` never
+steers at all (`scripts/playbot.ts`'s per-style branch has no entry for it,
+so `want` stays null the whole fight) and presses a round-robin ability slot
+every sixth of a second regardless of range or cooldown, so the body stands
+wherever it spawned, same as `idle` -- but this time a squishy ranged dps
+spec stands in for the tank.
+
+`fight-over outcome=victory time=137 phase=3`, `aliveParty=25/25`, `bill`:
+`hits=21 hitsPerMin=9.2 taken=2365 takenPerMin=1034
+byMechanic={"bonestorm":18,"coldflame":3}` -- a fourth style and a fourth
+role on this exact shape, resolving in almost the same time as this
+morning's idle-tank reading on the identical daily seed (137s vs 140s). What
+moved is the player's own margin, not the outcome: the tank finished at
+2719/2790 (97%), the hunter at 665/1620 (41%), and `takenPerMin` nearly
+doubled (1034 vs 794.3) against the same mechanic -- the expected shape of a
+tank's mitigation against an AoE aura versus a cloth-equivalent's lack of
+it, not a new finding about the fight itself. Zero raid deaths either way.
+
+One screenshot detail worth keeping for later, not for filing: `mid1.png`
+caught a press rejected with `Too close` over the player's token while
+stationary inside a dense cluster of overlapping `bonestorm` rings -- the
+first time this job has read the source's minimum-range rejection
+(`src/sim/sim.ts:561`'s `TOO_CLOSE`, distinct from the `OUT_OF_RANGE`
+message every prior session has seen) rather than the maximum-range one.
+Expected behaviour for a spec with a minimum range standing still next to
+the thing it is meant to shoot from a distance, not a bug -- written down so
+a future session does not spend a cell rediscovering what the message
+means.
+
+**Not filed** -- fourteen open `playtest` issues held the gate shut all
+session, and nothing here crosses into new territory beyond sharpening #1
+with a fourth style/role pairing.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
