@@ -1,0 +1,36 @@
+# playpick cell: mode=clear spec=shaman:elemental style=melee size=10
+# difficulty=normal view=820x1180,touch save=carried.
+#
+# Checked sessions.jsonl first (every shaman:elemental line, every mode=clear
+# line): this spec has three prior clear-mode evenings -- good/25-heroic,
+# melee/25-heroic, flee/10-normal/fresh -- but never melee at its own default
+# 10-normal tier, and never a carried save on this spec at 10-normal either
+# (#273/hypothesis 5: carried behaves as fresh under playbot's per-PID port,
+# so this is really a second fresh-profile reading, not a continuation).
+#
+# What this is actually for: hypothesis 6 (THE VIGIL stalls any evening at a
+# fixed point) was opened on 10-normal (druid:guardian, wander/good/flee all
+# stalled 250-400s there) and then narrowed toward size/difficulty rather than
+# spec/style when shaman:elemental crossed VIGIL clean in ~30s on 25-heroic
+# under both good and melee. This cell is the missing cross: the same spec
+# that crossed clean at 25-heroic, now at the 10-normal tier where the stall
+# was first seen, under melee (not yet tried at 10-normal on any spec). If it
+# stalls here, hypothesis 6 is purely about size/difficulty. If it crosses
+# clean, spec matters too and the "narrowed by" clause needs another look.
+open
+tap raid
+shot raid-setup
+tap next
+tap class:shaman:elemental
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening melee 240 10
+shot end
+state
+says
+bill

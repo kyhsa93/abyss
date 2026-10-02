@@ -4323,6 +4323,55 @@ spire junction specifically if a source read shows otherwise. Reproduction:
 `playtest/plans/2026-10-02-27.play`, screenshot `end.png` under
 `playtest/out/2026-10-02-27/shots/`.
 
+**2026-10-03, a second clean `melee` crossing at 10-normal, on a class that
+is not the roster's outlier, sharpens the speed-threshold reading of the
+2026-09-28 correction above.** `mode=clear`, shaman:elemental, `melee`,
+10-normal, carried (behaves as fresh per #273), 820x1180 touch
+(`playtest/plans/2026-10-03-4.play`) -- the exact cell/style combination
+`melee` had never been run at before (its two prior 10-normal readings were
+rogue:assassination, clean, and warlock:destruction, wiped; shaman:elemental
+had only been run under `melee` at 25-heroic, also clean).
+
+THE VIGIL crossed in about 30 seconds: `8.9s` at the door
+(`door room=vigil took=spire`) to `39s` `crossed from=vigil to=spire`
+(`closestGot=8, presses=3`) -- the same shape every clean crossing on this
+line shows, on the one tier (10-normal) where four of five styles tried
+have stalled. shaman's own `moveSpeed` is `167` (`src/sim/classes.ts:730`),
+not the `178` outlier the 2026-09-28 entry's one clean `melee` reading
+(rogue) used to explain the pattern away as "fastest class only." With this
+reading, `melee`'s full record by class speed is: `178` clean (rogue),
+`167` clean (shaman, this session), `158` wiped twice (warlock at
+10-normal, priest at 25-heroic) -- a clean split exactly between `158` and
+`167`, not a single-outlier coincidence. **Narrows the class-speed theory
+to a threshold** rather than "only the fastest class crosses," though it
+does not yet locate the boundary closer than "somewhere in (158, 167]."
+
+**Does not, on its own, undercut the separate `wander`/`good`/`flee`
+stalls this hypothesis opened on.** Those four original 10-normal stalls
+were all druid:guardian or priest:discipline -- druid:guardian's own
+`moveSpeed` is also `167` (`classes.ts:618`), identical to today's clean
+shaman reading -- but `melee` was never one of the styles tried against
+that specific druid:guardian/10-normal/fresh cell, so the two data clusters
+(style-held-constant-at-167-varies-by-class vs. class-held-at-167-varies-by-
+style) do not actually collide yet. The open test that would collide them:
+run `melee` on that same druid:guardian/10-normal/fresh cell. If it stalls
+despite matching shaman's speed, the threshold theory is wrong and style
+(or something `melee` specifically does) is back in play; if it crosses
+clean, speed is the whole story for `melee` and the remaining question is
+only why `wander`/`good`/`flee` behave differently from `melee` at the same
+speed.
+
+Past THE VIGIL, the same evening found Bonegrinder (normal) a clean kill
+under this spec/style (`fightTime=126, aliveParty=10/10, heroHp=1440/1440,
+inDanger=1%`) -- worth noting against the 2026-09-27 reading of this exact
+spec/style at 25-heroic, which wiped to the same boss four times running
+and never finished the room's budget. Not a new finding on its own
+(normal being easier than heroic is not news) but confirms the 25-heroic
+melee-shaman wipe was a difficulty effect, not something broken in the
+spec/style pairing itself. Gate held shut at fourteen open issues; nothing
+filed. Belongs with #281 if the gate opens and the speed-threshold reading
+holds up against the druid:guardian/melee test above.
+
 ### 7. A battleground does not carry a passive body the way a raid does
 
 Two battlegrounds now, two different maps, two different styles that never
