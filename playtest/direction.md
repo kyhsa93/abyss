@@ -7321,6 +7321,39 @@ mistake, not a game one; the roster screen's own `pull` button was already
 confirmed present earlier in the same session's `targets` line, before
 `compose` was ever tapped. No issue to file.
 
+**2026-10-02, a malformed or edge-case invite-hash fragment, driven through a
+real `open` navigation for the first time -- every prior check of this was
+the encoder/decoder's own unit tests, never a rendered screen.** `mode=menus`,
+844x390 touch, carried. Grepped this file and `sessions.jsonl` for
+"malformed"/"garbage"/"junk"/"gibberish" first: zero hits across twenty-eight
+prior `mode=menus` sessions -- README's own "seven kinds of junk" line names a
+check, not a play session. Five separate `playbot` invocations, each a single
+`open #hash` (`playtest/plans/2026-10-02-12` through `-16`), since a second
+`open` inside one script is a same-document fragment navigation that never
+re-runs `parseInvite` (this file's own 2026-09-24 driver lesson, under
+hypothesis 1).
+
+`#b=notaboss&s=10&h=1`, `#d=notadate` and `#gibberishnokeyatall` all landed on
+`screen=home` -- `bad-boss.png`, `bad-day.png` and `gibberish.png` all show
+the plain ABYSS front page, no boss or date named anywhere -- exactly what
+README's "a link that decodes to nothing simply opens the front page"
+promises. `#b=marrow&s=10&h=1&d=20260820` (a boss and a day in the same
+fragment, which no real SHARE button ever builds) landed on `screen=daily`
+reading "The Bonegrinder · 25 player · normal · SWARMING" -- today's actual
+roll, not the link's own 10-player heroic -- confirming `src/main.ts:2111`'s
+ordering (day checked before boss) holds through to the screen, not just in
+the parser. `#b=marrow&s=999&h=zzz` (a real boss, a garbage size, a garbage
+difficulty) landed on `screen=roster` reading "10 player normal" with The
+Bonegrinder correctly named: the unmatched size silently left the carried
+party at its existing 10 rather than crashing or reading 999, and the
+unmatched difficulty fell through the `value === '1' ? 'heroic' : 'normal'`
+ternary to normal. Zero faults across all five invocations.
+
+**Not a finding.** Every one of the five fell back exactly the way the source
+and README both say it should, confirmed on the actual rendered screen rather
+than assumed from the parser alone -- recorded so the next session does not
+spend a cell re-deriving that invite-hash validation holds up when played.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
