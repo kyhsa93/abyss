@@ -1,0 +1,37 @@
+# playpick cell: mode=clear spec=druid:guardian style=flee size=25
+# difficulty=heroic view=390x844,touch save=fresh.
+#
+# Checked sessions.jsonl first: druid:guardian + flee + mode=clear has one
+# prior reading (2026-09-25, 10-normal, 1280x800, fresh) which stalled in
+# THE VIGIL at 411.1s, within a couple of units of the wander/good stalls on
+# the same cell -- that is direction.md's #6. Nobody has run that same
+# spec/style pair through a real 25-heroic evening, and nobody has run a
+# *tank* spec under `flee` across a full evening at all: #1's tank-spec
+# entries so far are idle (wins clean, repeatedly) and dodge (a protection
+# paladin that never taunts cost its 25-heroic raid nine deaths on one pull).
+# flee is a third, harder case -- a tank that also runs from every hazard
+# rather than merely standing off cooldowns -- and nobody has watched what
+# that costs a raid across multiple rooms and multiple pulls rather than one.
+#
+# A fresh save locks 25-heroic, so #b=marrow&s=25&h=1 unlocks the tier the
+# way every other 25-heroic clear/walk script in this ledger does since the
+# 2026-09-26 driver-lesson, then backs out to a real RAID -> WALK IN at the
+# door rather than the invite's single-fight "visiting" framing.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+shot raid-setup
+tap next
+tap class:druid:guardian
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot start
+targets
+ui
+evening flee 260 10
+shot end
+state
+says
+bill

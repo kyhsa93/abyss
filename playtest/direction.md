@@ -2351,6 +2351,36 @@ style walks onto it. Not filed -- fourteen open `playtest` issues held the
 gate shut all session, and the decoy mechanism is already named from source
 on this line; this sharpens it rather than adding anything new to file.
 
+**2026-10-02, a flee-style tank's whole evening: zero wipes, but the slowest
+second-boss progress on record.** `mode=clear`, druid:guardian, `flee`,
+25-heroic, genuinely fresh save, 390x844 touch
+(`playtest/plans/2026-10-02-17.play`) -- the picked cell, and the first
+`flee`-style evening on a tank spec at 25-heroic (the only prior
+druid:guardian+`flee` reading was 10-normal, 2026-09-25, which stalled THE
+VIGIL outright under [[#6]]). THE VIGIL crossed clean this time, door to
+door in 29.7s (9.2s in, 38.9s out, `closestGot=15`) -- the same ~30s clean
+band every other clean crossing on [[#6]] shares, one more point for that
+line's own "seed decides, not style" reading. Bonegrinder died free inside
+the crossing (`fightTime=107 heroHp=4140/4140 presses=0 inDanger=4%`) but
+cost the raid nine bodies (`aliveParty` 25/25 -> 16/25) -- within one of the
+nine deaths the one prior tank-spec reading on this line cost (`dodge`-style
+paladin:protection, 25-heroic, 2026-09-26), a second passive-tank style
+converging on almost the same death toll at the same boss/size/difficulty.
+Past two more clean corridors (11s, 13s) the evening reached The Last
+Whisper at 14/25 and spent its entire 258s window on it without landing a
+single press (`hits=0 hitsPerMin=0 taken=532 takenPerMin=123.9`), leaving the
+boss at 73% (282,318/388,600) when the room budget ran out -- the worst
+progress against this boss of any style on record (`good` left it at 5%,
+`auto` at 41%, both already on this line). `end.png` shows why: the player's
+own token sits alone against a rock formation, the fight itself a cluster of
+dots two screens away, rank 16 of 25 on the meter at 0 dps. Not filed --
+fourteen open `playtest` issues held the gate shut all session -- but it
+sharpens the shape this hypothesis already has for tanks specifically: a
+passive tank does not cost the raid a wipe at 25-heroic (zero across the
+whole evening), it costs the raid bodies at the first boss and throughput at
+the second, converging with `dodge`'s own reading rather than adding a new
+mechanism.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
