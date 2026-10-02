@@ -6776,6 +6776,41 @@ this line reads its own instrument, not a bug. Reproduction:
 `playtest/plans/2026-10-02-20.play`, `mid1.png`/`mid2.png`/`mid3.png` under
 `/tmp/pt-20-1/shots/`.
 
+**2026-10-03, the melee-capable `good` pull on conquest the 2026-09-28 entry
+asked for, and it settles the question that entry left open.** `playpick`
+gave `map=conquest spec=warrior:arms style=good view=390x844,touch
+save=fresh` (`playtest/plans/2026-10-03-1.play`) -- the first warrior:arms
+pull on any battleground under `good` (its one other battleground reading
+was `flee` on flags), and the first melee-capable kit this line has ever run
+under `good` on conquest specifically. Every prior `good` death on this map
+was a caster (druid:balance, druid:restoration), both at `fightTime~9s`
+inside the opening scrum, leaving open whether that was conquest's own
+spawn geometry or just casters being squishy while closing distance -- a
+melee kit closes distance on purpose and is built to survive doing it, so it
+was the one reading that could actually separate the two explanations.
+
+It did not survive either: `FAULT not-a-number {hero:null,hp:0}` at 16.6s,
+with the preceding `played` line reading `fightTime=11 aliveParty=4/5
+heroHp=0/1890 bossHp=76% presses=3 inDanger=0%` -- three presses landed
+before the body died, `bill` showing `hits=0 taken=2576
+takenPerMin=14311.1`. `mid1.png` shows the exact shape every caster death on
+this map has shown: the token reads `DEAD`, sitting inside a large red
+hazard ring with a `-162`/`-100` tick, at the clustered spawn point, well
+under 15 seconds in. A kit built to close distance and tank the result died
+in the same window, by the same mechanism, as two kits that are not.
+That answers the 2026-09-28 entry's own open question: it is conquest's
+spawn geometry, not the kit, and "any style that closes distance dies here"
+now has three different roles agreeing with it and zero disagreeing.
+
+Not filed -- fourteen open `playtest` issues held the gate shut, and this is
+a confirmation of an existing line's mechanism rather than a new shape --
+but it closes the open half of the 2026-09-28 entry and the "Sharpened by"
+condition under this hypothesis's own opening: a `good`-style run does not
+turn a conquest loss around, it turns it into the same ~10s death every
+other active style on this map has already shown, melee included.
+Reproduction: `playtest/plans/2026-10-03-1.play`, `mid1.png` under
+`/tmp/pt-2026-10-03-1/shots/`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,

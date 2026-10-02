@@ -1,0 +1,53 @@
+# Cell from playpick: mode=battleground map=conquest spec=warrior:arms
+# style=good view=390x844,touch save=fresh.
+#
+# This is the exact pull direction.md's hypothesis 7 has been asking for since
+# 2026-09-28: every `good`-style death on conquest so far has been a caster
+# (druid:balance, druid:restoration), both dying at fightTime~9s inside the
+# opening scrum, and the open question is whether that is conquest's own
+# spawn geometry punishing anyone who closes distance, or just casters being
+# squishy while closing. warrior:arms is the first melee-capable spec this
+# line has ever put through `good` on any battleground -- a melee kit closes
+# distance on purpose and is built to survive doing it, so if it also dies in
+# the same ~9s window, the geometry explanation wins; if it does not, kit
+# matters after all.
+open
+targets
+shot front
+
+tap battleground
+targets
+shot bg-menu
+
+tap map:conquest
+targets
+shot conquest-picked
+
+tap class:warrior:arms
+shot class-picked
+
+tap pull
+waitscreen fight 15
+shot pulled
+state
+targets
+
+play good 90
+shot mid1
+state
+bill
+says
+
+wait 5
+play good 90
+shot mid2
+state
+bill
+
+wait 5
+play good 90
+shot mid3
+state
+bill
+says
+targets
