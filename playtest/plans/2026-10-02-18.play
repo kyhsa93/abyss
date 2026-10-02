@@ -1,0 +1,37 @@
+# Cell from playpick: mode=walk, boss=skyward (coverage label only --
+# evening steers at no boss, the walk starts at the door same as any
+# other), spec=shaman:restoration, style=dodge, size=25, difficulty=heroic,
+# view=820x1180,touch, save=carried (behaves as fresh per #273 -- the
+# dev-server port is pid-derived so localStorage never actually carries
+# across separate playbot invocations, so #b=marrow&s=25&h=1 is used to
+# unlock the chain up to 25-heroic the same way every other "carried at
+# heroic" cell in this job has).
+#
+# Checked sessions.jsonl and direction.md first. shaman:restoration has
+# been played under good, auto, flee, mash and melee before, but never
+# under dodge -- and dodge has never been given to a healer spec on this
+# boss at all (its two healer readings so far, priest:discipline/dodge and
+# priest:discipline/good, were both on skyward via mode=daily, not a
+# walked evening). dodge never presses an ability (scripts/playbot.ts:929,
+# the `acting === 'dodge' || acting === 'good'` branch only steers; the
+# press loop below it is gated on styles that are not dodge), so this is
+# the clearest test yet of whether a 25-heroic evening can survive THE
+# VIGIL and The Bonegrinder with its one healer slot pressing nothing at
+# all for the whole walk -- extending hypothesis 1 (idle/dodge-shaped
+# styles winning without cost) from single boss rooms to a full evening
+# with a healer specifically, which no session has run before.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:shaman:restoration
+tap pull
+waitscreen fight 15
+state
+shot start
+
+evening dodge 260 6
+state
+shot after-evening
+says
+bill

@@ -2381,6 +2381,24 @@ whole evening), it costs the raid bodies at the first boss and throughput at
 the second, converging with `dodge`'s own reading rather than adding a new
 mechanism.
 
+**2026-10-02, the first healer under `dodge`, and the cleanest zero-cost win
+this hypothesis has recorded.** `mode=walk` (`boss=skyward`, a coverage label
+only), shaman:restoration, `dodge`, 25-heroic, carried (behaves as fresh per
+#273), 820x1180 touch (`playtest/plans/2026-10-02-18.play`) -- the picked
+cell. `dodge` has been played before but never on a healer at this
+size/difficulty, and `scripts/playbot.ts`'s own `dodge` branch never presses
+an ability (it only steers away from danger, same code path `good` shares
+minus the toward-boss term), so this is the clearest version yet of "the
+raid's one healer does nothing at all" at the hardest tier the game has.
+THE VIGIL crossed clean (8.9s in, 38.6s out, matching [[#6]]'s ~30s clean
+band), then The Bonegrinder died at `fightTime=114` with `aliveParty=25/25
+heroHp=1485/1485 (full) presses=0 inDanger=0%` -- not a close win or a
+survivable cost, a kill with the entire raid untouched and the healer having
+cast nothing, at 25-heroic, which is the size/difficulty every other cell in
+this file needed at least some cost (a death, a slow kill, an enrage) to
+make the "doing nothing wins" shape complicated. **Disproved by** condition
+unchanged: still no cell found where `idle`/`dodge`-shaped styles lose.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is
@@ -5701,6 +5719,47 @@ fourteen open `playtest` issues -- still the strongest single candidate this
 line has for the first slot once it reopens, now with three scripts and six
 screenshots covering both input schemes and both difficulty tiers this job
 has on record.
+
+**2026-10-02, a fourth confirmation, and this time nobody tapped `map` on
+purpose.** `mode=walk` (`boss=skyward`, a coverage label only), shaman:
+restoration, `dodge`, 25-heroic, carried (behaves as fresh per #273), 820x1180
+touch (`playtest/plans/2026-10-02-18.play`) -- the picked cell's own
+`evening dodge 260 6` walked clean through THE VIGIL, killed The Bonegrinder,
+crossed the East Climb and reached the Oratory (room n=5/6) in ordinary
+travel mode, boss not yet woken. `scripts/playbot.ts`'s `cross()` found The
+Last Whisper asleep and steered the player at it (`aimedAt=boss:whisper`),
+but never closed past `closestGot=281` units -- well outside the 20-yard
+aggro README names -- before `own` stopped matching on a later tick and the
+loop fell through to its ways/pad fallback, which found every door already
+`been` and the room's pad lit, and rode it. The `tap pad` that opened the map
+to do that was itself logged with `mode: raid` -- the fight had already
+started, almost certainly woken by one of the other twenty-four raiders
+closing the distance the player hadn't, the same gap [[#1]]'s own healer
+entry above measures by a different number. `pad()` never checks `mode` at
+all, only `screen`, so it carried on: picked the one other lit room
+(`threshold`, already `been`), tapped it, and `took-the-pad` landed the party
+back at the entrance with `chamber=threshold mode=travel` -- the live pull
+gone the same way the three manual `tap map -> back -> raid` reports above
+already show it going. The evening's own fight-budget then spent its last
+slot riding the same pad back to `oratory`, and the final `state`/`bill`
+read `chamber=oratory boss=null ... fightTime=0 hits=0 taken=0 byMechanic={}`
+-- a boss that had visibly started dying, by every account this file already
+has of what `mode=raid` means, with no fault, no wipe, no `boss-woken` line,
+and a bill that looks exactly like a room nobody has fought in yet.
+
+What is new here is not the mechanism -- it is the trigger. Every prior
+confirmation needed a player (or this job's own script) to deliberately press
+`map` mid-pull out of curiosity. This one shows the same drop reachable
+through `cross()`'s own ordinary pad fallback, racing the raid's own AI
+waking a boss while the steered player was still hundreds of units short of
+it -- which means a real player riding a pad back for an earlier room while
+the raid presses on without them does not need to go looking for the map
+screen to lose a pull this way; the fallback this file already uses to get
+unstuck from a dead end can walk into the same trap on its own. Not filed --
+fourteen open `playtest` issues held the gate shut all session -- sharpening
+the existing candidate rather than adding a second one: still one mechanism,
+now with a fourth repro script and the first evidence it fires without
+anyone asking for the map at all.
 
 **2026-09-27, sharpened by the first tank spec `mash` has ever been given on
 a battleground, and the first time this line has separated "a passive body"
