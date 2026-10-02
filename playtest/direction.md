@@ -2263,6 +2263,44 @@ way. Not filed -- fourteen open `playtest` issues held the gate shut, and the
 budget fault here is this script's own 260s room allowance being too tight
 for a wipe-then-near-kill pair on a ~240s heroic boss, not a game fault.
 
+**2026-10-02, the mirror image of the entry above: active play reaching the
+closest any single pull has come to a kill, and losing to the cost of its own
+positioning rather than to the boss.** `mode=daily` (today's actual run,
+checked via `tap daily` + `targets` before committing to a script, since
+`playpick`'s own `boss` axis is not reachable from this mode): The Bonegrinder,
+25-player, normal, SWARMING (twice as many thralls, half as often),
+priest:shadow, `melee`, carried (#273 means this behaves as fresh regardless),
+1280x800 desktop (`playtest/plans/2026-10-02-10.play`). Priest:shadow had zero
+prior readings in `sessions.jsonl` in any mode, and `mode=daily` paired with
+`style=melee` had never been run either.
+
+`melee` closes to within 4 units of the boss and holds there regardless of a
+spec's own range or its `melee` flag (`scripts/playbot.ts:952`), so this is
+the first time a cloth, non-melee spec has been dragged into point-blank
+bonestorm range by this style -- the two prior `melee`-wipes-Bonegrinder
+reports on #267 were a melee dps (rogue:assassination, who belongs in that
+range anyway) and a healer (shaman:restoration, who had no reason to be
+there but took no armour penalty worth noting). A single pull (daily is one
+fight, not an evening -- no retry budget to spend) ran the full 137s before
+dying:
+
+```
+146s played style=melee seconds=140 outcome=wipe fightTime=137 phase=3 aliveParty=24/25 heroHp=0/1350 bossHp=3% presses=58 inDanger=6%
+146s bill fightTime=137 outcome=wipe hits=40 hitsPerMin=17.5 taken=3597 takenPerMin=1570 died=true byMechanic={"bonestorm":38,"coldflame":2}
+```
+
+Same shape as both prior #267 reports: only the player dies (`heroHp=0/1350`),
+the rest of the raid holds (24/25), and `bonestorm` is nearly the whole bill
+(38 of 40 mechanic hits). What is new is how close it got: 308,200 boss hp
+down to 7,721 (97.5% gone, `bossHp=3%` on the kill screen) in the one pull it
+was given, closer than either prior report managed across eight and nine
+pulls respectively. The kill screen's own damage board (`end.png`) has "You"
+with 40 mechanic hits against the raid's next-highest at 22 -- by far the
+most punished body on the field, on a spec that would never naturally stand
+there. Commented on #267 with this reading rather than filing a duplicate;
+not a new hypothesis, a sharpening of #267's own scope to casters and to
+`mode=daily`.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

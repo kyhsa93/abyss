@@ -1,0 +1,33 @@
+# playpick cell: mode=daily spec=priest:shadow style=melee view=1280x800
+# save=carried. boss=saved is playpick's own filler for an axis daily does not
+# actually expose (direction.md's long-standing note: daily.boss is not
+# reachable as a playpick axis) -- confirmed with a `tap daily` + `targets`
+# probe before writing this script, same as every prior daily session's
+# recipe: today's real daily is The Bonegrinder, 25-player, normal, SWARMING
+# (twice as many thralls, half as often).
+#
+# What is new here: priest:shadow has zero prior readings in sessions.jsonl in
+# *any* mode, and mode=daily paired with style=melee has never been run
+# either. melee style (scripts/playbot.ts:952) closes to within 4 units of the
+# boss and holds there regardless of the spec's own range or melee flag, so a
+# cloth caster with melee:false and 900 armor -- squishier than any class
+# already tried under this style -- gets dragged into point-blank range of
+# whatever the boss's own proximity mechanic is (bonegrinder's bonestorm, the
+# subject of open issue #267). carried save is requested by the cell; #273
+# (open) means it will behave as fresh regardless -- noted, not re-filed.
+open
+tap daily
+targets
+shot daily-screen
+tap class:6
+shot class-selected
+tap start
+waitscreen fight 15
+state
+targets
+ui
+play melee 200
+bill
+state
+says
+shot end
