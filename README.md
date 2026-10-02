@@ -2411,9 +2411,11 @@ parts by `npm run lpc`, which needs a checkout of the
 [spritesheet repository](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator)
 passed as `--lpc <dir>`.
 
-The parts are variously CC-BY-SA 3.0, GPL 3.0, OGA-BY 3.0 and CC0. Attribution
-is a condition of the first three, and share-alike of the first two, so the art
-in this repository is under those terms. The credit list is in
+Each part carries its own licences: between them they are CC-BY 3.0/4.0,
+CC-BY-SA 3.0/4.0, GPL 2.0/3.0, OGA-BY 3.0, OGA-SA 3.0 and CC0, and the full
+list is in [`art/LICENSE.md`](art/LICENSE.md) and on the credits screen.
+Attribution is a condition of all but CC0, and share-alike of CC-BY-SA, GPL and
+OGA-SA, so the art in this repository is under those terms. The credit list is in
 `art/LPC-CREDITS.md` and is generated from the same definitions the layers come
 from, so it cannot fall behind a change to the layer table.
 
@@ -2495,3 +2497,10 @@ flight, so a sprite with a colour baked in would send a frost bolt across the
 arena in orange. Desaturating also freed the choice of shapes: picking only
 sprites that happened to be drawn grey left three usable ones, one of which was
 a beam segment.
+
+## Licence
+
+The code is under the [MIT licence](LICENSE). The art is not: every picture in
+the game comes from a licensed set and stays under that set's terms, which are
+listed set by set in [`art/LICENSE.md`](art/LICENSE.md) and named on the
+in-game credits screen.

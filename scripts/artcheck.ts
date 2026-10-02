@@ -171,6 +171,31 @@ for (const set of ART) {
   )
 }
 
+// --- and the licence file says what the screen says --------------------------
+
+// `LICENSE` is MIT and covers the code; `art/LICENSE.md` is what keeps a reader
+// from taking MIT to cover the art too. A set the screen credits that the file
+// does not, or under different terms, is the file lying about what it covers.
+const LICENCES = 'art/LICENSE.md'
+const rows = [...read(LICENCES).matchAll(/^\| \[(.+?)\]\((.+?)\) \| .+? \| (.+?) \| .+? \| (.+?) \|$/gm)].map((m) => ({
+  set: m[1]!,
+  url: m[2]!,
+  licences: m[3]!.split(',').map((l) => l.trim()),
+  list: m[4]!.match(/\]\((.+?)\)/)?.[1] ?? null,
+}))
+expect(`${LICENCES} has a row for each of the ${ART.length} sets on the screen`, rows.length === ART.length, rows.map((r) => r.set).join(', '))
+for (const set of ART) {
+  const row = rows.find((r) => r.set === set.set)
+  expect(
+    `${LICENCES}: ${set.set} under the same licences, at the same url, with the same list`,
+    !!row &&
+      row.url === set.url &&
+      row.licences.join() === set.licences.join() &&
+      row.list === (set.file ? set.file.replace(/^art\//, '') : null),
+    row ? `${row.url} ${row.licences.join(', ')} ${row.list}` : 'no row',
+  )
+}
+
 if (failures > 0) {
   console.error(`artcheck: ${failures} check(s) failed`)
   process.exit(1)

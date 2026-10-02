@@ -1768,10 +1768,11 @@ ${cells}
     `# Sprite credits
 
 The field sprites are built from [Liberated Pixel Cup](https://lpc.opengameart.org/)
-parts by \`npm run lpc\`. The parts are variously licensed CC-BY-SA 3.0, GPL
-3.0, OGA-BY 3.0 and CC0; attribution is a condition of the first three, so this
-list is generated from the same definitions the layers are taken from and
-cannot fall behind a change to them.
+parts by \`npm run lpc\`. Each part carries its own licences, listed after its
+authors below; between them they are CC-BY, CC-BY-SA, GPL, OGA-BY, OGA-SA and
+CC0 (\`art/LICENSE.md\` has the full list). Attribution is a condition of all but
+CC0, so this list is generated from the same definitions the layers are taken
+from and cannot fall behind a change to them.
 
 ${lines.join('\n')}
 `,
