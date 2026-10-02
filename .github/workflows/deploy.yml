@@ -96,19 +96,17 @@ jobs:
       - run: npm ci
       - run: npx esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error
       - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
-      # `spec` is skipped, and the reason is written where it can be checked:
-      # the only band that reads that table is `no spec is a trap`, and it is
-      # in `SUSPENDED` in `scripts/balancecheck.ts` while the fights are being
-      # given rooms. It is twenty-one minutes on a core against eighty seconds
-      # for every other shard in the file, so while nothing reads it, it is the
-      # entire length of this run. Deleting it from `SUSPENDED` is what brings
-      # it back here.
+      # Nothing is skipped. `spec` was, while `no spec is a trap` sat in
+      # `SUSPENDED`; the band came back on and the skip did not, so the band
+      # read an empty table and failed every push for a week. It is the one
+      # shard that cannot be split -- about twenty minutes on a core -- so it
+      # is the length of this job, and that is the price of the band being on.
+      # Skip it again only together with suspending that band.
       - run: node node_modules/.cache/harnessrun.mjs
         env:
           ABYSS_CHUNKS: 14
           ABYSS_CHUNK: ${{ matrix.chunk }}
           ABYSS_PARTS: parts
-          ABYSS_SKIP: spec
       - uses: actions/upload-artifact@v4
         with:
           name: harness-${{ matrix.chunk }}
@@ -146,7 +144,7 @@ jobs:
       # arithmetic rather than on anything being wrong.
       - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
       - run: |
-          want=$(ABYSS_COUNT=1 ABYSS_SKIP=spec node node_modules/.cache/harnessrun.mjs)
+          want=$(ABYSS_COUNT=1 node node_modules/.cache/harnessrun.mjs)
           test "$(ls parts | wc -l)" -ge "$want" || { echo "only $(ls parts | wc -l) parts came back, wanted $want"; exit 1; }
           cat $(ls parts/part-*.txt | sort) > harness.txt
           grep -q '^battleground' harness.txt || { echo "the battleground table is missing"; exit 1; }
