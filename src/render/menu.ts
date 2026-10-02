@@ -1,5 +1,5 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
-import { ART } from '../credits'
+import { ART, listUrl } from '../credits'
 import {
   CHAMBERS,
   CITADEL_CHART,
@@ -1392,8 +1392,13 @@ export function creditsLayout(): CreditsLayout {
  * Lays a run of text out inside a width, and says how tall it came out.
  *
  * The only wrapping in this file, because it is the only screen made of prose.
- * Words rather than characters, and a line that is one long word wide is left
- * long rather than broken — a name is not a thing to hyphenate.
+ * Words rather than characters, and a name is never broken — a name is not a
+ * thing to hyphenate. A link is the one word allowed to break, after a slash,
+ * because on a phone a link is wider than the screen and a link that runs off
+ * the glass cannot be copied off it either.
+ *
+ * `draw` false measures without painting, which is how the screen finds the
+ * size that fits before it draws anything.
  */
 function paragraph(
   ctx: CanvasRenderingContext2D,
@@ -1402,24 +1407,67 @@ function paragraph(
   y: number,
   width: number,
   step: number,
+  draw = true,
 ): number {
+  // A piece of a broken link is glued to the piece before it, not spaced.
+  const words = text.split(' ').flatMap((word) =>
+    /^https?:\/\//.test(word) && ctx.measureText(word).width > width
+      ? word.split(/(?<=\/)/).map((piece, i) => ({ piece, glued: i > 0 }))
+      : [{ piece: word, glued: false }],
+  )
   let line = ''
   let at = y
-  for (const word of text.split(' ')) {
-    const next = line === '' ? word : `${line} ${word}`
-    if (ctx.measureText(next).width > width && line !== '') {
-      ctx.fillText(line, x, at)
+  for (const { piece: word, glued } of words) {
+    const joined = line === '' || glued ? `${line}${word}` : `${line} ${word}`
+    if (ctx.measureText(joined).width > width && line !== '') {
+      if (draw) ctx.fillText(line, x, at)
       at += step
       line = word
     } else {
-      line = next
+      line = joined
     }
   }
   if (line !== '') {
-    ctx.fillText(line, x, at)
+    if (draw) ctx.fillText(line, x, at)
     at += step
   }
   return at
+}
+
+/**
+ * Every set, top to bottom, at one scale; returns where it ended.
+ *
+ * Each line steps by its own font's height, read off the same number the font
+ * is built from. The step used to be a separate constant, and when the menu
+ * text was doubled the font grew and the step did not, so every line of names
+ * was drawn half on top of the one before it.
+ */
+function creditsBody(ctx: CanvasRenderingContext2D, left: number, top: number, width: number, k: number, draw: boolean): number {
+  const size = (pt: number, bold = false): number => {
+    ctx.font = font(pt * k, bold)
+    return pt * k * L.ui * MENU_TEXT * 1.25
+  }
+  let y = top
+  for (const set of ART) {
+    ctx.fillStyle = COLORS.text
+    y = paragraph(ctx, `${set.what.toUpperCase()} — ${set.set}`, left, y, width, size(11, true), draw)
+
+    ctx.fillStyle = COLORS.textDim
+    y = paragraph(ctx, `${set.licences.join(' / ')} — ${set.url}`, left, y, width, size(9), draw)
+
+    if (set.authors.length > 0) {
+      ctx.fillStyle = COLORS.text
+      y = paragraph(ctx, set.authors.join(', '), left, y, width, size(9), draw)
+    }
+
+    const list = listUrl(set)
+    if (list) {
+      ctx.fillStyle = COLORS.textDim
+      y = paragraph(ctx, `piece by piece at ${list}`, left, y, width, size(8), draw)
+    }
+    y += 8 * k * L.ui * MENU_TEXT
+  }
+  return y
 }
 
 export function drawCredits(ctx: CanvasRenderingContext2D): void {
@@ -1428,30 +1476,18 @@ export function drawCredits(ctx: CanvasRenderingContext2D): void {
 
   const layout = creditsLayout()
   const left = L.w / 2 - layout.width / 2
-  let y = layout.top
+  const room = layout.back.y - 8 * L.ui - layout.top
 
   ctx.textAlign = 'left'
-  for (const set of ART) {
-    ctx.fillStyle = COLORS.text
-    ctx.font = font(11, true)
-    ctx.fillText(`${set.what.toUpperCase()} — ${set.set}`, left, y)
-    y += 15 * L.ui
-
-    ctx.fillStyle = COLORS.textDim
-    ctx.font = font(9)
-    y = paragraph(ctx, `${set.licences.join(' / ')} — ${set.url}`, left, y, layout.width, 12 * L.ui)
-    y += 4 * L.ui
-
-    ctx.fillStyle = COLORS.text
-    ctx.font = font(9)
-    y = paragraph(ctx, set.authors.join(', '), left, y, layout.width, 12 * L.ui)
-    y += 4 * L.ui
-
-    ctx.fillStyle = COLORS.textDim
-    ctx.font = font(8)
-    y = paragraph(ctx, `piece by piece in ${set.file}`, left, y, layout.width, 11 * L.ui)
-    y += 12 * L.ui
-  }
+  const baseline = ctx.textBaseline
+  ctx.textBaseline = 'top'
+  // The largest scale that fits above BACK, found by measuring. Every name has
+  // to be on the one screen, so on a small one the type gets smaller rather
+  // than the list getting shorter.
+  let k = 1
+  while (k > 0.3 && creditsBody(ctx, left, layout.top, layout.width, k, false) - layout.top > room) k -= 0.05
+  creditsBody(ctx, left, layout.top, layout.width, k, true)
+  ctx.textBaseline = baseline
 
   ctx.textAlign = 'center'
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)

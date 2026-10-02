@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { PROPS } from '../src/render/props'
-import { ART } from '../src/credits'
+import { ART, listUrl } from '../src/credits'
 
 /**
  * The art and its attribution have to agree, and the build has to say so.
@@ -126,6 +126,49 @@ for (const want of summary) {
     [...missingLicences.map((l) => `missing ${l}`), ...extraLicences.map((l) => `extra ${l}`)].join('; '),
   )
   expect(`and points at ${want.file} for the piece-by-piece list`, set.file === want.file)
+}
+
+// --- the icons, one entry an ability ------------------------------------------
+
+// The icon set used to be credited only in README and a comment, which is to
+// say not in the build. The screen now carries it, and this is what keeps the
+// screen honest about it: every author `art/icons.json` names, and nobody else.
+const ICONS = 'art/icons.json'
+const icons = Object.values(JSON.parse(read(ICONS)) as Record<string, { icon: string; author: string }>)
+expect(`${ICONS} lists ${icons.length} icons and every one names an author`, icons.length > 0 && icons.every((i) => i.author && !NAMELESS.test(i.author)))
+const iconSet = ART.find((entry) => entry.file === ICONS)
+if (!iconSet) {
+  expect(`the credits screen carries ${ICONS}`, false, 'no entry for it in src/credits.ts')
+} else {
+  const want = new Set(icons.map((i) => i.author))
+  const missing = [...want].filter((a) => !iconSet.authors.includes(a))
+  const extra = iconSet.authors.filter((a) => !want.has(a))
+  expect(
+    `the credits screen names all ${want.size} icon authors`,
+    missing.length === 0 && extra.length === 0,
+    [...missing.map((n) => `missing ${n}`), ...extra.map((n) => `extra ${n}`)].join('; '),
+  )
+  expect('and says CC-BY 3.0 for them', iconSet.licences.join() === 'CC-BY 3.0', iconSet.licences.join(', '))
+  // README carries the same sentence the licence asks for; it is the one place
+  // a person reading the repository sees it, so it may not fall behind either.
+  const quoted = read('README.md').match(/> Icons made by ([^\n]+(?:\n> [^\n]+)*?)\.\n/)
+  const named = quoted ? quoted[1]!.replace(/\n> /g, ' ').replace(/ and /g, ', ').split(',').map((n) => n.trim()).filter(Boolean) : []
+  expect(
+    'and README\'s attribution line names the same people',
+    named.length === want.size && named.every((n) => want.has(n)),
+    named.join(', '),
+  )
+}
+
+// A piece-by-piece list is only a list if it opens. The screen is read off the
+// deployed site, where a path into the repository is a 404.
+for (const set of ART) {
+  const url = listUrl(set)
+  expect(
+    `${set.set}: ${url ? 'the list is a link that opens from the build' : 'CC0, asks for no list'}`,
+    url === null ? set.licences.every((l) => l === 'CC0') : /^https:\/\//.test(url),
+    url ?? set.licences.join(', '),
+  )
 }
 
 if (failures > 0) {

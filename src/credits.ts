@@ -28,8 +28,20 @@ export interface ArtSet {
   licences: string[]
   /** Every name, as the set spells it. */
   authors: string[]
-  /** Where the piece-by-piece list lives. */
-  file: string
+  /**
+   * Where the piece-by-piece list lives in the repository, or nothing for a
+   * CC0 set, which asks for no list. The screen shows it as a link that works
+   * from the deployed site, because a path into the repository is a 404 there.
+   */
+  file?: string
+}
+
+/** Where the repository's own files are readable from the deployed game. */
+export const REPO_FILES = 'https://github.com/kyhsa93/abyss/blob/main/'
+
+/** The piece-by-piece list as somebody holding the build can open it. */
+export function listUrl(set: ArtSet): string | null {
+  return set.file ? `${REPO_FILES}${set.file}` : null
 }
 
 export const ART: ArtSet[] = [
@@ -109,6 +121,41 @@ export const ART: ArtSet[] = [
       'Lanea Zimmerman (AKA Sharm)',
     ],
     file: 'art/LPC-TERRAIN-CREDITS.md',
+  },
+  {
+    what: 'The ability icons',
+    set: 'game-icons.net',
+    url: 'https://game-icons.net',
+    licences: ['CC-BY 3.0'],
+    authors: [
+      'andymeneely',
+      'caro-asercion',
+      'darkzaitzev',
+      'delapouite',
+      'heavenly-dog',
+      'lorc',
+      'sbed',
+      'skoll',
+      'willdabeast',
+      'zeromancer',
+    ],
+    file: 'art/icons.json',
+  },
+  // The two CC0 sets ask for nothing. They are here because a screen that says
+  // where every picture came from is only true if it says it for all of them.
+  {
+    what: 'The hits landing',
+    set: 'Superpowers asset packs',
+    url: 'https://github.com/sparklinlabs/superpowers-asset-packs',
+    licences: ['CC0'],
+    authors: [],
+  },
+  {
+    what: 'The bolts in flight',
+    set: 'Pixel Art Spells',
+    url: 'https://opengameart.org/content/pixel-art-spells',
+    licences: ['CC0'],
+    authors: ['DevWizard'],
   },
 ]
 
