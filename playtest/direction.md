@@ -2473,6 +2473,44 @@ play the fight; this reading says the aura is not dangerous on its own terms
 to a body standing in it and doing nothing back -- consistent with, not a
 complication of, this hypothesis. **Disproved by** condition unchanged.
 
+**2026-10-02, the first `flee`-style wipe on record, and it confirms the
+existing player-death-ends-the-pull mechanism (`src/sim/sim.ts:778-792`,
+first read on 2026-09-28's `wander` entry above) rather than adding a new
+one.** `mode=raid`, The Two Flasks, druid:restoration, `flee`, 10-normal,
+fresh save, 390x844 touch (`playtest/plans/2026-10-02-24.play`) -- the
+picked cell. Every prior `flee` reading on this line won outright (Long
+Cold, 86s, raid 10/10; the evening crossings above); this is the first to
+lose. `fight-over outcome=wipe time=49 phase=2`,
+`aliveParty=9/10 heroHp=0/1440 bossHp=54%`, `bill`:
+`hits=420 hitsPerMin=518.9 taken=1440 takenPerMin=1779 died=true
+byMechanic={"hound":420}` -- a single mechanic, nearly one tick's worth of
+damage every frame for the whole 49 seconds, and `aliveParty` at 9/10 says
+the other nine were still standing when the pull ended on the tracked body
+alone, the same shape as `wander`'s Crimson Gift death and `dodge`'s
+Confluence death above.
+
+What is new here is *why* `flee` specifically failed to dodge a mechanic the
+source calls avoidable by moving at all (`hound`'s own line, "keep
+walking"; `HOUND_SPEED` is `0.78`, slower than a player, so outrunning it is
+supposed to be free). `scripts/playbot.ts:958-959` writes `flee`'s whole
+steering term as `hero - boss` -- away from the boss, full stop, with no
+read of `hounded`'s own mark position at all (contrast `learn`'s chaser
+branch a few lines down, which does steer away from whichever ground
+mechanic is actually chasing). `src/sim/boss.ts:2996` spawns the hound at a
+door or at `radius 230` from the room's own centre, and the boss itself
+typically sits nearer that centre than the edge -- so running directly away
+from the boss runs toward the room's wall, which is also where the hound
+can spawn, rather than away from wherever the hound actually is. A style
+that reads the mark position instead of the boss's would be the controlled
+comparison; `dodge`'s existing away-from-standing-ground term already does
+something closer to that for ground patches and has never been read against
+`hound` specifically. **Not filed** -- fourteen open `playtest` issues held
+the gate shut -- but this is a source-confirmed mechanism, not a guess, and
+sharpens the hypothesis: "doing nothing wins" still holds in aggregate, but
+`flee`'s specific steering (away from the boss) is not the same thing as
+"away from every mechanic," and `hound` is the first one this line has
+caught it on.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

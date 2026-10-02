@@ -1,0 +1,31 @@
+# Cell from playpick: mode=raid, boss=flasks (The Two Flasks), spec=druid:
+# restoration, style=flee, size=10, difficulty=normal, view=390x844,touch
+# (phone portrait), save=fresh.
+#
+# Gate check first: `gh issue list --state open --label playtest` returned 14,
+# above the 12 cap, so this session files nothing regardless of what it finds
+# (docs/playtest.md "Caps, and the gate that matters"). Re-verification check:
+# only one playtest issue has ever closed (#268, 2026-09-25) and it is already
+# marked verified in sessions.jsonl, so there is nothing to re-run.
+#
+# direction.md hypothesis 1 ("doing nothing wins") has a flee-style reading on
+# druid:restoration already, but that one was mode=walk against The Crimson
+# Gift, carried save, landscape touch (2026-09-29-16.play). This cell pulls
+# the same class+style straight into a raid fight (mode=raid, not an evening
+# corridor) against a different boss, The Two Flasks, on a fresh save in
+# portrait touch. playbot.ts's flee branch runs away from the boss and never
+# casts, so this is the clearest available test of whether a raid's only
+# healer contributing zero heals survives a boss docs/upkeep.md already
+# tags as rewarding play (+32 points played over idle, the fourth-widest gap
+# recorded) when that healer isn't idle in place but is actively running.
+open #b=flasks&s=10&h=0
+tap class:druid:restoration
+tap pull
+waitscreen fight 15
+state
+shot opening
+play flee 150
+state
+shot ending
+says
+bill
