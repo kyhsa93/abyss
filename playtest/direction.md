@@ -7835,6 +7835,52 @@ crowding a fault rather than a taste note. Worth a future session if the
 gate opens and nameplate legibility at FAR zoom comes up again independently
 -- one reading is an observation, not yet a pattern.
 
+**2026-10-03, `prefers-reduced-motion` actually turns the backdrop off, tested
+live for the first time rather than only read off `src/render/ambience.ts`.**
+`mode=menus`, `view=844x390,touch`, `save=carried`. No `.play` command can set
+a media-feature emulation, so this went around the vocabulary with a one-off
+Playwright script (`playtest/plans/2026-10-03-2-reduced-motion.mjs`), per
+`docs/playtest.md`'s own instruction for exactly that case. Grepped first:
+zero prior hits for "reduced-motion"/"emulateMedia"/"prefersStillness" across
+this file and `sessions.jsonl`.
+
+`loadBackdrop()` (`ambience.ts:38-46`) only consults
+`matchMedia('(prefers-reduced-motion: reduce)')` when `localStorage` has no
+`abyss.backdrop` key yet, so the script ran three fresh `chromium.launchPersistentContext`
+calls on one fixed port (5881, never used by any prior session, so nothing
+collides with the port-pid bug this file already tracks under [[5]]):
+**(A)** a scratch profile with `reducedMotion: 'reduce'`, **(B)** a scratch
+profile with `'no-preference'`, **(C)** the real `playtest/profile` (the
+cell's own `carried`) with `'reduce'`.
+
+A's settings screenshot (`A-fresh-reduce-settings.png`) shows the BACKDROP row
+reading `OFF` in the dimmed/dead colour with its own "the menus sit on
+nothing" subtitle, and the front page is genuinely static: two screenshots
+600ms apart (`A-fresh-reduce-front-{1,2}.png`) differ only inside the RAID
+button's own idle-glow rectangle (bbox `(251,89)-(593,131)`, max channel delta
+39/255) -- the backdrop region itself is byte-identical. B's settings
+screenshot shows `BACKDROP ON`, and its front page visibly differs between the
+two shots (a body mid-stride against a rock, moved) -- a real fight running,
+exactly as `no-preference` should produce. `README.md`'s accessibility claim
+("it defaults to off where the device has asked for reduced motion") and
+`ambience.ts`'s own comment both hold, read from the actual rendered screen
+for the first time rather than only from source.
+
+C read identically to A in every screenshot (same `OFF`, same static front
+page) with `keyBefore: null` for `abyss.backdrop` -- the real carried profile
+has never had this key written to it either, the same shape [[5]]/#273's own
+investigation already found for the name field and spec pick: a fixed port
+makes the mechanism work, but nothing has ever actually saved to this literal
+profile under a fixed port before, so there was nothing stored to override the
+OS preference with. Confirms [[5]] a second, independent way rather than
+adding anything new to it.
+
+**Not filed** -- fourteen open `playtest` issues held the gate shut, and
+there is nothing to file: both halves are a feature working as documented.
+Kept here so a future session does not spend a cell re-deriving that the
+accessibility default is honoured, and so [[5]]'s own write-up can cite a
+second confirmation if it is ever sharpened into a filed issue.
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
