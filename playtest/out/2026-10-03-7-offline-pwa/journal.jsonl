@@ -1,0 +1,6 @@
+{"t":1790980651496,"ev":"first-visit","hasReg":true,"controller":false}
+{"t":1790980651876,"ev":"sw-active"}
+{"t":1790980652071,"ev":"second-visit-online","controller":true}
+{"t":1790980652432,"ev":"offline-reload","reloadError":null,"failedRequests":[{"when":"unmarked","url":"http://127.0.0.1:5882/assets/index-C2y8t5DW.js","failure":"net::ERR_FAILED"}]}
+{"t":1790980652483,"ev":"canvas-offline","present":true,"width":300,"height":150,"sampledNonBlack":0}
+{"t":1790980653033,"ev":"errors","consoleErrors":["Failed to load resource: net::ERR_FAILED"],"pageErrors":[]}

@@ -8093,6 +8093,82 @@ Kept here so a future session does not spend a cell re-deriving that the
 accessibility default is honoured, and so [[5]]'s own write-up can cite a
 second confirmation if it is ever sharpened into a filed issue.
 
+**2026-10-03, the one thing README promises offline is the one thing that
+does not survive being actually offline.** `mode=menus`, 820x1180 touch,
+carried -- but the cell's own vocabulary has nothing for this: `playbot`
+always drives `vite`, never `dist/`, because the debug hook it reads is
+compiled out of a production build (`src/main.ts:3122`, `if
+(import.meta.env.PROD && 'serviceWorker' in navigator)` is the only place
+`sw.js` is registered at all). README's "Installable and offline" section
+says plainly: "Everything runs client-side, so once it is cached there is
+nothing left to be online for -- it is fully playable in airplane mode."
+Nothing had ever played that; `pwacheck` only asserts on the manifest, the
+precache list and the service-worker source text, never on a real browser
+with the network actually cut.
+
+Went around the vocabulary per `docs/playtest.md`'s own instruction for
+exactly this case: `npm run build`, then a one-off script
+(`playtest/plans/2026-10-03-7-offline-pwa.mjs`) driving `vite preview`
+(serves `dist/` for real) through Playwright -- first visit online (installs
+the worker, no bounce, matching README's "first visit is excluded"), a
+reload so the page is actually controlled, then `context.setOffline(true)`
+and a second reload with the network fully cut, the way a phone actually
+goes into airplane mode rather than a slow or flaky one:
+
+```
+{"ev":"first-visit","hasReg":true,"controller":false}
+{"ev":"sw-active"}
+{"ev":"second-visit-online","controller":true}
+{"ev":"offline-reload","reloadError":null,"failedRequests":[{"url":"http://127.0.0.1:5882/assets/index-C2y8t5DW.js","failure":"net::ERR_FAILED"}]}
+{"ev":"canvas-offline","present":true,"width":300,"height":150,"sampledNonBlack":0}
+{"ev":"errors","consoleErrors":["Failed to load resource: net::ERR_FAILED"],"pageErrors":[]}
+```
+
+The navigation itself survives offline -- `freshShell`'s fallback
+(`vite.config.ts`'s `source()`, the `request.mode === 'navigate'` branch)
+matches the shell by a bare string and returns it regardless of what the
+request looks like. The game's own JS bundle does not: `net::ERR_FAILED` on
+the exact hashed asset the precache list (and `pwacheck`) both confirm is
+in the cache, and the canvas never grows past its default `300x150` empty
+size -- `sampledNonBlack: 0` means literally nothing drew. `3-offline-reload.png`
+is a flat, uniform `#0a0a0f` rectangle: not a browser offline-error page, a
+silently empty one, which is worse -- a player sees the app's own background
+color and nothing else, with no sign anything went wrong.
+
+Read rather than guessed why, and reproduced it a second, narrower way
+outside the main reload (a direct `fetch()` of the same URL from the already-
+offline, already-controlled page, bypassing `playbot`-style navigation
+entirely -- same `net::ERR_FAILED`): `vite.config.ts`'s `source()` caches the
+install set with `cache.addAll(ASSETS)` where `ASSETS` is a plain array of
+path strings (`vite.config.ts:49-51`), and the build's own `dist/index.html`
+carries `<script type="module" crossorigin src="...">` -- Vite's own default
+for a built entry script, not something this repo's config asks for. A
+`cache.addAll` over bare strings stores its responses with `mode: "no-cors"`
+(confirmed by listing the live cache's own keys back:
+`caches.open(name).then(c => c.keys())` reports `"mode": "no-cors"` on every
+entry, the JS bundle included), which makes them **opaque** to script
+consumers; a `crossorigin` script tag requests `mode: "cors"` and the
+module loader refuses an opaque response outright. Online, the SW's own
+fallback (`caches.match(request).then((hit) => hit || fetch(request))`)
+never notices, because a cache miss or an unusable hit both fall through to
+a real network fetch that quietly succeeds. Offline, there is no network
+left to fall through to, and the one request that matters fails outright.
+`caches.match()` called directly from page script (not through the `fetch`
+event) still reports `matched: true` for the same URL -- the entry is
+*there*, it is simply the wrong shape for what asked for it.
+
+**Not filed -- fourteen open `playtest` issues held the gate shut.** This is
+the opposite of a taste note: it is `README.md`'s own sentence, read
+literally and found false under the exact condition it names, with a
+source-level mechanism (`vite.config.ts`'s `cache.addAll` over a plain
+string array colliding with Vite's own `crossorigin` default) rather than a
+guess. File as a bug the first session the gate opens.
+Reproduction: `playtest/plans/2026-10-03-7-offline-pwa.mjs` (run after
+`npm run build`; needs `dist/`, which the script does not build itself),
+journal and shots under `playtest/out/2026-10-03-7-offline-pwa/`
+(`2-second-visit-controlled.png` for the working online shell,
+`3-offline-reload.png` for the blank offline one).
+
 ## Tried and dropped
 
 **A battleground player-respawn stall.** Raised 2026-09-25 as a "Not yet
