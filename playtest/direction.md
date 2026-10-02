@@ -2583,6 +2583,53 @@ nearly-fatal cost while the raid it was supposedly helping notices nothing --
 a sharper version of the same shape idle already showed for free. Not filed
 -- fourteen open `playtest` issues held the gate shut all session.
 
+**2026-10-03, idle wins clean on the smallest surviving gap in
+`docs/upkeep.md`'s own "raid rewarding play" table, under that boss's real
+affix.** `mode=daily`, paladin:protection, `idle`, carried save, 844x390
+touch (`playtest/plans/2026-10-03-1.play`). No prior session had run
+`mode=daily` + `style=idle` + `save=carried` together (nine prior carried
+dailies, none idle; two prior idle dailies, both fresh) -- the cell
+`playpick` actually asked for. Probed first, same driver-lesson this file
+already carries: `daily.boss` is not a reachable axis, and today's real run
+is The Bonegrinder, 25-player normal, SWARMING ("twice as many thralls, half
+as often").
+
+The Bonegrinder is one of only four fights left on `docs/upkeep.md`'s "raid
+rewarding play" table, and the smallest surviving gap of the four (played
+68% / idle 48%, +20) -- the sharpest test this line has had yet, since every
+other idle win on this line has landed on a fight the table already reads as
+a 0 or near-0 gap. `play idle 220` (zero presses, 844x390 touch):
+
+```
+144.2s fight-over outcome=victory time=138 phase=3
+144.2s played style=idle seconds=141 outcome=victory fightTime=138 phase=3
+  aliveParty=25/25 heroHp=2745/2745 presses=0 inDanger=4%
+bill: hits=11 hitsPerMin=4.8 taken=724 takenPerMin=314.2 died=false
+  byMechanic={"bonestorm":10,"coldflame":1}
+```
+
+Clean kill, full raid alive, the player back at full health by the end
+despite direct `bonestorm` exposure the whole fight (a tank stands in melee
+the entire time, so this is not another case of a role excluded from the
+boss's own mechanic the way The Crimson Gift and The Long Cold read --
+`byMechanic` shows real hits landing) -- and it still won at 4% `inDanger`
+with nobody pressing a single ability or defensive cooldown. The one cell on
+`docs/upkeep.md`'s own table built to argue play still matters here did not
+hold up against a tank doing nothing. **Not filed** -- fourteen open
+`playtest` issues held the gate shut, and this is upkeep's own number
+(`docs/upkeep.md`'s "raid rewarding play" section already names this gap and
+says it belongs to that job, not this one), not a new question.
+
+Also worth a driver-tooling note, not a game finding: the `ui` read on this
+cell (684x390 landscape touch, five ability buttons plus `auto` in the
+corner cluster) found six overlapping pairs, all under the 44px floor --
+`auto`/`ability:5`, `auto`/`ability:4`, `ability:5`/`ability:3`,
+`ability:5`/`ability:2`, `ability:4`/`ability:1`, `ability:4`/`ability:2`.
+README's own design section says this is intentional ("small buttons need a
+hit radius wider than they are... a press goes to the *nearest* button
+rather than the first one it lands inside"), so this is the shape working as
+documented, not a new report.
+
 ### 2. The walk in and the fight are the same screen, and the player cannot tell
 
 `screen()` says `fight` while the party is walking a corridor, while a boss is

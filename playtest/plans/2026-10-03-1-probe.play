@@ -1,0 +1,7 @@
+# Probe: find today's actual daily and the paladin:protection class-grid
+# label before committing to the full script.
+open
+targets
+tap daily
+shot daily-screen
+targets

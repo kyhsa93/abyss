@@ -1,53 +1,37 @@
-# Cell from playpick: mode=battleground map=conquest spec=warrior:arms
-# style=good view=390x844,touch save=fresh.
+# Cell from playpick: mode=daily, boss=gift, spec=paladin:protection,
+# style=idle, view=844x390,touch, save=carried.
 #
-# This is the exact pull direction.md's hypothesis 7 has been asking for since
-# 2026-09-28: every `good`-style death on conquest so far has been a caster
-# (druid:balance, druid:restoration), both dying at fightTime~9s inside the
-# opening scrum, and the open question is whether that is conquest's own
-# spawn geometry punishing anyone who closes distance, or just casters being
-# squishy while closing. warrior:arms is the first melee-capable spec this
-# line has ever put through `good` on any battleground -- a melee kit closes
-# distance on purpose and is built to survive doing it, so if it also dies in
-# the same ~9s window, the geometry explanation wins; if it does not, kit
-# matters after all.
+# Probe (2026-10-03-1-probe.play) showed today's actual daily is The
+# Bonegrinder, 25-player normal, SWARMING (twice as many thralls, half as
+# often) -- not "gift". Same driver-tooling gap direction.md already has on
+# record: a daily's boss is picked by date, not by playpick's `boss` axis.
+# Playing the cell as assigned is impossible; playing the real daily, honestly,
+# is the only option.
+#
+# What is new regardless of boss: no prior session has run mode=daily +
+# style=idle + save=carried together (nine prior carried dailies, none idle;
+# two prior idle dailies, both fresh). Also the first idle-style reading of
+# The Bonegrinder under SWARMING specifically, and docs/upkeep.md's own
+# "raid rewarding play" table has this boss at only +20 (played 68% / idle
+# 48%) -- the smallest gap of the four fights still short of the reward bar,
+# so a tank's idle pull here is the sharpest test available of whether that
+# gap survives a role picked for being excluded from a mechanic, the way
+# [[#1]] already found on The Crimson Gift and Long Cold.
 open
 targets
-shot front
-
-tap battleground
-targets
-shot bg-menu
-
-tap map:conquest
-targets
-shot conquest-picked
-
-tap class:warrior:arms
-shot class-picked
-
-tap pull
+tap daily
+tap class:2
+shot class-selected
+tap start
 waitscreen fight 15
-shot pulled
+shot arrive
 state
 targets
-
-play good 90
-shot mid1
+ui
+play idle 220
+shot after-fight
 state
-bill
 says
-
-wait 5
-play good 90
-shot mid2
-state
 bill
-
-wait 5
-play good 90
-shot mid3
-state
-bill
-says
 targets
+shot report
