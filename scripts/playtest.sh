@@ -174,7 +174,63 @@ BEFORE="$(git rev-parse HEAD)"
 # without this the second session ever run left the picker believing it was still
 # the first, and the commit below wore the previous session's subject.
 LEDGER_WAS="$(wc -l < playtest/sessions.jsonl 2>/dev/null || echo 0)"
-log "session $HOUR at $(git rev-parse --short HEAD)"
+
+# **`direction.md` over its size is a session of its own.** Seven hypotheses at
+# eighty lines each, plus the two sections under them. It reached eight thousand
+# lines -- one hypothesis alone was two thousand six hundred -- because every
+# session appended its observation and none ever folded one in, and a spec the
+# next session has to read before playing is a spec that costs the session.
+DIRECTION_CAP="${ABYSS_PLAYTEST_DIRECTION_CAP:-700}"
+DIRECTION_LINES="$(wc -l < playtest/direction.md 2>/dev/null || echo 0)"
+COMPRESS=""
+[ "$DIRECTION_LINES" -gt "$DIRECTION_CAP" ] && COMPRESS=1
+
+# **A shut gate with nothing closed is an hour with nothing to do.** With twelve
+# or more `playtest` issues open the session may file nothing, and if nobody has
+# closed one since the last session there is nothing new to re-verify either:
+# 175 of 191 sessions ran like that, and the last sixty filed nothing and
+# verified nothing while each one paid an hour of machine and a full CI run.
+# So the session is not started. It starts again on its own the hour after
+# somebody closes one -- and runs regardless when `direction.md` needs folding,
+# or when asked to with `now`.
+if [ -z "$COMPRESS" ] && [ -z "$FORCE" ]; then
+  OPEN_NOW="$(gh issue list --state open --label playtest --limit 100 2>/dev/null | wc -l)"
+  if [ "$OPEN_NOW" -ge 12 ]; then
+    LAST_WHEN="$(node -e '
+      const fs = require("fs")
+      const lines = fs.readFileSync("playtest/sessions.jsonl", "utf8").trim().split("\n")
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try { const w = JSON.parse(lines[i]).when; if (w) { process.stdout.write(w); break } } catch {}
+      }
+    ' 2>/dev/null)"
+    CLOSED_SINCE="$(gh issue list --state closed --label playtest --limit 100 --search "closed:>${LAST_WHEN:-1970-01-01}" 2>/dev/null | wc -l)"
+    if [ -n "$LAST_WHEN" ] && [ "$CLOSED_SINCE" -eq 0 ]; then
+      log "skip: the gate is shut ($OPEN_NOW open) and nothing has closed since $LAST_WHEN -- nothing for a session to do"
+      echo "$HOUR" > "$STATE"
+      exit 0
+    fi
+  fi
+fi
+
+log "session $HOUR at $(git rev-parse --short HEAD)${COMPRESS:+ -- direction.md is $DIRECTION_LINES lines, folding only}"
+
+FOLDING=""
+if [ -n "$COMPRESS" ]; then
+  FOLDING="$(cat <<FOLD
+## This session folds \`playtest/direction.md\` and plays nothing
+
+It is $DIRECTION_LINES lines and the cap is $DIRECTION_CAP (the spec's section on
+it says why). Fold it: each standing hypothesis to at most eighty lines -- the
+claim, what would disprove it, and the observations that still matter, newest
+first, each one line with its date and its journal line; the rest of the history
+is already in \`sessions.jsonl\` and git. *Not yet filed* and *Tried and dropped*
+keep their entries, one to three lines each. Do not drop a hypothesis while
+folding it. Write the ledger line with an empty cell and say this was a folding
+session.
+
+FOLD
+)"
+fi
 
 PROMPT="Play this game for a while, and file what you find.
 
@@ -234,7 +290,7 @@ English and in this repository's voice, that will be the commit subject.
 - **Measure before you claim.** Every number comes from a journal line, and the
   line goes in with it.
 
-## Finish
+${FOLDING}## Finish
 
 Report the cell you played, what you did in it that no session had done before,
 what you found, what you filed, and why there was not more."

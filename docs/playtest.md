@@ -314,6 +314,19 @@ Rules for it:
 
 - **At most seven standing hypotheses.** An eighth means one of the seven has
   been sitting there unexamined, and a list nobody prunes is a list nobody reads.
+- **At most eighty lines a hypothesis.** The claim, what would disprove it, and
+  the observations that still bear on it -- one line each, newest first, with
+  the date and the journal line. An observation that adds nothing to the ones
+  above it goes to `sessions.jsonl`, which is where a log belongs. This file was
+  eight thousand lines when the rule went in, one hypothesis alone two thousand
+  six hundred, and every session was paying to read it before it played.
+  `playtest.sh` checks the size at the start of each session (cap 700 lines,
+  `ABYSS_PLAYTEST_DIRECTION_CAP`) and, over it, makes the session a folding
+  session that plays nothing.
+- **A shut gate with nothing closed is not a session.** With twelve or more
+  `playtest` issues open and none closed since the last ledger line, the runner
+  does not start one: there is nothing it may file and nothing new to
+  re-verify. It starts by itself the hour after an issue closes.
 - Each one says what would **disprove** it and what has actually been observed,
   with the session dates. A line with no observations after three sessions that
   looked for them gets dropped.

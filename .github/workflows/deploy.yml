@@ -3,6 +3,11 @@ name: Deploy
 on:
   push:
     branches: [main]
+    # The playtest job pushes its ledger every hour and it changes nothing that
+    # is built or checked: running the whole sweep for it was twenty-four CI
+    # runs a day measuring the same game. A push that touches anything else as
+    # well still runs.
+    paths-ignore: ['playtest/**']
   workflow_dispatch:
 
 permissions:
