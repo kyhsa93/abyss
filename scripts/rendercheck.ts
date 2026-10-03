@@ -11389,5 +11389,187 @@ for (const [label, w, h] of [
   updateLayout(1280, 800)
 }
 
+
+// --- words do not land on words ------------------------------------------------
+//
+// Every screen, drawn into a recorder that keeps the box each line of text
+// takes, and every pair of boxes that cross. The hourly playtest job found
+// three of these by eye (#274, #275, #283) and nothing here had ever looked:
+// the layout checks above hold buttons apart and say nothing about the words
+// written beside, under or over them.
+//
+// A ratchet, like the raid band. The screens that overlap today are written
+// down with how many crossings they have, may not get more, and have to come
+// off the list when they reach none.
+
+{
+  interface Word { text: string; x0: number; y0: number; x1: number; y1: number }
+  const wordsCtx = (out: Word[]): CanvasRenderingContext2D => {
+    const noop = () => {}
+    let pen: Record<string, unknown> = { font: '10px monospace', textAlign: 'left', textBaseline: 'alphabetic', globalAlpha: 1 }
+    const stack: Array<Record<string, unknown>> = []
+    const size = () => Number(/([\d.]+)px/.exec(String(pen.font))?.[1] ?? 0)
+    // Monospace: width is linear in the size and in the characters.
+    const width = (text: string) => 0.6 * size() * [...text].length
+    // Opaque panels drawn after a word hide it: an open list covers the board
+    // under it, and the words under a solid panel are not on the screen.
+    let path: Array<[number, number, number, number]> = []
+    const opaque = () => {
+      if (Number(pen.globalAlpha) < 0.9) return false
+      const fill = String(pen.fillStyle ?? '#000')
+      const alpha = /rgba?\([^)]*,\s*([\d.]+)\s*\)/.exec(fill)?.[1]
+      return alpha === undefined || Number(alpha) >= 0.9
+    }
+    const cover = (rects: Array<[number, number, number, number]>) => {
+      if (!opaque()) return
+      for (const [x, y, w, h] of rects) {
+        const [rx0, rx1] = [Math.min(x, x + w), Math.max(x, x + w)]
+        const [ry0, ry1] = [Math.min(y, y + h), Math.max(y, y + h)]
+        for (let i = out.length - 1; i >= 0; i--) {
+          const t = out[i]!
+          if (t.x0 >= rx0 - 1 && t.x1 <= rx1 + 1 && t.y0 >= ry0 - 1 && t.y1 <= ry1 + 1) out.splice(i, 1)
+        }
+      }
+    }
+    return new Proxy({}, {
+      get(_t, prop) {
+        if (prop === 'beginPath') return () => { path = [] }
+        if (prop === 'rect' || prop === 'roundRect') return (x: number, y: number, w: number, h: number) => { path.push([x, y, w, h]) }
+        if (prop === 'fill') return () => cover(path)
+        if (prop === 'fillRect') return (x: number, y: number, w: number, h: number) => cover([[x, y, w, h]])
+        if (prop === 'save') return () => stack.push({ ...pen })
+        if (prop === 'restore') return () => { pen = stack.pop() ?? pen }
+        if (prop === 'measureText') return (text: string) => ({ width: width(text) })
+        if (prop === 'fillText') {
+          return (text: string, x: number, y: number, max?: number) => {
+            if (!text.trim() || Number(pen.globalAlpha) <= 0.05) return
+            const w = Math.min(width(text), max ?? Infinity)
+            const h = size()
+            const align = String(pen.textAlign)
+            const x0 = align === 'center' ? x - w / 2 : align === 'right' || align === 'end' ? x - w : x
+            const base = String(pen.textBaseline)
+            const y0 = base === 'top' || base === 'hanging' ? y : base === 'middle' ? y - h / 2 : base === 'bottom' ? y - h : y - h * 0.8
+            out.push({ text, x0, y0, x1: x0 + w, y1: y0 + h })
+          }
+        }
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') return () => ({ addColorStop: noop })
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        if (prop in pen) return pen[prop as string]
+        return noop
+      },
+      set(_t, prop, value) {
+        pen[prop as string] = value
+        return true
+      },
+    }) as unknown as CanvasRenderingContext2D
+  }
+  const crossings = (words: Word[]): string[] => {
+    const out: string[] = []
+    for (let i = 0; i < words.length; i++) {
+      for (let j = i + 1; j < words.length; j++) {
+        const a = words[i]!
+        const b = words[j]!
+        // The same words drawn twice in one place is a shadow or an outline.
+        if (a.text === b.text && Math.abs(a.x0 - b.x0) < 3 && Math.abs(a.y0 - b.y0) < 3) continue
+        const dx = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)
+        const dy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0)
+        // More than a sliver either way: a descender brushing a line is not this.
+        if (dx > 2 && dy > Math.min(a.y1 - a.y0, b.y1 - b.y0) * 0.25) out.push(`"${a.text}" x "${b.text}"`)
+      }
+    }
+    return out
+  }
+
+  const screens: Array<[string, (ctx: CanvasRenderingContext2D) => void]> = [
+    ['home', (ctx) => drawHome(ctx, 1.5)],
+    ['raid setup', (ctx) => drawRaidSetup(ctx, LADDER.length - 1, 10, 'heroic')],
+    ['battleground setup', (ctx) => drawBgSetup(ctx, 'flags')],
+    ['settings', (ctx) => drawSettings(ctx, true, 1, true, 0, 'Somebody')],
+    ['credits', (ctx) => drawCredits(ctx)],
+    ['roster', (ctx) => drawRoster(ctx, autoParty(10, pickFor('mage', 'dps')!), 'heroic', 1.5, 0, { kind: 'raid' })],
+    ...([10, 25] as const).flatMap((size): Array<[string, (ctx: CanvasRenderingContext2D) => void]> => {
+      const closed = beginCompose(autoParty(size, pickFor('priest', 'healer')!))
+      const fought = pulled(0x51ed, 0, autoParty(size, pickFor('mage', 'dps')!), 'heroic', 0)
+      const rng = new Rng(0x51ed)
+      for (let t = 0; t < 900; t++) step(fought, { moveX: 0, moveY: 0, pressed: t % 45 === 0 ? [0] : [] }, rng)
+      const killed = structuredClone(fought)
+      killed.outcome = 'victory'
+      const wiped = structuredClone(fought)
+      wiped.outcome = 'wipe'
+      return [
+        [`composition ${size}`, (ctx) => drawComposition(ctx, closed)],
+        [`composition ${size}, a slot open`, (ctx) => drawComposition(ctx, pressSlot(closed, size - 1))],
+        [`fight ${size}`, (ctx) => drawHud(ctx, fought, touchView(true))],
+        [`kill ${size}`, (ctx) => drawHud(ctx, killed, touchView(true))],
+        [`wipe ${size}`, (ctx) => drawHud(ctx, wiped, touchView(true))],
+      ]
+    }),
+  ]
+
+  // Screen and viewport, and how many crossings it was held at on the day this
+  // went in. Only ever lowered, and removed at nought.
+  //
+  // On the day it went in: the open composition list's edge over the board
+  // under it (#274), the result screen drawn over a HUD that keeps its words
+  // (#275, #283), the chat log over the party frames, and settings turned
+  // landscape.
+  const WORDS_HELD: Record<string, number> = {
+    'composition 10, a slot open @390x844': 2,
+    'kill 10 @390x844': 2,
+    'wipe 10 @390x844': 1,
+    'composition 25, a slot open @390x844': 1,
+    'kill 25 @390x844': 11,
+    'wipe 25 @390x844': 10,
+    'settings @844x390': 7,
+    'composition 10, a slot open @844x390': 1,
+    'fight 10 @844x390': 1,
+    'kill 10 @844x390': 7,
+    'wipe 10 @844x390': 8,
+    'composition 25, a slot open @844x390': 8,
+    'fight 25 @844x390': 2,
+    'kill 25 @844x390': 13,
+    'wipe 25 @844x390': 14,
+    'composition 10, a slot open @1280x800': 2,
+    'composition 25, a slot open @1280x800': 2,
+    'kill 25 @1280x800': 2,
+    'wipe 25 @1280x800': 2,
+    'composition 10, a slot open @360x640': 1,
+    'kill 10 @360x640': 2,
+    'wipe 10 @360x640': 2,
+    'composition 25, a slot open @360x640': 2,
+    'kill 25 @360x640': 15,
+    'wipe 25 @360x640': 15,
+  }
+
+  const seen = new Map<string, string[]>()
+  for (const [w, h] of [[390, 844], [844, 390], [1280, 800], [360, 640]] as const) {
+    updateLayout(w, h)
+    for (const [name, draw] of screens) {
+      const words: Word[] = []
+      draw(wordsCtx(words))
+      seen.set(`${name} @${w}x${h}`, crossings(words))
+    }
+  }
+  updateLayout(1280, 800)
+  // `ABYSS_WORDS=1` prints today's counts in WORDS_HELD's own shape, for the
+  // commit that lowers them.
+  if (process.env.ABYSS_WORDS) {
+    console.log(JSON.stringify(Object.fromEntries([...seen].filter(([, f]) => f.length > 0).map(([k, f]) => [k, f.length])), null, 2))
+  }
+  for (const [key, found] of seen) {
+    const held = WORDS_HELD[key]
+    if (held === undefined) {
+      expect(`${key}: no words on words`, found.length === 0, found.slice(0, 3).join('; ') + (found.length > 3 ? ` and ${found.length - 3} more` : ''))
+    } else if (found.length === 0) {
+      expect(`${key}: no words on words now -- take it off WORDS_HELD`, false, 'held at ' + held)
+    } else {
+      expect(`${key}: no more words on words than the ${held} it was held at`, found.length <= held, found.slice(0, 3).join('; '))
+    }
+  }
+  for (const key of Object.keys(WORDS_HELD)) {
+    if (!seen.has(key)) expect(`${key} is held and was not drawn: take it off WORDS_HELD`, false, key)
+  }
+}
+
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
 console.log('all render checks passed')
