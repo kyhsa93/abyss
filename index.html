@@ -43,5 +43,31 @@
   <body>
     <div id="app"><canvas id="stage"></canvas></div>
     <script type="module" src="/src/main.ts"></script>
+    <!--
+      What a crawler, or a browser with scripts off, gets instead of the game.
+      Everything else on this page is a canvas, so without this the page reads
+      as a dozen characters of nothing to a site review that judges the whole
+      domain. It is never shown while scripts run.
+    -->
+    <noscript>
+      <article lang="ko">
+        <h1>Abyss — 혼자 하는 멀티플레이 레이드</h1>
+        <p>Abyss는 원래 여러 사람이 모여야 할 수 있는 콘텐츠, 곧 레이드 보스와 전장을 혼자서, 아무 때나 할 수 있게 만든 브라우저 게임입니다. 플레이어는 열다섯 가지 전문화 중 하나를 골라 한 자리를 맡고, 나머지 공대원은 모두 AI가 맡습니다. 서버도 네트워크 대전도 없으며, 모든 일은 결정론적 시뮬레이션 안의 타이머로 일어납니다.</p>
+        <h2>어떤 게임인가</h2>
+        <p>보스는 즉흥적으로 움직이는 AI가 아니라 정해진 대본을 따릅니다. 무작위인 것은 누가 표적이 되느냐뿐이라, 공략은 외우고 익힐 수 있습니다. 공대원 AI는 반응 지연, 실수, 성격을 지닌 사람처럼 움직이고, 시도를 거듭할수록 손이 빨라지지만 판단은 바뀌지 않습니다. 장비, 레벨, 재화는 없고, 보스를 잡으면 열리는 것은 더 큰 숫자가 아니라 게임의 다음 부분입니다.</p>
+        <p>레이드는 10인 또는 25인 규모와 난이도를 골라, 성채의 첫 방부터 걸어 올라가며 방마다 기다리는 전투를 치르는 방식입니다. 진행 상황은 다음 방문까지 저장됩니다. 이 밖에 날짜마다 보스와 난이도와 시드가 정해져 모두가 같은 전투를 치르는 오늘의 도전, 그리고 같은 직업들로 5대5로 싸우는 전장이 있습니다.</p>
+        <h2>조작</h2>
+        <ul>
+          <li>키보드: WASD 이동(Q·E도 좌우 이동), 1 2 3 4 기술, R 다시 도전, M 소리 끄기, Esc 직업 선택 화면으로</li>
+          <li>터치: 왼쪽에 누른 자리로 따라오는 반투명 스틱, 오른쪽 아래에 기술 버튼. 기술 순환을 대신 눌러 주는 AUTO 토글이 있어 한 손가락은 위치 잡기에 쓸 수 있습니다.</li>
+        </ul>
+        <h2>필요한 것</h2>
+        <p>최신 브라우저 하나면 되고, 컴퓨터에서는 키보드, 휴대폰과 태블릿에서는 터치로 플레이합니다. 앱으로 설치할 수 있고, 한 번 받아 두면 비행기 모드에서도 플레이할 수 있습니다. 게임 화면은 자바스크립트로 그려지므로 자바스크립트를 켜야 실행됩니다.</p>
+      </article>
+      <article lang="en">
+        <h2>In English</h2>
+        <p>Abyss is single-player multiplayer: a raid boss or a five-against-five battleground, played alone in the browser at any hour. You pick one of fifteen specs and every other raider is AI that reacts, fumbles and learns the fight the way people do. The boss follows a script, so the fight can be learned. There is a raid you walk through room by room at ten or twenty-five, a daily run that is the same fight for everybody, and battlegrounds. WASD moves and 1 to 4 use abilities; on a touch screen there is a stick and an ability cluster. It installs as an app, plays offline, and needs JavaScript.</p>
+      </article>
+    </noscript>
   </body>
 </html>
