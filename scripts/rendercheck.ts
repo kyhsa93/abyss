@@ -67,6 +67,8 @@ import {
   drawBgSetup,
   drawCitadel,
   drawCredits,
+  drawWingDone,
+  wingDoneLayout,
   drawHome,
   drawRaidSetup,
   drawSettings,
@@ -6344,7 +6346,7 @@ for (const [label, w, h] of [
     homeRects.every((r, i) => homeRects.every((o, j) => i === j || !collides(r, o))),
     'two choices share space',
   )
-  const answers = ['raid', 'battleground', 'daily', 'settings'] as const
+  const answers = ['raid', 'daily', 'battleground', 'settings'] as const
   expect(
     `${label}: each choice answers as itself`,
     answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
@@ -6352,6 +6354,19 @@ for (const [label, w, h] of [
       hitHome(...middle(home.share)) === 'share',
     `${answers.map((_, i) => hitHome(...middle(home.choices[i]!))).join(',')}`,
   )
+  // And says what it does. The words and the presses were two lists once, and
+  // moving one of them put TODAY'S RUN's press under a button reading
+  // BATTLEGROUND.
+  {
+    const said: Label[] = []
+    drawHome(recordingCtx([], said), 1.5)
+    const word = { raid: 'RAID', daily: "TODAY'S RUN", battleground: 'BATTLEGROUND', settings: 'SETTINGS' } as const
+    const wrong = answers.filter((want, i) => {
+      const r = home.choices[i]!
+      return !said.some((t) => t.text === word[want] && t.y >= r.y && t.y <= r.y + r.h)
+    })
+    expect(`${label}: and each choice is labelled as what it does`, wrong.length === 0, wrong.join(', '))
+  }
   // The reset moved here off the raid setup screen, where the two fields above
   // it said which instance it meant. It has to be reachable -- a strip the
   // width of the screen that no press ever lands on is the same as no button
@@ -11486,6 +11501,7 @@ for (const [label, w, h] of [
     ['battleground setup', (ctx) => drawBgSetup(ctx, 'flags')],
     ['settings', (ctx) => drawSettings(ctx, true, 1, true, 0, 'Somebody')],
     ['credits', (ctx) => drawCredits(ctx)],
+    ['wing done', (ctx) => drawWingDone(ctx, { wing: 'plague', left: ['crimson', 'frostwing'], down: 7, of: 11, untilReset: 3 * 86400000, rung: '25-man heroic' })],
     ['roster', (ctx) => drawRoster(ctx, autoParty(10, pickFor('mage', 'dps')!), 'heroic', 1.5, 0, { kind: 'raid' })],
     ...([10, 25] as const).flatMap((size): Array<[string, (ctx: CanvasRenderingContext2D) => void]> => {
       const closed = beginCompose(autoParty(size, pickFor('priest', 'healer')!))
@@ -11505,6 +11521,17 @@ for (const [label, w, h] of [
       ]
     }),
   ]
+
+  // And the wing's page answers its two presses at a size a thumb can hit.
+  for (const [w, h] of [[390, 844], [844, 390], [360, 640]] as const) {
+    updateLayout(w, h)
+    const l = wingDoneLayout()
+    expect(
+      `wing done @${w}x${h}: WALK ON and HOME are 44 high and on screen`,
+      [l.walk, l.home].every((r) => r.h >= 44 && r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h),
+      JSON.stringify([l.walk, l.home]),
+    )
+  }
 
   // Screen and viewport, and how many crossings it was held at on the day this
   // went in. Only ever lowered, and removed at nought.

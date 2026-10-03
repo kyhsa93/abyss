@@ -8,6 +8,7 @@ import {
   passageKey,
   passageOpen,
   roomOf,
+  type WingId,
 } from '../dungeon'
 import { isCleared, isWalked, open, stepTo, type Run } from '../citadel'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
@@ -265,7 +266,10 @@ const WITH_FIGHTS = CHAMBERS.filter(
  * when the walk between them has been thrown away. RAID is the door now, and
  * every fight in the game is behind it.
  */
-const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'settings']
+//
+// In the order a sitting reaches for them: carry on the week's raid, then the
+// run everybody got today, then a battleground (the owner's call of 2026-10-03).
+const HOME_ORDER: HomeChoice[] = ['raid', 'daily', 'battleground', 'settings']
 
 export function drawHome(
   ctx: CanvasRenderingContext2D,
@@ -287,16 +291,20 @@ export function drawHome(
   screenTitle(ctx, 'ABYSS', 'a raid boss, or five people who would rather you left')
 
   const layout = homeLayout()
-  const labels: Array<[string, string, string]> = [
-    [
+  // Keyed by the choice and laid out in HOME_ORDER, so the word on a button
+  // and what pressing it does are the same list. They were two: the order of
+  // the presses was moved and the words stayed where they were.
+  const face: Partial<Record<HomeChoice, [string, string, string]>> = {
+    raid: [
       'RAID',
       `the citadel from the door · ${ENCOUNTERS.length} of ${WITH_FIGHTS} rooms built`,
       COLORS.castBar,
     ],
-    ['BATTLEGROUND', `${BATTLEGROUNDS.length} maps · five against five`, COLORS.tank],
-    ["TODAY'S RUN", 'one fight a day, the same one for everybody', COLORS.hpBar],
-    ['SETTINGS', 'sound', COLORS.textDim],
-  ]
+    battleground: ['BATTLEGROUND', `${BATTLEGROUNDS.length} maps · five against five`, COLORS.tank],
+    daily: ["TODAY'S RUN", 'one fight a day, the same one for everybody', COLORS.hpBar],
+    settings: ['SETTINGS', 'sound', COLORS.textDim],
+  }
+  const labels = HOME_ORDER.map((choice) => face[choice]!)
   // One measurement for the stack: BATTLEGROUND is half again as long as
   // RAID, and sized apart the two came out at two sizes in one column.
   const text = rowText(
@@ -1495,6 +1503,93 @@ export function drawCredits(ctx: CanvasRenderingContext2D): void {
 
 export function hitCredits(x: number, y: number): 'back' | null {
   return inside(creditsLayout().back, x, y) ? 'back' : null
+}
+
+// --- the end of a wing --------------------------------------------------------
+
+/**
+ * What a wing is called on the screen that says it is done.
+ *
+ * The throne has none: it is the room the wings open, not a wing of its own.
+ */
+export const WING_NAMES: Record<Exclude<WingId, 'throne'>, string> = {
+  lower: 'The Lower Spire',
+  plague: 'The Plagueworks',
+  crimson: 'The Crimson Hall',
+  frostwing: 'The Frostwing Halls',
+}
+
+export interface WingDone {
+  wing: Exclude<WingId, 'throne'>
+  /** The wings still standing, in the order the crossing offers them. */
+  left: Array<Exclude<WingId, 'throne'>>
+  /** Fights down in this lock, and how many it has. */
+  down: number
+  of: number
+  /** Milliseconds until the lock turns over. */
+  untilReset: number
+  /** Which setting, as the map words it. */
+  rung: string
+}
+
+export interface WingDoneLayout {
+  walk: Rect
+  home: Rect
+  top: number
+}
+
+export function wingDoneLayout(): WingDoneLayout {
+  const base = backRect()
+  const gap = 8
+  const w = Math.min(200, (L.w - pad() * 2 - gap) / 2)
+  const h = Math.max(44, base.h)
+  const y = L.h - h - pad()
+  return {
+    walk: { x: L.w / 2 + gap / 2, y, w, h },
+    home: { x: L.w / 2 - gap / 2 - w, y, w, h },
+    top: titleY() + 40 * L.ui * MENU_TEXT,
+  }
+}
+
+/**
+ * The end of a sitting.
+ *
+ * An evening of this game is one wing (wiki: 비전과-방향, the owner's call of
+ * 2026-10-03): the lower spire, or one of the three off the crossing. Every
+ * kill carries on into the walk with no page between, and that is right in the
+ * middle of a wing -- but the last fight of one is where a person puts the game
+ * down, and something has to say so, and say why to come back: what is still
+ * standing this week, and how long the week has left.
+ */
+export function drawWingDone(ctx: CanvasRenderingContext2D, done: WingDone): void {
+  backdrop(ctx)
+  screenTitle(ctx, `${WING_NAMES[done.wing].toUpperCase()} IS DOWN`, done.rung)
+  const layout = wingDoneLayout()
+  const width = Math.min(560, L.w - pad() * 2)
+  const lines = [
+    `${done.down} of ${done.of} fights down this week`,
+    done.left.length > 0
+      ? `still standing: ${done.left.map((w) => WING_NAMES[w]).join(', ')}`
+      : 'every wing is down — the throne is open',
+    `the week turns over ${reads(done.untilReset).replace(/^for /, 'in ').replace('until the hour is out', 'within the hour')}`,
+  ]
+  ctx.textAlign = 'center'
+  let y = layout.top
+  for (const [i, line] of lines.entries()) {
+    ctx.fillStyle = i === 0 ? COLORS.text : COLORS.textDim
+    ctx.font = font(i === 0 ? 12 : 10, i === 0)
+    fitText(ctx, line, L.w / 2, y, width)
+    y += (i === 0 ? 22 : 18) * L.ui * MENU_TEXT
+  }
+  button(ctx, layout.home, 'HOME', '', COLORS.textDim)
+  button(ctx, layout.walk, 'WALK ON', '', COLORS.text)
+}
+
+export function hitWingDone(x: number, y: number): 'walk' | 'home' | null {
+  const layout = wingDoneLayout()
+  if (inside(layout.walk, x, y)) return 'walk'
+  if (inside(layout.home, x, y)) return 'home'
+  return null
 }
 
 // --- settings ---------------------------------------------------------------

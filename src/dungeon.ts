@@ -2773,6 +2773,25 @@ export function wingCleared(wing: WingId, cleared: ReadonlySet<string>): boolean
 }
 
 /**
+ * The wing a kill in `where` just finished, if it finished one.
+ *
+ * The end of a wing is the end of a sitting (see `drawWingDone`), so it is
+ * asked on every kill: was this the last fight standing in its wing. Never the
+ * throne, which is the room the wings open rather than a wing; and never a
+ * wing that was already done, so walking back through a finished one and
+ * killing nothing new says nothing.
+ */
+export function wingFinished(
+  where: string,
+  before: ReadonlySet<string>,
+  after: ReadonlySet<string>,
+): Exclude<WingId, 'throne'> | null {
+  const wing = chamberAt(where)?.wing
+  if (wing === undefined || wing === 'throne') return null
+  return !wingCleared(wing, before) && wingCleared(wing, after) ? wing : null
+}
+
+/**
  * Whether a gate is open, asked strictly: every room it names has to be down.
  *
  * This is the question a *pad* asks, and a pad is earned rather than needed —

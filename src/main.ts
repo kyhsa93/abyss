@@ -66,6 +66,10 @@ import {
   drawCitadel,
   drawCredits,
   drawSettings,
+  drawWingDone,
+  hitWingDone,
+  WING_NAMES,
+  type WingDone,
   hitBgSetup,
   hitCitadel,
   hitDaily,
@@ -177,6 +181,9 @@ import {
   citadelDefenders,
   padAt,
   padsLit,
+  wingCleared,
+  wingFinished,
+  builtFights,
 } from './dungeon'
 import { EXIT_REACH, marchReach, standingIn, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
@@ -702,8 +709,12 @@ let screen:
   | 'settings'
   | 'citadel'
   | 'credits'
+  | 'wing'
   | 'fight'
   | 'history' = 'home'
+
+/** What the end-of-wing screen is saying, while it is up. */
+let wingDone: WingDone | null = null
 
 let history: Attempt[] = loadHistory()
 let awards: Earned = loadAwards()
@@ -1997,6 +2008,21 @@ function updateCredits(tap: { x: number; y: number } | null): void {
   drawCredits(ctx)
 }
 
+function updateWingDone(tap: { x: number; y: number } | null): void {
+  const hit = tap ? hitWingDone(tap.x, tap.y) : null
+  if (hit === 'walk' || wingDone === null) {
+    wingDone = null
+    screen = 'fight'
+    return
+  }
+  if (hit === 'home') {
+    wingDone = null
+    screen = 'home'
+    return
+  }
+  drawWingDone(ctx, wingDone)
+}
+
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
   if (tap) {
     const hit = hitRoster(tap.x, tap.y)
@@ -2182,6 +2208,7 @@ function frame(now: number): void {
     else if (screen === 'settings') updateSettings(tap)
     else if (screen === 'citadel') updateCitadel(tap)
     else if (screen === 'credits') updateCredits(tap)
+    else if (screen === 'wing') updateWingDone(tap)
     else if (screen === 'composition') updateComposition(tap)
     else updateRoster(tap, clock)
     requestAnimationFrame(frame)
@@ -2571,10 +2598,28 @@ function frame(now: number): void {
     // that is no longer drawn. `standIn` clears them, so they are carried.
     const said = announced
     const where = roomId
+    const before = new Set(run.cleared)
     run = clearedRoom(run, where, carriedOut(state))
     saveRun(run)
     standIn(where, null, true)
     announced = said
+    // The last fight of a wing is where a sitting ends, so it gets the one page
+    // a kill does. See `drawWingDone`.
+    const down = new Set(run.cleared)
+    const wing = wingFinished(where, before, down)
+    if (wing !== null) {
+      const now = Date.now()
+      const fights = builtFights()
+      wingDone = {
+        wing,
+        left: (Object.keys(WING_NAMES) as Array<keyof typeof WING_NAMES>).filter((w) => !wingCleared(w, down)),
+        down: fights.filter((c) => down.has(c.id)).length,
+        of: fights.length,
+        untilReset: resetsAt(lockAt(now)) - now,
+        rung: `${run.size}-man ${run.difficulty}`,
+      }
+      screen = 'wing'
+    }
     requestAnimationFrame(frame)
     return
   }
@@ -2681,6 +2726,7 @@ function hitAt(x: number, y: number): string | null {
   if (screen === 'daily') return hitLabel(hitDaily(x, y))
   if (screen === 'settings') return hitLabel(hitSettings(x, y))
   if (screen === 'credits') return hitLabel(hitCredits(x, y))
+  if (screen === 'wing') return hitLabel(hitWingDone(x, y))
   if (screen === 'composition') return hitLabel(hitComposition(x, y, composing))
   if (screen === 'citadel') {
     if (!run) return null

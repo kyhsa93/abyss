@@ -115,7 +115,9 @@ there and then were not.
 ### The whole evening, once
 
 `playpick`'s `clear` mode is the evening end to end: in at the way in, and on
-until something stops it. Nothing else this job does asks the question the walk
+until something stops it. An evening is a wing, so the line a `clear` session is
+judged by is reaching a wing's end page — `__abyss.screen()` reads `wing` there —
+for each of the four wings in turn, not reaching the throne. Nothing else this job does asks the question the walk
 exists to answer, and after three sessions nothing had asked it — the job had
 reached the *first* boss once and fought two single dailies. The history says this
 is the part most likely to be broken. Teleporters nobody could stand on,

@@ -27,6 +27,7 @@ import {
   support,
   wingCleared,
   wingFights,
+  wingFinished,
   type Chamber,
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
@@ -3109,6 +3110,34 @@ expect(
   // wall onto a hundred and thirty-seven yards of nothing, and a player who
   // walked to it asked what it was for.
   expect('and a lift draws no door at either end', noGround.length === 0, noGround.join(', '))
+}
+
+// --- a wing ends on its last fight, and only then ------------------------------
+//
+// The end of a wing is the end of a sitting and gets the one page a kill does.
+// Killed in order, every wing that has fights says so exactly once, on its last
+// fight; the throne never does; and a wing that was already down says nothing
+// when walked back through.
+{
+  const wrong: string[] = []
+  for (const wing of ['lower', 'plague', 'crimson', 'frostwing'] as const) {
+    const fights = wingFights(wing)
+    if (fights.length === 0) continue
+    const down = new Set<string>()
+    fights.forEach((c, i) => {
+      const before = new Set(down)
+      down.add(c.id)
+      const said = wingFinished(c.id, before, down)
+      const want = i === fights.length - 1 ? wing : null
+      if (said !== want) wrong.push(`${wing}: ${c.id} said ${said}, want ${want}`)
+    })
+    const again = fights[fights.length - 1]!
+    if (wingFinished(again.id, down, down) !== null) wrong.push(`${wing}: said twice`)
+  }
+  for (const c of wingFights('throne')) {
+    if (wingFinished(c.id, new Set(), new Set([c.id])) !== null) wrong.push(`the throne said it was a wing`)
+  }
+  expect('a wing says it is done on its last fight, once, and the throne never does', wrong.length === 0, wrong.join(', '))
 }
 
 if (failures > 0) {

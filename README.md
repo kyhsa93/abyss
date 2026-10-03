@@ -87,7 +87,8 @@ type error blocks the deploy.
 ## Getting in
 
 **One question per screen.** The front page asks what kind of thing you are
-doing — RAID, BATTLEGROUND or SETTINGS — and each answer leads to the settings
+doing — RAID, TODAY'S RUN, BATTLEGROUND or SETTINGS, in the order a sitting
+reaches for them — and each answer leads to the settings
 that kind of thing actually has:
 
 ```
@@ -137,6 +138,12 @@ When it falls they open again and the walk carries on from where everybody is
 standing — no report, no meter over the screen, no button saying carry on. The
 meter is on screen during the fight, which is when it is worth reading. A wipe
 keeps its page, because a wipe is the one outcome with a question in it.
+
+One kill does get a page: the last fight of a wing. A sitting is a wing — the
+lower spire, or one of the three off the crossing — so the end of one is where a
+person puts the game down, and the page says what that sitting was worth and why
+to come back: how many of the week's fights are down, which wings still stand,
+and how long the week has left. WALK ON carries on; HOME puts it down.
 
 Nothing else in between is a screen either: the citadel is a spire you climb — one way up for the first four
 fights, a crossing at the top of it, three wings off the crossing that may be
