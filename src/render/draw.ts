@@ -3311,6 +3311,29 @@ function bossAccent(s: SimState): string {
   return s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
 }
 
+/**
+ * How large a boss's picture is drawn, as a footprint `drawBody` can size by.
+ *
+ * Never more than `BOSS_FIGURE_CAP` raiders tall, however wide the boss is.
+ * The width is the source's and the simulation keeps it -- melee stands at its
+ * edge, a cleave reaches from it -- and the disc under the boss is drawn at
+ * exactly that width, so the ground it holds is still on screen to the yard.
+ * What is capped is the figure standing in it: drawn at the boss's own width,
+ * the largest ones covered half a phone, and everything the floor had to say
+ * about where to stand was underneath them.
+ *
+ * The cap is taken before the swell a phase or a gauge adds, and the swell is
+ * clamped to the cap too, so a boss pushed hard still looks bigger than it did
+ * and still never more than twice a person.
+ */
+export const BOSS_FIGURE_CAP = 2
+
+export function bossFigure(r: number, phase: number, gauge: number, sinceBreak: number): number {
+  const person = PARTY_RADIUS * L.scale
+  const swell = (1 + phaseHeat(phase) * 0.3 + gauge * GORGE_SWELL) * breakSwell(sinceBreak)
+  return Math.min(Math.min(r, person * 1.5) * swell, person * BOSS_FIGURE_CAP)
+}
+
 function drawActor(
   ctx: CanvasRenderingContext2D,
   a: Actor,
@@ -3518,6 +3541,13 @@ function drawActor(
     ctx.globalAlpha = 1
   }
 
+  // The edge of the ground it holds, at exactly the width the simulation
+  // judges it at. The path is laid again rather than reused: the boss's core,
+  // its storm and its held breaths each draw a circle of their own above, and
+  // this stroke used to land on whichever came last -- for a living boss that
+  // was the core at half its width, so the one line on the floor that said
+  // where its reach ended was drawn at the wrong reach.
+  footprint(ctx, p.x, p.y, r)
   ctx.globalAlpha = 1
   ctx.strokeStyle = enemy ? (isBoss ? accent : ENEMY_EDGE) : bodied ? color : '#0a0a0f'
   ctx.lineWidth = enemy && isBoss ? 3 : 2
@@ -3623,7 +3653,7 @@ function drawActor(
       // looks is the picture's to say. Fifteen percent a phase, which is a
       // silhouette that has visibly changed between one glance and the next
       // without becoming a different creature.
-      isBoss ? r * (1 + phaseHeat(phase) * 0.3 + gauge * GORGE_SWELL) * breakSwell(sinceBreak) : r,
+      isBoss ? bossFigure(r, phase, gauge, sinceBreak) : r,
       screenAngle(a.facing),
       (a.pos.x + a.pos.y) * STRIDE,
       step > 0.2,

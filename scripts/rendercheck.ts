@@ -21,11 +21,11 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { BOSS_FIGURE_CAP, bossFigure, ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { BOARDING_BEARING, boardingDoor } from '../src/sim/boss'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
-import { walkFrame } from '../src/render/lpcimage'
+import { pixelScale, walkFrame } from '../src/render/lpcimage'
 import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_FRAMES, LPC_ROW } from '../src/render/lpc'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
@@ -11319,6 +11319,74 @@ for (const [label, w, h] of [
   )
   expect('a fight draws its own words', words(front) > 0, `${words(front)}`)
   expect('and a backdrop draws none of them', words(behind) === 0, `${words(behind)} drawn behind a menu`)
+}
+
+
+// --- a boss is drawn as pixel art, no taller than two people, over the ground it holds
+
+{
+  // Every source pixel lands on a whole number of device pixels, or a whole
+  // fraction of one. A scale between two whole numbers draws some columns of
+  // the picture a pixel wider than others; on the largest bosses that was a
+  // mosaic over half a phone.
+  const odd: string[] = []
+  for (const device of [1, 1.5, 2, 3]) {
+    for (let r = 2; r <= 120; r += 0.37) {
+      const px = pixelScale(r, device) * device
+      const whole = px >= 1 ? Number.isInteger(Math.round(px * 1e9) / 1e9) : Number.isInteger(Math.round((1 / px) * 1e9) / 1e9)
+      if (!whole) odd.push(`r=${r.toFixed(2)} dpr=${device} -> ${px}`)
+    }
+  }
+  expect('a source pixel is always a whole number of device pixels, or a whole fraction of one', odd.length === 0, odd.slice(0, 4).join('; '))
+
+  const tall: string[] = []
+  const edge: string[] = []
+  for (const [w, h] of [[390, 844], [1280, 800]] as const) {
+    updateLayout(w, h)
+    const person = PARTY_RADIUS * L.scale
+    for (let i = 0; i < ENCOUNTERS.length; i++) {
+      const s = pulled(0x51ed, 0, undefined, 'normal', i)
+      const boss = s.actors.find((a) => a.id === BOSS_ID)!
+      const r = Math.max(4, boss.radius * L.scale)
+      for (const [phase, gauge] of [[1, 0], [3, 1]] as const) {
+        const figure = bossFigure(r, phase, gauge, 0)
+        if (figure > person * BOSS_FIGURE_CAP + 1e-9) tall.push(`${ENCOUNTERS[i]!.id} at ${w}x${h}: ${(figure / person).toFixed(2)} people`)
+      }
+      // The disc's edge is the width the simulation judges, whatever the
+      // figure standing in it is drawn at.
+      const ops: Array<{ op: string; r?: number; style?: unknown; width?: unknown }> = []
+      const noop = () => {}
+      const pen: Record<string, unknown> = {}
+      const ctx = new Proxy(pen, {
+        get(_t, prop) {
+          if (prop === 'ellipse') return (_x: number, _y: number, rx: number) => ops.push({ op: 'path', r: rx })
+          if (prop === 'arc') return (_x: number, _y: number, rr: number) => ops.push({ op: 'path', r: rr })
+          if (prop === 'stroke') return () => ops.push({ op: 'stroke', style: pen.strokeStyle, width: pen.lineWidth })
+          if (prop === 'measureText') return () => ({ width: 10 })
+          if (prop === 'createRadialGradient' || prop === 'createLinearGradient') return () => ({ addColorStop: noop })
+          if (prop === 'canvas') return { width: L.w, height: L.h }
+          return noop
+        },
+        set: (_t, prop, value) => {
+          pen[prop as string] = value
+          return true
+        },
+      }) as unknown as CanvasRenderingContext2D
+      drawWorld(ctx, s, 1, s.time, new Effects())
+      let last: number | undefined
+      const stroked = ops.some((o) => {
+        if (o.op === 'path') last = o.r
+        // The boss's own edge: its accent, three wide. Other rings are drawn
+        // at this width too (a target's, for one), so a stroke at the right
+        // radius in some other pen is not this one.
+        return o.op === 'stroke' && o.width === 3 && o.style === encounterAt(s.encounter).accent && last !== undefined && Math.abs(last - r) < 1e-6
+      })
+      if (!stroked) edge.push(`${ENCOUNTERS[i]!.id} at ${w}x${h}: no edge at ${r.toFixed(1)}`)
+    }
+  }
+  expect(`no boss is drawn more than ${BOSS_FIGURE_CAP} people tall, at any phase`, tall.length === 0, tall.join('; '))
+  expect('and every boss has an edge stroked at the width the simulation judges it at', edge.length === 0, edge.join('; '))
+  updateLayout(1280, 800)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

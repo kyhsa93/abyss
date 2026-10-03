@@ -172,6 +172,23 @@ export function bodyHeight(r: number): number {
   return r * BODY * SQUASH
 }
 
+/**
+ * Canvas units a source pixel is drawn at, for a body of footprint `r`.
+ *
+ * Snapped so that one source pixel lands on a whole number of *device*
+ * pixels, or on a whole fraction of one. Unsnapped, a boss nine yards wide was
+ * drawn at ten and a bit device pixels a source pixel on a phone, and a scale
+ * that is not whole draws some source columns one device pixel wider than
+ * their neighbours -- across a body that size the picture stopped being pixel
+ * art and became a mosaic. `device` is device pixels per canvas unit, which is
+ * the canvas transform's own scale.
+ */
+export function pixelScale(r: number, device: number): number {
+  const want = ((r * BODY * SQUASH) / LPC_BODY) * device
+  const whole = want >= 1 ? Math.round(want) : 1 / Math.max(1, Math.round(1 / want))
+  return whole / device
+}
+
 export function drawBody(
   ctx: CanvasRenderingContext2D,
   id: string,
@@ -238,7 +255,7 @@ export function drawBody(
   // when there is not. What has to come out at the intended size is
   // `LPC_BODY`, which every cell holds centred whatever its width, and the
   // rest of the cell is drawn at whatever scale that implies.
-  const scale = (r * BODY * SQUASH) / LPC_BODY
+  const scale = pixelScale(r, ctx.getTransform().a)
 
   ctx.save()
   ctx.globalAlpha = alpha
