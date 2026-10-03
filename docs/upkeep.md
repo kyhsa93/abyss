@@ -169,8 +169,14 @@ belong in this game, however good it is.
 1. `gh issue list --state all --limit 100` — what is already known, open and closed
 2. `README.md` "What it is", then this file
 3. `git log --oneline -20` — what landed since last week
-4. `npm run check` — this runs the harness once and the bands with it
-5. If a band is red: find which commit moved it, retune, re-run `npm run check`,
-   push. If retuning would need a design decision, open an issue instead.
-6. Run the four greps above. Anything broken is an issue, not a commit.
+4. The bands file the runner left — `upkeep.sh` fetches the last green CI run's
+   sweep and checks the bands against it before the session starts, because the
+   sweep takes fifty minutes and two weeks were lost to a session that started it
+   in the background, ended its turn and was logged as done. Say what it says on
+   one line starting `BANDS:`; a week without that line is not counted.
+5. If a band is red: find which commit moved it, retune, run `npm run check` **in
+   the foreground**, push. If retuning would need a design decision, open an issue
+   instead.
+6. Run the four greps above. Anything broken is an issue, not a commit. The fourth
+   is in the gate now (`npm run lawcheck`); check that it still runs in `check`.
 7. Report: what was checked, what was changed, what was filed, and why not more.

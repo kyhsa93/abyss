@@ -59,6 +59,31 @@ fi
 
 log "upkeep start $WEEK ($(git rev-parse --short HEAD))${READONLY:+ [read-only]}"
 
+# **The sweep is read off CI, not run here.** It takes about fifty minutes, and
+# the session used to be told to run it in the background and read the tables
+# -- so W39 and W40 started it, ended their turn, and were logged as done two
+# minutes in, having read nothing. CI runs the same sweep on every push to
+# main and keeps it, so the runner fetches the last green run's tables and the
+# bands are checked against them before the session starts. The session reads a
+# file; nothing it is told to read is still being written.
+HARNESS="$LOGDIR/harness-$WEEK.txt"
+BANDS="$LOGDIR/bands-$WEEK.txt"
+CI_RUN="$(gh run list --branch main --workflow Deploy --status success --limit 1 --json databaseId,headSha \
+  -q '.[0] | "\(.databaseId) \(.headSha[0:7])"' 2>>"$LOG")"
+PARTS="$LOGDIR/parts-$WEEK"
+rm -rf "$PARTS"
+if [ -n "$CI_RUN" ] && gh run download "${CI_RUN%% *}" -p 'harness-*' -D "$PARTS" >>"$LOG" 2>&1; then
+  # By file name, which is the order one process would have printed them in;
+  # the artifacts land in a directory per runner, so a sort on the whole path
+  # interleaves the runners and splits every table across the seams.
+  cat $(find "$PARTS" -name 'part-*.txt' -printf '%f\t%p\n' | sort | cut -f2) > "$HARNESS"
+  ABYSS_HARNESS_OUT="$HARNESS" npm run -s balancecheck > "$BANDS" 2>&1
+  log "bands read off CI run $CI_RUN: $(grep -c '^balancecheck: .* — ok' "$BANDS") ok, $(grep -c '^  - ' "$BANDS") line(s) crossed"
+else
+  log "fail: could not fetch the sweep from CI -- no session this tick"
+  exit 1
+fi
+
 PERMISSION="If a band is red you may retune the numbers it measures, run \`npm run check\`,
 and push once it passes. Stage only files you changed yourself — never \`git add -A\`,
 never \`git add .\`."
@@ -90,8 +115,15 @@ section of the README. Both are decisions for a person; open an issue with the a
 
 - **Run \`gh issue list --state all --limit 100\` first.** Closed ones too — a closed issue is
   a decision somebody already made.
-- **\`npm run check\` takes about an hour.** Run it once, in the background, and read the
-  tables it prints. Do not run it twice.
+- **The sweep has already run.** CI ran it on \`${CI_RUN#* }\` and the runner checked the
+  bands against it before you started: the tables are in \`$HARNESS\` and the band
+  results in \`$BANDS\`. Read those. Do not run \`npm run check\` or the harness to look.
+- **Only if you change a number** do you run \`npm run check\`, and then **in the
+  foreground, never in the background**: it takes about fifty minutes and ending your
+  turn ends the session. Two weeks were lost to a check started in the background and
+  never read.
+- **Your report must contain one line starting \`BANDS:\`** that says what the bands file
+  said, band by band. The runner does not count the week as done without it.
 - **Measure before you claim.** Every number in an issue or a commit message comes from a
   command you actually ran, and the command goes in with it.
 - **0 issues is a normal week.** Two is a cap, not a target.
@@ -104,11 +136,18 @@ section of the README. Both are decisions for a person; open an issue with the a
 
 Report what you checked, what you changed, what you filed, and why there was not more."
 
+SAID="$LOGDIR/said-$WEEK.txt"
 timeout 7200 claude -p "$PROMPT" \
   --model claude-sonnet-5 \
   --allowedTools Bash Read Glob Grep Edit Write WebFetch \
-  >> "$LOG" 2>&1
+  > "$SAID" 2>&1
 RC=$?
+cat "$SAID" >> "$LOG"
+# A week that never said what the bands said did not read them.
+if [ "$RC" -eq 0 ] && ! grep -q '^BANDS:' "$SAID"; then
+  log "fail: the session reported no BANDS: line -- not counting this week as done"
+  exit 1
+fi
 
 if [ -n "$READONLY" ]; then
   NOW="$(git status --porcelain)"
