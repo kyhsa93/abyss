@@ -511,6 +511,53 @@ export const CLASS_COLORS: Record<string, string> = {
   rogue: '#fff569',
 }
 
+/**
+ * Whether a colour reads as danger on this floor.
+ *
+ * Everything that hurts here is drawn red, orange, yellow or magenta, so that
+ * band of hues -- 320° round through 0° to 63° -- belongs to hazards. A ring on
+ * the ground in the same band says "danger" whatever it was meant to say; a
+ * druid's orange read as a warning and a paladin's pink as a pool. Near-greys
+ * are outside it whatever their hue: below 0.15 saturation there is no hue to
+ * read. The fifteen degrees either side of the hazards actually drawn are a
+ * margin chosen, not measured (art direction, wiki: 아트-디렉션).
+ */
+export function readsAsDanger(hex: string): boolean {
+  const n = Number.parseInt(hex.replace('#', ''), 16)
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255) as [number, number, number]
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const light = (max + min) / 2
+  const chroma = max - min
+  const sat = chroma === 0 ? 0 : chroma / (1 - Math.abs(2 * light - 1))
+  if (sat < 0.15) return false
+  let hue = 0
+  if (max === r) hue = ((g - b) / chroma) % 6
+  else if (max === g) hue = (b - r) / chroma + 2
+  else hue = (r - g) / chroma + 4
+  hue = (hue * 60 + 360) % 360
+  return hue >= 320 || hue <= 63
+}
+
+/**
+ * What a party member's ground is drawn in: the role, never the class.
+ *
+ * The class is on the body (the sprite) and in the frames; on the floor the
+ * colours are the hazards', and four of the nine class colours sit in their
+ * band (`readsAsDanger`). What the floor has to tell apart about a raider is
+ * whether it is a tank, a healer or one of the rest -- and which one is you,
+ * which has its own green ring.
+ */
+export const ROLE_FLOOR = {
+  tank: '#60a5fa',
+  healer: '#a78bfa',
+  dps: '#cbd5e1',
+} as const
+
+export function floorColor(role: string): string {
+  return role === 'tank' ? ROLE_FLOOR.tank : role === 'healer' ? ROLE_FLOOR.healer : ROLE_FLOOR.dps
+}
+
 export function classColor(classId: string): string {
   return CLASS_COLORS[classId] ?? COLORS.text
 }

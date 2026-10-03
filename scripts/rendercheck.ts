@@ -94,7 +94,7 @@ import {
   parseInvite,
 } from '../src/share'
 import { VOLUME_NAMES } from '../src/sfx'
-import { COLORS, L, classColor, updateLayout } from '../src/render/theme'
+import { CLASS_COLORS, COLORS, L, ROLE_FLOOR, classColor, readsAsDanger, updateLayout } from '../src/render/theme'
 import { ABILITIES, type Ability } from '../src/sim/abilities'
 import {
   abilityBar,
@@ -11596,6 +11596,55 @@ for (const [label, w, h] of [
   for (const key of Object.keys(WORDS_HELD)) {
     if (!seen.has(key)) expect(`${key} is held and was not drawn: take it off WORDS_HELD`, false, key)
   }
+}
+
+
+// --- nothing on the floor that is not a hazard wears a hazard's colour --------
+
+{
+  // The rule, and the colours it exists to catch. Four class colours sit in
+  // the hazards' band, and they are exactly the ones that were misread on the
+  // floor: the druid's orange as a warning, the paladin's pink as a pool, the
+  // rogue's yellow and the warrior's tan beside fire. If this list ever reads
+  // differently the rule has changed under it.
+  const inBand = Object.entries(CLASS_COLORS).filter(([, c]) => readsAsDanger(c)).map(([id]) => id).sort()
+  expect('the hazard band catches the four class colours that read as hazards', inBand.join() === 'druid,paladin,rogue,warrior', inBand.join())
+  expect('and no role colour on the floor is in it', Object.values(ROLE_FLOOR).every((c) => !readsAsDanger(c)), JSON.stringify(ROLE_FLOOR))
+
+  // And the floor does not wear a class colour at all: every ellipse drawn
+  // under a raid, stroked or filled, in a full ten-man pull.
+  updateLayout(390, 844)
+  const s = pulled(0x51ed, 0, autoParty(10, pickFor('druid', 'tank')!), 'normal', 0)
+  const rng = new Rng(0x51ed)
+  for (let t = 0; t < 600; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const worn: string[] = []
+  const noop = () => {}
+  const pen: Record<string, unknown> = {}
+  let ellipse = false
+  const classes = new Set(Object.values(CLASS_COLORS).map((c) => c.toLowerCase()))
+  const ctx = new Proxy(pen, {
+    get(_t, prop) {
+      if (prop === 'beginPath') return () => { ellipse = false }
+      if (prop === 'ellipse') return () => { ellipse = true }
+      if (prop === 'stroke' || prop === 'fill') {
+        return () => {
+          const c = String(prop === 'stroke' ? pen.strokeStyle : pen.fillStyle).toLowerCase()
+          if (ellipse && classes.has(c)) worn.push(c)
+        }
+      }
+      if (prop === 'measureText') return () => ({ width: 10 })
+      if (prop === 'createRadialGradient' || prop === 'createLinearGradient') return () => ({ addColorStop: noop })
+      if (prop === 'canvas') return { width: L.w, height: L.h }
+      return noop
+    },
+    set: (_t, prop, value) => {
+      pen[prop as string] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  drawWorld(ctx, s, 1, s.time, new Effects())
+  expect('no ring on the floor is drawn in a class colour', worn.length === 0, [...new Set(worn)].join(', '))
+  updateLayout(1280, 800)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

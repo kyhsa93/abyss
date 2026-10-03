@@ -55,7 +55,7 @@ import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { drawBystanders, drawGrave, drawObstacles, drawProps, drawSurround, floorTexture } from './scenery'
 import { EDGE_LAP, fromRoom, roomAt, roomHasOutside, roomReach, type RoomShape } from '../sim/room'
-import { COLORS, L, classColor, setWorldRoom, worldRoom } from './theme'
+import { COLORS, L, floorColor, setWorldRoom, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
 import { drawFxLoop } from './fximage'
@@ -3225,11 +3225,12 @@ function drawSwallowed(
   ctx.setLineDash([])
 
   // And one ring per body inside, tight to the boss and in the colour of
-  // whoever it is, so the raid can see which of them it is holding.
+  // whoever it is, so the raid can see which of them it is holding. The role's
+  // colour, as everywhere on the floor (`floorColor`).
   let lap = 0
   for (const a of inside) {
     footprint(ctx, p.x, p.y, Math.max(4, b.radius * L.scale) + 6 + lap * 4)
-    ctx.strokeStyle = classColor(a.classId)
+    ctx.strokeStyle = floorColor(a.role)
     ctx.lineWidth = 2
     ctx.stroke()
     lap++
@@ -3393,14 +3394,17 @@ function drawActor(
   // Everything that is trying to kill the party, under one name: a boss, its
   // thralls, and the other five in a battleground.
   const enemy = a.alive && (isBoss || isAdd || hostile)
-  // Colour says the class, the glyph says the role. You are still the one
-  // with a ring around you, which is what picks you out of twenty-five.
+  // On the floor the colour says the role and the glyph says it again; the
+  // class is the body standing on it. Class colours were on the floor here
+  // until four of them turned out to be hazard colours -- see `floorColor`.
+  // You are still the one with a green ring around you, which is what picks
+  // you out of twenty-five.
   const color = a.alive
     ? isBoss
       ? accent
       : isAdd
         ? '#a855f7'
-        : classColor(a.classId)
+        : floorColor(a.role)
     : COLORS.dead
 
   if (a.isPlayer && a.alive) {
