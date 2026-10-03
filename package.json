@@ -30,6 +30,7 @@
     "playbot": "esbuild scripts/playbot.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/playbot.mjs --log-level=error && node node_modules/.cache/playbot.mjs",
     "playpick": "esbuild scripts/playpick.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/playpick.mjs --log-level=error && node node_modules/.cache/playpick.mjs",
     "decideprobe": "esbuild scripts/decideprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/decideprobe.mjs --log-level=error && node node_modules/.cache/decideprobe.mjs",
+    "walkprobe": "esbuild scripts/walkprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/walkprobe.mjs --log-level=error && node node_modules/.cache/walkprobe.mjs",
     "deadprobe": "esbuild scripts/deadprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/deadprobe.mjs --log-level=error && node node_modules/.cache/deadprobe.mjs"
   },
   "devDependencies": {
