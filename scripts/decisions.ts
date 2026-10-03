@@ -12,11 +12,12 @@ import type { PlayerInput, SimState } from '../src/sim/types'
  * Each entry names its policies. `judge` is required and is the best play this
  * file knows; the others are the rules it has to beat. `decideprobe` adds the
  * three every fight gets -- `idle`, `rotate` and `played` -- so an entry only
- * writes what is particular to its decision.
+ * writes what is particular to its decision. A fight with no entry is probed
+ * with `played` standing in for `judge`.
  *
- * Empty until the first decision is built (#290). A fight with no entry is
- * probed with `played` standing in for `judge`, which is the baseline: what
- * judgement is worth in a fight that does not yet ask for any.
+ * Empty. The first entry, the Crimson Gift's herald (#290), was built and
+ * measured and did not pass, so it is not here; the rules it was built with,
+ * the policies it was played by and the tables it produced are on that issue.
  */
 export type Policy = (s: SimState, tick: number, pressed: number[]) => PlayerInput
 
