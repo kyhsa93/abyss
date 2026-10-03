@@ -74,6 +74,32 @@ const BG_MARGIN = 20
  */
 const RAID_INVERSION = 15
 
+/**
+ * What playing a raid fight has to be worth: twenty points over a body that
+ * does nothing, the same margin the battleground band asks for.
+ *
+ * Five fights are short of it, and a band that is red the day it lands is a
+ * band somebody widens -- so it lands as a ratchet. Each fight short of the
+ * line is written down at what it is worth today, and may not fall below
+ * that; a fight that reaches the line has to come off the list, so the list
+ * only ever gets shorter. Lowering a number on it is a visible edit to this
+ * file, which is the point: it is the one change this band exists to make
+ * somebody argue for.
+ *
+ * Read off CI on 59cf949 (90 pulls a row, 10 heroic; two standard errors on a
+ * difference is about fifteen points, so any of these can move that far when
+ * the simulation changes for some other reason -- and then the number here is
+ * updated in the same commit, with the reason).
+ */
+const RAID_MARGIN = 20
+const RAID_SHORT: Record<string, number> = {
+  'The Reeking Host': 0,
+  'The Bloodgorged': 15,
+  'The Last Whisper': 16,
+  'The One You Save': -9,
+  'The Crimson Gift': 0,
+}
+
 const BANDS: Band[] = [
   {
     name: 'no spec is a trap',
@@ -176,6 +202,43 @@ const BANDS: Band[] = [
             `${boss}: standing still wins ${idle}% and playing wins ${played}% ` +
               `(playing may trail by at most ${RAID_INVERSION})`,
           )
+        }
+      }
+      return bad
+    },
+  },
+  {
+    name: 'a raid rewards playing it',
+    why:
+      'the content that needs a group is the whole of what this game offers, and a fight that ' +
+      'a body standing still wins as often as a person playing it is not one the person is in',
+    check: (text) => {
+      const wins = new Map<string, Map<string, number>>()
+      const found = rows(text, /^raid {2,}drive /m).slice(1)
+      const bad = atLeast(found, ENCOUNTERS.length * 2, 'the raid reward table')
+      for (const line of found) {
+        const [, drive] = line.split(/\s{2,}/)
+        const win = percents(line)[0]
+        if (drive === undefined || win === undefined) continue
+        const map = wins.get(label(line)) ?? new Map<string, number>()
+        map.set(drive.trim(), win)
+        wins.set(label(line), map)
+      }
+      for (const boss of Object.keys(RAID_SHORT)) {
+        if (!wins.has(boss)) bad.push(`${boss} is on the short list and not in the table: take it off`)
+      }
+      for (const [boss, drives] of wins) {
+        const played = drives.get('played')
+        const idle = drives.get('idle')
+        if (played === undefined || idle === undefined) continue
+        const worth = played - idle
+        const floor = RAID_SHORT[boss]
+        if (floor === undefined && worth < RAID_MARGIN) {
+          bad.push(`${boss}: playing is worth ${worth} points (want ${RAID_MARGIN})`)
+        } else if (floor !== undefined && worth >= RAID_MARGIN) {
+          bad.push(`${boss}: playing is worth ${worth} points now -- take it off RAID_SHORT`)
+        } else if (floor !== undefined && worth < floor) {
+          bad.push(`${boss}: playing is worth ${worth} points, below the ${floor} it was held at`)
         }
       }
       return bad
