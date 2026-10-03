@@ -4,8 +4,9 @@
 
 **Single-player multiplayer.** The content that needs a group — a raid boss, a
 battleground — played alone, at any hour, with nobody to wait for and no server
-to run. You pick one of fifteen specs; everybody else on the field is AI. No
-assets, no network: everything is shapes, timers and a deterministic simulation.
+to run, from a seat the fight is lost without. You pick one of fifteen specs;
+everybody else on the field is AI. No network: every picture is from a licensed
+pack, and everything that happens is a timer in a deterministic simulation.
 
 ## What it is
 
@@ -16,25 +17,47 @@ buys and what it forbids.
 and learning the fight is the whole genre. The only randomness is *who* gets
 targeted. See [Design](#design).
 
-**Everyone else has to read as a person.** This is not a flourish on top of the
-AI — it is the product. A party of perfect bots is a solver with a health bar,
-and playing alongside it is not multiplayer in any sense a player would accept.
-So the AI carries reaction delay, fumbles, personalities and a clustering term
-that pulls it away from the optimal tile.
+**Everyone else has to read as a person — and does not make your calls for
+you.** This is not a flourish on top of the AI — it is the product. A party of
+perfect bots is a solver with a health bar, and playing alongside it is not
+multiplayer in any sense a player would accept. So the AI carries reaction
+delay, fumbles, personalities and a clustering term that pulls it away from the
+optimal tile. And a person in a raid is somebody the raid needs: a party that
+wins whether or not you play has made you a spectator, which is the one thing
+this game cannot be. So each fight keeps one person's worth of judgement that
+the AI does not take, unless you are dead.
 
-**Nothing on your character gets stronger.** There is no gear, no level, no
-currency. What a kill opens is more of the game, never a bigger number, and what
-improves between attempts is you. Take this away and the fights would have to be
-tuned around a power curve instead of around a player learning them.
+**Nothing on your character gets stronger. Your party's hands get quicker with
+every pull. The calls never do — those are yours.** There is no gear, no level,
+no currency. What a kill opens is more of the game, never a bigger number. The
+party does learn a fight's hands — it reacts sooner and fumbles less each pull,
+see [Getting better at it](#getting-better-at-it) — but what it judges
+dangerous never changes with the attempt, and `npm run lawcheck` holds that.
+What improves in the decisions is you. Take this away and the fights would have
+to be tuned around a power curve instead of around a player learning them.
 
 **The simulation is deterministic.** Same seed, same fight, down to the tick.
 That is what lets today's run be *the same run everybody else got*, which is how
 a game with no server still offers the thing a server usually provides. It is
-also what would later allow replays and verified scores.
+also what would later allow replays and verified scores. `npm run lawcheck`
+holds it in the gate.
+
+**Every fight has a decision in it that can be got wrong.** A lever with one
+right answer is compliance wherever it is put — a rotation on cooldown, a
+puddle to step out of, a call to press. What makes a fight a fight is a choice
+where always doing it and never doing it both lose to judging it. This is the
+youngest of the five and the one the game least keeps today: playing beats
+standing still by twenty points in six fights of eleven, and the rest are held
+where they are until they do (`a raid rewards playing it`, in the gate).
 
 What the sentence rules out: character progression, loot, gacha, matchmaking,
-live services, and anything that needs an artist. Those are not omissions to be
-filled in later. Each of them breaks one of the four above.
+live services; art drawn for this game by itself, or art whose author nobody
+recorded — licensed packs are used, and every name their licences require is in
+the game; a fight a body standing still wins as often as a person playing it;
+and a button pressed for somebody else, a raid call or an order, because a
+judgement made with a button is one the party AI cannot make and a person would
+make instantly. Those are not omissions to be filled in later. Each of them
+breaks one of the five above.
 
 ### Shapes of the same promise
 
@@ -396,12 +419,13 @@ what that setting is about.
 
 ## How close the camera sits
 
-Four settings, from the arena fitted to the screen out to nearly twice that.
-One is the framing every layout number in the game was worked out against —
-but it is not where the camera starts. **The default is the closest step**,
-because fitting the whole arena on screen is the wrong framing for what the
-game actually asks you to do: read your own token, your own numbers and the
-shape under your feet. The arena's edges are what the minimap is for.
+Seven settings, `FAR` to `FACE`, from the arena fitted to the screen in to
+nearly fourteen times closer. `FAR` is the framing every layout number in the
+game was worked out against — but it is not where the camera starts. **The
+default is `IN`, the fourth**, where a body is about a twelfth of the screen,
+which is what standing in the source's own raid looks like; fitting the whole
+arena on screen is the wrong framing for what the game actually asks you to
+do: read your own token, your own numbers and the shape under your feet. The arena's edges are what the minimap is for.
 
 It is a multiplier on the fitted arena radius, not a transform of its own, so
 everything drawn in world units moves together and nothing else has to know
@@ -901,7 +925,7 @@ party screen's first row picks what PULL does: the raid, or one of these.
 | --- | --- | --- |
 | The Three Cairns | hold ground, and the clock does the rest | 400 points, or 300s |
 | The Long Haul | walk yours forward, and stand in front of theirs | a cart arriving, or 300s |
-| Ebb and Flow | carry theirs home while yours is still standing | 3 captures, or 360s |
+| Ebb and Flow | carry theirs home while yours is still standing | 3 captures, or 180s |
 
 A point is taken by standing on it, four seconds from neutral and eight from
 the other team's. It pays only at the far end of that bar, so pulling one back
