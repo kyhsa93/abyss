@@ -1,0 +1,49 @@
+# Cell from playpick: mode=battleground map=escort (The Long Haul),
+# spec=shaman:elemental, style=dodge, view=844x390,touch, save=carried
+# (behaves as fresh per #273 -- playbot's own port is per-run, so
+# localStorage never actually carries across separate invocations).
+#
+# New: direction.md's #7 already has a dodge+escort+shaman:elemental
+# reading, but only at 820x1180 portrait (2026-09-25); the only 844x390
+# landscape dodge reading on escort used a different spec (warlock:
+# destruction, 2026-09-26). Neither of those, nor anything else on #7,
+# ever switched styles inside one live match -- every entry is one style
+# for the whole pull. This session plays the picked style first to get a
+# landscape/shaman datapoint, then switches to `good` partway through the
+# same match (no reload, no re-pull) to see whether turning a passive body
+# active mid-match can recover lost ground, or whether it only shortens the
+# body's own survival the way `good` has on every *other* battleground map
+# -- a thing no session has tried yet because every prior comparison was
+# two separate pulls, not one pull with a style change inside it.
+open
+tap battleground
+tap map:escort
+targets
+tap class:shaman:elemental
+shot class-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+state
+ui
+play dodge 90
+shot mid1
+state
+bill
+wait 2
+play dodge 90
+shot mid2
+state
+bill
+wait 2
+play good 60
+shot switched
+state
+bill
+wait 2
+play good 60
+shot end1
+state
+bill
+says
+targets

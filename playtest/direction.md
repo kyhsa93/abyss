@@ -7059,6 +7059,48 @@ other active style on this map has already shown, melee included.
 Reproduction: `playtest/plans/2026-10-03-1.play`, `mid1.png` under
 `/tmp/pt-2026-10-03-1/shots/`.
 
+**2026-10-03, the first live style switch inside one battleground pull, and
+the first escort reading at landscape phone with shaman:elemental.**
+`playpick` gave `map=escort spec=shaman:elemental style=dodge
+view=844x390,touch save=carried` (`playtest/plans/2026-10-03-9.play`) --
+this exact spec+style+map combination had only been read at 820x1180
+portrait before (2026-09-25); 844x390 landscape dodge on escort had only
+been read on warlock:destruction. Played the picked style straight for
+180s first (two `play dodge 90` chunks): `presses=0 inDanger=0%` both
+times, `bill` taken=108 total the whole way (takenPerMin falling from 74.3
+to 36.1 -- chip damage only), heroHp holding at 1332/1440 throughout,
+matching every prior dodge/flee reading on this line. The rest of the team
+did not hold as well on its own: `aliveParty` read 5/5 at 87s and 4/5 by
+179s while the passive body stayed untouched.
+
+Then, no reload and no re-pull, switched the same live pull to `good` for
+the remainder -- something no entry on this line has tried; every prior
+passive/active comparison on a battleground has been two separate pulls,
+never a style change inside one. `good` killed the body within about 18
+seconds of the switch: `FAULT not-a-number {hero:null,hp:0}` at 204.7s
+against a switch that started near fightTime=179s, `bill` taken jumping
+from 108 to 1522 in that one window (takenPerMin 463.1), `died=true`.
+`switched.png` shows the same shape every active-style death on this line
+has already shown -- the token DOWN, standing inside two overlapping large
+red hazard rings it had been nowhere near while passive. The match never
+reached a result screen in the ~200s watched (team down to 3/5, the
+switched body dead for the remainder), so this does not test whether
+`good` would turn a loss around over a full match, only that turning a
+passive, safe body active mid-match reproduces the near-immediate death
+every separate-pull `good`/`melee` reading on escort, conquest and flags
+has already shown. The `not-a-number` fault across the death is the
+already-documented driver artifact from the 2026-09-24 entry above (hero()
+nulls on any battleground death, not a wipe) -- not a new finding, the same
+artifact confirmed once more, now across a mid-match switch rather than a
+fresh pull.
+
+Gate held shut at fourteen open issues; nothing filed. This sharpens rather
+than disproves the line: effort kills the body on this map whether it
+arrives as a separate active pull or a switch away from passive play
+inside one that was otherwise surviving cleanly. Reproduction:
+`playtest/plans/2026-10-03-9.play`, `mid1.png`/`mid2.png`/`switched.png`/
+`end1.png` under `/tmp/pt-2026-10-03-9/shots/`.
+
 ### Not yet filed
 
 Observations that do not belong to any of the seven numbered hypotheses above,
