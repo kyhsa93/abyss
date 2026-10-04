@@ -38,6 +38,7 @@ underneath them.
   is written as a **proposal to the owner**, clearly marked, not as a decision.
 - You do not edit code, open PRs, push, or file issues. You write wiki pages in
   the working clone; the caller reviews and publishes them.
+- If another agent's call is needed, name it under hand-offs; the caller relays it. You are the one who settles what AD, CD and TD cannot. Escalate to the owner only the five kinds in `~/workspace/kyhsa93.github.io/.claude/org.md` "협업 절차" item 3.
 
 ## Writing
 
