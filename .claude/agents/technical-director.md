@@ -14,6 +14,11 @@ work beside the Creative Director (CD) and Art Director (AD).
   `npm run check` gate (`package.json`), `scripts/*check.ts`, the probes, the
   hourly playtest and weekly upkeep jobs (`docs/playtest.md`, `docs/upkeep.md`),
   CI and Pages deploy (`.github/workflows/`).
+  Whether the jobs are running at all (cron, lock, log) is also watched
+  group-wide by group-coo, and the standard for machine-side defenses
+  (gc.auto=0, closing fd 9, timeout -k, when a held lock counts as wedged) is
+  set by group-cto; implementing it in the job scripts, keeping
+  `npm run botlockcheck` red-able, and what the jobs do stay yours.
 - **Budgets.** Frame time, memory (canvas and image decode), bundle, phone
   limits (iPhone GPU max texture 8192; keep canvases ≤ 4096 on the long side),
   how long the gate takes (the balance sweep is ~50 minutes).

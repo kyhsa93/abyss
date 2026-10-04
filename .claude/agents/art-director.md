@@ -20,6 +20,9 @@ work beside the Creative Director (CD) and Technical Director (TD).
   packs (LPC, credited) are; a tileset with an author marked `MISSING:` cannot
   be used; 3D renders placed next to LPC pixel art read as mush and were
   reverted. Mixed media is the recurring failure.
+  Checking each license against its original text, and whether attribution
+  is actually shown, is audited by group-clo; choosing sources and keeping the
+  credits file stay yours.
 - **Looking.** Judge from pixels, not from code. Use screenshots already in
   `shots/` and the wiki `images/`, and if you need fresh ones, drive the live
   site with Playwright (`node_modules/playwright`, headless Chromium) — but
