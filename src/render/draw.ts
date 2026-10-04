@@ -4235,7 +4235,10 @@ function drawBubbles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, 
  *
  * Only the seven the source wrote lines for -- see `Bystander.says`. The
  * fourteen vendors beside them have nothing in `creature_text` and are left
- * silent rather than given words this game made up.
+ * silent. The seven used to say the source's lines word for word; since
+ * 2026-10-04 the words are this game's (the owner's call: the source's words
+ * put the risk on a person, not on the site), and `npm run namecheck` holds
+ * it. Who speaks, and how many lines each, is still read off the source.
  *
  * Only while somebody is close enough to be spoken to, and `PULL` is what
  * close means everywhere else in this building: the twenty yards at which a

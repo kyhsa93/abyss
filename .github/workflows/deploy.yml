@@ -56,6 +56,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run conceptcheck
+      - run: npm run namecheck
       # Was not run here at all, for no reason anybody wrote down: it is in
       # `npm run check` and it answers in a second.
       - run: npm run artcheck

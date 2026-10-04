@@ -1708,5 +1708,5 @@ export const PLAIN_CORRIDOR: Corridor = {
   room: ROUND_ARENA,
   entry: { x: 0, y: 700 },
   ways: [{ to: 'plain', at: { x: 0, y: -700 } }],
-  packs: [{ pos: { x: 0, y: 200 }, of: ['The Damned', 'The Damned', 'The Damned', 'The Damned'], pulls: 260 }],
+  packs: [{ pos: { x: 0, y: 200 }, of: ['The Unburied', 'The Unburied', 'The Unburied', 'The Unburied'], pulls: 260 }],
 }

@@ -3766,22 +3766,22 @@ export const ENCOUNTERS: Encounter[] = [
     bystanders: [
       // Amidships, where the source puts its three sorcerers: one forward of
       // the mast and two abreast behind it.
-      { pos: { x: 0, y: -430 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Skybreaker Sorcerer' },
-      { pos: { x: -300, y: -330 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Skybreaker Sorcerer' },
-      { pos: { x: 300, y: -330 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Skybreaker Sorcerer' },
+      { pos: { x: 0, y: -430 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Highdeck Sorcerer' },
+      { pos: { x: -300, y: -330 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Highdeck Sorcerer' },
+      { pos: { x: 300, y: -330 }, look: 'mage-frost', facing: Math.PI / 2, name: 'Highdeck Sorcerer' },
       // Port rail, firing across at the other ship. Eight in the source, and
       // the four a ten-man sees are the first four of them.
-      { pos: { x: -559, y: 406 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
-      { pos: { x: -676, y: 144 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
-      { pos: { x: -676, y: -144 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
-      { pos: { x: -559, y: -406 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Skybreaker Rifleman' },
+      { pos: { x: -559, y: 406 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Highdeck Rifleman' },
+      { pos: { x: -676, y: 144 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Highdeck Rifleman' },
+      { pos: { x: -676, y: -144 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Highdeck Rifleman' },
+      { pos: { x: -559, y: -406 }, look: 'hunter-marksmanship', facing: Math.PI, name: 'Highdeck Rifleman' },
       // Starboard rail: the mortar soldiers, who lob over the rail rather than
       // across it, which is why the source stands them on the far side.
-      { pos: { x: 649, y: -236 }, look: 'warrior-arms', facing: 0, name: 'Skybreaker Mortar Soldier' },
-      { pos: { x: 649, y: 236 }, look: 'warrior-arms', facing: 0, name: 'Skybreaker Mortar Soldier' },
+      { pos: { x: 649, y: -236 }, look: 'warrior-arms', facing: 0, name: 'Highdeck Mortarman' },
+      { pos: { x: 649, y: 236 }, look: 'warrior-arms', facing: 0, name: 'Highdeck Mortarman' },
       // And one deckhand, which is the whole of what the source places on this
       // deck that is not a weapon.
-      { pos: { x: -180, y: 430 }, look: 'warrior-protection', facing: Math.PI / 2, name: 'Skybreaker Deckhand' },
+      { pos: { x: -180, y: 430 }, look: 'warrior-protection', facing: Math.PI / 2, name: 'Highdeck Deckhand' },
     ],
     kit: ['boarding', 'mortar', 'rocket', 'axes', 'hull', 'cannon'],
     herald: null,

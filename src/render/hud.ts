@@ -1221,7 +1221,7 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.fillStyle = '#c084fc'
     ctx.font = font(11, true)
     ctx.textAlign = 'left'
-    ctx.fillText(`thralls ${summoned.length}`, x, y + 34 * L.ui)
+    ctx.fillText(`hollowed ${summoned.length}`, x, y + 34 * L.ui)
   }
 
   drawGauge(ctx, s, x, y + 40 * L.ui, w)

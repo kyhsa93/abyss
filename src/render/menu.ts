@@ -1513,10 +1513,10 @@ export function hitCredits(x: number, y: number): 'back' | null {
  * The throne has none: it is the room the wings open, not a wing of its own.
  */
 export const WING_NAMES: Record<Exclude<WingId, 'throne'>, string> = {
-  lower: 'The Lower Spire',
-  plague: 'The Plagueworks',
-  crimson: 'The Crimson Hall',
-  frostwing: 'The Frostwing Halls',
+  lower: 'The Long Stair',
+  plague: 'The Sumps',
+  crimson: 'The Red Court',
+  frostwing: 'The Hoarwing Halls',
 }
 
 export interface WingDone {

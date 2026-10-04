@@ -40,7 +40,7 @@ export interface Affix {
  */
 export const AFFIXES: Affix[] = [
   { id: 'lingering', name: 'Lingering', detail: 'what the floor keeps, it keeps twice as long' },
-  { id: 'swarming', name: 'Swarming', detail: 'twice as many thralls, half as often' },
+  { id: 'swarming', name: 'Swarming', detail: 'twice as many hollowed, half as often' },
   { id: 'faltering', name: 'Faltering', detail: 'healing lands for a quarter less' },
   { id: 'quickened', name: 'Quickened', detail: 'the boss swings a third faster' },
   { id: 'hastened', name: 'Hastened', detail: 'the enrage arrives more than two minutes early' },

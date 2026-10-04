@@ -799,7 +799,7 @@ of it:
 | | |
 | --- | --- |
 | Lingering | puddles stay twice as long |
-| Swarming | twice as many thralls |
+| Swarming | twice as many hollowed |
 | Faltering | healing lands for a quarter less |
 | Restless | shockwaves and breaths come round about twice as fast |
 | Quickened | the boss swings faster |
@@ -2074,7 +2074,7 @@ to a fight.
 | Slam | Tank cooldown, or the tank takes a large hit | always | always | always | always | | | | | | |
 | Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always | | | | | | |
 | The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always | | | | | | |
-| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | | | | | | | rung 4 | |
+| The hollowed | Summoned adds beeline for the nearest body; dealers switch | | carried | | | | | | | rung 4 | |
 | The rising | The sludgeworks floods its own edge; the middle never goes | | | | | carried | | | | | |
 | The cold line | It walks outward from the boss — step off it | rung 1 | | | | | | | | | |
 | The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | | | | | | | rung 4 |

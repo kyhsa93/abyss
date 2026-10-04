@@ -1699,11 +1699,11 @@ function scheduleBoarding(s: SimState, b: Actor, timing: PhaseTiming): void {
   const reavers = Math.max(1, Math.round(size / 6))
   const sergeants = size > 15 ? 2 : 1
   const wave: Array<{ name: string; tough: number }> = [
-    ...Array.from({ length: reavers }, () => ({ name: "Kor'kron Reaver", tough: 1 })),
+    ...Array.from({ length: reavers }, () => ({ name: "Boarding Reaver", tough: 1 })),
     // Heavier than a reaver, and named, because the source sends half as many
     // of them: a body that arrives one at a time and is not different is a
     // body nobody looks at.
-    ...Array.from({ length: sergeants }, () => ({ name: "Kor'kron Sergeant", tough: 1.6 })),
+    ...Array.from({ length: sergeants }, () => ({ name: "Boarding Sergeant", tough: 1.6 })),
   ]
   // One door, not a rolled bearing each.
   //
@@ -4113,7 +4113,7 @@ export function killedKin(s: SimState, one: Actor): void {
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
-    name: 'Thrall',
+    name: 'Hollowed',
     classId: 'rogue',
     spec: 'assassination',
     role: 'dps',
