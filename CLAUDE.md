@@ -62,6 +62,11 @@ If you are about to drive the game with Playwright yourself, the job may be
 doing the same thing right now. It holds
 `~/.local/state/abyss-playtest/lock`.
 
+**Both scripts hold their lock in descriptor 9, and nothing they start may
+inherit it.** Any new command in either script gets `9>&-`, and any new git
+call `-c gc.auto=0`; `npm run botlockcheck` drives both scripts against stubs
+and goes red if a child keeps the lock or an orphaned lock is not thrown away.
+
 ## Finishing a change
 
 `npm run check` is the gate and it is slow — the balance sweep alone runs about

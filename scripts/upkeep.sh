@@ -16,15 +16,17 @@
 
 set -uo pipefail
 
-# cron's PATH is nearly empty, and node lives under nvm.
-export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+# cron's PATH is nearly empty, and node lives under nvm. Whatever the caller had
+# stays in front, so `scripts/botlockcheck.sh` can put stubs there.
+export PATH="${PATH:+$PATH:}$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
 if [ -d "$HOME/.nvm/versions/node" ]; then
   NODE_BIN="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)"
   [ -n "$NODE_BIN" ] && export PATH="$NODE_BIN:$PATH"
 fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOGDIR="$HOME/.local/state/abyss-upkeep"
+# Overridable so a test does not share the real job's lock, log or week-gate.
+LOGDIR="${ABYSS_UPKEEP_STATE:-$HOME/.local/state/abyss-upkeep}"
 mkdir -p "$LOGDIR"
 LOG="$LOGDIR/$(date +%Y-%m).log"
 STATE="$LOGDIR/last-week"
@@ -34,8 +36,47 @@ log() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
 FORCE=""
 [ "${1:-}" = "now" ] && FORCE=1
 
+# **The lock must not outlive this script, and a lock nobody is holding on
+# purpose must be thrown away.** In another repository on this machine the
+# job ran `git pull` with descriptor 9 open; the pull started `git gc --auto`,
+# which detached, inherited the descriptor, and stuck in `D` on a sector the
+# disk could not read. The job's shell exited normally and the gc kept the lock:
+# thirty hours of "skip", with the age counting from the epoch, because the exit
+# trap had already cleared `running.since`. So:
+#
+# - every command started after the lock gets `9>&-`, and git gets
+#   `gc.auto=0` -- in the environment as well, so the git that the `claude`
+#   session runs under this script cannot start one either;
+# - a held lock whose `running.pid` is missing or dead is held by an orphan,
+#   and is unlinked the same way as a wedged one.
+#
+# `scripts/botlockcheck.sh` reproduces both against stubs.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0
 exec 9>"$LOGDIR/lock"
-flock -n 9 || { log "skip: previous run still going"; exit 0; }
+if ! flock -n 9; then
+  SINCE="$(cat "$LOGDIR/running.since" 2>/dev/null || echo 0)"
+  HELD=$(( $(date +%s) - SINCE ))
+  HOLDER="$(cat "$LOGDIR/running.pid" 2>/dev/null || echo 0)"
+  if [ "$HOLDER" -le 1 ] || ! kill -0 "$HOLDER" 2>/dev/null; then
+    # Read between another tick's `flock` and its `echo $$` this would be a
+    # false alarm, but ticks are an hour apart and that window is one line.
+    log "WEDGED: the lock is held and no run owns it (pid file: ${HOLDER}) -- an orphan has it; taking a fresh lock"
+    rm -f "$LOGDIR/lock"
+    exit 1
+  fi
+  # Two hours of session and its two-minute kill, with an hour to spare.
+  if [ "$SINCE" -gt 0 ] && [ "$HELD" -gt 10800 ]; then
+    log "WEDGED: run $HOLDER has held the lock ${HELD}s -- killing it and taking a fresh lock"
+    kill -9 -- "-$HOLDER" 2>/dev/null || kill -9 "$HOLDER" 2>/dev/null
+    rm -f "$LOGDIR/lock"
+    exit 1
+  fi
+  log "skip: previous run $HOLDER still going (${HELD}s)"
+  exit 0
+fi
+echo $$ > "$LOGDIR/running.pid"
+date +%s > "$LOGDIR/running.since"
+trap 'rm -f "$LOGDIR/running.pid" "$LOGDIR/running.since"' EXIT
 
 WEEK="$(date +%G-W%V)"
 if [ -z "$FORCE" ] && [ "$WEEK" = "$(cat "$STATE" 2>/dev/null)" ]; then
@@ -47,17 +88,17 @@ cd "$REPO" || { log "fail: no repository at $REPO"; exit 1; }
 # **The one hard safety rule.** Somebody's unfinished work lives in this tree
 # often enough that assuming otherwise is how a bot commits half a sprite sheet.
 # A dirty tree means audit only: look, file issues, change nothing.
-DIRTY="$(git status --porcelain)"
+DIRTY="$(git -c gc.auto=0 status --porcelain 9>&-)"
 if [ -n "$DIRTY" ]; then
   READONLY=1
   log "tree is dirty — audit only, no commits this week"
   echo "$DIRTY" | head -10 >> "$LOG"
 else
   READONLY=""
-  git pull --rebase --quiet origin main 2>>"$LOG" || log "warn: pull failed, using local state"
+  git -c gc.auto=0 pull --rebase --quiet origin main 2>>"$LOG" 9>&- || log "warn: pull failed, using local state"
 fi
 
-log "upkeep start $WEEK ($(git rev-parse --short HEAD))${READONLY:+ [read-only]}"
+log "upkeep start $WEEK ($(git -c gc.auto=0 rev-parse --short HEAD 9>&-))${READONLY:+ [read-only]}"
 
 # **The sweep is read off CI, not run here.** It takes about fifty minutes, and
 # the session used to be told to run it in the background and read the tables
@@ -69,15 +110,15 @@ log "upkeep start $WEEK ($(git rev-parse --short HEAD))${READONLY:+ [read-only]}
 HARNESS="$LOGDIR/harness-$WEEK.txt"
 BANDS="$LOGDIR/bands-$WEEK.txt"
 CI_RUN="$(gh run list --branch main --workflow Deploy --status success --limit 1 --json databaseId,headSha \
-  -q '.[0] | "\(.databaseId) \(.headSha[0:7])"' 2>>"$LOG")"
+  -q '.[0] | "\(.databaseId) \(.headSha[0:7])"' 2>>"$LOG" 9>&-)"
 PARTS="$LOGDIR/parts-$WEEK"
 rm -rf "$PARTS"
-if [ -n "$CI_RUN" ] && gh run download "${CI_RUN%% *}" -p 'harness-*' -D "$PARTS" >>"$LOG" 2>&1; then
+if [ -n "$CI_RUN" ] && gh run download "${CI_RUN%% *}" -p 'harness-*' -D "$PARTS" >>"$LOG" 2>&1 9>&-; then
   # By file name, which is the order one process would have printed them in;
   # the artifacts land in a directory per runner, so a sort on the whole path
   # interleaves the runners and splits every table across the seams.
   cat $(find "$PARTS" -name 'part-*.txt' -printf '%f\t%p\n' | sort | cut -f2) > "$HARNESS"
-  ABYSS_HARNESS_OUT="$HARNESS" npm run -s balancecheck > "$BANDS" 2>&1
+  ABYSS_HARNESS_OUT="$HARNESS" npm run -s balancecheck > "$BANDS" 2>&1 9>&-
   log "bands read off CI run $CI_RUN: $(grep -c '^balancecheck: .* — ok' "$BANDS") ok, $(grep -c '^  - ' "$BANDS") line(s) crossed"
 else
   log "fail: could not fetch the sweep from CI -- no session this tick"
@@ -137,10 +178,11 @@ section of the README. Both are decisions for a person; open an issue with the a
 Report what you checked, what you changed, what you filed, and why there was not more."
 
 SAID="$LOGDIR/said-$WEEK.txt"
-timeout 7200 claude -p "$PROMPT" \
+# `-k 120`: a child that catches SIGTERM and hangs is SIGKILLed two minutes on.
+timeout -k 120 7200 claude -p "$PROMPT" \
   --model claude-sonnet-5 \
   --allowedTools Bash Read Glob Grep Edit Write WebFetch \
-  > "$SAID" 2>&1
+  > "$SAID" 2>&1 9>&-
 RC=$?
 cat "$SAID" >> "$LOG"
 # A week that never said what the bands said did not read them.
@@ -150,7 +192,7 @@ if [ "$RC" -eq 0 ] && ! grep -q '^BANDS:' "$SAID"; then
 fi
 
 if [ -n "$READONLY" ]; then
-  NOW="$(git status --porcelain)"
+  NOW="$(git -c gc.auto=0 status --porcelain 9>&-)"
   [ "$NOW" != "$DIRTY" ] && log "warn: tree changed during a read-only week"
 fi
 
@@ -161,5 +203,5 @@ if [ "$RC" -ne 0 ]; then
 fi
 
 echo "$WEEK" > "$STATE"
-OPEN="$(gh issue list --state open --label upkeep --limit 50 2>/dev/null | wc -l)"
-log "upkeep end $WEEK — $OPEN open upkeep issues, HEAD $(git rev-parse --short HEAD)"
+OPEN="$(gh issue list --state open --label upkeep --limit 50 2>/dev/null 9>&- | wc -l)"
+log "upkeep end $WEEK — $OPEN open upkeep issues, HEAD $(git -c gc.auto=0 rev-parse --short HEAD 9>&-)"

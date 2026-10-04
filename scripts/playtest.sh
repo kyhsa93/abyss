@@ -78,6 +78,19 @@ FORCE=""
 # Every tick in between had logged "skip: previous session still going" into a
 # file nobody was reading, which is why the age is now in the line: a job that is
 # dead for a week must not look the same as a job that is merely busy.
+#
+# **And the lock must not outlive this script.** In another repository on this
+# machine the job ran `git pull` with descriptor 9 open; the pull started
+# `git gc --auto`, which detached, inherited the descriptor, and stuck in `D` on a
+# sector the disk could not read. The job's shell exited normally and the gc kept
+# the lock -- thirty hours of "skip", the age counting from the epoch, because the
+# exit trap had already cleared `running.since` and the guard below only looked
+# at the age. So every command started after the lock gets `9>&-` (the `exec`
+# hand-over excepted, which is the point of it), git gets `gc.auto=0` -- in the
+# environment too, for the git the session runs -- and a held lock whose
+# `running.pid` is missing or dead is an orphan's, unlinked like a wedged one.
+# `scripts/botlockcheck.sh` reproduces both against stubs.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0
 HOUR="$(date +%Y-%m-%dT%H)"
 
 # Everything from here to the hand-over belongs to the first pass only. After the
@@ -92,7 +105,14 @@ if ! flock -n 9; then
   SINCE="$(cat "$LOGDIR/running.since" 2>/dev/null || echo 0)"
   HELD=$(( $(date +%s) - SINCE ))
   HOLDER="$(cat "$LOGDIR/running.pid" 2>/dev/null || echo 0)"
-  if [ "$SINCE" -gt 0 ] && [ "$HELD" -gt 10800 ] && [ "$HOLDER" -gt 1 ]; then
+  if [ "$HOLDER" -le 1 ] || ! kill -0 "$HOLDER" 2>/dev/null; then
+    # Read between another tick's `flock` and its `echo $$` this would be a
+    # false alarm, but ticks are an hour apart and that window is one line.
+    log "WEDGED: the lock is held and no session owns it (pid file: ${HOLDER}) -- an orphan has it; taking a fresh lock"
+    rm -f "$LOGDIR/lock"
+    exit 1
+  fi
+  if [ "$SINCE" -gt 0 ] && [ "$HELD" -gt 10800 ]; then
     log "WEDGED: session $HOLDER has held the lock ${HELD}s -- killing it and taking a fresh lock"
     kill -9 -- "-$HOLDER" 2>/dev/null || kill -9 "$HOLDER" 2>/dev/null
     # The half that actually releases it. See above.
@@ -100,7 +120,7 @@ if ! flock -n 9; then
     # Not taking its turn here. The next tick gets a clean tree and a clean lock.
     exit 1
   fi
-  log "skip: previous session still going (${HELD}s)"
+  log "skip: previous session $HOLDER still going (${HELD}s)"
   exit 0
 fi
 
@@ -126,23 +146,23 @@ fi
 # `-d` here would remake the worktree every hour and fail every hour.
 if [ ! -e "$BOT/.git" ]; then
   log "making the playtest worktree at $BOT"
-  git -C "$MAIN" fetch -q origin || log "warn: fetch failed"
-  git -C "$MAIN" worktree add -B playtest "$BOT" origin/main >>"$LOG" 2>&1 || {
+  git -C "$MAIN" -c gc.auto=0 fetch -q origin 9>&- || log "warn: fetch failed"
+  git -C "$MAIN" -c gc.auto=0 worktree add -B playtest "$BOT" origin/main >>"$LOG" 2>&1 9>&- || {
     log "fail: could not make the worktree"
     exit 1
   }
-  (cd "$BOT" && npm ci >>"$LOG" 2>&1) || { log "fail: npm ci"; exit 1; }
+  (cd "$BOT" && npm ci >>"$LOG" 2>&1 9>&-) || { log "fail: npm ci"; exit 1; }
 fi
 
 cd "$BOT" || { log "fail: no worktree at $BOT"; exit 1; }
 
-git fetch -q origin 2>>"$LOG"
-if ! git pull --rebase --quiet origin main 2>>"$LOG"; then
+git -c gc.auto=0 fetch -q origin 2>>"$LOG" 9>&-
+if ! git -c gc.auto=0 pull --rebase --quiet origin main 2>>"$LOG" 9>&-; then
   # Nothing of anybody's lives in this tree, so the recovery is to take main
   # again. The carried save is ignored by git and survives it.
   log "warn: rebase failed -- resetting the bot worktree to origin/main"
-  git rebase --abort 2>/dev/null
-  git reset --hard -q origin/main
+  git -c gc.auto=0 rebase --abort 2>/dev/null 9>&-
+  git -c gc.auto=0 reset --hard -q origin/main 9>&-
 fi
 
 # **Hand over to the copy that was just pulled.**
@@ -168,7 +188,7 @@ cd "$BOT" || { log "fail: no worktree at $BOT"; exit 1; }
 # Traps do not survive `exec`, so the cleanup is re-armed here rather than above.
 trap 'rm -f "$LOGDIR/running.pid" "$LOGDIR/running.since"' EXIT
 
-BEFORE="$(git rev-parse HEAD)"
+BEFORE="$(git -c gc.auto=0 rev-parse HEAD 9>&-)"
 # How many sessions the ledger knew about before this one. A session that writes
 # no line is a session that did not finish, and `playpick` counts lines -- so
 # without this the second session ever run left the picker believing it was still
@@ -194,7 +214,7 @@ COMPRESS=""
 # somebody closes one -- and runs regardless when `direction.md` needs folding,
 # or when asked to with `now`.
 if [ -z "$COMPRESS" ] && [ -z "$FORCE" ]; then
-  OPEN_NOW="$(gh issue list --state open --label playtest --limit 100 2>/dev/null | wc -l)"
+  OPEN_NOW="$(gh issue list --state open --label playtest --limit 100 2>/dev/null 9>&- | wc -l)"
   if [ "$OPEN_NOW" -ge 12 ]; then
     LAST_WHEN="$(node -e '
       const fs = require("fs")
@@ -202,8 +222,8 @@ if [ -z "$COMPRESS" ] && [ -z "$FORCE" ]; then
       for (let i = lines.length - 1; i >= 0; i--) {
         try { const w = JSON.parse(lines[i]).when; if (w) { process.stdout.write(w); break } } catch {}
       }
-    ' 2>/dev/null)"
-    CLOSED_SINCE="$(gh issue list --state closed --label playtest --limit 100 --search "closed:>${LAST_WHEN:-1970-01-01}" 2>/dev/null | wc -l)"
+    ' 2>/dev/null 9>&-)"
+    CLOSED_SINCE="$(gh issue list --state closed --label playtest --limit 100 --search "closed:>${LAST_WHEN:-1970-01-01}" 2>/dev/null 9>&- | wc -l)"
     if [ -n "$LAST_WHEN" ] && [ "$CLOSED_SINCE" -eq 0 ]; then
       log "skip: the gate is shut ($OPEN_NOW open) and nothing has closed since $LAST_WHEN -- nothing for a session to do"
       echo "$HOUR" > "$STATE"
@@ -212,7 +232,7 @@ if [ -z "$COMPRESS" ] && [ -z "$FORCE" ]; then
   fi
 fi
 
-log "session $HOUR at $(git rev-parse --short HEAD)${COMPRESS:+ -- direction.md is $DIRECTION_LINES lines, folding only}"
+log "session $HOUR at $(git -c gc.auto=0 rev-parse --short HEAD 9>&-)${COMPRESS:+ -- direction.md is $DIRECTION_LINES lines, folding only}"
 
 FOLDING=""
 if [ -n "$COMPRESS" ]; then
@@ -301,7 +321,7 @@ what you found, what you filed, and why there was not more."
 timeout -k 120 5400 claude -p "$PROMPT" \
   --model claude-sonnet-5 \
   --allowedTools Bash Read Glob Grep Edit Write \
-  >> "$LOG" 2>&1
+  >> "$LOG" 2>&1 9>&-
 RC=$?
 
 # Anything the session left running, swept here rather than after the push,
@@ -323,7 +343,7 @@ fi
 # The boundary, enforced rather than asked for. Anything touched outside
 # `playtest/` goes back, loudly: the job is not allowed to fix the game, and a
 # job that quietly started to would be the most expensive kind of helpful.
-STRAY="$(git status --porcelain -- . ':(exclude)playtest' | head -20)"
+STRAY="$(git -c gc.auto=0 status --porcelain -- . ':(exclude)playtest' 9>&- | head -20)"
 if [ -n "$STRAY" ]; then
   log "warn: the session touched files outside playtest/ -- reverting them"
   echo "$STRAY" >> "$LOG"
@@ -331,8 +351,8 @@ if [ -n "$STRAY" ]; then
   # tracked, which here means the ledger line and `direction.md` the session had
   # just spent an hour on: the boundary guard would eat the work it was guarding.
   # This was found by doing it, by hand, to a tree in the middle of this round.
-  git checkout -- . ':(exclude)playtest' 2>>"$LOG"
-  git clean -fdq -e playtest 2>>"$LOG"
+  git -c gc.auto=0 checkout -- . ':(exclude)playtest' 2>>"$LOG" 9>&-
+  git -c gc.auto=0 clean -fdq -e playtest 2>>"$LOG" 9>&-
 fi
 
 # And the same boundary, on what it *committed*.
@@ -345,15 +365,15 @@ fi
 #
 # Put back rather than reset: by the time this runs the commit may already be on
 # `main`, so the repair has to be a commit of its own.
-if [ "$(git rev-parse HEAD)" != "$BEFORE" ]; then
-  COMMITTED_OUT="$(git diff --name-only "$BEFORE"..HEAD -- . ':(exclude)playtest')"
+if [ "$(git -c gc.auto=0 rev-parse HEAD 9>&-)" != "$BEFORE" ]; then
+  COMMITTED_OUT="$(git -c gc.auto=0 diff --name-only "$BEFORE"..HEAD -- . ':(exclude)playtest' 9>&-)"
   if [ -n "$COMMITTED_OUT" ]; then
     log "WARN: the session committed outside playtest/ -- putting it back"
     echo "$COMMITTED_OUT" >> "$LOG"
-    git checkout "$BEFORE" -- . ':(exclude)playtest' 2>>"$LOG"
-    git commit -q -m "Put back what a playtest session changed outside playtest/" >>"$LOG" 2>&1
+    git -c gc.auto=0 checkout "$BEFORE" -- . ':(exclude)playtest' 2>>"$LOG" 9>&-
+    git -c gc.auto=0 commit -q -m "Put back what a playtest session changed outside playtest/" >>"$LOG" 2>&1 9>&-
   else
-    log "note: the session committed its own work ($(git rev-parse --short HEAD)), inside the boundary"
+    log "note: the session committed its own work ($(git -c gc.auto=0 rev-parse --short HEAD 9>&-)), inside the boundary"
   fi
 fi
 
@@ -374,13 +394,13 @@ echo "$HOUR" > "$STATE"
 # session's subject, which described work that commit did not contain. A subject
 # that lies is worse than a dull one.
 LEDGER_NOW="$(wc -l < playtest/sessions.jsonl 2>/dev/null || echo 0)"
-if [ -n "$(git status --porcelain -- playtest)" ]; then
+if [ -n "$(git -c gc.auto=0 status --porcelain -- playtest 9>&-)" ]; then
   if [ "$LEDGER_NOW" -gt "$LEDGER_WAS" ]; then
     SUBJECT="$(node -e '
       const fs = require("fs")
       const lines = fs.readFileSync("playtest/sessions.jsonl", "utf8").trim().split("\n")
       try { process.stdout.write(JSON.parse(lines[lines.length - 1]).message ?? "") } catch {}
-    ' 2>/dev/null)"
+    ' 2>/dev/null 9>&-)"
     [ -z "$SUBJECT" ] && SUBJECT="An hour of it, played and written down"
   else
     log "warn: the session wrote no ledger line -- it did not finish"
@@ -406,13 +426,13 @@ if [ -n "$(git status --porcelain -- playtest)" ]; then
         abandoned: true,
         message: "A session that did not finish, and what it got as far as",
       }) + "\n")
-    ' 2>>"$LOG" || log "warn: could not write the abandoned-session line"
+    ' 2>>"$LOG" 9>&- || log "warn: could not write the abandoned-session line"
   fi
-  git add -- playtest
-  git -c user.name="abyss playtest" -c user.email="kyhsa93@naver.com" \
-    commit -q -m "$SUBJECT" -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>" >>"$LOG" 2>&1
-  if git push -q origin playtest:main 2>>"$LOG"; then
-    log "pushed $(git rev-parse --short HEAD): $SUBJECT"
+  git -c gc.auto=0 add -- playtest 9>&-
+  git -c gc.auto=0 -c user.name="abyss playtest" -c user.email="kyhsa93@naver.com" \
+    commit -q -m "$SUBJECT" -m "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>" >>"$LOG" 2>&1 9>&-
+  if git -c gc.auto=0 push -q origin playtest:main 2>>"$LOG" 9>&-; then
+    log "pushed $(git -c gc.auto=0 rev-parse --short HEAD 9>&-): $SUBJECT"
   else
     log "warn: push rejected -- next session rebases and retries"
   fi
@@ -420,5 +440,5 @@ else
   log "session left nothing to commit"
 fi
 
-OPEN="$(gh issue list --state open --label playtest --limit 50 2>/dev/null | wc -l)"
-log "session end $HOUR -- $OPEN open playtest issues, was $BEFORE now $(git rev-parse --short HEAD)"
+OPEN="$(gh issue list --state open --label playtest --limit 50 2>/dev/null 9>&- | wc -l)"
+log "session end $HOUR -- $OPEN open playtest issues, was $BEFORE now $(git -c gc.auto=0 rev-parse --short HEAD 9>&-)"
