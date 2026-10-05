@@ -55,6 +55,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
+      # The README's determinism law and its "the party's judgement does not
+      # learn" law, both said to be held by the gate. They were held only by
+      # `npm run check` on a machine, and missing here for the same reason
+      # `artcheck` was: nobody added the line when the check was written. Under
+      # a second.
+      - run: npm run lawcheck
       - run: npm run conceptcheck
       - run: npm run namecheck
       # Was not run here at all, for no reason anybody wrote down: it is in

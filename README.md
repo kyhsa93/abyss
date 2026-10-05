@@ -81,8 +81,8 @@ npm run dev
 ```
 
 Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
-The workflow runs the steps of `npm run check` as parallel jobs — all of them
-but `lawcheck` — and deploys only when they pass, so a broken encounter or a
+The workflow runs the steps of `npm run check` as parallel jobs and deploys
+only when they pass, so a broken encounter or a
 type error blocks the deploy.
 
 ## Getting in
@@ -603,8 +603,16 @@ five were verified by putting the old behaviour back one at a time.
 ## Why it looks like this
 
 Hardcore raiders barely look at boss models. They watch timer bars, debuff
-icons and raid frames. The information a raid encounter actually runs on is
-already abstract, so this prototype renders exactly that and nothing else.
+icons and raid frames, because that is what a raid encounter actually runs on.
+So the screen answers four questions before it tries to be pretty, and in this
+order: what is about to hurt me and when, which body is me, where I am meant
+to stand, and which way is forward. Party health, numbers, chatter and
+decoration come after. The pictures are licensed pixel art — the Liberated
+Pixel Cup bodies and tiles, game-icons.net and two CC0 effect packs, every
+name their licences ask for credited in the game — one medium at one pixel
+density on one screen, and none of it drawn for this game by us. What is drawn
+over them is facts, never answers: a floor marking says where the damage lands
+and how long until it does, not where to stand.
 
 ### The bodies
 
@@ -777,7 +785,7 @@ worth having while five of the ten bosses were invented and a rolled fight
 was the only way to see the vocabulary used differently. It also meant the one
 pull a day everybody shares was the one pull nobody could prepare for, and
 everything learned about a boss was worth nothing on the day it came up. The
-boss throws its own kit now, exactly as it does on the ladder, and the affix
+boss throws its own kit now, exactly as it does on the chain, and the affix
 is the whole of what makes today different.
 
 This is the first thing here that uses reproducibility as a *feature* rather
@@ -1693,55 +1701,52 @@ future server-authoritative port possible.
 
 ## The bosses
 
-Three fights that ask for different things — and, for a long time, three
-fights that looked like one.
+Eleven fights, fought in the order `ENCOUNTERS` lists them in
+`src/sim/encounters.ts`, and each of them asks for something none of the
+others does.
 
-The tables always differed, and the check saying so has passed since the
-second boss existed, and it was still not enough — see
-[the ladders](#the-ladders) for what was actually wrong with it and what
-replaced it. What that check does get right is *how* it asks: what each boss
-puts on the floor is measured from a real pull rather than read off the table
-it came from, and it is asked of tonight's kit rather than of the whole table,
-so a mechanic the boss owns and this raid did not climb to is one the check
-insists never appears.
+| Boss | Asks for | What it throws, in the order it teaches it | Enrage |
+| --- | --- | --- | --- |
+| The Bonegrinder | get off the line, break the bone, and run when it lets go | the cold line, the spikes, the storm | 240s |
+| The Last Whisper | cut the shard, swap the hold, and hold off your own | thralls, the volley, the rotting ground, the shard, the shade, the slight, the empowered, the turned (not at ten-man normal) | 240s |
+| The Reeking Host | share the air, and know who is holding it | the blight, the swelling, the reek, the spore, the breath in, the breath out | 240s |
+| The Bloodgorged | give it nothing, and carry what it takes | the spill, the gorging, the festering, thralls, the mark, the swallowing | 240s |
+| The Confluence | mind where you are healed, and keep the small things apart | the rising, the spray, the infection, the small things, the flood, the merging, the engulfing | 245s |
+| The Two Flasks | two answers at once, and neither of them waits | the caustic, the hound, the gathering, the chase (heroic), the flasks, the reagent | 250s |
+| The Three Crowns | only one is real, and it is not the one you are hitting | the crown, the thirst, the ballast, the grain, the stillness (heroic), thralls | 250s |
+| The Crimson Gift | pass it and it doubles; drop it and it is one of you | the gift, the bond, the stain, the flight, the turning, the crimson | 230s |
+| The One You Save | the thing in the middle is not the enemy, and it is running out of time | the wound, the kindred, the way out, thralls, the empowered, the blocking | 190s |
+| The Long Cold | do nothing while it is on you, and know when to walk out of a fight that is going well | the chill, the unstable, the haul, the spikes, the shadow, the cold, the breath, the flight | 280s |
+| The Skyward Deck | hold the rail, and keep somebody on the gun | the boarders, the mortar, the rockets, the axes, the hull, the gun | 260s |
 
-None of which reached the player, because every boss cast the same two spells
-under the same two names in the same red. `ABYSSAL SLAM` and `TIDAL BREATH`
-were hard-coded in the cast bar for all three, the two shared telegraphs said
-`Sweeping` and `Rotting — need a heal` whoever was fighting, and the boss was
-one colour. A fight that asks for something different has to say something
-different, so the names and the colour moved into the table with the numbers:
-the Bonegrinder's `SABER LASH`, the Whisper's `A WORD OF ENDING` and
+The "asks for" column is each fight's `demand` and the list is its `kit`,
+copied from the table rather than paraphrased. Under all of it, every boss
+swings at its tank, hits it hard on a cooldown the tank has to answer — all but
+the One You Save, whose thing in the middle is not fighting back — and puts a
+hit on the whole raid every ten to fourteen seconds that nobody can dodge,
+which is the floor under the healer.
+
+A fight that asks for something different has to say something different, so
+the names and the colour live in the table with the numbers: the
+Bonegrinder's `SABER LASH`, the Whisper's `A WORD OF ENDING` and
 `WINTER SHARD`, the Host's `GORGE` and `BAD AIR`, a line for every mechanic a
-boss owns, and an accent apiece.
+boss owns, and an accent apiece. A boss speaks for the mechanics in its own kit
+and is silent about the rest (`lineFor`).
 
-They also had to *land* like different things, and until now they did not
-land like anything. Every damaging ability the party owns has drawn its own
-hit since there were hit styles at all — an arc for a blade, a streak for an
-arrow, something that sinks in for poison. The boss's arsenal pushed no effect
-of any kind: the slam, the floor going off and the party-wide hit all arrived
-as a number over somebody's head and a shape on the floor changing state, and
-nothing a boss did made a picture of its own.
-
-So each mechanic got a look, taken from what it already is on the floor: the
-slam crushes in orange, the cold line lights outward one patch at a time, the
-floor sinks in and throws a ring the size it went off at, the party-wide hit
-bursts on all of you at once, and a phase break throws a ring off the boss.
-The casts gather a ring on the wind-up like every other caster in the game —
-the boss was setting its cast bar by hand and never got one.
-
-Most of that table has since been retired with the fights that sold it; the
-rule it was written to establish is the one that outlived it. A mechanic with
-no picture of its own is a mechanic a player reads off a health bar, and every
-mechanic added since has arrived with one.
+They also have to *land* like different things. Every mechanic has a look
+taken from what it already is on the floor — a slam that crushes, a line that
+lights outward one patch at a time, a floor that sinks in and throws a ring the
+size it went off at, a raid-wide hit that bursts on everybody at once, a ring
+off the boss at a phase break — and the casts gather a ring on the wind-up like
+every other caster in the game. A mechanic with no picture of its own is a
+mechanic a player reads off a health bar.
 
 None of it touches the fight. Effects live in the renderer for the same reason
 sound does — a pull replays exactly from its seed, and particles that aged
 inside the state would make that untrue — so the simulation only says what
-happened. The harness agrees: every win rate in the table above is the number
-it was before this went in.
+happened.
 
-The checks now assert that a boss names a cast exactly when it uses one and
+The checks assert that a boss names a cast exactly when it uses one and
 announces a mechanic exactly when it has one — a nameless mechanic and a line
 for a mechanic that never fires are both table rot — that no two bosses say
 the same thing or share a colour, and that the colour reaches the screen,
@@ -1753,15 +1758,15 @@ other boss cast; and every look in the table must be thrown by some boss, or
 it is a colour for a mechanic that does not exist. Each boss's slam, puddle
 and party-wide hit have to be seen *landing* — recorded by kind, not just by
 name, because a slam that winds up and connects with nothing would otherwise
-pass on the strength of its own cast. That hole was real: the first version of
-the check passed with the slam's impact deleted, because the phase break was
-borrowing the slam's id. The phase break has its own now.
+pass on the strength of its own cast. The phase break has an id of its own
+for the same reason: borrowing the slam's let the check pass with the slam's
+impact deleted.
 
-Three of them, fought in order — and each of them six times over, which is
+Fought in order, and each of them four times over, which is
 [the chain](#the-chain) below. A kill puts a button on the results screen to
 the left of PULL AGAIN, and taking it moves you on with the pull count back at
 zero: the party's learning is learning *this* fight, and a group that killed
-a boss nine times at five has not seen the rung a heroic ten buys.
+a boss nine times at ten has not seen what a heroic twenty-five asks.
 
 Killing something is what opens the next thing, not pressing the button:
 leaving through CHANGE PARTY after a kill keeps the progress. Where you are
@@ -1775,9 +1780,8 @@ worth knowing.
 The raid used to be three locked doors and nothing else. A boss opened when
 the one before it died, and the size and the difficulty were free from the
 first pull — so the first thing a new player could do was walk a heroic
-twenty-five man into the first boss and meet its whole ladder at once. The ladders made that worse rather than better: their whole point is
-that a size and a difficulty each buy a mechanic, and a game that hands you
-the top of a ladder is a game with no rungs.
+twenty-five man into the first boss and meet the hardest setting of it first.
+A game that hands you the top of a ladder is a game with no rungs.
 
 So there is one chain, and it runs *through* the settings rather than past
 them. Four rungs a boss, in the order the fight gets harder, and the last of
@@ -1842,80 +1846,67 @@ it once would only be a puzzle. Today's run is not on the chain either: it is on
 fight a day, the same one for everybody, and gating it would make it a
 different fight for everybody.
 
-### The ladders
+### The kits
 
-For a long time the tables differed and the first boss owned nearly everything,
-so the others were that boss with things taken away. Three fights that opened
-on the same two mechanics and only diverged once the party was already dead is
-not three fights, it is one fight with two shorter versions of itself. The
-check that said they differed passed the whole time, because it compared the
-full tables rather than what any raid actually meets.
+Each boss owns a **kit**: the mechanics it asks for, in the order it teaches
+them (`kit` on each fight in `src/sim/encounters.ts`). Kits run from three
+mechanics to eight, and **every setting of every fight throws the whole kit.**
 
-So each boss owns a **ladder**: the mechanics it asks for, in the order it
-starts asking. How far up tonight's raid climbs is `kitCount`, and it moves on
-the two axes the setup screen already had — every step up the size or across to
-heroic buys another rung. A ladder is also a price list, read top to bottom in
-the order the fight gets harder.
+It was a ladder once. A boss sold its mechanics one at a time as the raid got
+bigger or braver, three sizes by two difficulties made six rungs, and no boss
+could own more ideas than it had settings to sell them at. It was retired,
+because a fight with a mechanic taken out of it is not easier, it is emptier —
+and the source's own scripts are the argument against it: they schedule every
+ability an encounter has at every setting. What size and difficulty change is
+numbers: boss health per size (`SIZE_HEALTH`), how many bodies a mechanic
+picks per size (`MECHANIC_SCALES`, `sizeMechanic`), and heroic's small nudge
+on damage and tempo and its floor that lingers longer (`DIFFICULTIES` in
+`src/sim/classes.ts`). The one ladder left is [the chain](#the-chain), and it
+is about access, not content.
 
-| Rung | Bonegrinder | Whisper | Host | Gorged | Confluence | Flasks | Crowns | Gift | Saved | Cold |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| carried | — | thralls | — | — | the rising | — | — | — | — | — |
-| 1 | the cold line | the volley | the blight | the spill | the spray | the caustic | the crown | the gift | the wound | the chill |
-| 2 | the spikes | the rotting ground | the swelling | the gorging | the infection | the hound | the thirst | the bond | the kindred | the unstable |
-| 3 | the storm | the shard | the reek | the festering | the small things | the gathering | the ballast | the stain | the way out | the haul |
-| 4 | — | the shade | the spore | blood beasts | the flood | the chase | the grain | the flight | thralls | the spikes |
-| 5 | — | the slight | the breath in | the mark | the merging | the flasks | the stillness | the turning | the empowered | the shadow |
-| 6 | — | the empowered | the breath out | the swallowing | the engulfing | the reagent | thralls | the crimson | the blocking | the cold |
-| 7 | — | the turned | — | — | — | — | — | — | — | — |
+Three exceptions, each of them the source's own gating of a whole mechanic
+rather than this game's (`gates`): the Whisper's turned body is not thrown at
+ten-man normal, and the Two Flasks' chase and the Three Crowns' stillness are
+heroic only. That makes those two fights five mechanics on normal and six on
+heroic, and the Whisper seven at ten-man normal and eight everywhere else.
 
-The order is the design, not the contents. The first rungs are disjoint across
-all ten, so the fight everybody sees — the smallest raid, and the first
-stretch of any pull that goes wrong — is a different fight per boss: a line
-walking outward, a shard aimed at whoever is holding it, and a room that has
-gone bad. **No boss's kit is ever a subset of another's** at any rung, and the
-containment down each column holds: heroic asks for everything normal did and
-one thing more, and so does each size against the one below it. Both are
-asserted rather than eyeballed.
+Two rules come with the kit:
 
-The kits differ in length — the Whisper owns eight, the Bonegrinder three —
-and every setting of every one of them throws the whole thing. It was a ladder
-once, with the smaller settings meeting a prefix of it, and the source's own
-scripts are the argument against: they schedule every ability an encounter has
-at every setting. What size and difficulty change is how hard it hits and how
-often.
+- **A narrow kit comes round faster.** A boss with three ideas throwing them
+  on the same intervals as a boss with seven is not an easier fight, it is a
+  quieter one. A kit shorter than six gets the difference back as tempo
+  (`kitCadence`): each idea short of six takes about an eighth off every
+  interval, so the Bonegrinder's three run at about five-eighths of its table.
+- **Some mechanics are half a mechanic without another** (`REQUIRES`). The
+  breath in drinks the blight's air and the breath out returns it, so both
+  need what they lean on; the gathering needs the hound it lands on, and the
+  chase needs both; the empowered body is one of a wave and needs the wave;
+  the shadow is cast by a coffin and needs the spikes. A kit is closed over
+  that list wherever it is decided, so there is one answer to "what does this
+  fight throw".
 
-The wave is *carried* rather than sold, which is the one entry above that is
-not a rung. It is not one of the Whisper's ideas; it is the thing one of its
-ideas is about, since the empowered body is a fact about a summon that was
-already coming. Every setting gets a wave and what the ladder sells is the one
-that comes back wrong.
+A cadence of zero is how a mechanic a fight does not throw is switched off —
+one rule for a mechanic being absent rather than two. Zero is where it went
+wrong first, too: the schedulers counted down from it and fired every tick
+instead of never, so a boss marked the whole raid thirty times a second. Every
+scheduler checks its own cadence now, and the render check plays each boss
+through to the end and asserts that what reached the floor is exactly its kit:
+everything on it seen, and nothing off it.
 
-| Boss | Asks for | Leans on |
-| --- | --- | --- |
-| The Bonegrinder | get off the line, break the bone, and run when it lets go | a line that walks outward, bodies pinned where they stand, and a boss that lets go of everything |
-| The Last Whisper | cut the shard, swap the hold, and hold off your own | a cast to interrupt, a stacking hold on the tank, and one of your own turned against you |
-| The Reeking Host | share the air, and know who is holding it | a room that is a bill nobody can dodge, a count on whoever is tanking, and a breath given back all at once |
-| The Bloodgorged | give it nothing, and carry what it takes | a bar the raid fills with its own mistakes, a mark it buys that never comes off, and a tank taken out of the fight for four seconds |
-| The Confluence | mind where you are healed, and keep the small things apart | bodies born out of the raid that walk at whoever made them, two of them becoming one where they touch, and a floor that makes fixing it late too slow |
-| The Two Flasks | two answers at once, and neither of them waits | a circle everybody has to be inside, a body that has to keep walking, and the circle landing on that body |
-| The Three Crowns | only one is real, and it is not the one you are hitting | three bodies of which two take nothing at all, a crown that moves between them, and two mouths drinking from whoever stands near them |
-| The Crimson Gift | pass it and it doubles; drop it and it is one of you | a weight worth carrying, a bill that grows with how many are in play, and a body that turns when one is dropped |
-| The One You Save | the thing in the middle is not the enemy, and it is running out of time | a wound taking back what the raid just put in, bodies that came to help mixed in with the ones that came to bite, and a thing that hurts nobody and stops most of the raid arriving |
-| The Long Cold | do nothing while it is on you, and know when to walk out of a fight that is going well | a mark that charges for every button pressed under it, a drag that puts the whole room in the wrong place before it asks anything, and a vulnerability that only ever comes off by leaving |
-
-They are one script and ten tables (`src/sim/encounters.ts`). A second boss
-written as a second timeline would be a second copy of what each mechanic does,
-and those rules took several attempts each to get right. They are not being
-written twice.
+They are one script and eleven tables. A second boss written as a second
+timeline would be a second copy of what each mechanic does, and those rules
+took several attempts each to get right. They are not being written twice.
 
 What separates them is which mechanics they lean on, in what order, and how
 hard the floor hits. The Bonegrinder is the movement fight: a line to step off,
 a body to go and free, and a stretch where the thing you are hitting stops
 being tankable at all. The Whisper is the target fight — a cast that has to be
 cut, a hold that has to be swapped, a wave with one body in it worth killing
-first, and at the top one of your own that must not be killed at all. The Host
-is neither: almost nothing to dodge and almost nothing to re-aim at, just a
-room that costs everybody something every second and a count on the one body
+first, and one of your own that must not be killed at all. Its wave is the
+ground the rest stands on rather than one of its ideas: every setting gets a
+wave, and what the kit adds is the one that comes back wrong. The Host is
+neither: almost nothing to dodge and almost nothing to re-aim at, just a room
+that costs everybody something every second and a count on the one body
 holding it.
 
 The Bloodgorged is the one that is none of those, and it is the only fight here
@@ -1928,13 +1919,11 @@ raid that **never comes off**, and five percent of the boss's health back if
 that body ever goes down. A pull lost at three minutes was lost at forty
 seconds, by four people standing slightly too close together.
 
-The gauge is deliberately not a rung, and the reason is the rule below about
-failure being binary at an instant: a bar filling is a slope, and a slope
-teaches nothing. What the ladder sells is the mark, which is one instant on one
-named body. The gauge is what makes the rest of the fight mean something, and
-the boss wears it — the silhouette in the middle of the room grows by a third
-as it fills, so a raid playing badly is watching the thing it is fighting get
-bigger.
+The gauge is the bar, and the mark is what it buys, which is one instant on
+one named body; a bar filling is a slope, and a slope teaches nothing. The
+gauge is what makes the rest of the fight mean something, and the boss wears
+it — the silhouette in the middle of the room grows by a third as it fills, so
+a raid playing badly is watching the thing it is fighting get bigger.
 
 The Confluence asks the one question none of the others do. Every demand above
 is a fact about where *your* body is: off the line, behind it, inside the
@@ -1944,37 +1933,6 @@ raid — each one exactly where a carrier was standing when the thing they were
 carrying ran out — and they walk at whoever made them. Two that touch become
 one worth both, and the fifth merging is not a body any more, it is a radius.
 
-The Two Flasks asks for two answers on one clock, which is the one thing none
-of the others do. Everybody inside one circle is an ordinary demand; one of you
-keep walking, because the thing following you cannot be killed, is not much
-stranger. Put on the same clock neither is ordinary: the circle lands on the
-body being followed and slides after them for its whole five-second count, so
-the quarry has to keep moving *and* stay somewhere twenty-five people can
-reach, and everybody else has to walk to a point rather than to a place. That
-is what the fourth rung buys — without it the circle drops on the middle of the
-raid, which is where a crowd is standing anyway.
-
-The Three Crowns asks the question none of the other target demands do. Every
-one of those has been "hit that as well" -- a wave, a spike -- or "do not hit
-that" -- one of your own, turned. This one is *is the thing I am hitting the
-thing I should be hitting*, and the answer changes every fifty seconds.
-
-Three bodies stand seven hundred apart and one of them wears the crown. The
-other two take **nothing at all** -- not less, nothing, because a ninety
-percent cut is answered by carrying on and losing a tenth, and nothing is
-answered by looking up. They are not idle either: they drink from whoever
-stands near them and give it back to the shared bar, so where the raid may
-stand moves every time the crown does. Above that sits the one thing in this
-game with a height, which is answered by damage and therefore competes with the
-crown for the same hands, an errand handed to the tank, and ten seconds in
-which every step costs more than the one before it.
-
-Its last rung before the swap is the only demand in the game answered by being
-*early*. Two flasks sit on the floor with a twenty-second count and a small
-radius, and standing on one holds its count: for seventeen of those twenty
-seconds nothing about it is urgent, and by the time it is, walking is no longer
-an answer.
-
 Almost none of it is answered by damage. One of them alone is nearly harmless
 and a raid that turns and kills every one has spent a pull's damage on nothing
 and still lost to the pair it was not watching; the answer is to break up one
@@ -1982,6 +1940,35 @@ pair and leave the rest alone, which is the only target call in the game that
 is about where an enemy is rather than what it is. The line drawn between two
 that are close enough to merge is the whole picture of the fight — without it a
 raid learns about a merging by meeting what came out of it.
+
+The Two Flasks asks for two answers on one clock. Everybody inside one circle
+is an ordinary demand; one of you keep walking, because the thing following
+you cannot be killed, is not much stranger. Put on the same clock neither is
+ordinary: on heroic the circle lands on the body being followed and slides
+after them for its whole five-second count, so the quarry has to keep moving
+*and* stay somewhere the raid can reach, and everybody else has to walk to a
+point rather than to a place. On normal, without the chase, the circle drops
+on the middle of the raid, which is where a crowd is standing anyway.
+
+Its flasks are the only demand in the game answered by being *early*. Two sit
+on the floor with a twenty-second count and a small radius, and standing on
+one holds its count: for most of those twenty seconds nothing about it is
+urgent, and by the time it is, walking is no longer an answer.
+
+The Three Crowns asks the question none of the other target demands do. Every
+one of those has been "hit that as well" -- a wave, a spike -- or "do not hit
+that" -- one of your own, turned. This one is *is the thing I am hitting the
+thing I should be hitting*, and the answer moves with the crown.
+
+Three bodies stand apart and one of them wears the crown. The other two take
+**nothing at all** -- not less, nothing, because a ninety percent cut is
+answered by carrying on and losing a tenth, and nothing is answered by looking
+up. They are not idle either: they drink from whoever stands near them and give
+it back to the shared bar, so where the raid may stand moves every time the
+crown does. Above that sits the one thing in this game with a height, which is
+answered by damage and therefore competes with the crown for the same hands,
+an errand handed to the tank, and on heroic ten seconds in which every step
+costs more than the one before it.
 
 The One You Save is the only fight here that is not about the thing in the
 middle. There is a body on the floor and it is not the enemy: its bar starts at
@@ -2001,34 +1988,28 @@ reading the clock, because a fight whose bar is supposed to *rise* cannot use
 its own health as a timer. Nothing else on this roster gets harder because time
 passed, and this one does.
 
-The Long Cold asks for the two things this game has never asked for, and
-neither of them is a place. The first is *press nothing*: a mark lands for
-fifteen seconds and every button pressed while it is on is a debt, paid all at
-once at the end and squared — two is nothing, five is most of a bar, eight is a
-body. Half of them go on healers on purpose, because that is what makes it one
-rule with two prices: a dealer who stops has spent the enrage timer, and a
-healer who stops has spent somebody else. The second is *leave*: standing
-inside the boss's reach adds a stack of magic vulnerability on a clock that
-runs every twenty seconds at the start and every six by the end, and it comes
-off only outside and more slowly than it went on. Nothing forces the walk.
-What the last third of this fight is actually about is whether a raid that is
-winning will give up ground it is not being pushed off.
+The Long Cold asks for two things this game had never asked for, and neither
+of them is a place. The first is *press nothing*: a mark lands for fifteen
+seconds and every button pressed while it is on is a debt, paid all at once at
+the end and squared — two is nothing, five is most of a bar, eight is a body.
+Half of them go on healers on purpose, because that is what makes it one rule
+with two prices: a dealer who stops has spent the enrage timer, and a healer
+who stops has spent somebody else. The second is *leave*: standing inside the
+boss's reach adds a stack of magic vulnerability on a clock that speeds up over
+the fight, and it comes off only outside and more slowly than it went on.
+Nothing forces the walk. What the last third of this fight is actually about is
+whether a raid that is winning will give up ground it is not being pushed off.
 
-That rung is also the one that argued with the game and lost. The reach was
-written at four hundred and twenty so that the ranged would be inside it too.
-They are — and so is everything else: a raid stands about two hundred units
-from the boss, its healers two hundred and sixty, and a spell reaches three
-hundred and forty. At four hundred and twenty, "leave" means leave the fight
-entirely, out of casting range and out of the ring the healers are covering,
-and the measurement is blunt about what that costs: told never to leave, the
-top cell of this boss wins half its pulls; told to leave at five stacks, it
-wins none of them. The answer was worse than the mechanic. That is not a fact
-about the cold, it is a fact about this game's distances — there is no "step
-out and keep working" at four hundred and twenty because the room's own numbers
-do not leave one. At three hundred there is: a body pushed to three hundred and
-ten is at the far edge of its range rather than outside it, and what leaving
-costs is the walk, the casts the walk eats, and the worse position it leaves
-you in. The rung is the same rung. It is now askable.
+That reach argued with the game and lost. It was written at four hundred and
+twenty so that the ranged would be inside it too. They are — and so is
+everything else: a raid stands about two hundred units from the boss, its
+healers two hundred and sixty, and a spell reaches three hundred and forty. At
+four hundred and twenty, "leave" means leave the fight entirely, and the
+measurement was blunt about what that cost: told never to leave, the top
+setting of this boss won half its pulls; told to leave at five stacks, it won
+none of them. At three hundred (`BUFFET_REACH`) a body pushed out is at the far
+edge of its range rather than outside it, and what leaving costs is the walk,
+the casts the walk eats, and the worse position it leaves you in.
 
 Between them sits the one cast here that is answered by walking, and it is
 built so that every cast of it asks somebody something. A plain band round the
@@ -2036,117 +2017,38 @@ boss asks nothing — the melee are already inside it and the ranged are already
 outside — so this one drags the whole room in first, holds everybody at a
 hundred and ten units for a second and a fifth, and only then reddens and
 falls. The walk out is a hundred and thirty units against one and a tenth
-seconds of warning, which is eight tenths of a second of walking: the quarter
-second left over is the reaction delay, and the reaction delay is what the
-mechanic is charging for. Written without that clamp it dragged everybody to
-the centre, where the walk is two hundred and forty units and nobody in the
-game is fast enough — a hundred percent of the raid hit by every cast, and a
-five-man dead in thirty-five seconds. That is not a steep dial, it is an
-absent answer.
+seconds of warning: the time left over after the walk is the reaction delay,
+and the reaction delay is what the mechanic is charging for.
 
-Its fifth rung is the only mechanic in this game whose answer is another
+Its shadow is the only mechanic in this game whose answer is another
 mechanic's wreckage. The room goes white and the only shelter is the strip of
-shadow behind a coffin — and the coffins are the rung below, the ones the raid
-has been breaking all fight. So *when* to break one becomes the question, and
-`REQUIRES` says the wash cannot be sold to a raid that was never sold the
-coffins. Two numbers there are rule five rather than flavour: coffins are
-placed at least two hundred and sixty apart, because two together cast one
+shadow behind a coffin — and the coffins are its spikes, the ones the raid has
+been breaking all fight. So *when* to break one becomes the question. Coffins
+are placed at least two hundred and sixty apart, because two together cast one
 shadow and one shadow for a raid is a bill with no answer; and a shadow holds
 eight bodies and no more, because otherwise a twenty-five man answers a
-room-wide cast by standing in the one strip a five-man was given.
+room-wide cast by standing in the one strip a ten-man was given. On top of it
+she breathes a cone, and every minute and a half or so she leaves the floor:
+everybody pays while she is up, and whoever is close when she lands pays
+again.
 
-| Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
-| Rot | A magic dot on somebody; armour is no help at all |
-
-Those two are a pair, and they exist because everything a boss threw was magic
-except its weapon. Magic ignores armour entirely, so a plate dealer took the
-same mechanic damage as a mage in cloth: over thirty pulls both died at the
-same rate, took the same number of mechanic hits, and the melee paid for the
-privilege by standing where the boss was aiming. Plate was a line in a table.
-The sweep is wide enough to catch the ranged as well — a melee-only physical
-hit would be a tax on exactly the people whose armour was supposed to be the
-reward — and the rot is the counterweight, so no stat block is the whole answer
-to a fight.
-
-| Mechanic | What it asks of you | Bonegrinder | Whisper | Host | Gorged | Confluence | Flasks | Crowns | Gift | Saved | Cold |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Slam | Tank cooldown, or the tank takes a large hit | always | always | always | always | | | | | | |
-| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always | | | | | | |
-| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always | | | | | | |
-| The hollowed | Summoned adds beeline for the nearest body; dealers switch | | carried | | | | | | | rung 4 | |
-| The rising | The sludgeworks floods its own edge; the middle never goes | | | | | carried | | | | | |
-| The cold line | It walks outward from the boss — step off it | rung 1 | | | | | | | | | |
-| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | | | | | | | rung 4 |
-| The storm | It lets go of the tank and comes for the room | rung 3 | | | | | | | | | |
-| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | | | | | | | | |
-| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | | | | | | | | |
-| The shard | A cast at whoever is holding it — cut it | | rung 3 | | | | | | | | |
-| The shade | It follows the one it picked; keep walking | | rung 4 | | | | | | | | |
-| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | | | | | | | | |
-| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | | | | | | | rung 5 | |
-| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | | | | | | | | |
-| The blight | The room itself, billing everybody every few seconds | | | rung 1 | | | | | | | |
-| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 | | | | | | | |
-| The reek | A mark that spreads to whoever is standing near it | | | rung 3 | | | | | | | |
-| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 | | | | | | | |
-| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 | | | | | | | |
-| The breath out | Everything it drank, returned to everybody at once | | | rung 6 | | | | | | | |
-| The spill | Blood on somebody, six seconds out — everybody else, leave | | | | rung 1 | | | | | | |
-| The gorging | A bar the raid fills with what it lets happen | | | | rung 2 | | | | | | |
-| The festering | A wound that must be healed off, not ridden out | | | | rung 3 | | | | | | |
-| Blood beasts | A wave that picks somebody; bring it to the damage | | | | rung 4 | | | | | | |
-| The mark | Bought by the bar, on one of yours, and it never comes off | | | | rung 5 | | | | | | |
-| The swallowing | Your tank, gone for four seconds — somebody else, hold it | | | | rung 6 | | | | | | |
-| The spray | A cone off the big arm — be behind it | | | | | rung 1 | | | | | |
-| The infection | It ends in a body where you were standing; pick the place | | | | | rung 2 | | | | | |
-| The small things | Almost harmless alone; killing them all is the mistake | | | | | rung 3 | | | | | |
-| The flood | Costs nothing to stand in and makes fixing it late too slow | | | | | rung 4 | | | | | |
-| The merging | Two that touch become one; the fifth is a radius | | | | | rung 5 | | | | | |
-| The engulfing | It eats what nobody cleared, and the tank pays for it | | | | | rung 6 | | | | | |
-| The caustic | Broken glass that stays, and decides where the rest can happen | | | | | | rung 1 | | | | |
-| The hound | It cannot be killed; one of you walks for twenty-two seconds | | | | | | rung 2 | | | | |
-| The gathering | Everybody in one circle, and the bill is divided by who came | | | | | | rung 3 | | | | |
-| The chase | That circle lands on the one being hunted, and follows them | | | | | | rung 4 | | | | |
-| The flasks | A twenty-second count on a small circle — leave it early | | | | | | rung 5 | | | | |
-| The reagent | It drinks its own work; the tank pays, and swaps at six | | | | | | rung 6 | | | | |
-| The crown | Two of the three take nothing at all — hit the third | | | | | | | rung 1 | | | |
-| The thirst | The two you cannot hurt drink from whoever is close | | | | | | | rung 2 | | | |
-| The ballast | It must not reach the floor, and damage is the only answer | | | | | | | rung 3 | | | |
-| The grain | An errand, and it belongs to the tank | | | | | | | rung 4 | | | |
-| The stillness | Ten seconds where every step costs more than the last | | | | | | | rung 5 | | | |
-| The gift | Carry it, then hand it to somebody who never has | | | | | | | | rung 1 | | |
-| The bond | Two of you tied; the distance between you is the bill | | | | | | | | rung 2 | | |
-| The stain | Your own success, on the floor, for thirty-five seconds | | | | | | | | rung 3 | | |
-| The flight | Fourteen seconds with nothing to hit at all | | | | | | | | rung 4 | | |
-| The turning | A gift nobody took turns the body holding it | | | | | | | | rung 5 | | |
-| The crimson | A raid-wide bill, one size per gift in play | | | | | | | | rung 6 | | |
-| The wound | It takes back what the raid just gave; close it with hands | | | | | | | | | rung 1 | |
-| The kindred | One of the wave came to help — the answer is not hitting it | | | | | | | | | rung 2 | |
-| The way out | One door, open at the worst moment, and anybody may take it | | | | | | | | | rung 3 | |
-| The blocking | It hurts nobody and most of what you are doing does not arrive | | | | | | | | | rung 6 | |
-| The chill | A swing costs the healer something; there is no answer | | | | | | | | | | rung 1 |
-| The unstable | Every button pressed under it is a debt, paid squared | | | | | | | | | | rung 2 |
-| The haul | It drags the room in, then falls in on the room | | | | | | | | | | rung 3 |
-| The shadow | The room goes white; only what the raid broke gives shelter | | | | | | | | | | rung 5 |
-| The cold | Standing near it costs more every turn of it, and never stops | | | | | | | | | | rung 6 |
-| Enrage | A hard damage check | 240s | 240s | 240s | 240s | 245s | 250s | 250s | 230s | 190s | 280s |
-
-A cadence of zero disables a mechanic, and that is also how a rung the raid
-did not buy is switched off: one rule for a mechanic being absent rather than
-two. Zero is where it went wrong first, too — the schedulers counted down from
-it and fired every tick instead of never, so a boss marked the whole raid
-thirty times a second. Every scheduler checks its own cadence
-now, and the render check plays each boss through to the end and asserts that
-what reached the floor is exactly tonight's kit: everything on it seen, and
-nothing off it, including the rungs the boss owns and this raid did not
-reach.
+The Skyward Deck is the one fight whose enemy is not a thing in the middle of
+the floor: what the raid is holding is the deck itself. None of its six asks
+"stand somewhere else relative to the boss". Boarders come over the rail the
+other ship rides against, through one door rather than from every bearing, so
+the wave is a place to go and meet; the mortar and the rockets are drawn on the
+deck before they land; the axes pick one of the ranged; the hull burns a piece
+of deck near somebody and leaves it gone for a while; and the gun is the one
+thing that really hurts the other ship, so the fight's one standing job is
+somebody on it, competing with every other answer here for the same feet.
 
 Each mechanic asks for something different, which is what stops a fight being
-a single dodge repeated: puddles say leave where you stand, the breath says get
+a single dodge repeated: puddles say leave where you stand, the cone says get
 behind, the shockwave says come in, spread says separate, adds say switch
-targets, and the tide asks nothing at all except that the healer kept up.
+targets, and the raid-wide hit asks nothing at all except that the healer kept
+up.
 
-Only the tide cannot be dodged, and that is deliberate: a party that dodges
+Only that hit cannot be dodged, and that is deliberate: a party that dodges
 well takes almost nothing else, so without a floor of damage the healer is
 never tested and the only failure mode left is the enrage timer.
 
@@ -2159,8 +2061,8 @@ ringed in red instead.
 The puddle hit test allows a little grace at the rim — your token has to be
 meaningfully inside, not merely overlapping the edge.
 
-Your `Burst` has a two-second cast and movement cancels it, so the real
-decision is when you can afford to stand still. A cancelled cast costs
+A spell with a cast time is broken by moving, so the real decision is when
+you can afford to stand still. A cancelled cast costs
 nothing: mana is only spent when a cast resolves, and the cooldown is handed
 back the moment it breaks. Charging for a spell that never went off made
 standing in the fire the cheaper play, which is the opposite of the decision
@@ -2472,13 +2374,14 @@ the same bar to chew through and the enrage clock keeps meaning what it meant.
 A fight that simply grew an elite would be a fight with a longer timer wearing
 a costume.
 
-And it is not a rung. The ladders are full — thirty mechanics across thirty
-rungs, one owner each — so every size and difficulty meets the same interlude.
+And it is not gated by setting. Nothing is but the three mechanics the source
+itself gates (see [the kits](#the-kits)), so every size and difficulty would
+meet the same interlude.
 That is right for a beat whose job is to change the shape of a fight rather
 than its difficulty.
 
 The Whisper has none. Its wave is carried at every setting and one of its
-rungs puts a body on the floor that must not be killed, so the beat an
+mechanics puts a body on the floor that must not be killed, so the beat an
 interlude adds is the beat that fight already is.
 
 ## The floor is a plane
