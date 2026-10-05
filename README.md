@@ -4,7 +4,7 @@
 
 **Single-player multiplayer.** The content that needs a group — a raid boss, a
 battleground — played alone, at any hour, with nobody to wait for and no server
-to run, from a seat the fight is lost without. You pick one of fifteen specs;
+to run, from a seat the fight is lost without. You pick one of seventeen specs;
 everybody else on the field is AI. No network: every picture is from a licensed
 pack, and everything that happens is a timer in a deterministic simulation.
 
@@ -81,7 +81,8 @@ npm run dev
 ```
 
 Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
-The workflow runs `npm run check` before building, so a broken encounter or a
+The workflow runs the steps of `npm run check` as parallel jobs — all of them
+but `lawcheck` — and deploys only when they pass, so a broken encounter or a
 type error blocks the deploy.
 
 ## Getting in
@@ -614,31 +615,29 @@ colours — a mage and a shaman are two blues, and at a glance on a phone that
 is one blue. And every actor has a bearing that the gaze mechanic asks about,
 which nothing on screen showed.
 
-So a token is a body now: legs, a torso in the class colour, shoulders, arms,
-a head, and one thing in its hands per class. It is drawn from the same
-primitives as the rest of the render path — arcs, lines, filled paths — so
-there is no art in the repo, nothing to load, nothing to regenerate, and a new
-class is a colour in one table and a shape in one switch.
+So a token is a body now: a [Liberated Pixel Cup](#sprite-art) figure per
+spec, packed by `npm run lpc` into one sheet, `public/art/lpc.webp`, with the
+block each spec owns indexed in `src/render/lpc.ts`. The class is the body; the
+ring on the floor under it says the role — tank, healer or the rest — because
+four of the class colours are the colours this floor uses for things that hurt.
 
-Two decisions in `src/render/sprite.ts` are worth keeping:
+Two decisions in `src/render/lpcimage.ts` and `src/render/draw.ts` are worth
+keeping:
 
-**The body faces the screen, and only the ground turns.** A body drawn from
-above and rotated with its bearing was tried first and reads as an insect: a
-person seen from directly overhead is a blob with shoulders, and turning the
-blob makes it worse. The body mirrors left or right with the way it is turned,
-and the bearing itself is a mark on the rim of the disc it stands on.
+**The body turns with its bearing, in the sheet's four directions.** The
+picture is chosen from up, left, down and right off the actor's facing as the
+camera sees it, so a body seen from behind is drawn from behind.
 
 **The disc is still the hitbox.** The footprint is drawn first, at the actor's
-own radius, exactly as before — the body over it is a picture, and a picture
-must never be what position is read off. Under nine pixels the picture is
-dropped entirely and the token is a disc again, and under fifteen it keeps its
-shape and loses whatever it was holding: a greatsword at twelve pixels is not
-a greatsword, it is a smudge on the silhouette that was doing the work.
+own radius, and every ring that belongs to the ground goes under the body — the
+body over it is a picture, and a picture must never be what position is read
+off. When the sheet is not there the token is a disc again, and a fight is
+still completely readable in shapes.
 
-Bodies stand up out of their footprints, so the party is drawn in depth order
-and health bars and names are placed off the body height rather than the
-radius. The boss stays underneath the party: letting it into the depth order
-put a very large body in front of whoever was standing north of it.
+Bodies stand up out of their footprints, so everything on the floor — the boss,
+the adds and the party — is drawn in one depth order, sorted by where the feet
+land on the glass, and a speech bubble over a head and the headstone where a
+raider fell are placed off the body height rather than the radius.
 
 ## Design
 
@@ -993,7 +992,7 @@ The dead come back after twelve seconds at their own base. A battleground
 where they do not is a deathmatch with extra reading — the first team to win a
 fight wins the match, and every objective after that is a formality.
 
-**The other team is not a boss.** It is five of the same fifteen specs, rolled
+**The other team is not a boss.** It is five of the same seventeen specs, rolled
 at the door like yours, running the same AI file — because a battleground
 where the other side plays worse than yours is a training dummy that takes
 longer. That AI is a separate file from the raid's (`bgai.ts`), since the two
@@ -1781,28 +1780,28 @@ that a size and a difficulty each buy a mechanic, and a game that hands you
 the top of a ladder is a game with no rungs.
 
 So there is one chain, and it runs *through* the settings rather than past
-them. Six rungs a boss, in the order the fight gets harder, and the last of
+them. Four rungs a boss, in the order the fight gets harder, and the last of
 one boss opens the first of the next:
 
-> Bonegrinder 5 normal → 5 heroic → 10 normal → 10 heroic → 25 normal →
-> 25 heroic → Whisper 5 normal → … → Cold 25 heroic
+> Bonegrinder 10 normal → 10 heroic → 25 normal → 25 heroic →
+> Whisper 10 normal → … → Skyward 25 heroic
 
-Sixty kills to open the game. **Clearing a rung opens the one after it, and
+Forty-four kills to open the game. **Clearing a rung opens the one after it, and
 nothing else does** — not reaching it, not clearing something harder somewhere
 else — so what is open is always a prefix of that list and a single number
 describes it. Which is also why nothing in here ever has to ask "but did they
 clear the *other* twenty-five man".
 
-**Size before difficulty at each step**, rather than all three sizes and then
-all three heroics. That is the order they actually get harder in: heroic at
+**Size before difficulty at each step**, rather than both sizes and then
+both heroics. That is the order they actually get harder in: heroic at
 one size sits below normal at the next in every cell of the harness table
-above, and a chain that ran 5N–10N–25N–5H would ask a raid that had just
-fielded twenty-five people to go back down to five to carry on.
+above, and a chain that ran 10N–25N–10H would ask a raid that had just
+fielded twenty-five people to go back down to ten to carry on.
 
 The results button is named for what it does. It used to say NEXT BOSS after
-every kill, which was true once in six — now it says `5-MAN HEROIC` or
-`10-MAN NORMAL` when the next rung is this same boss one setting harder, and
-NEXT BOSS only at the top of the six, where it really is. Inside the citadel it
+every kill, which was true once in four — now it says `10-MAN HEROIC` or
+`25-MAN NORMAL` when the next rung is this same boss one setting harder, and
+NEXT BOSS only at the top of the four, where it really is. Inside the citadel it
 says WALK ON, because what follows a kill is the room you are standing in with
 its doors still on the floor.
 
@@ -1815,7 +1814,7 @@ against that room's own fight, so walking in cannot get you past anything:
 the citadel is somewhere to walk the ladder through, not a way round it.
 
 That makes an early evening a short one — the first room, and then nothing
-above it until the whole six of it are done. So a map with nothing left
+above it until the whole four of it are done. So a map with nothing left
 pressable on it says so and offers the next rung of the door in one press,
 rather than leaving GIVE UP as the only button that does anything. An evening
 is saved, and a saved evening with no way forward is a trap rather than a
@@ -2460,8 +2459,10 @@ under, so there is no credits file to go with them.
 
 ## The interlude
 
-Four of the five bosses stop once, at their first phase break, and something
-else walks in. The boss turns away and cannot be touched until its herald is
+No boss on the roster has one today — every fight's `herald` is `null` in
+`src/sim/encounters.ts`; the four that had one went with the fights taken off
+the roster. The machinery is kept: a boss given one stops once, at its first
+phase break, and something else walks in. The boss turns away and cannot be touched until its herald is
 down.
 
 Two rules keep it from becoming a second fight.
