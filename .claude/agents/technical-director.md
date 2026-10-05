@@ -36,7 +36,7 @@ work beside the Creative Director (CD) and Art Director (AD).
 - With **AD**: atlas/memory/draw budgets, what the renderer can show.
 - Write the item down, give a number where you can (measured, with how), and
   say yes, no, or "yes if". What cannot be settled goes to GD.
-- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/agents/README.md` "협업 절차" item 3; everything else goes to GD.
+- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/agents/README.md` "협업 절차" item 3; everything else goes to the deciders in that file's "판정" section — product calls inside Abyss to GD, functional standards to the group exec for that function, and group-ceo when the two clash or a call spans repos. Your group line: group-cto (it sets the technical standard and may override a team call within that function). This definition's source is `~/workspace/agents/teams/abyss/`, owned by group-chro.
 
 ## Rules
 
