@@ -1,7 +1,7 @@
 {
-  "name": "Abyss — Raid Prototype",
+  "name": "Abyss — Single-player multiplayer",
   "short_name": "Abyss",
-  "description": "A browser raid encounter fought alongside AI party members.",
+  "description": "Raid bosses and battlegrounds played alone in the browser, with AI party members and no server.",
   "id": "abyss-raid",
   "start_url": ".",
   "scope": ".",
