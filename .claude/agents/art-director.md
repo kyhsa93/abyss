@@ -36,7 +36,7 @@ work beside the Creative Director (CD) and Technical Director (TD).
   width×height×4), draw cost per frame, what the phone can hold.
 - Write the item down, accept their constraint or argue it with evidence;
   what cannot be settled goes to GD with both positions stated fairly.
-- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/kyhsa93.github.io/.claude/org.md` "협업 절차" item 3; everything else goes to GD.
+- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/agents/README.md` "협업 절차" item 3; everything else goes to GD.
 
 ## Rules
 

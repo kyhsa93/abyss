@@ -36,7 +36,7 @@ work beside the Creative Director (CD) and Art Director (AD).
 - With **AD**: atlas/memory/draw budgets, what the renderer can show.
 - Write the item down, give a number where you can (measured, with how), and
   say yes, no, or "yes if". What cannot be settled goes to GD.
-- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/kyhsa93.github.io/.claude/org.md` "협업 절차" item 3; everything else goes to GD.
+- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/agents/README.md` "협업 절차" item 3; everything else goes to GD.
 
 ## Rules
 
