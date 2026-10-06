@@ -255,6 +255,13 @@ for (const [label, w, h] of [
   const onScreen =
     auto.x - L.autoR >= 0 && auto.x + L.autoR <= w && auto.y - L.autoR >= 0 && auto.y + L.autoR <= h
   check(`${label}: the autocast toggle is on screen`, onScreen, `${auto.x.toFixed(0)},${auto.y.toFixed(0)} r=${L.autoR.toFixed(0)}`)
+  // The real tap target is autoR * 1.3 (src/input.ts, src/main.ts), not autoR itself —
+  // a smaller drawn circle with a bigger invisible hit area is still a real hit area.
+  // 44px is the floor this repo has picked (abyss#279, abyss#276, abyss#266).
+  const autoTapDiameter = L.autoR * 1.3 * 2
+  check(`${label}: the autocast tap target clears the 44px floor`, autoTapDiameter >= 44, `${autoTapDiameter.toFixed(1)}px`)
+  const btnTapDiameter = L.btnHit * 2
+  check(`${label}: the rotation buttons clear the 44px floor`, btnTapDiameter >= 44, `${btnTapDiameter.toFixed(1)}px`)
   fire('pointerdown', auto.x, auto.y, 60)
   fire('pointermove', auto.x + L.joyBase, auto.y, 60)
   const afterAuto = input.consume()

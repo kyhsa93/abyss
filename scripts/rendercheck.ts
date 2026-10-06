@@ -11542,8 +11542,6 @@ for (const [label, w, h] of [
   // landscape.
   const WORDS_HELD: Record<string, number> = {
     'composition 10, a slot open @390x844': 2,
-    'kill 10 @390x844': 2,
-    'wipe 10 @390x844': 1,
     'composition 25, a slot open @390x844': 1,
     'kill 25 @390x844': 11,
     'wipe 25 @390x844': 10,

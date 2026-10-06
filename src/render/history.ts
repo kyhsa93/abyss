@@ -563,6 +563,17 @@ function drawAwards(ctx: CanvasRenderingContext2D, layout: HistoryLayout, earned
  * input on that screen is the two buttons, and a banner that needed
  * dismissing would be a third.
  */
+/**
+ * How many banners are actually on screen right now (fading in counts,
+ * faded out does not). The outcome screen (`drawOutcome` in `hud.ts`) needs
+ * this to keep its own report table from starting under the stack -- sharing
+ * the fade formula here instead of copying it keeps the two from drifting
+ * apart (abyss#283).
+ */
+export function visibleAwardBannerCount(items: { age: number }[]): number {
+  return items.filter((item) => Math.min(1, item.age / 0.3, (6 - item.age) / 1.2) > 0).length
+}
+
 export function drawAwardBanners(
   ctx: CanvasRenderingContext2D,
   items: { award: { name: string; detail: string }; age: number }[],

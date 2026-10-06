@@ -10,6 +10,7 @@ import {
   mapButton,
   settingsButton,
   partyButton,
+  setAwardBannerCount,
   setOpenedLine,
   setShareLabel,
   setTrendLine,
@@ -31,7 +32,7 @@ import {
   trend,
   type Attempt,
 } from './history'
-import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './render/history'
+import { drawAwardBanners, drawHistory, hitHistory, visibleAwardBannerCount, type HistoryTab } from './render/history'
 import {
   fold as foldNote,
   load as loadNotes,
@@ -1080,8 +1081,17 @@ function harvest(): void {
   // Read by position, which is how `carryInto` reads them back, so it is only
   // trusted while the walk is holding the whole party -- the same guard
   // `whereTheyStand` makes before it believes the order.
+  //
+  // Only while the walk is still live (`outcome === 'ongoing'`). A wiped
+  // corridor's `state` is a row of corpses -- `carriedOut` on that is all -1,
+  // and folding it in here beat `restart`'s own `wipedRoom` reset to the
+  // punch: `restart` writes the walked-in fractions back, then calls
+  // `walkTo`, whose first line is this `harvest`, which read the dead state
+  // and wrote the corpses straight back over what `restart` had just fixed.
+  // The retry then built its fresh corridor fight out of an all-dead
+  // `roomCarried` and was never not wiped (abyss#271, abyss#281).
   const bodies = state.actors.filter((a) => a.faction === 'party')
-  if (bodies.length === party.length) {
+  if (state.outcome === 'ongoing' && bodies.length === party.length) {
     const now = carriedOut(state)
     if (now.some((share, i) => share !== next.carried[i])) next = { ...next, carried: now }
   }
@@ -2637,6 +2647,7 @@ function frame(now: number): void {
   ctx.fillRect(0, 0, L.w, L.h)
   const pad = onPad()
   drawWorld(ctx, state, alpha, clock, effects, padHere())
+  setAwardBannerCount(visibleAwardBannerCount(announced))
   drawHud(
     ctx,
     state,

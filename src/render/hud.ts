@@ -49,10 +49,17 @@ export interface Rect {
  */
 function cornerPair(): { w: number; h: number; y: number; right: number } {
   const pair = Math.max(120, Math.min(170, L.w * 0.26))
+  // 44px is the touch-target floor this repo has picked (abyss#276, abyss#279,
+  // abyss#266). The old floor (22px) left these three below half that. Grown
+  // from the old row's vertical center outward, so the row doesn't creep into
+  // the boss-health bar above it as it gets taller.
+  const oldH = Math.max(22, Math.min(30, L.h * 0.04))
+  const oldY = L.infoY + 15 * L.ui * 4 + 6
+  const h = Math.max(44, Math.min(52, L.h * 0.065))
   return {
     w: (pair - 6) / 2,
-    h: Math.max(22, Math.min(30, L.h * 0.04)),
-    y: L.infoY + 15 * L.ui * 4 + 6,
+    h,
+    y: oldY + oldH / 2 - h / 2,
     right: L.infoX,
   }
 }
@@ -427,6 +434,17 @@ let shareLabel: string | null = null
 
 export function setShareLabel(label: string | null): void {
   shareLabel = label
+}
+
+/**
+ * How many award banners are on screen right now, set by the page right
+ * before it draws them (`drawAwardBanners` in `history.ts`). The report
+ * table below needs this so it does not start under the stack (abyss#283).
+ */
+let awardBannerCount = 0
+
+export function setAwardBannerCount(count: number): void {
+  awardBannerCount = count
 }
 
 export function drawHud(
@@ -2129,7 +2147,10 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   // Above the meter, in the kill's own colour: what the pull paid out. It is
   // the one line on this screen that is about the game rather than about the
   // fight, so it sits with the fight's headline rather than in the report.
-  const reportTop = Math.max(96, L.h * 0.26)
+  // Banners stack downward from L.h * 0.22 (history.ts, drawAwardBanners) --
+  // the report must never start above the lowest one on screen (abyss#283).
+  const bannerBottom = L.h * 0.22 + awardBannerCount * (42 * L.ui + 8) + 8
+  const reportTop = Math.max(Math.max(96, L.h * 0.26), bannerBottom)
   if (openedLine !== null && s.outcome === 'victory') {
     ctx.textAlign = 'center'
     ctx.fillStyle = COLORS.castBar

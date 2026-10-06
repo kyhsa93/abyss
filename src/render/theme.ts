@@ -260,7 +260,7 @@ export function computeLayout(w: number, h: number): Layout {
 
   const actionY = h - (58 * ui + 12 * ui + 10)
 
-  const btnR = clamp(Math.min(w, h) * 0.031, 17, 26)
+  const btnR = clamp(Math.min(w, h) * 0.031, 21, 26)
   const joyBase = clamp(Math.min(w, h) * 0.105, 58, 92)
 
   const btnX = w - btnR - 14
