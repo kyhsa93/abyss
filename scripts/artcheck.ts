@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, readdirSync } from 'node:fs'
+import { resolve, join } from 'node:path'
 import { PROPS } from '../src/render/props'
 import { ART, listUrl } from '../src/credits'
 
@@ -194,6 +194,49 @@ for (const set of ART) {
       row.list === (set.file ? set.file.replace(/^art\//, '') : null),
     row ? `${row.url} ${row.licences.join(', ')} ${row.list}` : 'no row',
   )
+}
+
+// --- and no shipped atlas has drifted past the canvas budget -----------------
+
+/**
+ * The long side of a WebP's canvas, read off the VP8X extended-format header
+ * rather than decoded -- this repo has no image library, and the header is
+ * eleven fixed bytes. `lpc.webp` sat at 5247px, 1151 over the 4096 budget TD
+ * sets for canvases (atlases included, per `teams/abyss/art-director.md`'s
+ * own "atlas size" coordination with TD), for an unknown amount of time
+ * before anyone measured it by hand (abyss#311) -- nothing in `npm run check`
+ * had ever looked.
+ */
+function webpLongSide(path: string): number {
+  const buf = readFileSync(path)
+  if (buf.toString('ascii', 12, 16) !== 'VP8X') return 0 // simple/lossless format, not an atlas this repo builds
+  const width = buf.readUIntLE(24, 3) + 1
+  const height = buf.readUIntLE(27, 3) + 1
+  return Math.max(width, height)
+}
+
+const ATLAS_BUDGET = 4096
+
+// Already over budget on the day this check went in, untested on real
+// hardware (abyss#311 asks for that test). Held rather than failed so this
+// check does not block unrelated work on a pre-existing number -- lowered
+// when the atlas is repacked, removed once it clears ATLAS_BUDGET on its
+// own, and never raised.
+const OVER_BUDGET: Record<string, number> = {
+  'lpc.webp': 5247,
+}
+
+const ART_DIR = resolve(process.cwd(), 'public/art')
+for (const name of readdirSync(ART_DIR).filter((f) => f.endsWith('.webp'))) {
+  const long = webpLongSide(join(ART_DIR, name))
+  const held = OVER_BUDGET[name]
+  if (held === undefined) {
+    expect(`art/${name}: long side (${long}px) is within the ${ATLAS_BUDGET}px canvas budget`, long <= ATLAS_BUDGET, `${long}px`)
+  } else if (long <= ATLAS_BUDGET) {
+    expect(`art/${name}: back within the ${ATLAS_BUDGET}px budget now -- take it off OVER_BUDGET`, false, `${long}px, held at ${held}px`)
+  } else {
+    expect(`art/${name}: no further over the ${ATLAS_BUDGET}px budget than the ${held}px it was held at`, long <= held, `${long}px`)
+  }
 }
 
 if (failures > 0) {
