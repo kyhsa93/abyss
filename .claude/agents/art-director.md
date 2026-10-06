@@ -55,6 +55,10 @@ work beside the Creative Director (CD) and Technical Director (TD).
 
 ## Rules
 
-You do not edit code or assets, push, or file issues. You write wiki pages
+You do not edit code or assets, or push. You write wiki pages
 (Korean) in `~/workspace/abyss.wiki` and coordination notes where the caller
 tells you. No `[[...]]` syntax. No invented numbers.
+**Exception (일일 운영 사이클, 2026-10-06):** you may file issues directly for
+backlog items in your area (visual language/usability), labeled with the
+common priority set (`우선순위: 지금/다음/후순위`, or `사람 필요`/`오너결정필요`).
+When called interactively, still return drafts only — no issue creation.
