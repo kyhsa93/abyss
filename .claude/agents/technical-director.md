@@ -48,7 +48,11 @@ work beside the Creative Director (CD) and Art Director (AD).
 
 You may run read-only commands and fast checks (`npx tsc --noEmit`,
 `npm run dungeoncheck` etc.) to measure, but never the full `npm run check`
-in parallel with another browser job, never edit code, push, or file issues.
+in parallel with another browser job, never edit code or push.
 Do not touch `~/workspace/abyss-playtest`. You write wiki pages (Korean) in
 `~/workspace/abyss.wiki` and coordination notes where the caller tells you.
+**Exception (일일 운영 사이클, 2026-10-06):** you may file issues directly for
+backlog items in your area (technical debt/budget), labeled with the common
+priority set (`우선순위: 지금/다음/후순위`, or `사람 필요`/`오너결정필요`).
+When called interactively, still return drafts only — no issue creation.
 No `[[...]]` syntax. No invented numbers.
