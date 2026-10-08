@@ -56,7 +56,7 @@ import type { Effects } from './effects'
 import { drawBystanders, drawGrave, drawObstacles, drawProps, drawSurround, floorTexture } from './scenery'
 import { EDGE_LAP, fromRoom, roomAt, roomHasOutside, roomReach, type RoomShape } from '../sim/room'
 import { COLORS, L, floorColor, setWorldRoom, worldRoom } from './theme'
-import { bodyHeight, drawBody, hasBody } from './lpcimage'
+import { bodyHeight, drawBody, hasBody, pixelScale } from './lpcimage'
 import { drawBolt } from './boltimage'
 import { drawFxLoop } from './fximage'
 import { chestHeight } from './lpcimage'
@@ -3329,6 +3329,25 @@ function bossAccent(s: SimState): string {
  */
 export const BOSS_FIGURE_CAP = 2
 
+/**
+ * Opaque width, in source pixels, of the standing front of a boss's sheet.
+ *
+ * Measured off `lpc.webp` for the eleven bosses: 28 to 32, the party's being
+ * 30. One number for all of them because the patch it sizes is a patch of
+ * floor and the spread is under a tenth either side of it; `rendercheck` holds
+ * each boss against its own measured width.
+ */
+export const BOSS_BODY_PX = 30
+
+/**
+ * How much of the old disc's red the ring a boss is judged at keeps.
+ *
+ * The ring says where the boss's ground ends and nothing about the boss, so it
+ * is an edge with a wash inside it rather than a plate. Half or less of what
+ * the whole disc used to be; nought leaves the edge alone.
+ */
+export const BOSS_RING_FILL = 0.5
+
 export function bossFigure(r: number, phase: number, gauge: number, sinceBreak: number): number {
   const person = PARTY_RADIUS * L.scale
   const swell = (1 + phaseHeat(phase) * 0.3 + gauge * GORGE_SWELL) * breakSwell(sinceBreak)
@@ -3464,6 +3483,19 @@ function drawActor(
       : `${a.classId}-${a.spec}`
   const bodied = token !== null && a.alive && hasBody(token)
 
+  // A boss stands on two things, not one. The ground it holds is as wide as the
+  // simulation judges it and for the larger bosses that is ten times the figure
+  // standing in it, which read as the boss's own foot and made every one of
+  // them look like a person on a very large plate. So the ring stays at the
+  // judged width and says only that, and the body gets a patch of floor of its
+  // own, the width of the figure as it is drawn, which carries the red and the
+  // boss's colour.
+  const footed = isBoss && a.alive && token !== null
+  const figure = isBoss ? bossFigure(r, phase, gauge, sinceBreak) : r
+  const stand = footed
+    ? Math.min(r, (BOSS_BODY_PX * pixelScale(figure, ctx.getTransform?.()?.a ?? 1)) / 2)
+    : r
+
   footprint(ctx, p.x, p.y, r)
   // Under a walking body the disc is the ground it stands in rather than the
   // body itself, so it drops to a shade and the class colour moves out to the
@@ -3477,13 +3509,19 @@ function drawActor(
   // reading tokens. The boss's own accent stays where it always was — on its
   // frame and its casts — because three bosses in the same red read as one
   // boss, and that argument is about identity rather than about threat.
+  const threat = (bodied || footed ? 0.34 : 0.62) + (isBoss ? phaseHeat(phase) * 0.26 : 0)
   ctx.fillStyle = enemy
-    ? `rgba(220, 38, 38, ${(bodied ? 0.34 : 0.62) + (isBoss ? phaseHeat(phase) * 0.26 : 0)})`
+    ? `rgba(220, 38, 38, ${footed ? threat * BOSS_RING_FILL : threat})`
     : bodied
       ? 'rgba(6, 8, 10, 0.5)'
       : color
   ctx.globalAlpha = a.alive ? 1 : 0.4
-  ctx.fill()
+  if (!footed || BOSS_RING_FILL > 0) ctx.fill()
+  if (footed) {
+    footprint(ctx, p.x, p.y, stand)
+    ctx.fillStyle = `rgba(220, 38, 38, ${threat})`
+    ctx.fill()
+  }
 
   // Its own colour, inside the red rather than instead of it.
   //
@@ -3500,7 +3538,7 @@ function drawActor(
   // changed is how dangerous it is rather than what it is. Both move: it gets
   // more dangerous and it gets more its own colour.
   if (isBoss && a.alive) {
-    footprint(ctx, p.x, p.y, r * (0.52 + phaseHeat(phase) * 0.18))
+    footprint(ctx, p.x, p.y, stand * (0.52 + phaseHeat(phase) * 0.18))
     ctx.fillStyle = accent
     ctx.globalAlpha = 0.85
     ctx.fill()
@@ -3657,7 +3695,7 @@ function drawActor(
       // looks is the picture's to say. Fifteen percent a phase, which is a
       // silhouette that has visibly changed between one glance and the next
       // without becoming a different creature.
-      isBoss ? bossFigure(r, phase, gauge, sinceBreak) : r,
+      figure,
       screenAngle(a.facing),
       (a.pos.x + a.pos.y) * STRIDE,
       step > 0.2,

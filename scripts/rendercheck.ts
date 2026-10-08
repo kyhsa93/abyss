@@ -11405,6 +11405,99 @@ for (const [label, w, h] of [
 }
 
 
+// --- a boss stands on a patch of floor the width of its body (#320)
+//
+// The ground it holds is drawn at the width the simulation judges it at, and
+// for a boss that is up to eleven times the figure standing in it. A disc that
+// size read as the boss's own foot, so the picture said a boss was a person
+// standing in the middle of a very large plate. Two things on the floor now:
+// the ring, which says how far its ground goes and has nothing inside it, and
+// a patch under the feet, which is the size of the body and carries the red
+// and the boss's own colour.
+//
+// The ratio is measured the way the issue measures it: the patch's width over
+// the width of the figure on screen, and the figure's width is the opaque
+// width of the standing front of its sheet (measured once off `lpc.webp`,
+// weapon and shield layers left out) times the scale the sheet is drawn at.
+
+{
+  const BODY_PX: Record<string, number> = {
+    marrow: 30, whisper: 28, host: 32, gorged: 32, confluence: 30, flasks: 30,
+    crowns: 30, gift: 28, saved: 28, cold: 30, skyward: 32,
+  }
+  const bossAlpha = (phase: number) => 0.34 + Math.max(0, Math.min(1, (phase - 1) / 2)) * 0.26
+  const loose: string[] = []
+  const plate: string[] = []
+  const inside: string[] = []
+  const missing: string[] = []
+  const table: string[] = []
+  for (const [w, h, device] of [[1280, 800, 1], [390, 844, 2], [390, 844, 3]] as const) {
+    updateLayout(w, h)
+    for (let i = 0; i < ENCOUNTERS.length; i++) {
+      const id = ENCOUNTERS[i]!.id
+      const width = BODY_PX[id]
+      if (width === undefined) {
+        missing.push(`${id}: no measured body width`)
+        continue
+      }
+      for (const [phase, gauge] of [[1, 0], [3, 1]] as const) {
+        const s = pulled(0x51ed, 0, undefined, 'normal', i)
+        s.phase = phase
+        s.gauge = gauge
+        const boss = s.actors.find((a) => a.id === BOSS_ID)!
+        const r = Math.max(4, boss.radius * L.scale)
+        const fills: Array<{ x: number; y: number; rx: number; style: string; alpha: number }> = []
+        const edges: Array<{ x: number; y: number; rx: number }> = []
+        let at = { x: 0, y: 0, rx: 0 }
+        const noop = () => {}
+        const pen: Record<string, unknown> = { globalAlpha: 1 }
+        const ctx = new Proxy(pen, {
+          get(_t, prop) {
+            if (prop === 'ellipse') return (x: number, y: number, rx: number) => { at = { x, y, rx } }
+            if (prop === 'arc') return (x: number, y: number, rr: number) => { at = { x, y, rx: rr } }
+            if (prop === 'fill') return () => fills.push({ ...at, style: String(pen.fillStyle), alpha: Number(pen.globalAlpha) * (Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(String(pen.fillStyle))?.[1] ?? 1)) })
+            if (prop === 'stroke') return () => { if (pen.lineWidth === 3 && pen.strokeStyle === encounterAt(s.encounter).accent && Math.abs(at.rx - r) < 1e-6) edges.push({ ...at }) }
+            if (prop === 'getTransform') return () => ({ a: device })
+            if (prop === 'measureText') return () => ({ width: 10 })
+            if (prop === 'createRadialGradient' || prop === 'createLinearGradient') return () => ({ addColorStop: noop })
+            if (prop === 'canvas') return { width: L.w, height: L.h }
+            return noop
+          },
+          set: (_t, prop, value) => {
+            pen[prop as string] = value
+            return true
+          },
+        }) as unknown as CanvasRenderingContext2D
+        drawWorld(ctx, s, 1, s.time, new Effects())
+        const edge = edges[0]
+        if (!edge) {
+          missing.push(`${id} at ${w}x${h}@${device}: no edge`)
+          continue
+        }
+        // Inside the ring: a wash laid over the whole room is not the boss's.
+        const here = fills.filter((f) => Math.abs(f.x - edge.x) < 0.01 && Math.abs(f.y - edge.y) < 0.01 && f.rx <= r + 1e-6)
+        // What counts as a plate: more than half of what the disc used to be.
+        const strong = here.filter((f) => f.alpha > bossAlpha(phase) / 2 + 1e-9)
+        const patch = strong.reduce((m, f) => Math.max(m, f.rx), 0)
+        const body = width * pixelScale(bossFigure(r, phase, gauge, Infinity), device)
+        const ratio = (2 * patch) / body
+        table.push(`${id} ${w}x${h}@${device} p${phase}: ${ratio.toFixed(2)}`)
+        if (!(ratio >= 0.8 && ratio <= 1.3)) loose.push(`${id} at ${w}x${h}@${device} phase ${phase}: patch ${(2 * patch).toFixed(1)} over body ${body.toFixed(1)} = ${ratio.toFixed(2)}`)
+        if (strong.some((f) => f.rx > patch - 1e-9 && Math.abs(f.rx - r) < 1e-6)) plate.push(`${id} at ${w}x${h}@${device}: the ring at ${r.toFixed(1)} is filled`)
+        // The boss's own colour is in the patch, not in the ring.
+        const accent = encounterAt(s.encounter).accent
+        const core = here.filter((f) => f.style === accent)
+        if (core.length === 0 || core.some((f) => f.rx > patch + 1e-9)) inside.push(`${id} at ${w}x${h}@${device} phase ${phase}: core ${core.map((f) => f.rx.toFixed(1)).join(',') || 'none'} against patch ${patch.toFixed(1)}`)
+      }
+    }
+  }
+  expect('every boss has a patch of floor under it the width of its body, 0.80 to 1.30', missing.length === 0 && loose.length === 0, [...missing, ...loose].join('; '))
+  expect('the ring a boss is judged at carries no plate: at most half the old fill', plate.length === 0, plate.join('; '))
+  expect("and the boss's own colour is drawn inside the patch, never in the ring", inside.length === 0, inside.join('; '))
+  updateLayout(1280, 800)
+}
+
+
 // --- words do not land on words ------------------------------------------------
 //
 // Every screen, drawn into a recorder that keeps the box each line of text
