@@ -92,7 +92,7 @@ import {
   zoomLevel,
 } from './render/theme'
 import { bossOrNone } from './sim/combat'
-import { DT } from './sim/constants'
+import { DT, PARTY_RADIUS } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
 import { autoPress } from './sim/autocast'
@@ -2804,6 +2804,10 @@ if (!import.meta.env.PROD) {
           const on = worldToScreen(a.pos)
           return { id: a.id, name: a.name, classId: a.classId, leader: a.isPlayer, alive: a.alive, x: a.pos.x, y: a.pos.y, sx: on.x, sy: on.y }
         })
+    },
+    /** What the glass scale is and how big a raider's footprint is on it (#316). */
+    foot(): { scale: number; radius: number } {
+      return { scale: L.scale, radius: Math.max(4, PARTY_RADIUS * L.scale) }
     },
     /** Which room the walk thinks the party is in. */
     chamber(): string | null {

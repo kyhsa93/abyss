@@ -30,8 +30,10 @@
  *   npm run spacingshots -- 10 1280x800 /tmp/shots
  */
 import { spawn } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
+import { footMargins } from './spacingmetric'
+import { TILT } from '../src/render/draw'
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
@@ -124,6 +126,7 @@ async function main(): Promise<void> {
      * under the overlap and under the door's line in the game's own units, the
      * nearest pair on the glass in pixels, and the tick it was read at.
      */
+    let foot = { scale: 1, radius: 8 }
     const crowding = (bodies: Body[]): string => {
       const alive = bodies.filter((b) => b.alive)
       let under18 = 0
@@ -148,19 +151,55 @@ async function main(): Promise<void> {
         near.push(mine)
       }
       const pairs = (alive.length * (alive.length - 1)) / 2
+      const feet = footMargins(alive.map((b) => ({ x: b.sx, y: b.sy })), foot.radius, TILT)
+      const roomy = feet.nearest.filter((m) => m >= 5).length
       const mean = near.reduce((a, b) => a + b, 0) / Math.max(1, near.length)
       const alone = near.filter((d) => d >= 27).length
       return (
         `nearest ${nearest.toFixed(1)} (${nearestPx.toFixed(0)}px)  pairs <18 ${under18} <27 ${under27} (${((100 * under27) / pairs).toFixed(1)}%) <34 ${under34}` +
-        `  mean nearest-neighbour ${mean.toFixed(1)}  bodies with a neighbour inside 27: ${alive.length - alone}/${alive.length}`
+        `  mean nearest-neighbour ${mean.toFixed(1)}  bodies with a neighbour inside 27: ${alive.length - alone}/${alive.length}` +
+        `  feet: least gap ${feet.pairMin.toFixed(1)}px (across ${feet.across.toFixed(1)}, up-and-down ${feet.slope.toFixed(1)}), nearest gap >= 5px for ${((100 * roomy) / alive.length).toFixed(0)}%`
       )
+    }
+    /**
+     * Bodies to point at in the pictures that are made to follow them (#316).
+     * A loud arrow, a number and a ring on the floor are laid over the page as
+     * elements for the length of the screenshot and taken off again, so nothing
+     * is drawn by the game and none of it is in a build.
+     */
+    const pointed: Array<{ id: number; colour: string; label: string }> = []
+    const overlay = async (): Promise<void> => {
+      const now = await raid()
+      const box = (await page.locator('#stage').boundingBox())!
+      const glass = (await page.evaluate('({ w: window.innerWidth, h: window.innerHeight })')) as { w: number; h: number }
+      const spots = pointed.map((m) => {
+        const b = now.find((x) => x.id === m.id)!
+        return { ...m, x: box.x + (b.sx / glass.w) * box.width, y: box.y + (b.sy / glass.h) * box.height }
+      })
+      await page.evaluate((list) => {
+        for (const m of list as Array<{ colour: string; label: string; x: number; y: number }>) {
+          const arrow = document.createElement('div')
+          arrow.className = 'spacing-mark'
+          arrow.textContent = `${m.label}\u25BC`
+          arrow.style.cssText = `position:fixed;left:${m.x - 14}px;top:${m.y - 62}px;width:28px;text-align:center;font:bold 15px/15px sans-serif;color:${m.colour};text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;z-index:9999;pointer-events:none`
+          const ring = document.createElement('div')
+          ring.className = 'spacing-mark'
+          ring.style.cssText = `position:fixed;left:${m.x - 12}px;top:${m.y - 7}px;width:24px;height:14px;border:2px solid ${m.colour};border-radius:50%;box-shadow:0 0 0 1px #000;z-index:9999;pointer-events:none`
+          document.body.append(arrow, ring)
+        }
+      }, spots)
     }
     const shot = async (name: string): Promise<void> => {
       const tick = (await ask<{ tick: number }>('hud()')).tick
+      foot = await ask<{ scale: number; radius: number }>('foot()')
+      if (pointed.length > 0) await overlay()
       await page.screenshot({ path: `${outArg}/${name}.png` })
       taken.push(name)
+      if (pointed.length > 0) await page.evaluate("document.querySelectorAll('.spacing-mark').forEach((e) => e.remove())")
       const at = await hero()
       const bodies = await raid()
+      // Where everyone was on the glass, for the measurements made from the picture.
+      writeFileSync(`${outArg}/${name}.json`, JSON.stringify({ tick, foot: await ask('foot()'), bodies }))
       console.log(`${name.padEnd(14)} tick ${tick}  player at ${Math.round(at.x)},${Math.round(at.y)}  ${crowding(bodies)}`)
     }
     const steerTo = async (tx: number, ty: number, ms: number, until?: () => Promise<boolean>): Promise<void> => {
@@ -186,14 +225,14 @@ async function main(): Promise<void> {
     const follow = async (prefix: string, every: number, count: number, a: { x: number; y: number }, b: { x: number; y: number }): Promise<void> => {
       const first = await raid()
       const lead = first.find((x) => x.leader)!
-      const pick: Body[] = []
-      for (const body of first) {
-        if (body.leader || !body.alive) continue
-        if (body.classId === lead.classId || pick.some((p) => p.classId === body.classId)) continue
-        pick.push(body)
-        if (pick.length === 2) break
-      }
-      console.log(`${prefix}: following ${pick.map((p) => `${p.name} (${p.classId}, id ${p.id})`).join(' and ')}; leader is ${lead.name} (${lead.classId})`)
+      // Three bodies a quarter, a half and three quarters of the way back along
+      // the first leg, each marked in its own colour for as long as this runs.
+      const heading = Math.sign(b.x - (await hero()).x) || 1
+      const behind = first.filter((x) => !x.leader && x.alive).sort((p, q) => heading * (q.x - p.x) || p.id - q.id)
+      const pick: Body[] = [0.2, 0.45, 0.7].map((f) => behind[Math.floor(behind.length * f)]!)
+      pointed.length = 0
+      pick.forEach((p, i) => pointed.push({ id: p.id, colour: ['#ff2bd6', '#00e5ff', '#ffe600'][i]!, label: ['A', 'B', 'C'][i]! }))
+      console.log(`${prefix}: marking ${pick.map((p, i) => `${'ABC'[i]} ${p.name} (${p.classId}, id ${p.id})`).join(', ')}; leader is ${lead.name} (${lead.classId})`)
       let toward = b
       const t0 = Date.now()
       let was = lead
@@ -218,8 +257,9 @@ async function main(): Promise<void> {
         })
         was = me
         await shot(`${prefix}-${k + 1}`)
-        console.log(`  ${prefix}-${k + 1} place from the front: ${where.join('; ')}`)
+        console.log(`  ${prefix}-${k + 1} place from the front: ${where.join('; ')}  (leader going ${hx > 1 ? 'east' : hx < -1 ? 'west' : 'nowhere much'})`)
       }
+      pointed.length = 0
     }
 
     // The raid, of the size asked for, with the first class on the list.
@@ -347,11 +387,36 @@ async function main(): Promise<void> {
     await sleep(6000)
     await shot('regathered')
 
+    // A fight, for the pictures that have to show the footprints with the rings and
+    // the boss's floor on them: walk at the nearest thing hostile until the walk
+    // turns into a fight, and photograph it a moment in and a few seconds in.
+    {
+      const foes = await ask<Array<{ x: number; y: number; name: string }>>('foesAt()')
+      console.log(`hostile on the floor: ${foes.length} ${foes.slice(0, 4).map((f) => `${f.name} at ${Math.round(f.x)},${Math.round(f.y)}`).join('; ')}`)
+      const began = Date.now()
+      while (Date.now() - began < 120_000 && (await ask<string>('mode()')) === 'travel') {
+        const me = await hero()
+        const all = await ask<Array<{ x: number; y: number; name: string }>>('foesAt()')
+        const aim = all.sort((p, q) => Math.hypot(p.x - me.x, p.y - me.y) - Math.hypot(q.x - me.x, q.y - me.y))[0]
+        if (!aim) break
+        await hold(await ask<string[]>(`keysFor(${aim.x - me.x}, ${aim.y - me.y})`))
+        await sleep(60)
+      }
+      console.log(`mode ${await ask<string>('mode()')} in ${await ask<string>('chamber()')} after ${((Date.now() - began) / 1000).toFixed(0)}s, player at ${JSON.stringify(await hero())}`)
+      await hold([])
+      if ((await ask<string>('mode()')) !== 'travel') {
+        await sleep(1200)
+        await shot('fight-1')
+        await sleep(3000)
+        await shot('fight-2')
+      }
+    }
+
     if (errors.length > 0) {
       console.error(`the page threw: ${errors.join(' | ')}`)
       process.exitCode = 1
     }
-    const need = ['order-1', 'order-8', 'bunch-wall-0.0s', 'bunch-wall-2.0s', 'walking', 'walk-1', 'walk-2', 'walk-3', 'walk-4', 'stop-0.0s', 'stop-0.5s', 'stop-1.0s', 'stop-1.5s', 'stop-2.0s', 'stopped', 'door', 'passage', 'coming-out']
+    const need = ['order-1', 'order-8', 'bunch-wall-0.0s', 'bunch-wall-2.0s', 'walking', 'walk-1', 'walk-2', 'walk-3', 'walk-4', 'stop-0.0s', 'stop-0.5s', 'stop-1.0s', 'stop-1.5s', 'stop-2.0s', 'stopped', 'door', 'passage', 'coming-out', 'fight-1', 'fight-2']
     const missing = need.filter((n) => !taken.includes(n))
     if (missing.length > 0) {
       console.error(`the set is short of: ${missing.join(', ')}`)

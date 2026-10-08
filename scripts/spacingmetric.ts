@@ -515,3 +515,50 @@ export function glassRatio(frames: Frame[], leader: number, seenX: number, seenY
   }
   return worst
 }
+
+// --- the footprints on the glass ---------------------------------------------------
+
+/**
+ * How much floor shows between the footprints under a raid, in pixels on the glass.
+ *
+ * A footprint is a circle on the floor, so on the glass it is an ellipse
+ * `radius` wide and `radius * tilt` tall, and the gap between two of them
+ * depends on which way the pair lies: a pair side by side is measured across
+ * the wide axes and a pair one above the other across the short ones. Judged as
+ * "centre distance minus two diameters" the second kind reads as touching when
+ * there is a footprint's height of floor between them (#316). So this takes the
+ * distance along the line between the two centres, minus the two ellipses'
+ * reach along that line.
+ *
+ * `at` is where each body is on the glass; `scale` shrinks every footprint
+ * by the same factor (1 is the picture as drawn).
+ */
+export function footMargins(at: Array<{ x: number; y: number }>, radius: number, tilt: number, scale = 1): { pairMin: number; nearest: number[]; across: number; slope: number } {
+  const rx = radius * scale
+  const reach = (dx: number, dy: number): number => {
+    const d = Math.hypot(dx, dy) || 1
+    const c = dx / d
+    const s = dy / d
+    return 1 / Math.sqrt((c / rx) ** 2 + (s / (rx * tilt)) ** 2)
+  }
+  let pairMin = Infinity
+  let across = Infinity
+  let slope = Infinity
+  const nearest: number[] = at.map(() => Infinity)
+  for (let i = 0; i < at.length; i++) {
+    for (let j = i + 1; j < at.length; j++) {
+      const dx = at[j]!.x - at[i]!.x
+      const dy = at[j]!.y - at[i]!.y
+      const d = Math.hypot(dx, dy)
+      const m = d - 2 * reach(dx, dy)
+      pairMin = Math.min(pairMin, m)
+      const angle = Math.abs((Math.atan2(dy, dx) * 180) / Math.PI)
+      const tilted = Math.min(angle, 180 - angle)
+      if (tilted < 30) across = Math.min(across, m)
+      else if (tilted > 60) slope = Math.min(slope, m)
+      nearest[i] = Math.min(nearest[i]!, m)
+      nearest[j] = Math.min(nearest[j]!, m)
+    }
+  }
+  return { pairMin, nearest, across, slope }
+}
