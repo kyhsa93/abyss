@@ -1200,6 +1200,14 @@ cannot walk any further out has arrived.
   ramp is a room and a stair is a doorway.
 - **Ranged reach.** Eighteen yards against the source's forty, for the reason
   written on `SPELL_RANGE`.
+- **Melee reach, the model.** The value is the source's five yards; the
+  comparison is not. The source compares `max(own CombatReach + target
+  CombatReach + 4/3, 5.0)` against the distance between *centres*. This game
+  compares five yards against the distance to the target's *surface*, and the
+  attacker's own radius counts for nothing. On a large body this game is the
+  shorter of the two (the Bonegrinder: 23.1 yards in the source, about 9.5
+  between centres here when a raider strikes it), and person against person
+  comes out within about 8% (5.0 yards against 5.39).
 
 ### Nine bodies, because thirty-seven is a phone's memory
 
@@ -1733,8 +1741,10 @@ So it was read, once, against the client's own `Spell.dbc` and AzerothCore's
 `Unit.cpp`. What follows is what came back.
 
 **Right, and by more than luck.** Melee reach is `NOMINAL_MELEE_RANGE` 5.0 to
-the digit. The global cooldown's 1.5 is `MAX_GCD`. The combo cap of five is the
-engine's own clamp, rage and energy cap at 100 as they do there, rage is earned
+the digit — the *constant*, and only that: how a swing is measured against it
+differs, see "Melee reach, the model" under "Deliberately different". The
+global cooldown's 1.5 is `MAX_GCD`. The combo cap of five is the engine's own
+clamp, rage and energy cap at 100 as they do there, rage is earned
 from damage dealt rather than handed out, life tap spends health because the
 source's `PowerType` is −2, and the armour curve is `armour / (armour + K)`,
 which is algebraically the same function the server uses. Eight costs and
