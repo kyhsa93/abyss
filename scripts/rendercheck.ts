@@ -1491,6 +1491,9 @@ console.log(`rendered ${frames} frames with no exceptions`)
     }
     expect('and a boss colour at or above the contour floor comes through unchanged, every one in the roster', bad.length === 0, bad.join('; '))
   }
+  // The floor itself is pinned: the checks above read BOSS_DASH_LUMA from draw.ts,
+  // so lowering it there would move them along. 0.26 is the least that is allowed.
+  expect('and the contour lightness floor is held at 0.26 or above', BOSS_DASH_LUMA >= 0.26, `floor ${BOSS_DASH_LUMA}`)
 }
 
 // --- every cast the boss makes must be announced as itself ------------------
