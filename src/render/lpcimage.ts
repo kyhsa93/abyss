@@ -189,12 +189,18 @@ export function bodyHeight(r: number): number {
  * smaller than it was meant to be. A boss drawn one and a half people tall is
  * 1.34 source-pixel widths on a 1280 desktop and 1.38 on a phone, which the
  * nearest whole number drops to 1, the same as a raider.
+ *
+ * `down`, when above zero, takes that many whole device-pixel steps off the
+ * result, to no less than one device pixel a source pixel: for the one body
+ * whose picture is wider than its footprint (see `STONE_STEPS_DOWN` in
+ * `draw.ts`).
  */
-export function pixelScale(r: number, device: number, ceiling = 0): number {
+export function pixelScale(r: number, device: number, ceiling = 0, down = 0): number {
   const want = ((r * BODY * SQUASH) / LPC_BODY) * device
   const near = want >= 1 ? Math.round(want) : 1 / Math.max(1, Math.round(1 / want))
   const whole = want >= 1 && ceiling > 0 ? Math.max(near, Math.min(Math.ceil(want - 1e-9), Math.floor(ceiling * device + 1e-9))) : near
-  return whole / device
+  // `down` whole steps below that, never under one device pixel a source pixel.
+  return (want >= 1 && down > 0 ? Math.max(1, whole - down) : whole) / device
 }
 
 export function drawBody(
@@ -223,6 +229,8 @@ export function drawBody(
   who: number,
   /** Let the pixel scale round up, as far as this; see `pixelScale`. */
   ceiling = 0,
+  /** Whole steps to draw smaller than the nearest scale; see `pixelScale`. */
+  down = 0,
 ): boolean {
   begin()
   if (!sheet) return false
@@ -265,7 +273,7 @@ export function drawBody(
   // when there is not. What has to come out at the intended size is
   // `LPC_BODY`, which every cell holds centred whatever its width, and the
   // rest of the cell is drawn at whatever scale that implies.
-  const scale = pixelScale(r, ctx.getTransform().a, ceiling)
+  const scale = pixelScale(r, ctx.getTransform().a, ceiling, down)
 
   ctx.save()
   ctx.globalAlpha = alpha

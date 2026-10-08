@@ -21,7 +21,7 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { BOSS_CONTOUR_PHASE, BOSS_DASH_LUMA, BOSS_RING_P3_WIDTH, BOSS_RING_WIDTH, BOSS_FIGURE_CAP, bossDashColour, lumaOf, bossFigure, bossPixelScale, ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { BOSS_CONTOUR_PHASE, BOSS_DASH_LUMA, BOSS_RING_P3_WIDTH, BOSS_RING_WIDTH, BOSS_FIGURE_CAP, bossDashColour, lumaOf, bossFigure, bossPixelScale, trashStepsDown, ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { BOARDING_BEARING, boardingDoor } from '../src/sim/boss'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
@@ -6862,6 +6862,45 @@ for (const [label, w, h] of [
       wide.length === 0,
       wide.map((k) => `${k} ${(trashRadius(k) / PARTY_RADIUS).toFixed(2)}x`).join(', '),
     )
+
+    // And the one body whose picture is wider than its footprint is drawn a
+    // step down (#320, A7). The Belfry Gargoyle is a 64-pixel stone body with
+    // wings on a plate a raider's width doubled; at the nearest whole scale it
+    // stood at 0.48-0.49 of its plate's width (a raider is 1.02), with the wings
+    // far off it. Drawn a step down the plate is about the body, and the body
+    // is still as tall as a raider, which is the floor: it is a creature twice a
+    // raider's size and must not be drawn smaller than one. Measured off the
+    // sheet: the Gargoyle's body is 64 source pixels across and 53 tall, the
+    // raider's 30 across and 52 tall. The ratio is the plate's width over the
+    // body's, the raider's (1.02) being the reference.
+    {
+      const GARGOYLE = 'Belfry Gargoyle'
+      const [STONE_W, STONE_H, RAIDER_H] = [64, 53, 52]
+      expect(
+        'and only the stone look is drawn a step down',
+        trashLook(GARGOYLE) === 'stone' && TRASH_LOOKS.filter((l) => trashStepsDown(`add-${l}`) > 0).join() === 'stone',
+        TRASH_LOOKS.filter((l) => trashStepsDown(`add-${l}`) > 0).join(', '),
+      )
+      const [keepW, keepH] = [L.w, L.h]
+      const bad: string[] = []
+      const seen: string[] = []
+      for (const [w, h, device] of [[1280, 800, 1], [390, 844, 2], [390, 844, 3]] as const) {
+        updateLayout(w, h)
+        const r = trashRadius(GARGOYLE) * L.scale
+        const raider = pixelScale(PARTY_RADIUS * L.scale, device)
+        const stone = pixelScale(r, device, 0, trashStepsDown('add-stone'))
+        const ratio = (2 * r) / (STONE_W * stone)
+        const tall = (STONE_H * stone) / (RAIDER_H * raider)
+        seen.push(`${w}x${h}@${device} ratio ${ratio.toFixed(2)} height ${tall.toFixed(2)}x a raider`)
+        if (!(ratio >= 0.65 && ratio <= 1.3 && tall >= 1)) bad.push(seen[seen.length - 1]!)
+      }
+      updateLayout(keepW, keepH)
+      expect(
+        'and the Belfry Gargoyle stands 0.65-1.30 of its plate wide, no shorter than a raider',
+        bad.length === 0,
+        bad.join('; '),
+      )
+    }
   }
 
   // Raid setup: two fields that open, and the way on. Drawn at both ends of
