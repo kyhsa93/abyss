@@ -97,6 +97,23 @@ if (judgement !== null) {
   )
 }
 
+// --- 3. the spacing of a walking raid is arithmetic, not a platform ---------
+//
+// #316. `spacing.ts` moves bodies every quiet tick, so a result that differs by
+// one bit between two machines is a raid standing in a different place on each.
+// Square roots are exact everywhere; the rest of `Math` is not, and a random
+// number is not a trait -- a body's temperament comes from its id, or the same
+// body is somebody different every walk.
+
+const SPACING = 'src/sim/spacing.ts'
+const spacing = existsSync(resolve(root, SPACING)) ? code(readFileSync(resolve(root, SPACING), 'utf8')) : null
+expect(`${SPACING} exists`, spacing !== null)
+if (spacing !== null) {
+  const platform = [...spacing.matchAll(/\bMath\.(sin|cos|tan|asin|acos|atan2?|hypot|pow|exp|log\w*|cbrt|sinh|cosh|tanh)\b|\*\*/g)].map((m) => m[0])
+  expect(`${SPACING} uses no sin, cos, atan2, hypot, pow, exp or log`, platform.length === 0, platform.join(', '))
+  expect(`${SPACING} takes and reads no Rng`, !/\bRng\b|\brng\b/.test(spacing))
+}
+
 if (failures > 0) {
   console.error(`lawcheck: ${failures} check(s) failed`)
   process.exit(1)
