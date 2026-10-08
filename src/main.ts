@@ -1,7 +1,7 @@
 import { Input, hitButton } from './input'
 import { resetView, viewAngle } from './render/camera'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
-import { drawWorld, padOnScreen } from './render/draw'
+import { drawWorld, padOnScreen, worldToScreen } from './render/draw'
 import {
   canAdvance,
   drawHud,
@@ -92,7 +92,7 @@ import {
   zoomLevel,
 } from './render/theme'
 import { bossOrNone } from './sim/combat'
-import { DT } from './sim/constants'
+import { DT, PARTY_RADIUS } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
 import { autoPress } from './sim/autocast'
@@ -186,7 +186,7 @@ import {
   wingFinished,
   builtFights,
 } from './dungeon'
-import { EXIT_REACH, marchReach, standingIn, type Corridor } from './sim/travel'
+import { PAD_REACH, marchReach, standingIn, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
 import { savedKeys, wipeSaves } from './saves'
 import { reloadFresh } from './cache'
@@ -961,7 +961,7 @@ function partyMiddle(): Vec2 | null {
  * game, on any device, and the reports of one that did nothing were exactly
  * right.
  *
- * The circle drawn on the floor is `EXIT_REACH` across, so what is judged is
+ * The circle drawn on the floor is `PAD_REACH` across, so what is judged is
  * now what is drawn: walk the body you are steering into the ring.
  *
  * The half of the pad rule a `Run` cannot answer. The evening knows which
@@ -970,15 +970,16 @@ function partyMiddle(): Vec2 | null {
  * This is the second, and it is what makes the thing on the floor the
  * teleporter rather than the branch.
  *
- * Judged at `EXIT_REACH`: the distance a door is taken at, and the radius the
- * pad is drawn as, so the circle on screen is the circle being tested.
+ * Judged at `PAD_REACH`: the radius the pad is drawn as, so the circle on
+ * screen is the circle being tested. (It is the old reach of a door, and a door
+ * has since grown with the raid; a pad is judged on one body and has not.)
  */
 function onPad(): boolean {
   if (state.chamber === null || !padHere()) return false
   const who = state.actors.find((a) => a.isPlayer && a.alive) ?? null
   if (who === null) return false
   const at = padAt(state.chamber)
-  return Math.hypot(who.pos.x - at.x, who.pos.y - at.y) <= EXIT_REACH
+  return Math.hypot(who.pos.x - at.x, who.pos.y - at.y) <= PAD_REACH
 }
 
 /**
@@ -2788,6 +2789,25 @@ if (!import.meta.env.PROD) {
     hero(): { x: number; y: number } | null {
       const me = state.actors.find((a) => a.isPlayer && a.alive)
       return me ? { x: me.pos.x, y: me.pos.y } : null
+    },
+    /**
+     * Where each body of the raid is, in world units and on the glass.
+     *
+     * A picture of a raid cannot say which body is which, so a driver that
+     * photographs the order of a walk (#316) asks for the ones it can tell apart
+     * by their class and finds them again in the next frame.
+     */
+    party(): Array<{ id: number; name: string; classId: string; leader: boolean; alive: boolean; x: number; y: number; sx: number; sy: number }> {
+      return state.actors
+        .filter((a) => a.faction === 'party')
+        .map((a) => {
+          const on = worldToScreen(a.pos)
+          return { id: a.id, name: a.name, classId: a.classId, leader: a.isPlayer, alive: a.alive, x: a.pos.x, y: a.pos.y, sx: on.x, sy: on.y }
+        })
+    },
+    /** What the glass scale is and how big a raider's footprint is on it (#316). */
+    foot(): { scale: number; radius: number } {
+      return { scale: L.scale, radius: Math.max(4, PARTY_RADIUS * L.scale) }
     },
     /** Which room the walk thinks the party is in. */
     chamber(): string | null {

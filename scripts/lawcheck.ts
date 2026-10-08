@@ -97,6 +97,58 @@ if (judgement !== null) {
   )
 }
 
+// --- 3. the spacing of a walking raid is arithmetic, not a platform ---------
+//
+// #316. `spacing.ts` moves bodies every quiet tick, so a result that differs by
+// one bit between two machines is a raid standing in a different place on each.
+// Square roots are exact everywhere; the rest of `Math` is not, and a random
+// number is not a trait -- a body's temperament comes from its id, or the same
+// body is somebody different every walk.
+
+const SPACING = 'src/sim/spacing.ts'
+const spacing = existsSync(resolve(root, SPACING)) ? code(readFileSync(resolve(root, SPACING), 'utf8')) : null
+expect(`${SPACING} exists`, spacing !== null)
+if (spacing !== null) {
+  // This reads the text of `spacing.ts` and so cannot see a call made through
+  // another file: `glide` calls `clearTerrain` (battleground.ts), which uses
+  // `Math.hypot`. That is not a new platform dependency -- the walk's own
+  // `moveToward` calls it every tick already, and V8's `Math.hypot` is built
+  // from arithmetic and `sqrt`, not libm, so it is the same bits on arm64 and
+  // x64 for one Node version (#316, technical-director's R-3).
+  const platform = [...spacing.matchAll(/\bMath\.(sin|cos|tan|asin|acos|atan2?|hypot|pow|exp|log\w*|cbrt|sinh|cosh|tanh)\b|\*\*/g)].map((m) => m[0])
+  expect(`${SPACING} uses no sin, cos, atan2, hypot, pow, exp or log`, platform.length === 0, platform.join(', '))
+  expect(`${SPACING} takes and reads no Rng`, !/\bRng\b|\brng\b/.test(spacing))
+}
+
+// --- 4. a door's reach is a raid's, a pad's is not, and both are whole numbers --
+//
+// #316. The reach that takes a raid through a door grows with the raid
+// (`exitReach`, travel.ts) and the one that takes a body onto a pad does not
+// (`PAD_REACH`). The page and the renderer measure the pad, and a pad drawn at
+// a door's reach is a circle on the floor that is not the circle being tested:
+// so neither may name the door's reach at all. And the door's reach is the
+// same whole number on every machine, which is to say it is built of
+// multiplication, `sqrt`, `round`, `min` and `max` and nothing else.
+
+for (const file of ['src/main.ts', 'src/render/draw.ts']) {
+  const text = code(readFileSync(resolve(root, file), 'utf8'))
+  const door = [...text.matchAll(/\b(?:exitReach|EXIT_REACH\w*)\b/g)].map((m) => m[0])
+  expect(`${file} does not name a door's reach`, door.length === 0, door.join(', '))
+  expect(`${file} measures a pad with PAD_REACH`, /\bPAD_REACH\b/.test(text))
+}
+{
+  const travel = code(readFileSync(resolve(root, 'src/sim/travel.ts'), 'utf8'))
+  for (const name of ['exitReach', 'huddle']) {
+    const at = travel.indexOf(`function ${name}(`)
+    const body = at < 0 ? null : travel.slice(at, travel.indexOf('\n}', at))
+    expect(`travel.ts has ${name}`, body !== null)
+    if (body === null) continue
+    const used = [...body.matchAll(/\bMath\.(\w+)/g)].map((m) => m[1]!)
+    const odd = used.filter((f) => !['max', 'min', 'round', 'sqrt'].includes(f))
+    expect(`${name} is multiplication, sqrt, round, min and max and nothing else`, odd.length === 0 && !body.includes('**'), odd.join(', '))
+  }
+}
+
 if (failures > 0) {
   console.error(`lawcheck: ${failures} check(s) failed`)
   process.exit(1)

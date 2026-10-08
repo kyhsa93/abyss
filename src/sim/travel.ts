@@ -1,6 +1,6 @@
 import { ABILITIES } from './abilities'
 import { clearTerrain, inTerrain } from './battleground'
-import { DIFFICULTIES, makeSlots, specOf, type DifficultyId, type Pick, type RaidSize } from './classes'
+import { DIFFICULTIES, RAID_SIZES, makeSlots, specOf, type DifficultyId, type Pick, type RaidSize } from './classes'
 import {
   DT,
   HEALTH,
@@ -14,7 +14,6 @@ import {
   MEND_EVERY,
   MEND_FIRST,
   MEND_REACH,
-  MUSTER_PACE,
   PARTY_RADIUS,
   PULL,
   YARD,
@@ -37,6 +36,7 @@ import {
   pushEffect,
 } from './combat'
 import { blankGround, turnToward } from './boss'
+import { RUN_CAP, abreast, glide, holdsBack, noticed, paceOf, reachOf, spaceOut, trackLeader } from './spacing'
 import { trashLook, trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
 import { ROUND_ARENA, carried, pushInside, pushOutside, type RoomShape } from './room'
 import type { Rng } from './rng'
@@ -395,10 +395,67 @@ export interface TravelState {
    * between sixteen walks with a scene change between each and one walk.
    */
   building: boolean
+  /**
+   * How many ticks in a row the leader has been standing still, to a stop's
+   * worth (`spacing.ts`). Whole numbers, so a walk's state is still plain data.
+   */
+  leaderIdle: number
+  /**
+   * How many ticks the leader has been walking since it last stopped.
+   *
+   * Starts at its ceiling: a walk that is picked up in the middle (a room
+   * handed on, an evening resumed) has no stop to wait out.
+   */
+  leaderRun: number
+  /** The unit step the leader last took, for the sideways rule. Nought until it takes one. */
+  leaderHx: number
+  leaderHy: number
+  /** Whether the leader is within reach of a door this walk ends at, so the spacing gives way. See `SQUEEZE`. */
+  leaderAtDoor: boolean
 }
 
-/** How close counts as through the far door. */
-export const EXIT_REACH = 90
+/**
+ * How close counts as through the far door, at the least: the reach of a door
+ * for a raid small enough to stand in front of it without crowding. It is also
+ * what the rooms are laid out against (`dungeon.ts`), so it does not move with
+ * the size of the raid.
+ */
+export const EXIT_REACH_MIN = 90
+
+/** How many body radii wide a raid's huddle is, at one body; it grows with the root of the head count. */
+export const HUDDLE_WIDTH = 2.2
+
+/** How much nearer the door a raid's own huddle is than the reach that takes it through. */
+export const DOOR_MARGIN = 11
+
+/**
+ * How close counts as through the far door, for a raid of this many (#316).
+ *
+ * Going through a door is everybody inside this of it at the same moment, and
+ * how much floor that is has to be enough for the raid to stand in it with
+ * room between them: a raid that keeps its distance and a door that wants it
+ * all in a ring of ninety do not fit together at twenty-five. So the reach is
+ * the raid's own huddle and a margin, and never less than it was.
+ *
+ * Of the roster (`s.party.length`) and not of who is standing, so that nobody
+ * dying at a door moves it. Multiplication, `sqrt`, `round` and `max` only
+ * (see `huddle`): the same whole number on every machine.
+ */
+export function exitReach(size: number): number {
+  return Math.max(EXIT_REACH_MIN, huddle(size) + DOOR_MARGIN)
+}
+
+/** The biggest raid's reach: what a room has to be laid out to survive. */
+export const EXIT_REACH_MAX = exitReach(Math.max(...RAID_SIZES))
+
+/**
+ * How close a body must be to a pad to stand on it.
+ *
+ * One body is measured, not the raid, so there is no crowd to make room for,
+ * and the circle drawn on the floor is this across. It is the door's old
+ * reach, kept: the pad is not a door and does not grow with the raid.
+ */
+export const PAD_REACH = 90
 
 /** What a body of trash is worth, which is a fraction of what an add is. */
 const TRASH_HP = 900
@@ -610,6 +667,11 @@ export function createTravelState(
       springing: (corridor.springs ?? []).map((spring) => ({ timer: spring.every, done: false })),
       through: null,
       building,
+      leaderIdle: 0,
+      leaderRun: RUN_CAP,
+      leaderHx: 0,
+      leaderHy: 0,
+      leaderAtDoor: false,
     },
     nextDoor: 0,
     only: null,
@@ -1235,7 +1297,11 @@ export function updateTravel(s: SimState, rng: Rng): void {
   springStep(s)
   trashStep(s, rng)
   defenderStep(s)
-  huddleApart(s)
+  // Apart while walking, by the walking rule; once anything is awake, by the
+  // fight's, exactly as it always was.
+  trackLeader(s, exitReach(s.party.length))
+  if (awake(s).length > 0) huddleApart(s)
+  else spaceOut(s, exitReach(s.party.length))
   void rng
 
   // Nothing awake: the party is walking, and walking is when a raid catches
@@ -1266,8 +1332,9 @@ export function updateTravel(s: SimState, rng: Rng): void {
   // passage left behind by half a party is a party in two rooms, which is the
   // one state the citadel does not model — and with several doors, half a
   // party through each is two evenings.
+  const reach = exitReach(s.party.length)
   for (const way of travel.corridor.ways) {
-    if (!alive.every((a) => dist(a.pos, way.at) <= EXIT_REACH)) continue
+    if (!alive.every((a) => dist(a.pos, way.at) <= reach)) continue
     travel.through = way.to
     s.outcome = 'victory'
     s.sounds.push('victory')
@@ -1290,40 +1357,28 @@ const GATHER = 60
  * size, and at twenty-five that is a knot -- three tokens visible and the rest
  * underneath.
  */
-function huddle(size: number): number {
+export function huddle(size: number): number {
   // Wide enough to look like a raid walking, narrow enough to fit a door.
   //
   // It was 1.5, which put ten bodies of radius nine inside a circle of
   // forty-three and twenty-five inside sixty-eight: a knot with two or three
   // tokens visible and the rest underneath, which is what it looked like on
-  // the screen and what it was asked to stop being.
+  // the screen and what it was asked to stop being. Then 1.8, which kept the
+  // knot a little looser and was still one at twenty-five: eighty-one across for
+  // bodies that keep a line apart (`spacing.ts`) is a raid with the floor
+  // between them visible at ten and not at twenty-five.
   //
   // The ceiling is not a taste. Going through a door is everybody inside
-  // `EXIT_REACH` of it at the same moment -- `dungeoncheck` walks a
+  // `exitReach` of it at the same moment -- `dungeoncheck` walks a
   // twenty-five man across every room in the building and fails a raid that
-  // cannot leave by one -- so ninety is the width a doorway can swallow whole.
-  // At 1.8 the biggest raid stands in eighty-one and the smallest in
-  // fifty-one, which leaves the door its margin and doubles what a ten-man
-  // takes up.
-  return Math.round(PARTY_RADIUS * 1.8 * Math.sqrt(Math.max(1, size)))
+  // cannot leave by one -- and a huddle wider than the reach, less a margin
+  // (`DOOR_MARGIN`), is a raid that cannot all be in it. So the reach follows
+  // the huddle (`exitReach`) and not the other way about, and the width is held
+  // under what the screen can show: at 2.2 the biggest raid stands in ninety-nine
+  // and the smallest in forty-four, which is the most that a raid of
+  // twenty-five can be and still be counted on a phone held upright.
+  return Math.round(PARTY_RADIUS * HUDDLE_WIDTH * Math.sqrt(Math.max(1, size)))
 }
-
-/**
- * A place near the person being followed, and not the same one for everybody.
- *
- * Sent at the leader's own point, a raid walks in single file: everybody is
- * behind the same spot, and pushing two bodies apart along the line between
- * them resolves a queue into a longer queue. Measured in a browser, ten people
- * crossing the entrance hall were a column one body wide.
- *
- * So each of them is owed a different point around that spot. Not a formation
- * -- nothing here knows what anybody does, and the ring does not turn with the
- * walk -- just enough spread that a gathered raid is a group rather than a
- * line. The angle is the golden one off the body's own id, which is the
- * cheapest way to scatter a handful of points evenly and gives the same answer
- * every tick and every replay.
- */
-
 
 /**
  * And nobody stands inside anybody while they do it.
@@ -1501,13 +1556,22 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   // never is — so a corridor keeps the huddle it was measured with, following
   // the player if there is one and the way out if there is not.
   void lead
-  const want = target
-    ? standAt(s, actor, target)
-    : player
-      ? follow(s, actor, player.pos, huddle(s.party.length))
-      : s.travel.building
-        ? actor.pos
-        : follow(s, actor, heading(s)?.at ?? actor.pos)
+  let want: Vec2
+  let behind = 0
+  if (target) {
+    want = standAt(s, actor, target)
+  } else if (player) {
+    // Behind the player, as near as this body stands (`spacing.ts`): its own
+    // reach of the raid's huddle, on its own side of the way, and not before it
+    // has noticed the player has set off.
+    const close = huddle(s.party.length) * reachOf(s, actor)
+    behind = (dist(actor.pos, player.pos) - close) / close
+    want = holdsBack(s, actor, player)
+      ? actor.pos
+      : follow(s, actor, abreast(s, actor, noticed(s, actor, player), close), close)
+  } else {
+    want = s.travel.building ? actor.pos : follow(s, actor, heading(s)?.at ?? actor.pos)
+  }
   // Formation is for the walk, never for the fight: a body with something to
   // fight is going where the fight is, at its own speed. Only a follower
   // taking up its place in the column is allowed to close on it, and it is
@@ -1524,7 +1588,8 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   // at -- forty-three -- and the furthest was a hundred and nineteen out, in a
   // column two body-widths across. `follow` already answers `actor.pos` for
   // anybody near enough, so this only ever speeds up somebody catching up.
-  moveToward(s, actor, want, target === null && player !== null ? MUSTER_PACE : 1)
+  const walking = target === null && player !== null
+  moveToward(s, actor, want, walking ? paceOf(s, actor, behind) : 1, walking)
 
 
   const moving = ai.moveTarget !== null
@@ -1619,7 +1684,7 @@ function follow(s: SimState, actor: Actor, lead: Vec2, close = GATHER): Vec2 {
  * no speed at all. The raid never formed up; it strung out in whatever order
  * it happened to leave in.
  */
-function moveToward(s: SimState, actor: Actor, target: Vec2 | null, pace = 1): void {
+function moveToward(s: SimState, actor: Actor, target: Vec2 | null, pace = 1, apart = false): void {
   if (!target) return
   const d = dist(actor.pos, target)
   const own = actor.moveSpeed * DT * hasteOf(actor)
@@ -1639,8 +1704,20 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null, pace = 1): v
   actor.ai!.moveTarget = { x: target.x, y: target.y }
   // Never past it: a paced step can be longer than the distance left.
   const step = Math.min(own * pace, d)
-  const stepX = ((target.x - actor.pos.x) / d) * step
-  const stepY = ((target.y - actor.pos.y) / d) * step
+  let stepX = ((target.x - actor.pos.x) / d) * step
+  let stepY = ((target.y - actor.pos.y) / d) * step
+  // Walking in company: no nearer to anybody than they like (`spacing.ts`). A
+  // body that cannot come on at all has arrived, as far as anything else is
+  // concerned -- it is standing at the edge of the crowd, not stuck in a wall.
+  if (apart) {
+    const free = glide(s, actor, stepX, stepY)
+    stepX = free.x
+    stepY = free.y
+    if (stepX * stepX + stepY * stepY < 1e-4) {
+      actor.ai!.moveTarget = null
+      return
+    }
+  }
   // Facing the way it is walking. Nothing turned a body while it walked, so a
   // raid crossing a citadel faced whatever it happened to be facing when the
   // walk began — sideways, mostly. The six-unit deadzone above is what keeps

@@ -47,7 +47,7 @@ import { playerTarget } from '../sim/sim'
 import { BOARDING_BEARING, boardingDoor } from '../sim/boss'
 import { ENCOUNTERS, encounterAt } from '../sim/encounters'
 import { CHAMBERS, padAt, placeOf, type Chamber, type WingId, chamberAt, roomOf } from '../dungeon'
-import { EXIT_REACH } from '../sim/travel'
+import { PAD_REACH } from '../sim/travel'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ChatLine, ProjectileKind, SimState, Vec2 } from '../sim/types'
@@ -217,7 +217,7 @@ function updateCamera(s: SimState, alpha: number, clock: number): void {
   turnView(want, clock, Math.min(1, Math.hypot(dx, dy) / HOLD))
 }
 
-function worldToScreen(p: Vec2): Vec2 {
+export function worldToScreen(p: Vec2): Vec2 {
   const dx = (p.x - cam.x) * L.scale
   const dy = (p.y - cam.y) * L.scale
   const rot = viewAngle()
@@ -256,7 +256,7 @@ function worldToScreen(p: Vec2): Vec2 {
  */
 export function padOnScreen(at: Vec2): { x: number; y: number; rx: number; ry: number } {
   const on = worldToScreen(at)
-  const rx = EXIT_REACH * L.scale
+  const rx = PAD_REACH * L.scale
   return { x: on.x, y: on.y, rx, ry: rx * TILT }
 }
 
@@ -3155,10 +3155,10 @@ function footprint(ctx: CanvasRenderingContext2D, x: number, y: number, rx: numb
 /**
  * A Scourge Transporter: a disc of floor with a rule on it.
  *
- * Drawn at `EXIT_REACH` because that *is* the rule -- the same distance a body
- * has to be inside to take a way out of a room, and a pad is a way out. The
- * picture is the number it is judged at rather than a size that looked right,
- * so a party standing on the drawing is a party standing on the pad.
+ * Drawn at `PAD_REACH` because that *is* the rule -- the distance the body
+ * being steered has to be inside to take the pad. The picture is the number it
+ * is judged at rather than a size that looked right, so a party standing on
+ * the drawing is a party standing on the pad.
  *
  * An unpowered one is drawn too, dimmer. The thing is bolted to the floor
  * whether or not the wing it reaches has fallen, and a pad that appears the
@@ -3166,7 +3166,7 @@ function footprint(ctx: CanvasRenderingContext2D, x: number, y: number, rx: numb
  */
 function drawPad(ctx: CanvasRenderingContext2D, at: Vec2, lit: boolean, clock: number): void {
   const on = worldToScreen(at)
-  const r = EXIT_REACH * L.scale
+  const r = PAD_REACH * L.scale
   ctx.save()
   footprint(ctx, on.x, on.y, r)
   ctx.fillStyle = lit ? 'rgba(103, 232, 249, 0.16)' : 'rgba(103, 232, 249, 0.05)'
