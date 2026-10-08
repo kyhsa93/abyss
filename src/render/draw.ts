@@ -3459,6 +3459,22 @@ export function bossPixelScale(figure: number, device: number): number {
   return pixelScale(figure, device, bossScaleCeiling(device))
 }
 
+/**
+ * The Belfry Gargoyle's picture is a stone body with bat's wings, 64 source
+ * pixels across, on a footprint a raider's width doubled. Drawn at the nearest
+ * whole scale for that footprint the figure was twice as wide as the plate it
+ * stood on (plate to body 0.48-0.49, a raider's 1.02), with the wings well off
+ * the plate. One whole step down puts the plate about the body, and the body
+ * stays as tall as a raider or taller. Only this look: the other trash looks sit
+ * inside the ratios #320 set, and the simulation's radius is not touched.
+ */
+export const STONE_STEPS_DOWN = 1
+
+/** How many whole steps below the nearest scale a trash body is drawn. */
+export function trashStepsDown(token: string | null): number {
+  return token === 'add-stone' ? STONE_STEPS_DOWN : 0
+}
+
 export function bossFigure(r: number, phase: number, gauge: number, sinceBreak: number): number {
   const person = PARTY_RADIUS * L.scale
   const swell = (1 + phaseHeat(phase) * 0.3 + gauge * GORGE_SWELL) * breakSwell(sinceBreak)
@@ -3829,6 +3845,7 @@ function drawActor(
       // A boss is drawn at the next whole scale up (`bossPixelScale`), held
       // to `BOSS_FIGURE_CAP` raiders' scale.
       isBoss ? bossScaleCeiling(ctx.getTransform?.()?.a ?? 1) : 0,
+      isBoss ? 0 : trashStepsDown(token),
     )
   }
 
