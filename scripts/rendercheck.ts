@@ -27,7 +27,7 @@ import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
 import { pixelScale, walkFrame } from '../src/render/lpcimage'
 import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_FRAMES, LPC_ROW } from '../src/render/lpc'
-import { Effects } from '../src/render/effects'
+import { Effects, FALLBACK_REACH, TRAIL_ALPHA, TRAIL_WIDTH, pairSwing, trailBounds, trailEnd, trailLength } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
   MARK_LETTER,
@@ -3380,6 +3380,144 @@ for (const [label, w, h] of [
     return `${run.outcome} ${run.time.toFixed(2)} ${boss(run).hp}`
   }
   expect('drawing changes nothing about the fight', replay(true) === replay(false), replay(true))
+}
+
+// A weapon swing's line runs from the attacker to the edge of the body it
+// struck (#321). The old arc was a fixed 54 units whatever stood in front of
+// it: half the way to a body 110 away, and straight through one 3 away.
+{
+  // The rule, as a function of d alone. `legacy` is what the arc did: 54 units
+  // for every d. The scenes are the ones the issue measured.
+  const scenes: Array<[string, number]> = [
+    ['tank on the Bonegrinder', 2.5],
+    ['melee on the Bonegrinder (inside it)', -11],
+    ['Two Flasks tank', 2],
+    ['boss on a raider, two flasks', 63],
+    ['Confluence tank', 55.7],
+    ['a person-sized add on a raider', 103],
+    ['a boss on a raider, the far end', 106],
+    ['just inside the reach', 116],
+    ['past the reach', 140],
+  ]
+  const legacy = (_d: number) => FALLBACK_REACH
+  const within = (d: number, length: number) => {
+    const { lo, hi } = trailBounds(d)
+    return length >= lo - 1e-9 && length <= hi + 1e-9
+  }
+  const brokenBy: string[] = []
+  for (const [label, d] of scenes) {
+    expect(`trail length at d=${d} (${label}) is inside the rule`, within(d, trailLength(d)), `${trailLength(d)} for ${JSON.stringify(trailBounds(d))}`)
+    if (!within(d, legacy(d))) brokenBy.push(`${d}`)
+  }
+  // And the old arc fails the same rule where it should: inside the body, and
+  // short of a far one. At exactly d=63 it happens to sit in range, which is
+  // the one place the old number was not wrong.
+  expect('the old fixed 54u arc breaks the rule at d=2.5, 2, -11, 106, 103, 140', ['2.5', '2', '-11', '106', '103', '140'].every((d) => brokenBy.includes(d)), brokenBy.join(', '))
+  expect('and at d=63 and d=55.7 it was in range', !brokenBy.includes('63') && !brokenBy.includes('55.7'), brokenBy.join(', '))
+  expect('the rule has no gap or overlap at its joins', [0, 53.999, 54, 116, 116.001].every((d) => within(d, trailLength(d))) && trailLength(0) === 0 && trailLength(-30) === 0, '')
+  expect('the end ring is held between 4 and 12 units', trailEnd(0) === 4 && trailEnd(8) === 8 && trailEnd(90) === 12, `${trailEnd(0)} ${trailEnd(8)} ${trailEnd(90)}`)
+  expect('a trail is at most 2 wide and no brighter than a swing was', TRAIL_WIDTH <= 2 && TRAIL_ALPHA <= 0.85, `${TRAIL_WIDTH} ${TRAIL_ALPHA}`)
+
+  // Pairing, from events alone, on a synthetic pair.
+  const bodies = [
+    { pos: { x: 200, y: 0 }, radius: 50, faction: 'boss' },
+    { pos: { x: 30, y: 40 }, radius: 9, faction: 'party' },
+  ]
+  const swing = { kind: 'swing', pos: { x: 0, y: 0 }, angle: 0.3, abilityId: null, power: 0, crit: false, radius: 0, empowered: false } as const
+  const hit = (x: number, y: number, angle: number) => ({ ...swing, kind: 'impact' as const, pos: { x, y }, angle })
+  const pair = pairSwing([swing, hit(200, 0.2, 0.3)], 0, bodies)
+  expect('a swing pairs with the body its hit landed on', pair !== null && Math.abs(pair.d - 150) < 0.5, JSON.stringify(pair))
+  expect('a raider is a raider-sized surface', Math.abs(pairSwing([swing, hit(30, 40, 0.3)], 0, bodies)!.d - (50 - 9)) < 1e-9, '')
+  expect('a hit facing another way is not its hit', pairSwing([swing, hit(200, 0, 1.1)], 0, bodies) === null, '')
+  expect('a hit on nothing leaves the swing unpaired', pairSwing([swing, hit(500, 500, 0.3)], 0, bodies) === null, '')
+
+  // Drawn: no frame reaches further than the trail is long, nothing is drawn
+  // past its end, and nothing is thicker than 2.
+  const draw = (d: number) => {
+    const o = { x: 0, y: 0 }
+    const fx = new Effects(false)
+    fx.ingest({
+      actors: [{ pos: { x: d + 9, y: 0 }, prevPos: { x: d + 9, y: 0 }, radius: 0, faction: 'party', moveSpeed: 0 }],
+      effects: [
+        { ...swing, angle: 0, pos: o },
+        { ...swing, kind: 'impact', angle: 0, pos: { x: d + 9, y: 0 }, power: 10 },
+      ],
+    } as never)
+    // Only the swing's own trail: the landing it was paired with draws rings
+    // of its own, and those are not what is being measured.
+    const held = fx as unknown as { bursts: Array<{ trail?: unknown }> }
+    held.bursts = held.bursts.filter((b) => b.trail)
+    let widest = 0
+    let past = 0
+    let farthest = 0
+    let drawn = 0
+    const L = trailLength(d)
+    let from = { x: 0, y: 0 }
+    const ctx = {
+      save() {},
+      restore() {},
+      beginPath() {},
+      stroke() {},
+      set lineWidth(w: number) {
+        widest = Math.max(widest, w)
+      },
+      set strokeStyle(_c: string) {},
+      set globalCompositeOperation(_c: string) {},
+      set lineCap(_c: string) {},
+      moveTo(x: number, y: number) {
+        from = { x, y }
+      },
+      lineTo(x: number, y: number) {
+        drawn++
+        farthest = Math.max(farthest, Math.hypot(x - from.x, y - from.y))
+        past = Math.max(past, x - from.x - L)
+      },
+      arc(x: number, _y: number, r: number, a0: number, a1: number) {
+        drawn++
+        for (let i = 0; i <= 8; i++) {
+          const a = a0 + ((a1 - a0) * i) / 8
+          past = Math.max(past, x + Math.cos(a) * r - from.x - L)
+        }
+      },
+    } as unknown as CanvasRenderingContext2D
+    for (let f = 0; f < 22; f++) {
+      fx.draw(ctx, (p) => ({ x: p.x, y: p.y }), 1, 0)
+      fx.age(0.01)
+    }
+    return { widest, past, farthest, drawn, L }
+  }
+  for (const d of [2.5, 40, 63, 106, 150]) {
+    const r = draw(d)
+    expect(`d=${d}: the line is never longer than ${r.L.toFixed(1)}, ends are not past it, and it is 2 wide at most`, r.widest <= 2 && r.farthest <= r.L + 1e-6 && r.past <= 0.01 && r.drawn > 0, JSON.stringify(r))
+  }
+  const inside = draw(-11)
+  expect('inside the body: no line, only the ring', inside.farthest === 0 && inside.drawn > 0, JSON.stringify(inside))
+
+  // Every swing in the fights, all eleven, at three raid sizes.
+  for (const size of [5, 10, 25] as const) {
+    const party = autoParty(size, pickFor('warrior', 'tank')!)
+    let swings = 0
+    let broken = 0
+    let unpaired = 0
+    for (let e = 0; e < ENCOUNTERS.length; e++) {
+      const run = unattended(createState(1000, 8, party, 'normal', e))
+      run.countdown = 0
+      const r = new Rng(1000)
+      const fx = new Effects(false)
+      while (run.outcome === 'ongoing' && run.time < 45) {
+        step(run, { moveX: 0, moveY: 0, pressed: [] }, r)
+        fx.ingest(run)
+        for (let i = 0; i < run.effects.length; i++) {
+          if (run.effects[i]!.kind !== 'swing') continue
+          swings++
+          const got = pairSwing(run.effects, i, run.actors)
+          if (got && !within(got.d, got.length)) broken++
+        }
+      }
+      unpaired += fx.fallbacks
+    }
+    expect(`${size}-man: ${swings} swings, every one inside the rule and none unpaired`, swings > 0 && broken === 0 && unpaired === 0, `${broken} outside, ${unpaired} unpaired`)
+  }
 }
 
 // Every bolt in the air carries the ability that threw it, so it can be

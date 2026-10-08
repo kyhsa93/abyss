@@ -3,7 +3,7 @@ import type { EffectEvent, SimState, Vec2 } from '../sim/types'
 import { elementOf } from './element'
 import { drawFx } from './fximage'
 import { chestHeight } from './lpcimage'
-import { PARTY_RADIUS } from '../sim/constants'
+import { DT, MELEE_RANGE, PARTY_RADIUS } from '../sim/constants'
 
 /**
  * Hit effects.
@@ -49,6 +49,128 @@ interface Burst {
   arc: number
   /** Fills rather than outlines: a heal reads as arriving, not detonating. */
   inward: boolean
+  /**
+   * A weapon swing paired with the body it struck: the line it draws and the
+   * ring it ends in, both in world units. Absent on everything else, and on a
+   * swing nothing could be paired with, which keeps the old arc.
+   */
+  trail?: { length: number; end: number } | undefined
+}
+
+/**
+ * What a swing's arc used to reach, and still does for a swing that cannot be
+ * paired with the body it struck. Also the length below which a trail has no
+ * floor.
+ */
+export const FALLBACK_REACH = 54
+
+/** The most a trail is ever drawn: what the simulation lets a blow reach. */
+const TRAIL_MAX = MELEE_RANGE
+
+/**
+ * How much of the way to the struck body's edge a trail goes. Any share from
+ * 0.8 to 1 satisfies the rule; short of the edge so that the end ring sits on
+ * the surface rather than a rounding error past it.
+ */
+const TRAIL_SHARE = 0.9
+
+/** The end ring's radius is the trail's length held between these. */
+const END_MIN = 4
+const END_MAX = 12
+
+/** Line and end ring are never thicker than this, in canvas units. */
+export const TRAIL_WIDTH = 2
+
+/** Peak opacity of a trail. A swing used to peak at 0.85, like everything. */
+export const TRAIL_ALPHA = 0.5
+
+/** How near a body must be to a hit's position to be the one that took it, before it is allowed any ground it covered since. */
+const PAIR_TOLERANCE = 0.5
+
+/**
+ * How far a swing's line is drawn, given the distance from the attacker's
+ * centre to the struck body's simulated surface.
+ *
+ * Nothing before the surface is passed, so the line never goes into the body;
+ * where the attacker already stands inside it there is no line at all. The
+ * 54-unit floor is only for a body far enough away that 0.8 of the way is more
+ * than that, and 116 is the reach the simulation grants.
+ */
+export function trailLength(d: number): number {
+  if (!(d > 0)) return 0
+  if (d > TRAIL_MAX) return TRAIL_MAX
+  if (d < FALLBACK_REACH) return d * TRAIL_SHARE
+  return Math.max(d * TRAIL_SHARE, FALLBACK_REACH)
+}
+
+/** The range a trail's length has to fall in for a given d. */
+export function trailBounds(d: number): { lo: number; hi: number } {
+  if (!(d > 0)) return { lo: 0, hi: 0 }
+  if (d > TRAIL_MAX) return { lo: TRAIL_MAX, hi: TRAIL_MAX }
+  if (d < FALLBACK_REACH) return { lo: 0.8 * d, hi: d }
+  return { lo: Math.max(0.8 * d, FALLBACK_REACH), hi: d }
+}
+
+/** The ring on the end of a trail. */
+export function trailEnd(length: number): number {
+  return Math.min(END_MAX, Math.max(END_MIN, length))
+}
+
+interface Body {
+  pos: Vec2
+  prevPos?: Vec2
+  radius: number
+  moveSpeed?: number
+  faction?: string
+}
+
+/**
+ * The body a swing struck, read back out of the events alone.
+ *
+ * The first hit after the swing that faces the same way is the one the
+ * simulation pushed straight after it, on whoever it hit. The struck body is
+ * then whichever one stands on that spot. Nothing here is added to the event,
+ * so the simulation does not know it is being read. Null when either half is
+ * missing, and the swing keeps its old arc.
+ */
+export function pairSwing(
+  events: readonly EffectEvent[],
+  at: number,
+  bodies: ReadonlyArray<Body>,
+): { d: number; length: number } | null {
+  const swing = events[at]
+  if (!swing || swing.kind !== 'swing') return null
+  let hit: EffectEvent | null = null
+  for (let i = at + 1; i < events.length; i++) {
+    const e = events[i]!
+    if (e.kind === 'impact' && e.angle === swing.angle) {
+      hit = e
+      break
+    }
+  }
+  if (!hit) return null
+  let body: Body | null = null
+  let nearest = Infinity
+  for (const b of bodies) {
+    // Events are read after the whole tick, and a body can have moved since
+    // it was struck. The tick began at `prevPos`, so it was standing on one of
+    // the two.
+    const off = Math.min(
+      Math.hypot(b.pos.x - hit.pos.x, b.pos.y - hit.pos.y),
+      b.prevPos ? Math.hypot(b.prevPos.x - hit.pos.x, b.prevPos.y - hit.pos.y) : Infinity,
+    )
+    // Half a unit, plus a tick's walk for a body that was shoved along after
+    // it was struck: pushed apart from a neighbour, say, which is neither of
+    // the two places above.
+    if (off <= PAIR_TOLERANCE + (b.moveSpeed ?? 0) * DT && off < nearest) {
+      nearest = off
+      body = b
+    }
+  }
+  if (!body) return null
+  const rt = body.faction === 'party' ? PARTY_RADIUS : body.radius
+  const d = Math.hypot(hit.pos.x - swing.pos.x, hit.pos.y - swing.pos.y) - rt
+  return { d, length: trailLength(d) }
 }
 
 /** A hit is worth about this much reach at full power. */
@@ -164,8 +286,38 @@ export class Effects {
    * same reason the sound is drained inside the same loop.
    */
   ingest(s: SimState): void {
-    for (const event of s.effects) this.spawn(event)
+    // The checks hand this a bare list of events more than once.
+    const actors = s.actors ?? []
+    for (let i = 0; i < s.effects.length; i++) {
+      const event = s.effects[i]!
+      if (event.kind === 'swing') {
+        // A blow that kills something that is then taken out of the fight in
+        // the same tick leaves nothing to read: it is looked for among the
+        // bodies as the last tick left them.
+        const paired = pairSwing(s.effects, i, actors) ?? pairSwing(s.effects, i, this.seen)
+        if (!paired) this.fallbacks++
+        this.spawn(event, paired?.length)
+      } else this.spawn(event)
+    }
+    // Copied, because a position is rewritten in place every tick. Reused, so
+    // this allocates only when a body arrives.
+    const n = actors.length
+    this.seen.length = n
+    for (let i = 0; i < n; i++) {
+      const a = actors[i]!
+      const b = (this.seen[i] ??= { pos: { x: 0, y: 0 }, radius: 0 })
+      b.pos.x = a.pos.x
+      b.pos.y = a.pos.y
+      b.radius = a.radius
+      b.moveSpeed = a.moveSpeed
+      b.faction = a.faction
+    }
   }
+
+  private seen: Body[] = []
+
+  /** Swings that found no struck body and drew the old arc. Only the checks ask. */
+  fallbacks = 0
 
   /** Ages what is on screen. Once a frame, in wall-clock seconds. */
   age(elapsed: number): void {
@@ -182,7 +334,7 @@ export class Effects {
     }
   }
 
-  private spawn(event: EffectEvent): void {
+  private spawn(event: EffectEvent, trail?: number): void {
     // A twenty-five man swinging and casting at once can queue more of these
     // in a second than anyone can read. The oldest go first, so the newest
     // hit — the one you are looking at — is never the one dropped.
@@ -255,11 +407,12 @@ export class Effects {
         age: 0,
         life: 0.22,
         colour: WEAPON,
-        reach: 54,
+        reach: FALLBACK_REACH,
         spokes: 0,
         angle: event.angle,
         arc: 0.85,
         inward: false,
+        trail: trail === undefined ? undefined : { length: trail, end: trailEnd(trail) },
       })
       return
     }
@@ -501,6 +654,11 @@ export class Effects {
         drawFx(ctx, burst.fx, p.x, p.y, burst.fxSize * scale, t, fade)
       }
 
+      if (burst.trail) {
+        this.drawTrail(ctx, project, burst, p, t, fade, scale)
+        continue
+      }
+
       ctx.strokeStyle = rgba(burst.colour, 0.85 * fade)
       ctx.lineWidth = Math.max(1, 4 * fade * scale)
       ctx.beginPath()
@@ -538,6 +696,49 @@ export class Effects {
 
     ctx.restore()
     ctx.lineCap = 'butt'
+  }
+
+  /**
+   * A swing as a thin line from the attacker to the body it struck, with a
+   * small ring where it lands.
+   *
+   * The line is worked out in the world and then projected, so on the glass it
+   * ends on the struck body's surface and not wherever a screen-space angle
+   * happens to point. Nothing is drawn past the end of it: the ring opens
+   * towards the attacker.
+   */
+  private drawTrail(
+    ctx: CanvasRenderingContext2D,
+    project: (p: Vec2) => Vec2,
+    burst: Burst,
+    from: Vec2,
+    t: number,
+    fade: number,
+    scale: number,
+  ): void {
+    const trail = burst.trail!
+    // Out to the end quickly and then holds, so the line reads as arriving.
+    const grow = 1 - (1 - Math.min(1, t / 0.4)) ** 2
+    const run = trail.length * grow
+    ctx.strokeStyle = rgba(burst.colour, TRAIL_ALPHA * fade)
+    ctx.lineWidth = TRAIL_WIDTH
+    const end = project({
+      x: burst.pos.x + Math.cos(burst.angle) * run,
+      y: burst.pos.y + Math.sin(burst.angle) * run,
+    })
+    end.y -= burst.lift * scale
+    if (run > 0) {
+      ctx.beginPath()
+      ctx.moveTo(from.x, from.y)
+      ctx.lineTo(end.x, end.y)
+      ctx.stroke()
+    }
+    // Open towards the attacker, and only ever behind the end.
+    const back =
+      run > 0 ? Math.atan2(from.y - end.y, from.x - end.x) : Math.atan2(-Math.sin(burst.angle), -Math.cos(burst.angle))
+    ctx.beginPath()
+    ctx.arc(end.x, end.y, trail.end * scale, back - burst.arc, back + burst.arc)
+    ctx.stroke()
   }
 
   /**
