@@ -87,6 +87,9 @@ export const TRAIL_ALPHA = 0.5
 /** How near a body must be to a hit's position to be the one that took it, before it is allowed any ground it covered since. */
 const PAIR_TOLERANCE = 0.5
 
+/** Two distances this close are the same distance: the bodies are on one spot. */
+const TIE = 1e-6
+
 /**
  * How far a swing's line is drawn, given the distance from the attacker's
  * centre to the struck body's simulated surface.
@@ -149,23 +152,38 @@ export function pairSwing(
     }
   }
   if (!hit) return null
-  let body: Body | null = null
+  // Events are read after the whole tick, and a body can have moved since it
+  // was struck. The tick began at `prevPos`, so it was standing on one of the
+  // two. Half a unit, plus a tick's walk for a body that was shoved along
+  // after it was struck: pushed apart from a neighbour, say, which is neither
+  // of the two places.
+  const offOf = (b: Body, at: Vec2) =>
+    Math.min(
+      Math.hypot(b.pos.x - at.x, b.pos.y - at.y),
+      b.prevPos ? Math.hypot(b.prevPos.x - at.x, b.prevPos.y - at.y) : Infinity,
+    )
   let nearest = Infinity
   for (const b of bodies) {
-    // Events are read after the whole tick, and a body can have moved since
-    // it was struck. The tick began at `prevPos`, so it was standing on one of
-    // the two.
-    const off = Math.min(
-      Math.hypot(b.pos.x - hit.pos.x, b.pos.y - hit.pos.y),
-      b.prevPos ? Math.hypot(b.prevPos.x - hit.pos.x, b.prevPos.y - hit.pos.y) : Infinity,
-    )
-    // Half a unit, plus a tick's walk for a body that was shoved along after
-    // it was struck: pushed apart from a neighbour, say, which is neither of
-    // the two places above.
-    if (off <= PAIR_TOLERANCE + (b.moveSpeed ?? 0) * DT && off < nearest) {
-      nearest = off
-      body = b
-    }
+    const off = offOf(b, hit.pos)
+    if (off <= PAIR_TOLERANCE + (b.moveSpeed ?? 0) * DT && off < nearest) nearest = off
+  }
+  if (nearest === Infinity) return null
+  // Two bodies on one spot (a raider swallowed by the boss) are equally near,
+  // and whichever comes first in the list is not therefore the one struck. A
+  // blow never lands on the swinger's own side, so a tie goes to a body on the
+  // other side from whoever swung: the one standing where the swing began,
+  // which is not itself one of the tied.
+  const tied = (b: Body) => offOf(b, hit.pos) - nearest < TIE && offOf(b, hit.pos) <= PAIR_TOLERANCE + (b.moveSpeed ?? 0) * DT
+  let body: Body | null = null
+  let again = false
+  for (const b of bodies) {
+    if (!tied(b)) continue
+    if (body) again = true
+    else body = b
+  }
+  if (again) {
+    const attacker = bodies.find((b) => !tied(b) && offOf(b, swing.pos) < TIE)
+    if (attacker) body = bodies.find((b) => tied(b) && b.faction !== attacker.faction) ?? body
   }
   if (!body) return null
   const rt = body.faction === 'party' ? PARTY_RADIUS : body.radius

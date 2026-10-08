@@ -163,6 +163,7 @@ import {
   HEALTH,
   INHALE_MAX,
   MELEE_RANGE,
+  DT,
   PARTY_RADIUS,
   PULL,
   PUNGENT_PER_BREATH,
@@ -3400,10 +3401,21 @@ for (const [label, w, h] of [
     ['past the reach', 140],
   ]
   const legacy = (_d: number) => FALLBACK_REACH
+  // The ranges are written out again here from the decided table in #321
+  // rather than read from the code under test: d <= 0 is no line, up to 54 it
+  // is 0.8d to d, to 116 it is the larger of 0.8d and 54 up to d, and past
+  // 116 it is 116 flat.
+  const ruleBounds = (d: number) => {
+    if (!(d > 0)) return { lo: 0, hi: 0 }
+    if (d > 116) return { lo: 116, hi: 116 }
+    if (d < 54) return { lo: 0.8 * d, hi: d }
+    return { lo: Math.max(0.8 * d, 54), hi: d }
+  }
   const within = (d: number, length: number) => {
-    const { lo, hi } = trailBounds(d)
+    const { lo, hi } = ruleBounds(d)
     return length >= lo - 1e-9 && length <= hi + 1e-9
   }
+  expect('the code states the same ranges as the decided table', [-5, 0, 2, 40, 54, 63, 100, 116, 140].every((d) => trailBounds(d).lo === ruleBounds(d).lo && trailBounds(d).hi === ruleBounds(d).hi), '')
   const brokenBy: string[] = []
   for (const [label, d] of scenes) {
     expect(`trail length at d=${d} (${label}) is inside the rule`, within(d, trailLength(d)), `${trailLength(d)} for ${JSON.stringify(trailBounds(d))}`)
@@ -3431,16 +3443,34 @@ for (const [label, w, h] of [
   expect('a hit facing another way is not its hit', pairSwing([swing, hit(200, 0, 1.1)], 0, bodies) === null, '')
   expect('a hit on nothing leaves the swing unpaired', pairSwing([swing, hit(500, 500, 0.3)], 0, bodies) === null, '')
 
+  // Two bodies on one spot, a raider and the boss that swallowed it, are
+  // equally near the hit. The one struck is on the other side from whoever
+  // swung, whichever of the two the list happens to name first.
+  {
+    const BOSS_R = 27
+    const at = { x: 200, y: 0 }
+    const there = (faction: 'party' | 'boss', radius: number) => ({ pos: { ...at }, prevPos: { ...at }, radius, faction, moveSpeed: 0 })
+    const stands = (faction: 'party' | 'boss', radius: number) => ({ pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 }, radius, faction, moveSpeed: 0 })
+    const events = [swing, hit(at.x, at.y, 0.3)]
+    for (const order of ['raider first', 'boss first'] as const) {
+      const pair = order === 'raider first' ? [there('party', PARTY_RADIUS), there('boss', BOSS_R)] : [there('boss', BOSS_R), there('party', PARTY_RADIUS)]
+      const byRaider = pairSwing(events, 0, [stands('party', PARTY_RADIUS), ...pair])
+      expect(`a raider swinging at a spot shared with the boss (${order}) is measured to the boss's radius`, byRaider !== null && Math.abs(byRaider.d - (at.x - BOSS_R)) < 1e-9, JSON.stringify(byRaider))
+      const byBoss = pairSwing(events, 0, [stands('boss', BOSS_R), ...pair])
+      expect(`the boss swinging at a spot shared with a raider (${order}) is measured to PARTY_RADIUS`, byBoss !== null && Math.abs(byBoss.d - (at.x - PARTY_RADIUS)) < 1e-9, JSON.stringify(byBoss))
+    }
+  }
+
   // Drawn: no frame reaches further than the trail is long, nothing is drawn
   // past its end, and nothing is thicker than 2.
   const draw = (d: number) => {
     const o = { x: 0, y: 0 }
     const fx = new Effects(false)
     fx.ingest({
-      actors: [{ pos: { x: d + 9, y: 0 }, prevPos: { x: d + 9, y: 0 }, radius: 0, faction: 'party', moveSpeed: 0 }],
+      actors: [{ pos: { x: d + PARTY_RADIUS, y: 0 }, prevPos: { x: d + PARTY_RADIUS, y: 0 }, radius: 0, faction: 'party', moveSpeed: 0 }],
       effects: [
         { ...swing, angle: 0, pos: o },
-        { ...swing, kind: 'impact', angle: 0, pos: { x: d + 9, y: 0 }, power: 10 },
+        { ...swing, kind: 'impact', angle: 0, pos: { x: d + PARTY_RADIUS, y: 0 }, power: 10 },
       ],
     } as never)
     // Only the swing's own trail: the landing it was paired with draws rings
@@ -3518,6 +3548,60 @@ for (const [label, w, h] of [
     }
     expect(`${size}-man: ${swings} swings, every one inside the rule and none unpaired`, swings > 0 && broken === 0 && unpaired === 0, `${broken} outside, ${unpaired} unpaired`)
   }
+}
+
+// The struck body is on the other side from whoever swung (#321). Read from
+// the bodies alone and not from pairSwing: every body that stands where the
+// hit landed, then the one of them on the other side from the body standing
+// where the swing began. The fights are the eleven, three seeds each, so the
+// boss's swallowed raiders and the Confluence's add (bodies on one spot) are in.
+{
+  const offFrom = (b: { pos: { x: number; y: number }; prevPos?: { x: number; y: number } }, p: { x: number; y: number }) =>
+    Math.min(Math.hypot(b.pos.x - p.x, b.pos.y - p.y), b.prevPos ? Math.hypot(b.prevPos.x - p.x, b.prevPos.y - p.y) : Infinity)
+  const rules = (d: number) => (!(d > 0) ? [0, 0] : d > 116 ? [116, 116] : d < 54 ? [0.8 * d, d] : [Math.max(0.8 * d, 54), d])
+  let ties = 0
+  for (const size of [5, 10, 25] as const) {
+    let swings = 0
+    let sameSide = 0
+    let outside = 0
+    let lonely = 0
+    for (const seed of [1000, 1001, 1002]) {
+      for (let e = 0; e < ENCOUNTERS.length; e++) {
+        const run = unattended(createState(seed, 8, autoParty(size, pickFor('warrior', 'tank')!), 'normal', e))
+        run.countdown = 0
+        const r = new Rng(seed)
+        for (let t = 0; t < 2400 && run.outcome === 'ongoing'; t++) {
+          step(run, { moveX: 0, moveY: 0, pressed: [] }, r)
+          for (let i = 0; i < run.effects.length; i++) {
+            const sw = run.effects[i]!
+            if (sw.kind !== 'swing') continue
+            const hitEv = run.effects.slice(i + 1).find((x) => x.kind === 'impact' && x.angle === sw.angle)
+            const got = pairSwing(run.effects, i, run.actors)
+            if (!hitEv || !got) continue
+            swings++
+            const near = run.actors.filter((b) => offFrom(b, hitEv.pos) <= 0.5 + b.moveSpeed * DT)
+            const closest = Math.min(...near.map((b) => offFrom(b, hitEv.pos)))
+            const tied = near.filter((b) => offFrom(b, hitEv.pos) - closest < 1e-6)
+            const swinger = run.actors.find((b) => !tied.includes(b) && offFrom(b, sw.pos) < 1e-6)
+            if (tied.length > 1 && new Set(tied.map((b) => (b.faction === 'party' ? PARTY_RADIUS : b.radius))).size > 1) ties++
+            // A swing from inside the very spot it lands on has no one to tell
+            // the sides apart by; none of those is counted.
+            if (tied.length > 1 && !swinger) {
+              lonely++
+              continue
+            }
+            const truth = swinger ? (tied.find((b) => b.faction !== swinger.faction) ?? tied[0]!) : tied[0]!
+            const d = Math.hypot(hitEv.pos.x - sw.pos.x, hitEv.pos.y - sw.pos.y) - (truth.faction === 'party' ? PARTY_RADIUS : truth.radius)
+            if (Math.abs(got.d - d) > 1e-6) sameSide++
+            const [lo, hi] = rules(d) as [number, number]
+            if (got.length < lo - 1e-9 || got.length > hi + 1e-9) outside++
+          }
+        }
+      }
+    }
+    expect(`${size}-man: ${swings} swings, none struck on the swinger's own side, none ending inside the true body`, swings > 0 && sameSide === 0 && outside === 0, `${sameSide} on the wrong side, ${outside} outside the true range, ${lonely} undecidable`)
+  }
+  expect(`the fights do put two differently sized bodies on one spot (${ties} swings)`, ties > 0, `${ties}`)
 }
 
 // Every bolt in the air carries the ability that threw it, so it can be
