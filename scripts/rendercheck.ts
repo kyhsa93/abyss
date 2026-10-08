@@ -21,7 +21,7 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { BOSS_FIGURE_CAP, bossFigure, ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { BOSS_FIGURE_CAP, bossFigure, bossPixelScale, ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { BOARDING_BEARING, boardingDoor } from '../src/sim/boss'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
@@ -11701,7 +11701,7 @@ for (const [label, w, h] of [
         // What counts as a plate: more than half of what the disc used to be.
         const strong = here.filter((f) => f.alpha > bossAlpha(phase) / 2 + 1e-9)
         const patch = strong.reduce((m, f) => Math.max(m, f.rx), 0)
-        const body = width * pixelScale(bossFigure(r, phase, gauge, Infinity), device)
+        const body = width * bossPixelScale(bossFigure(r, phase, gauge, Infinity), device)
         const ratio = (2 * patch) / body
         table.push(`${id} ${w}x${h}@${device} p${phase}: ${ratio.toFixed(2)}`)
         if (!(ratio >= 0.8 && ratio <= 1.3)) loose.push(`${id} at ${w}x${h}@${device} phase ${phase}: patch ${(2 * patch).toFixed(1)} over body ${body.toFixed(1)} = ${ratio.toFixed(2)}`)
@@ -11716,6 +11716,109 @@ for (const [label, w, h] of [
   expect('every boss has a patch of floor under it the width of its body, 0.80 to 1.30', missing.length === 0 && loose.length === 0, [...missing, ...loose].join('; '))
   expect('the ring a boss is judged at carries no plate: at most half the old fill', plate.length === 0, plate.join('; '))
   expect("and the boss's own colour is drawn inside the patch, never in the ring", inside.length === 0, inside.join('; '))
+  updateLayout(1280, 800)
+}
+
+
+// --- a boss's body is 1.4 to 2 times a raider across, not the same size (#320)
+//
+// The picture is snapped to whole device pixels a source pixel, and the
+// nearest whole number took a boss drawn one and a half people tall back to one
+// on a 1280 desktop and a 390 phone, so it stood the same width as the raiders
+// beside it. Held in source pixels on screen: a boss's body (its sheet's own
+// opaque width) over a raider's 30, at phase 1 and at phase 3 with the gauge
+// full.
+//
+// The ceiling is the raider's scale times `BOSS_FIGURE_CAP` (#288, which this
+// does not touch), and on a sheet wider than a raider's 30 the body ratio is
+// that much over two: 28 wide is 1.87, 32 wide is 2.13, 2.2 is the line no
+// sheet may cross. The check takes the scale to test as an argument so it can
+// be run on the rounding it replaced and be seen to fail.
+
+{
+  const BODY_PX: Record<string, number> = {
+    marrow: 30, whisper: 28, host: 32, gorged: 32, confluence: 30, flasks: 30,
+    crowns: 30, gift: 28, saved: 28, cold: 30, skyward: 32,
+  }
+  const RAIDER_PX = 30
+  type ScaleOf = (figure: number, device: number) => number
+  const rounded: ScaleOf = (f, d) => pixelScale(f, d)
+  const matrix = [[1280, 800, 1], [1280, 800, 2], [768, 1024, 2], [390, 844, 2], [390, 844, 2.625], [390, 844, 3]] as const
+  const table: string[] = []
+  const bodyViolations = (scaleOf: ScaleOf, tab?: string[]): string[] => {
+    const outside: string[] = []
+    for (const [w, h, device] of matrix) {
+      updateLayout(w, h)
+      const raider = RAIDER_PX * pixelScale(PARTY_RADIUS * L.scale, device) * device
+      for (let i = 0; i < ENCOUNTERS.length; i++) {
+        const id = ENCOUNTERS[i]!.id
+        const s = pulled(0x51ed, 0, undefined, 'normal', i)
+        const r = Math.max(4, s.actors.find((a) => a.id === BOSS_ID)!.radius * L.scale)
+        for (const [phase, gauge] of [[1, 0], [3, 1]] as const) {
+          const figure = bossFigure(r, phase, gauge, 0)
+          const ratio = (BODY_PX[id]! * scaleOf(figure, device) * device) / raider
+          tab?.push(`${id} ${w}x${h}@${device} p${phase}: ${ratio.toFixed(2)}`)
+          // Over the top only counts where the step up is what took it there.
+          // A phone at 3x draws a raider at one device pixel and a boss at phase
+          // 3 at three on the nearest whole already, which is how it was before
+          // this and stays (`max` with the nearest); that is the exception.
+          const stepped = scaleOf(figure, device) > rounded(figure, device) + 1e-9
+          const high = ratio > 2 * (BODY_PX[id]! / RAIDER_PX) + 1e-9 || ratio > 2.2
+          if (!(ratio >= 1.4 && !(high && stepped))) outside.push(`${id} at ${w}x${h}@${device} phase ${phase}: ${ratio.toFixed(2)}`)
+        }
+      }
+    }
+    return outside
+  }
+  const outside = bodyViolations(bossPixelScale, table)
+  expect('a boss body is 1.4 to 2 times a raider across, at phase 1 and phase 3, on a desktop and a phone', outside.length === 0, outside.join('; '))
+  const failing = bodyViolations(rounded)
+  expect('the boss-body check fails on the rounded scale it replaced', failing.length > 0, 'no boss was found too small on the nearest whole scale')
+
+  // A boss one and a half people tall at phase 1: the nearest is one source
+  // pixel to a raider's one, and the next whole one up is two.
+  for (const [w, h, device] of [[1280, 800, 1], [390, 844, 2]] as const) {
+    updateLayout(w, h)
+    const person = PARTY_RADIUS * L.scale
+    const figure = bossFigure(1.5 * person, 1, 0, 0)
+    const party = pixelScale(person, device)
+    expect(`a boss 1.5 raiders tall at ${w}x${h}@${device} is a raider's size rounded and twice that drawn`, Math.abs(pixelScale(figure, device) / party - 1) < 1e-9 && Math.abs(bossPixelScale(figure, device) / party - 2) < 1e-9, `${pixelScale(figure, device) / party} then ${bossPixelScale(figure, device) / party}`)
+  }
+
+  // Past the matrix: no viewport and density takes a boss's scale past two
+  // raiders' where rounding had not, and what stays under 1.4 is a short list
+  // of small screens with nothing to round up to.
+  {
+    let over = 0
+    let overBefore = 0
+    const small: string[] = []
+    const known = new Set(['360x780@1', '844x390@1', '2560x1440@1.5', '1024x768@3'])
+    const stray: string[] = []
+    for (const [w, h] of [[1280, 800], [1920, 1080], [2560, 1440], [1024, 768], [768, 1024], [390, 844], [360, 780], [844, 390]] as const) {
+      updateLayout(w, h)
+      for (const device of [1, 1.25, 1.5, 2, 2.625, 3]) {
+        const party = pixelScale(PARTY_RADIUS * L.scale, device)
+        for (const radius of [23, 35, 46]) {
+          for (const [phase, gauge] of [[1, 0], [3, 1]] as const) {
+            const figure = bossFigure(Math.max(4, radius * L.scale), phase, gauge, 0)
+            const after = bossPixelScale(figure, device)
+            if (after > 2 * party + 1e-9) over++
+            if (rounded(figure, device) > 2 * party + 1e-9) overBefore++
+            if (after < rounded(figure, device) - 1e-9) stray.push(`${w}x${h}@${device} ${phase}: below the nearest`)
+            if (after / party < 1.4 - 1e-9) {
+              const key = `${w}x${h}@${device}`
+              small.push(`${key} p${phase} r${radius}: ${(after / party).toFixed(2)}`)
+              if (!known.has(key) || phase !== 1) stray.push(`${key} p${phase} r${radius}: ${(after / party).toFixed(2)} is under 1.4`)
+            }
+          }
+        }
+      }
+    }
+    expect('a boss is never drawn past two raiders\' scale where rounding had not, nor below the nearest', over <= overBefore, `over ${over} against ${overBefore} before`)
+    expect('the boss scale is under 1.4 raiders only on the small screens set down as exceptions', stray.length === 0, stray.join('; '))
+    if (process.env.BOSSBODY) console.log(`over the cap ${over} (before ${overBefore}); under 1.4: ${small.join('; ')}`)
+  }
+  if (process.env.BOSSBODY) console.log(table.join('\n'))
   updateLayout(1280, 800)
 }
 
