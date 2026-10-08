@@ -14,7 +14,6 @@ import {
   MEND_EVERY,
   MEND_FIRST,
   MEND_REACH,
-  MUSTER_PACE,
   PARTY_RADIUS,
   PULL,
   YARD,
@@ -37,6 +36,7 @@ import {
   pushEffect,
 } from './combat'
 import { blankGround, turnToward } from './boss'
+import { RUN_CAP, abreast, glide, holdsBack, noticed, paceOf, reachOf, spaceOut, trackLeader } from './spacing'
 import { trashLook, trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
 import { ROUND_ARENA, carried, pushInside, pushOutside, type RoomShape } from './room'
 import type { Rng } from './rng'
@@ -395,6 +395,23 @@ export interface TravelState {
    * between sixteen walks with a scene change between each and one walk.
    */
   building: boolean
+  /**
+   * How many ticks in a row the leader has been standing still, to a stop's
+   * worth (`spacing.ts`). Whole numbers, so a walk's state is still plain data.
+   */
+  leaderIdle: number
+  /**
+   * How many ticks the leader has been walking since it last stopped.
+   *
+   * Starts at its ceiling: a walk that is picked up in the middle (a room
+   * handed on, an evening resumed) has no stop to wait out.
+   */
+  leaderRun: number
+  /** The unit step the leader last took, for the sideways rule. Nought until it takes one. */
+  leaderHx: number
+  leaderHy: number
+  /** Whether the leader is within reach of a door this walk ends at, so the spacing gives way. See `SQUEEZE`. */
+  leaderAtDoor: boolean
 }
 
 /** How close counts as through the far door. */
@@ -610,6 +627,11 @@ export function createTravelState(
       springing: (corridor.springs ?? []).map((spring) => ({ timer: spring.every, done: false })),
       through: null,
       building,
+      leaderIdle: 0,
+      leaderRun: RUN_CAP,
+      leaderHx: 0,
+      leaderHy: 0,
+      leaderAtDoor: false,
     },
     nextDoor: 0,
     only: null,
@@ -1235,7 +1257,11 @@ export function updateTravel(s: SimState, rng: Rng): void {
   springStep(s)
   trashStep(s, rng)
   defenderStep(s)
-  huddleApart(s)
+  // Apart while walking, by the walking rule; once anything is awake, by the
+  // fight's, exactly as it always was.
+  trackLeader(s, EXIT_REACH)
+  if (awake(s).length > 0) huddleApart(s)
+  else spaceOut(s)
   void rng
 
   // Nothing awake: the party is walking, and walking is when a raid catches
@@ -1307,23 +1333,6 @@ function huddle(size: number): number {
   // takes up.
   return Math.round(PARTY_RADIUS * 1.8 * Math.sqrt(Math.max(1, size)))
 }
-
-/**
- * A place near the person being followed, and not the same one for everybody.
- *
- * Sent at the leader's own point, a raid walks in single file: everybody is
- * behind the same spot, and pushing two bodies apart along the line between
- * them resolves a queue into a longer queue. Measured in a browser, ten people
- * crossing the entrance hall were a column one body wide.
- *
- * So each of them is owed a different point around that spot. Not a formation
- * -- nothing here knows what anybody does, and the ring does not turn with the
- * walk -- just enough spread that a gathered raid is a group rather than a
- * line. The angle is the golden one off the body's own id, which is the
- * cheapest way to scatter a handful of points evenly and gives the same answer
- * every tick and every replay.
- */
-
 
 /**
  * And nobody stands inside anybody while they do it.
@@ -1501,13 +1510,22 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   // never is — so a corridor keeps the huddle it was measured with, following
   // the player if there is one and the way out if there is not.
   void lead
-  const want = target
-    ? standAt(s, actor, target)
-    : player
-      ? follow(s, actor, player.pos, huddle(s.party.length))
-      : s.travel.building
-        ? actor.pos
-        : follow(s, actor, heading(s)?.at ?? actor.pos)
+  let want: Vec2
+  let behind = 0
+  if (target) {
+    want = standAt(s, actor, target)
+  } else if (player) {
+    // Behind the player, as near as this body stands (`spacing.ts`): its own
+    // reach of the raid's huddle, on its own side of the way, and not before it
+    // has noticed the player has set off.
+    const close = huddle(s.party.length) * reachOf(s, actor)
+    behind = (dist(actor.pos, player.pos) - close) / close
+    want = holdsBack(s, actor, player)
+      ? actor.pos
+      : follow(s, actor, abreast(s, actor, noticed(s, actor, player), close), close)
+  } else {
+    want = s.travel.building ? actor.pos : follow(s, actor, heading(s)?.at ?? actor.pos)
+  }
   // Formation is for the walk, never for the fight: a body with something to
   // fight is going where the fight is, at its own speed. Only a follower
   // taking up its place in the column is allowed to close on it, and it is
@@ -1524,7 +1542,8 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   // at -- forty-three -- and the furthest was a hundred and nineteen out, in a
   // column two body-widths across. `follow` already answers `actor.pos` for
   // anybody near enough, so this only ever speeds up somebody catching up.
-  moveToward(s, actor, want, target === null && player !== null ? MUSTER_PACE : 1)
+  const walking = target === null && player !== null
+  moveToward(s, actor, want, walking ? paceOf(s, actor, behind) : 1, walking)
 
 
   const moving = ai.moveTarget !== null
@@ -1619,7 +1638,7 @@ function follow(s: SimState, actor: Actor, lead: Vec2, close = GATHER): Vec2 {
  * no speed at all. The raid never formed up; it strung out in whatever order
  * it happened to leave in.
  */
-function moveToward(s: SimState, actor: Actor, target: Vec2 | null, pace = 1): void {
+function moveToward(s: SimState, actor: Actor, target: Vec2 | null, pace = 1, apart = false): void {
   if (!target) return
   const d = dist(actor.pos, target)
   const own = actor.moveSpeed * DT * hasteOf(actor)
@@ -1639,8 +1658,20 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null, pace = 1): v
   actor.ai!.moveTarget = { x: target.x, y: target.y }
   // Never past it: a paced step can be longer than the distance left.
   const step = Math.min(own * pace, d)
-  const stepX = ((target.x - actor.pos.x) / d) * step
-  const stepY = ((target.y - actor.pos.y) / d) * step
+  let stepX = ((target.x - actor.pos.x) / d) * step
+  let stepY = ((target.y - actor.pos.y) / d) * step
+  // Walking in company: no nearer to anybody than they like (`spacing.ts`). A
+  // body that cannot come on at all has arrived, as far as anything else is
+  // concerned -- it is standing at the edge of the crowd, not stuck in a wall.
+  if (apart) {
+    const free = glide(s, actor, stepX, stepY)
+    stepX = free.x
+    stepY = free.y
+    if (stepX * stepX + stepY * stepY < 1e-4) {
+      actor.ai!.moveTarget = null
+      return
+    }
+  }
   // Facing the way it is walking. Nothing turned a body while it walked, so a
   // raid crossing a citadel faced whatever it happened to be facing when the
   // walk began — sideways, mostly. The six-unit deadzone above is what keeps

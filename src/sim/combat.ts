@@ -709,6 +709,31 @@ export interface DamageOptions {
 }
 
 /**
+ * Whether a body of this radius, set down here, would be left where it is.
+ *
+ * The question `holdOrFall` asks before it does anything, with the doing taken
+ * out: on a building's floor it is whether the body fits inside any piece of
+ * it, and in a lone room it is whether the middle of the body is on the floor
+ * and, for a room with walls, the whole of it clear of them. Nothing moves and
+ * nothing falls. It exists for the one caller that wants to know before it
+ * moves somebody (`spacing.ts`) and must not disagree with the rule that
+ * decides afterwards, so `holdOrFall` reads its floor branch off this too.
+ */
+export function canStand(s: SimState, pos: Vec2, radius: number): boolean {
+  const floor = s.floor
+  if (floor !== undefined && floor.length > 0) {
+    for (const cell of floor) {
+      if (insideRoom(cell, pos, radius)) return true
+    }
+    return false
+  }
+  if (dropGap(s.room, pos) < 0) return false
+  // A platform has no wall to push off: a body hanging over its edge is held
+  // there until its middle leaves, which is `holdOrFall`'s own rule.
+  return s.room.kind === 'platform' || insideRoom(s.room, pos, radius)
+}
+
+/**
  * Holds a body inside its room, or drops it out of the fight.
  *
  * Every step in this game used to end with the same line: put the body back
@@ -737,9 +762,7 @@ export function holdOrFall(s: SimState, actor: Actor): void {
   // nearest piece is the one with no wall.
   const floor = s.floor
   if (floor !== undefined && floor.length > 0) {
-    for (const cell of floor) {
-      if (insideRoom(cell, actor.pos, actor.radius)) return
-    }
+    if (canStand(s, actor.pos, actor.radius)) return
     let best = floor[0]!
     let near = -Infinity
     for (const cell of floor) {
