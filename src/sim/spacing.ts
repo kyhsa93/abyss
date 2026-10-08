@@ -411,7 +411,7 @@ function keepNow(s: SimState): number {
  * the four between the line a raid rests on and the one the checks count a pair
  * under (`KEEP` less `GAP`, in `spacingmetric.ts`), so that a brush is never one they count.
  */
-const UNPACK = 4
+export const UNPACK = 4
 
 /**
  * How much nearer than the line a step may come to somebody, as a raid unpacks.

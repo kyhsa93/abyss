@@ -217,7 +217,7 @@ function updateCamera(s: SimState, alpha: number, clock: number): void {
   turnView(want, clock, Math.min(1, Math.hypot(dx, dy) / HOLD))
 }
 
-function worldToScreen(p: Vec2): Vec2 {
+export function worldToScreen(p: Vec2): Vec2 {
   const dx = (p.x - cam.x) * L.scale
   const dy = (p.y - cam.y) * L.scale
   const rot = viewAngle()

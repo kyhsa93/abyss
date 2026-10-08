@@ -109,6 +109,12 @@ const SPACING = 'src/sim/spacing.ts'
 const spacing = existsSync(resolve(root, SPACING)) ? code(readFileSync(resolve(root, SPACING), 'utf8')) : null
 expect(`${SPACING} exists`, spacing !== null)
 if (spacing !== null) {
+  // This reads the text of `spacing.ts` and so cannot see a call made through
+  // another file: `glide` calls `clearTerrain` (battleground.ts), which uses
+  // `Math.hypot`. That is not a new platform dependency -- the walk's own
+  // `moveToward` calls it every tick already, and V8's `Math.hypot` is built
+  // from arithmetic and `sqrt`, not libm, so it is the same bits on arm64 and
+  // x64 for one Node version (#316, technical-director's R-3).
   const platform = [...spacing.matchAll(/\bMath\.(sin|cos|tan|asin|acos|atan2?|hypot|pow|exp|log\w*|cbrt|sinh|cosh|tanh)\b|\*\*/g)].map((m) => m[0])
   expect(`${SPACING} uses no sin, cos, atan2, hypot, pow, exp or log`, platform.length === 0, platform.join(', '))
   expect(`${SPACING} takes and reads no Rng`, !/\bRng\b|\brng\b/.test(spacing))

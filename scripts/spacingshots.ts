@@ -117,11 +117,51 @@ async function main(): Promise<void> {
       }
     }
     const taken: string[] = []
+    type Body = { id: number; name: string; classId: string; leader: boolean; alive: boolean; x: number; y: number; sx: number; sy: number }
+    const raid = (): Promise<Body[]> => ask<Body[]>('party()')
+    /**
+     * How tightly the raid stands, as the numbers the eye is judging: the pairs
+     * under the overlap and under the door's line in the game's own units, the
+     * nearest pair on the glass in pixels, and the tick it was read at.
+     */
+    const crowding = (bodies: Body[]): string => {
+      const alive = bodies.filter((b) => b.alive)
+      let under18 = 0
+      let under27 = 0
+      let under34 = 0
+      let nearest = Infinity
+      let nearestPx = Infinity
+      const near: number[] = []
+      for (let i = 0; i < alive.length; i++) {
+        let mine = Infinity
+        for (let j = 0; j < alive.length; j++) {
+          if (i === j) continue
+          const d = Math.hypot(alive[i]!.x - alive[j]!.x, alive[i]!.y - alive[j]!.y)
+          mine = Math.min(mine, d)
+          if (j < i) continue
+          if (d < 18) under18++
+          if (d < 27) under27++
+          if (d < 34) under34++
+          nearest = Math.min(nearest, d)
+          nearestPx = Math.min(nearestPx, Math.hypot(alive[i]!.sx - alive[j]!.sx, alive[i]!.sy - alive[j]!.sy))
+        }
+        near.push(mine)
+      }
+      const pairs = (alive.length * (alive.length - 1)) / 2
+      const mean = near.reduce((a, b) => a + b, 0) / Math.max(1, near.length)
+      const alone = near.filter((d) => d >= 27).length
+      return (
+        `nearest ${nearest.toFixed(1)} (${nearestPx.toFixed(0)}px)  pairs <18 ${under18} <27 ${under27} (${((100 * under27) / pairs).toFixed(1)}%) <34 ${under34}` +
+        `  mean nearest-neighbour ${mean.toFixed(1)}  bodies with a neighbour inside 27: ${alive.length - alone}/${alive.length}`
+      )
+    }
     const shot = async (name: string): Promise<void> => {
+      const tick = (await ask<{ tick: number }>('hud()')).tick
       await page.screenshot({ path: `${outArg}/${name}.png` })
       taken.push(name)
       const at = await hero()
-      console.log(`${name.padEnd(12)} player at ${Math.round(at.x)},${Math.round(at.y)}`)
+      const bodies = await raid()
+      console.log(`${name.padEnd(14)} tick ${tick}  player at ${Math.round(at.x)},${Math.round(at.y)}  ${crowding(bodies)}`)
     }
     const steerTo = async (tx: number, ty: number, ms: number, until?: () => Promise<boolean>): Promise<void> => {
       const t0 = Date.now()
@@ -133,6 +173,52 @@ async function main(): Promise<void> {
         await hold(await ask<string[]>(`keysFor(${dx}, ${dy})`))
         if (until && (await until())) break
         await sleep(60)
+      }
+    }
+
+    /**
+     * Shots on a timetable while the player keeps walking between two points,
+     * with two bodies picked out by their class in the log so that a person
+     * looking at the pictures can find them (#316): which place in the raid
+     * each is in, front to back along the way the leader is going, and where
+     * on the glass. Nothing is drawn on the pictures.
+     */
+    const follow = async (prefix: string, every: number, count: number, a: { x: number; y: number }, b: { x: number; y: number }): Promise<void> => {
+      const first = await raid()
+      const lead = first.find((x) => x.leader)!
+      const pick: Body[] = []
+      for (const body of first) {
+        if (body.leader || !body.alive) continue
+        if (body.classId === lead.classId || pick.some((p) => p.classId === body.classId)) continue
+        pick.push(body)
+        if (pick.length === 2) break
+      }
+      console.log(`${prefix}: following ${pick.map((p) => `${p.name} (${p.classId}, id ${p.id})`).join(' and ')}; leader is ${lead.name} (${lead.classId})`)
+      let toward = b
+      const t0 = Date.now()
+      let was = lead
+      for (let k = 0; k < count; k++) {
+        const until = t0 + k * every
+        while (Date.now() < until) {
+          const at = await hero()
+          if (Math.hypot(toward.x - at.x, toward.y - at.y) < 40) toward = toward === b ? a : b
+          await hold(await ask<string[]>(`keysFor(${toward.x - at.x}, ${toward.y - at.y})`))
+          await sleep(Math.min(40, Math.max(1, until - Date.now())))
+        }
+        const now = await raid()
+        const me = now.find((x) => x.leader)!
+        // Front to back along the way the leader went since the last frame.
+        const hx = me.x - was.x
+        const hy = me.y - was.y
+        const along = (x: Body): number => (hx * (x.x - me.x) + hy * (x.y - me.y)) / (Math.hypot(hx, hy) || 1)
+        const order = [...now].filter((x) => x.alive).sort((p, q) => along(q) - along(p))
+        const where = pick.map((p) => {
+          const cur = now.find((x) => x.id === p.id)!
+          return `${p.classId} ${order.findIndex((x) => x.id === p.id) + 1}/${order.length} at ${Math.round(cur.sx)},${Math.round(cur.sy)}`
+        })
+        was = me
+        await shot(`${prefix}-${k + 1}`)
+        console.log(`  ${prefix}-${k + 1} place from the front: ${where.join('; ')}`)
       }
     }
 
@@ -173,16 +259,71 @@ async function main(): Promise<void> {
     }
     console.log(`walk shots at ${marks.map((m) => `${(m / 1000).toFixed(2)}s`).join(' ')}`)
     await steerTo(330, -108, 8000)
-    // Stopped: the moment the stick is let go, then two seconds and eight after
-    // it, measured from there on the wall clock.
+    // Who is in front, a second at a time: eight seconds of walking back and
+    // forth across the hall, a picture a second.
+    await follow('order', 1000, 8, { x: -190, y: -108 }, { x: 190, y: -108 })
+    await steerTo(330, -108, 8000)
+    // Stopped, in the open: the leader lets go in the middle of the hall, part
+    // way across and still walking, and there is a shot every half second for
+    // two seconds (a body is slow to notice, and what a person is asked to see
+    // is the raid moving off its neighbours, which one frame cannot show), and
+    // one more at eight. The earlier version stopped against the far wall, a
+    // second or more after the raid had already come to rest, and every frame
+    // after that was the same frame.
+    await steerTo(-190, -108, 9000)
+    await steerTo(190, -108, 9000, async () => (await hero()).x > -20)
     await hold([])
     const stop = Date.now()
-    await shot('stopped-0s')
-    await sleep(Math.max(0, stop + 2000 - Date.now()))
-    await shot('stopped-2s')
+    for (let k = 0; k <= 4; k++) {
+      await sleep(Math.max(0, stop + k * 500 - Date.now()))
+      await shot(`stop-${(k * 0.5).toFixed(1)}s`)
+    }
     await sleep(Math.max(0, stop + 8000 - Date.now()))
     await shot('stopped')
-    console.log(`stopped shots at 0s, ${((Date.now() - stop) / 1000).toFixed(1)}s (the last)`)
+    console.log(`stopped shots at 0s .. 2.0s every half second, and ${((Date.now() - stop) / 1000).toFixed(1)}s (the last)`)
+
+    // Stopping while the raid is bunched, which the sequence above cannot show
+    // when it is already spread out. The leader goes to a wall, the raid piles
+    // up behind it, and the leader turns and walks back through it; it lets go
+    // the first moment five pairs are under thirty (or after six seconds if
+    // that never comes), and the log says how bunched it was at that moment.
+    const stopped = async (prefix: string): Promise<void> => {
+      await hold([])
+      const at = Date.now()
+      for (let k = 0; k <= 4; k++) {
+        await sleep(Math.max(0, at + k * 500 - Date.now()))
+        await shot(`${prefix}-${(k * 0.5).toFixed(1)}s`)
+      }
+    }
+    const crowded = async (): Promise<number> => {
+      const alive = (await raid()).filter((b) => b.alive)
+      let n = 0
+      for (let i = 0; i < alive.length; i++) {
+        for (let j = i + 1; j < alive.length; j++) {
+          if (Math.hypot(alive[i]!.x - alive[j]!.x, alive[i]!.y - alive[j]!.y) < 30) n++
+        }
+      }
+      return n
+    }
+    for (const [name, wall, back] of [['bunch-wall', { x: -190, y: -108 }, { x: 190, y: -108 }]] as const) {
+      await steerTo(wall.x, wall.y, 9000)
+      for (let i = 0; i < 30; i++) {
+        await hold(await ask<string[]>(`keysFor(-1000, 0)`))
+        await sleep(100)
+      }
+      const t0 = Date.now()
+      let seen = await crowded()
+      let peak = seen
+      while (Date.now() - t0 < 6000 && seen < 5) {
+        const at = await hero()
+        await hold(await ask<string[]>(`keysFor(${back.x - at.x}, ${back.y - at.y})`))
+        await sleep(60)
+        seen = await crowded()
+        peak = Math.max(peak, seen)
+      }
+      console.log(`${name}: let go with ${seen} pairs under 30 (the most seen on the way ${peak}), ${((Date.now() - t0) / 1000).toFixed(1)}s after turning`)
+      await stopped(name)
+    }
 
     // The door, where the hall's way on is.
     await steerTo(0, -214, 9000)
@@ -210,7 +351,7 @@ async function main(): Promise<void> {
       console.error(`the page threw: ${errors.join(' | ')}`)
       process.exitCode = 1
     }
-    const need = ['walking', 'walk-1', 'walk-2', 'walk-3', 'walk-4', 'stopped-0s', 'stopped-2s', 'stopped', 'door', 'passage', 'coming-out']
+    const need = ['order-1', 'order-8', 'bunch-wall-0.0s', 'bunch-wall-2.0s', 'walking', 'walk-1', 'walk-2', 'walk-3', 'walk-4', 'stop-0.0s', 'stop-0.5s', 'stop-1.0s', 'stop-1.5s', 'stop-2.0s', 'stopped', 'door', 'passage', 'coming-out']
     const missing = need.filter((n) => !taken.includes(n))
     if (missing.length > 0) {
       console.error(`the set is short of: ${missing.join(', ')}`)

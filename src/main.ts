@@ -1,7 +1,7 @@
 import { Input, hitButton } from './input'
 import { resetView, viewAngle } from './render/camera'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
-import { drawWorld, padOnScreen } from './render/draw'
+import { drawWorld, padOnScreen, worldToScreen } from './render/draw'
 import {
   canAdvance,
   drawHud,
@@ -2789,6 +2789,21 @@ if (!import.meta.env.PROD) {
     hero(): { x: number; y: number } | null {
       const me = state.actors.find((a) => a.isPlayer && a.alive)
       return me ? { x: me.pos.x, y: me.pos.y } : null
+    },
+    /**
+     * Where each body of the raid is, in world units and on the glass.
+     *
+     * A picture of a raid cannot say which body is which, so a driver that
+     * photographs the order of a walk (#316) asks for the ones it can tell apart
+     * by their class and finds them again in the next frame.
+     */
+    party(): Array<{ id: number; name: string; classId: string; leader: boolean; alive: boolean; x: number; y: number; sx: number; sy: number }> {
+      return state.actors
+        .filter((a) => a.faction === 'party')
+        .map((a) => {
+          const on = worldToScreen(a.pos)
+          return { id: a.id, name: a.name, classId: a.classId, leader: a.isPlayer, alive: a.alive, x: a.pos.x, y: a.pos.y, sx: on.x, sy: on.y }
+        })
     },
     /** Which room the walk thinks the party is in. */
     chamber(): string | null {

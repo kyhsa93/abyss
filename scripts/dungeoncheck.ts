@@ -43,7 +43,7 @@ import { CLASSES, RAID_SIZES, autoParty, pickFor } from '../src/sim/classes'
 import { MUSTER_HALF, ROUND_ARENA, fromRoom, insideRoom, type RoomShape } from '../src/sim/room'
 import { LPC_ROW } from '../src/render/lpc'
 import { computeLayout } from '../src/render/theme'
-import { MIN_GAP, keepOf } from '../src/sim/spacing'
+import { MIN_GAP, UNPACK, keepOf } from '../src/sim/spacing'
 import { TILT } from '../src/render/draw'
 import {
   GAP,
@@ -1577,7 +1577,7 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
   const adrift: string[] = []
   // The three measured: a hall with furniture in it, a stair, and the widest
   // room in the building. The stair is where this was worst.
-  for (const where of ['threshold', 'eastclimb', 'oratory']) {
+  for (const [size, where] of [10, 25].flatMap((n) => ['threshold', 'eastclimb', 'oratory'].map((w) => [n, w] as const))) {
     const ground = {
       ...hallFor(where, null, anywhere),
       id: 'citadel',
@@ -1586,7 +1586,7 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
     }
     // Led rather than `unattended`: a leaderless raid in a building stays
     // where it is, and a raid that never walks cannot be left behind.
-    const s = createCorridorState(7, autoParty(10, dps), ground, 'normal', 4, undefined, true)
+    const s = createCorridorState(7, autoParty(size, dps), ground, 'normal', 4, undefined, true)
     s.chamber = where
     s.floor = citadelWorld()
       .filter((cell) => cell.storeys.includes(storeyOf(where)))
@@ -1608,9 +1608,35 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
     const still = new Map<number, number>()
     let pinned = 0
     let stalled = 0
+    // And the same with nobody excused (#316). The count above lets a body off
+    // while anybody is within `WAITING_ON` of it, so two bodies wedged against
+    // the same furniture would excuse each other. This does not look at
+    // neighbours at all: it asks only that, on the ticks the leader is moving,
+    // a body outside the door's reach is not standing on the spot for more than
+    // five seconds together. A tick the leader is standing on does not count
+    // and ends the run (a raid pressed against a wall is allowed to queue).
+    const bare = new Map<number, number>()
+    let leadWas: Vec2 | undefined
+    let bareWorst = 0
     for (let t = 0; t < 30 * 80; t++) {
       const leg = legs[Math.floor(t / (30 * 10)) % legs.length]!
       step(s, { ...leg, pressed: [] }, rng)
+      const leading = leadWas !== undefined && dist(leadWas, lead.pos) >= 0.05 * lead.moveSpeed * DT
+      leadWas = { x: lead.pos.x, y: lead.pos.y }
+      for (const a of s.actors) {
+        if (a.faction !== 'party' || a.id === lead.id || !a.alive) continue
+        const before = was.get(a.id)
+        if (before === undefined) continue
+        const still = dist(before, a.pos) < 0.05 * a.moveSpeed * DT
+        // Standing still to hit something is standing still on purpose.
+        const fighting = s.actors.some((o) => o.faction === 'boss' && o.alive && dist(o.pos, a.pos) < 400)
+        if (fighting || !still || !leading || dist(a.pos, lead.pos) <= exitReach(s.party.length)) bare.delete(a.id)
+        else {
+          const n = (bare.get(a.id) ?? 0) + 1
+          bare.set(a.id, n)
+          bareWorst = Math.max(bareWorst, n)
+        }
+      }
       for (const a of s.actors) {
         if (a.faction !== 'party' || a.id === lead.id || !a.alive) continue
         const before = was.get(a.id)
@@ -1633,8 +1659,10 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
         if (dist(before, a.pos) < 0.01) pinned++
       }
     }
-    if (pinned > 0) adrift.push(`${where}: ${pinned} body-ticks`)
-    if (stalled > 0) adrift.push(`${where}: ${stalled} body-ticks stood still more than a second a long way from the leader`)
+    // The twenty-five are held to the one that excuses nobody and no more: the others were measured at ten.
+    if (size === 10 && pinned > 0) adrift.push(`${size}-man ${where}: ${pinned} body-ticks`)
+    if (size === 10 && stalled > 0) adrift.push(`${size}-man ${where}: ${stalled} body-ticks stood still more than a second a long way from the leader`)
+    if (bareWorst > 150) adrift.push(`${size}-man ${where}: a body stood ${bareWorst} ticks on the spot while the leader walked, with nobody excused`)
   }
   expect('a raid walking gets where it is walking to', adrift.length === 0, adrift.join('; '))
 }
@@ -3587,6 +3615,9 @@ expect(
     if (EXIT_REACH_MAX !== Math.max(...RAID_SIZES.map(exitReach))) bad.push(`EXIT_REACH_MAX is ${EXIT_REACH_MAX}, not the biggest raid's reach`)
     // The walk's line and the checks' are one number, or the checks are judging a different walk.
     if (GAP !== keepOf(10) - 4) bad.push(`the checks count a pair under ${GAP} and the walk keeps ${keepOf(10)}: they differ by ${keepOf(10) - GAP}, not 4`)
+    for (const size of [5, 10, 25]) {
+      if (UNPACK > keepOf(size) - GAP) bad.push(`UNPACK is ${UNPACK}, more than the ${keepOf(size) - GAP} between the ${size}-man line and the one the checks count`)
+    }
     if (keepOf(10) !== MIN_GAP + 1) bad.push(`keepOf(10) is ${keepOf(10)}, MIN_GAP is ${MIN_GAP}`)
     expect('the reach of a door is 90, 90 and 110, a pad is 90, and a huddle fits its door', bad.length === 0, bad.join('; '))
   }
