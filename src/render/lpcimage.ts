@@ -182,10 +182,18 @@ export function bodyHeight(r: number): number {
  * their neighbours -- across a body that size the picture stopped being pixel
  * art and became a mosaic. `device` is device pixels per canvas unit, which is
  * the canvas transform's own scale.
+ *
+ * `ceiling`, when above zero, lets a scale above one go up to the next whole
+ * number rather than the nearest, but no higher than `ceiling` (canvas units a
+ * source pixel, and never below the nearest): for a body that must not be drawn
+ * smaller than it was meant to be. A boss drawn one and a half people tall is
+ * 1.34 source-pixel widths on a 1280 desktop and 1.38 on a phone, which the
+ * nearest whole number drops to 1, the same as a raider.
  */
-export function pixelScale(r: number, device: number): number {
+export function pixelScale(r: number, device: number, ceiling = 0): number {
   const want = ((r * BODY * SQUASH) / LPC_BODY) * device
-  const whole = want >= 1 ? Math.round(want) : 1 / Math.max(1, Math.round(1 / want))
+  const near = want >= 1 ? Math.round(want) : 1 / Math.max(1, Math.round(1 / want))
+  const whole = want >= 1 && ceiling > 0 ? Math.max(near, Math.min(Math.ceil(want - 1e-9), Math.floor(ceiling * device + 1e-9))) : near
   return whole / device
 }
 
@@ -213,6 +221,8 @@ export function drawBody(
    * same sword. Any stable number does; the actor's id is the one to hand.
    */
   who: number,
+  /** Let the pixel scale round up, as far as this; see `pixelScale`. */
+  ceiling = 0,
 ): boolean {
   begin()
   if (!sheet) return false
@@ -255,7 +265,7 @@ export function drawBody(
   // when there is not. What has to come out at the intended size is
   // `LPC_BODY`, which every cell holds centred whatever its width, and the
   // rest of the cell is drawn at whatever scale that implies.
-  const scale = pixelScale(r, ctx.getTransform().a)
+  const scale = pixelScale(r, ctx.getTransform().a, ceiling)
 
   ctx.save()
   ctx.globalAlpha = alpha

@@ -3348,6 +3348,28 @@ export const BOSS_BODY_PX = 30
  */
 export const BOSS_RING_FILL = 0.5
 
+/**
+ * The most a boss's source pixel may be drawn at: `BOSS_FIGURE_CAP` raiders'
+ * worth. `BOSS_FIGURE_CAP` bounds the continuous figure, and rounding up could
+ * take one more whole step past it (a phone at 3x, a raider at 3 and a boss at
+ * 4 or more), so the step up is held to this.
+ */
+export function bossScaleCeiling(device: number): number {
+  return BOSS_FIGURE_CAP * pixelScale(PARTY_RADIUS * L.scale, device)
+}
+
+/**
+ * Canvas units a source pixel of a boss's picture is drawn at: the next whole
+ * scale up from `pixelScale`'s nearest, so a boss one and a half people tall is
+ * drawn two source pixels to a raider's one on a desktop and a phone rather
+ * than at the raider's size, but never past `BOSS_FIGURE_CAP` raiders' scale
+ * and never below the nearest. Only the boss's own figure and the patch under
+ * it; everything else keeps the nearest.
+ */
+export function bossPixelScale(figure: number, device: number): number {
+  return pixelScale(figure, device, bossScaleCeiling(device))
+}
+
 export function bossFigure(r: number, phase: number, gauge: number, sinceBreak: number): number {
   const person = PARTY_RADIUS * L.scale
   const swell = (1 + phaseHeat(phase) * 0.3 + gauge * GORGE_SWELL) * breakSwell(sinceBreak)
@@ -3493,7 +3515,7 @@ function drawActor(
   const footed = isBoss && a.alive && token !== null
   const figure = isBoss ? bossFigure(r, phase, gauge, sinceBreak) : r
   const stand = footed
-    ? Math.min(r, (BOSS_BODY_PX * pixelScale(figure, ctx.getTransform?.()?.a ?? 1)) / 2)
+    ? Math.min(r, (BOSS_BODY_PX * bossPixelScale(figure, ctx.getTransform?.()?.a ?? 1)) / 2)
     : r
 
   footprint(ctx, p.x, p.y, r)
@@ -3702,6 +3724,9 @@ function drawActor(
       casting,
       a.alive ? 1 : 0.4,
       a.id,
+      // A boss is drawn at the next whole scale up (`bossPixelScale`), held
+      // to `BOSS_FIGURE_CAP` raiders' scale.
+      isBoss ? bossScaleCeiling(ctx.getTransform?.()?.a ?? 1) : 0,
     )
   }
 
