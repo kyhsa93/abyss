@@ -21,8 +21,16 @@ import type { SimState, Vec2 } from '../src/sim/types'
 
 /** Two bodies closer than this are standing inside each other. */
 export const OVERLAP = PARTY_RADIUS * 2
-/** Closer than this is not a gap: half a body of floor between two. */
-export const GAP = 27
+/**
+ * Closer than this is not a gap: the line `spacing.ts` works to, less four.
+ *
+ * Thirty is a body (18) and two-thirds of one of floor between two, which is
+ * where a walk read as a crowd on the glass and below which it read as a pile.
+ * Written out here and not read off `spacing.ts`, because this file has to run
+ * against code from before that one existed; `dungeoncheck` asserts that the
+ * two agree.
+ */
+export const GAP = 30
 /** Closer than this for long is not walking past, it is standing on. */
 export const ON_TOP = PARTY_RADIUS
 
@@ -267,8 +275,10 @@ export function firstMoved(frames: Frame[], body: number, from: number, over: nu
 export interface Limits {
   /** Share of pairs allowed under `OVERLAP`. */
   overlap: number
-  /** Share allowed under `GAP`. */
+  /** Share allowed under `line`. */
   gap: number
+  /** The line a pair is under, when it is not `GAP`. */
+  line?: number
   /** The longest a pair may stay under `ON_TOP`, in ticks. */
   onTop: number
 }
@@ -284,8 +294,9 @@ export function judgeSpacing(frames: Frame[], limits: Limits): string[] {
   if (frames.length === 0) return ['no quiet frames to judge']
   const over = pairShare(frames, OVERLAP)
   if (over > limits.overlap) out.push(`${(over * 100).toFixed(2)}% of pairs overlap (limit ${(limits.overlap * 100).toFixed(0)}%)`)
-  const tight = pairShare(frames, GAP)
-  if (tight > limits.gap) out.push(`${(tight * 100).toFixed(1)}% of pairs under ${GAP} (limit ${(limits.gap * 100).toFixed(0)}%)`)
+  const line = limits.line ?? GAP
+  const tight = pairShare(frames, line)
+  if (tight > limits.gap) out.push(`${(tight * 100).toFixed(1)}% of pairs under ${line} (limit ${(limits.gap * 100).toFixed(0)}%)`)
   const stuck = longestRun(frames, ON_TOP)
   if (stuck > limits.onTop) out.push(`a pair stood on top of each other for ${stuck} ticks (limit ${limits.onTop})`)
   return out
@@ -295,3 +306,194 @@ export function judgeSpacing(frames: Frame[], limits: Limits): string[] {
 export const FIXED_SLOTS = 0.95
 /** And a walk with no memory at all: nobody is anybody's. */
 export const SHUFFLED = 0.3
+
+// --- the door -----------------------------------------------------------------
+
+/**
+ * The frames of a walk from the first one in which the leader is within `reach` of any of `doors`.
+ *
+ * "Any of them" and not the one the walk is heading for: the spacing gives way
+ * at a door whichever door it is (`leaderAtDoor`), so this has to start where
+ * that does or a walk past another door is judged by the wrong rule.
+ */
+export function doorWindow(walk: Walk, doors: Vec2[], reach: number): Frame[] {
+  const near = walk.frames.findIndex((f) => doors.some((d) => gap(f.at[walk.leader]!, d) <= reach))
+  return near < 0 ? [] : walk.frames.slice(near).filter((f) => f.quiet)
+}
+
+/** The first tick of a window to the last, counted: how long it took to get everybody to the door. */
+export function ticksOf(frames: Frame[]): number {
+  return frames.length === 0 ? 0 : frames[frames.length - 1]!.tick - frames[0]!.tick + 1
+}
+
+/** What a door asks of a raid of a given size (#316, 4a). */
+export interface DoorLimits {
+  /** Longest a single walk may spend in the door's reach, in ticks. */
+  ticks: number
+  /** Share of pairs allowed under `OVERLAP`. */
+  overlap: number
+  /** The longest one pair may stay under `OVERLAP`, in ticks. */
+  overlapRun: number
+  /** Pairs nearer than this, ever, are not allowed: a body on top of a body. */
+  never: number
+  /** Share of pairs allowed under 27. */
+  tight: number
+  /** The mean of all the walks' times at a door, when more than one is judged. */
+  mean: number
+}
+
+/**
+ * Twenty-five does not fit in front of a door at a body's width of floor between two (the half circle in front of it
+ * is too small), so it is asked less: a body on a body is still forbidden, and
+ * touching is let go only for a moment. Ten and five fit, and are asked as they always were.
+ */
+export function doorLimits(size: number): DoorLimits {
+  return size >= 25
+    ? { ticks: 180, overlap: 0.005, overlapRun: 10, never: 9, tight: 0.1, mean: 150 }
+    : { ticks: 60, overlap: 0.05, overlapRun: Infinity, never: 20, tight: 0.1, mean: 60 }
+}
+
+/** What is wrong with the stretch of a walk at a door, in words; nothing when it is fine. */
+export function judgeDoor(frames: Frame[], size: number): string[] {
+  const out: string[] = []
+  const limit = doorLimits(size)
+  if (frames.length === 0) return ['the leader never got to the door']
+  const took = ticksOf(frames)
+  if (took > limit.ticks) out.push(`${took} ticks at the door (limit ${limit.ticks})`)
+  const over = pairShare(frames, OVERLAP)
+  if (over > limit.overlap) out.push(`${(over * 100).toFixed(2)}% of pairs overlap at the door (limit ${(limit.overlap * 100).toFixed(1)}%)`)
+  const run = longestRun(frames, OVERLAP)
+  if (run > limit.overlapRun) out.push(`a pair overlapped for ${run} ticks in a row at the door (limit ${limit.overlapRun})`)
+  const crushed = pairShare(frames, limit.never)
+  if (crushed > 0) out.push(`a pair was nearer than ${limit.never} at the door (nearest ${closest(frames).toFixed(1)})`)
+  const tight = pairShare(frames, 27)
+  if (tight > limit.tight) out.push(`${(tight * 100).toFixed(1)}% of pairs under 27 at the door (limit ${(limit.tight * 100).toFixed(0)}%)`)
+  return out
+}
+
+/** The mean time at the door over several walks, against what the raid's size allows. */
+export function judgeDoorMean(took: number[], size: number): string[] {
+  if (took.length === 0) return ['no walk reached a door']
+  const mean = took.reduce((a, b) => a + b, 0) / took.length
+  const limit = doorLimits(size).mean
+  return mean > limit ? [`${mean.toFixed(0)} ticks at the door on average (limit ${limit})`] : []
+}
+
+/** Whether a huddle of this width goes through a door of this reach with the margin to spare. */
+export function doorFits(huddle: number, reach: number, margin = 11): boolean {
+  return huddle <= reach - margin
+}
+
+// --- being held up, which is not the same as being told you have arrived --------
+
+/**
+ * The longest a body stood where it was while a long way from the leader, over the frames, in ticks.
+ *
+ * Asked of where the body is and not of where it has been told to go: a body
+ * that cannot get on is, by design, told it has arrived (`moveTarget` goes
+ * null), so the walk's own account of itself cannot say it is stuck. "Standing
+ * still" is a step of under a twentieth of a stride; "a long way" is further
+ * than the door's reach.
+ */
+export function longestStall(frames: Frame[], leader: number, farther: number): number {
+  const run = new Map<number, number>()
+  let worst = 0
+  for (let k = 1; k < frames.length; k++) {
+    for (let i = 0; i < frames[k]!.at.length; i++) {
+      if (i === leader || !frames[k]!.alive[i] || !frames[k - 1]!.alive[i]) {
+        run.delete(i)
+        continue
+      }
+      const moved = gap(frames[k - 1]!.at[i]!, frames[k]!.at[i]!)
+      const away = gap(frames[k]!.at[i]!, frames[k]!.at[leader]!)
+      if (moved < 0.05 * frames[k]!.stride[i]! && away > farther) {
+        const n = (run.get(i) ?? 0) + 1
+        run.set(i, n)
+        worst = Math.max(worst, n)
+      } else run.delete(i)
+    }
+  }
+  return worst
+}
+
+/**
+ * How far along the leader's way the slowest living body got, as a share of how far the leader did.
+ *
+ * Between the first frame and the last, along the line the leader went. A raid
+ * that is all there at the end of a walk has each of them at nearly all of it;
+ * one in which somebody has been pinned against a wall for the whole of it has
+ * a share near nothing.
+ */
+export function leastProgress(frames: Frame[], leader: number): number {
+  if (frames.length < 2) return 1
+  const a = frames[0]!
+  const z = frames[frames.length - 1]!
+  const hx = z.at[leader]!.x - a.at[leader]!.x
+  const hy = z.at[leader]!.y - a.at[leader]!.y
+  const h = Math.hypot(hx, hy)
+  if (h < 1e-6) return 1
+  let least = Infinity
+  for (let i = 0; i < z.at.length; i++) {
+    if (i === leader || !z.alive[i] || !a.alive[i]) continue
+    least = Math.min(least, ((z.at[i]!.x - a.at[i]!.x) * hx + (z.at[i]!.y - a.at[i]!.y) * hy) / (h * h))
+  }
+  return least === Infinity ? 1 : least
+}
+
+// --- the persistence of a body's place, one number a passage ----------------------
+
+/** A passage on which the same bodies trail in the same order is a formation, whatever the middle of six says. */
+export const PASSAGE_FIXED = 0.98
+
+/** What is wrong with the passages' rank agreements, in words; nothing when it is fine. */
+export function judgeRanks(rhos: number[]): string[] {
+  const out: string[] = []
+  if (rhos.length === 0) return ['no passage to judge']
+  const sorted = [...rhos].sort((x, y) => x - y)
+  const rho = (sorted[Math.floor((sorted.length - 1) / 2)]! + sorted[Math.ceil((sorted.length - 1) / 2)]!) / 2
+  const all = rhos.map((r) => r.toFixed(2)).join(' ')
+  if (!(rho >= SHUFFLED && rho <= FIXED_SLOTS)) out.push(`rank agreement ${rho.toFixed(2)} over ${rhos.length} passages (wanted ${SHUFFLED} to ${FIXED_SLOTS}; ${all})`)
+  const fixed = rhos.filter((r) => r > PASSAGE_FIXED)
+  if (fixed.length > 0) out.push(`${fixed.length} passage(s) above ${PASSAGE_FIXED}: the same bodies in the same order (${all})`)
+  return out
+}
+
+// --- a stop ----------------------------------------------------------------------
+
+/**
+ * What is wrong with when the followers of a stopped leader last moved, in words.
+ *
+ * `last` is the last tick each follower moved (or -1 for one that did not), as
+ * `lastMoved` gives it. At least half of them have to have moved at all: a
+ * walk in which nobody does has nobody arriving, and a spread of arrivals
+ * across nobody is no spread -- the check used to pass it.
+ */
+export function judgeArrival(last: number[]): string[] {
+  const arrived = last.filter((n) => n >= 0)
+  if (arrived.length < Math.ceil(last.length / 2)) return [`only ${arrived.length} of ${last.length} followers moved at all after the stop (wanted at least half)`]
+  const range = Math.max(...arrived) - Math.min(...arrived)
+  return range < 20 ? [`all arrived within ${range} ticks of one another (wanted 20 or more)`] : []
+}
+
+// --- the glass -------------------------------------------------------------------
+
+/**
+ * How far from the leader the furthest body is, against the edge of the screen, along each axis.
+ *
+ * `seenX` and `seenY` are how far from the leader the glass reaches, in world
+ * units, to the side and up the screen. 1.0 is a body on the edge; over it is a
+ * body off it. Along the axes and not in a circle because the glass is not one
+ * (a phone held upright shows far more up it than across it), and a raid that
+ * has strung out along the way it is walking is judged by the way it is walking.
+ */
+export function glassRatio(frames: Frame[], leader: number, seenX: number, seenY: number): number {
+  let worst = 0
+  for (const f of frames) {
+    const l = f.at[leader]!
+    for (let i = 0; i < f.at.length; i++) {
+      if (i === leader || !f.alive[i]) continue
+      worst = Math.max(worst, Math.abs(f.at[i]!.x - l.x) / seenX, Math.abs(f.at[i]!.y - l.y) / seenY)
+    }
+  }
+  return worst
+}

@@ -114,6 +114,35 @@ if (spacing !== null) {
   expect(`${SPACING} takes and reads no Rng`, !/\bRng\b|\brng\b/.test(spacing))
 }
 
+// --- 4. a door's reach is a raid's, a pad's is not, and both are whole numbers --
+//
+// #316. The reach that takes a raid through a door grows with the raid
+// (`exitReach`, travel.ts) and the one that takes a body onto a pad does not
+// (`PAD_REACH`). The page and the renderer measure the pad, and a pad drawn at
+// a door's reach is a circle on the floor that is not the circle being tested:
+// so neither may name the door's reach at all. And the door's reach is the
+// same whole number on every machine, which is to say it is built of
+// multiplication, `sqrt`, `round`, `min` and `max` and nothing else.
+
+for (const file of ['src/main.ts', 'src/render/draw.ts']) {
+  const text = code(readFileSync(resolve(root, file), 'utf8'))
+  const door = [...text.matchAll(/\b(?:exitReach|EXIT_REACH\w*)\b/g)].map((m) => m[0])
+  expect(`${file} does not name a door's reach`, door.length === 0, door.join(', '))
+  expect(`${file} measures a pad with PAD_REACH`, /\bPAD_REACH\b/.test(text))
+}
+{
+  const travel = code(readFileSync(resolve(root, 'src/sim/travel.ts'), 'utf8'))
+  for (const name of ['exitReach', 'huddle']) {
+    const at = travel.indexOf(`function ${name}(`)
+    const body = at < 0 ? null : travel.slice(at, travel.indexOf('\n}', at))
+    expect(`travel.ts has ${name}`, body !== null)
+    if (body === null) continue
+    const used = [...body.matchAll(/\bMath\.(\w+)/g)].map((m) => m[1]!)
+    const odd = used.filter((f) => !['max', 'min', 'round', 'sqrt'].includes(f))
+    expect(`${name} is multiplication, sqrt, round, min and max and nothing else`, odd.length === 0 && !body.includes('**'), odd.join(', '))
+  }
+}
+
 if (failures > 0) {
   console.error(`lawcheck: ${failures} check(s) failed`)
   process.exit(1)

@@ -9,11 +9,17 @@
  * for twenty-five, at the default camera:
  *
  *   walking     the raid crossing the hall behind the player
- *   stopped-*   the same raid, as it stops: a beat after, two seconds, eight
+ *   walk-1..4   and four more of it, half a second apart, so that what changes
+ *               while it walks (who is in front, who is beside) can be seen to
+ *   stopped-*   the same raid, as it stops: the moment, two seconds, eight
  *   door        gathered at the doorway out, where the hall's way on is
  *   passage     through it and a way up the passage
  *   coming-out  and back down it into the hall
  *   regathered  and stopped again
+ *
+ * Every frame a judgement is asked to be made from has to exist, or this
+ * exits non-zero: a set that is short a shot is a set that cannot be judged,
+ * and the shot that is quietly missing is always the one that mattered.
  *
  * It drives the dev server, because the hook it reads (`window.__abyss`) is
  * compiled out of a build -- see `src/main.ts` -- and it opens the second raid
@@ -110,8 +116,10 @@ async function main(): Promise<void> {
         held.delete(k)
       }
     }
+    const taken: string[] = []
     const shot = async (name: string): Promise<void> => {
       await page.screenshot({ path: `${outArg}/${name}.png` })
+      taken.push(name)
       const at = await hero()
       console.log(`${name.padEnd(12)} player at ${Math.round(at.x)},${Math.round(at.y)}`)
     }
@@ -146,17 +154,35 @@ async function main(): Promise<void> {
 
     // Across the hall and back, the shot taken part way over with the player still going.
     await steerTo(-330, -108, 6000)
-    await steerTo(330, -108, 8000, async () => (await hero()).x > 0)
-    await sleep(150)
-    await shot('walking')
+    await steerTo(330, -108, 8000, async () => (await hero()).x > -100)
+    // The walk in sequence: the first, and four more at half-second marks on the
+    // wall clock, the player still steering all the while.
+    const marks: number[] = []
+    const t0 = Date.now()
+    for (let k = 0; k < 5; k++) {
+      const until = t0 + k * 500
+      while (Date.now() < until) {
+        const at = await hero()
+        await hold(await ask<string[]>(`keysFor(${330 - at.x}, ${-108 - at.y})`))
+        await sleep(Math.min(40, Math.max(1, until - Date.now())))
+      }
+      const at = await hero()
+      await hold(await ask<string[]>(`keysFor(${330 - at.x}, ${-108 - at.y})`))
+      await shot(k === 0 ? 'walking' : `walk-${k}`)
+      marks.push(Date.now() - t0)
+    }
+    console.log(`walk shots at ${marks.map((m) => `${(m / 1000).toFixed(2)}s`).join(' ')}`)
     await steerTo(330, -108, 8000)
+    // Stopped: the moment the stick is let go, then two seconds and eight after
+    // it, measured from there on the wall clock.
     await hold([])
-    await sleep(300)
+    const stop = Date.now()
     await shot('stopped-0s')
-    await sleep(2500)
+    await sleep(Math.max(0, stop + 2000 - Date.now()))
     await shot('stopped-2s')
-    await sleep(4000)
+    await sleep(Math.max(0, stop + 8000 - Date.now()))
     await shot('stopped')
+    console.log(`stopped shots at 0s, ${((Date.now() - stop) / 1000).toFixed(1)}s (the last)`)
 
     // The door, where the hall's way on is.
     await steerTo(0, -214, 9000)
@@ -182,6 +208,12 @@ async function main(): Promise<void> {
 
     if (errors.length > 0) {
       console.error(`the page threw: ${errors.join(' | ')}`)
+      process.exitCode = 1
+    }
+    const need = ['walking', 'walk-1', 'walk-2', 'walk-3', 'walk-4', 'stopped-0s', 'stopped-2s', 'stopped', 'door', 'passage', 'coming-out']
+    const missing = need.filter((n) => !taken.includes(n))
+    if (missing.length > 0) {
+      console.error(`the set is short of: ${missing.join(', ')}`)
       process.exitCode = 1
     }
   } finally {

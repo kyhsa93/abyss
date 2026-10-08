@@ -32,10 +32,10 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
-import { EXIT_REACH, marchReach, overlapping, packOf, packSize, packsPlaced, unguarded, type Corridor, type Pack } from '../src/sim/travel'
+import { DOOR_MARGIN, EXIT_REACH_MAX, EXIT_REACH_MIN, PAD_REACH, exitReach, huddle, marchReach, overlapping, packOf, packSize, packsPlaced, unguarded, type Corridor, type Pack } from '../src/sim/travel'
 import { TRASH_KINDS, trashMends } from '../src/sim/trash'
 import { applyDamage, dist, holdOrFall } from '../src/sim/combat'
-import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
+import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, DT, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
@@ -43,15 +43,28 @@ import { CLASSES, RAID_SIZES, autoParty, pickFor } from '../src/sim/classes'
 import { MUSTER_HALF, ROUND_ARENA, fromRoom, insideRoom, type RoomShape } from '../src/sim/room'
 import { LPC_ROW } from '../src/render/lpc'
 import { computeLayout } from '../src/render/theme'
+import { MIN_GAP, keepOf } from '../src/sim/spacing'
+import { TILT } from '../src/render/draw'
 import {
   GAP,
   FIXED_SLOTS,
   OVERLAP,
   SHUFFLED,
+  doorFits,
+  doorWindow,
   farthest,
   firstGoing,
+  firstMoved,
+  glassRatio,
+  judgeArrival,
+  judgeDoor,
+  judgeDoorMean,
+  judgeRanks,
   judgeSpacing,
   lastMoved,
+  leastProgress,
+  longestStall,
+  ticksOf,
   longestRun,
   meanFromLeader,
   pairShare,
@@ -293,7 +306,14 @@ expect(
 // from before anybody had touched a key.
 
 const everywhere = () => true
-{
+/**
+ * What is wrong with where the doors and the arrival points of every room are, for a door that reaches this far.
+ *
+ * A function of the reach because it is asked of more than one: the reach of a
+ * door is the raid's (`exitReach`), the rooms are laid out once, and so the
+ * layout has to hold for the biggest raid there is.
+ */
+const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep: string[] } => {
   const clashes: string[] = []
   const shut: string[] = []
   const doorstep: string[] = []
@@ -305,7 +325,7 @@ const everywhere = () => true
         const gap = dist(hall.ways[i]!.at, hall.ways[j]!.at)
         // Two doors closer than the reach that takes you through one are one
         // door, and which room you end up in is then a coin toss.
-        if (gap < EXIT_REACH * 2) {
+        if (gap < reach * 2) {
           clashes.push(`${chamber.id}: ${hall.ways[i]!.to} and ${hall.ways[j]!.to} are ${gap.toFixed(0)} apart`)
         }
       }
@@ -315,18 +335,35 @@ const everywhere = () => true
     for (const back of hall.ways) {
       const entered = hallFor(chamber.id, back.to, everywhere)
       for (const way of entered.ways) {
-        if (dist(entered.entry, way.at) <= EXIT_REACH) {
+        if (dist(entered.entry, way.at) <= reach) {
           doorstep.push(`${chamber.id} from ${back.to} arrives on the ${way.to} door`)
         }
       }
     }
   }
+  return { clashes, shut, doorstep }
+}
+{
+  // The rooms are laid out once for every raid, so they are judged at the reach
+  // of the biggest (#316): a map that holds at ninety and not at a hundred and
+  // ten is a twenty-five-man that arrives already through the door.
+  const { clashes, shut, doorstep } = placement(EXIT_REACH_MAX)
   expect(`every room has a way out`, shut.length === 0, shut.join(', '))
-  expect('and no two doors of one room are the same door', clashes.length === 0, clashes.join('; '))
+  expect(`and no two doors of one room are the same door, at the biggest raid's reach (${EXIT_REACH_MAX})`, clashes.length === 0, clashes.join('; '))
   expect(
-    'and a party arrives clear of every door in the room',
+    `and a party arrives clear of every door in the room, at the biggest raid's reach (${EXIT_REACH_MAX})`,
     doorstep.length === 0,
     doorstep.join('; '),
+  )
+  // A check that cannot fail is not a check: the nearest arrival point is a
+  // hundred and thirteen from a door, three clear of the biggest reach, so a
+  // reach of a hundred and fifteen must be caught. If this passes, the line
+  // above is not looking at the distance.
+  const toofar = placement(115)
+  expect(
+    '... and the same check at 115 finds a party arriving on a door (it sees the edge)',
+    toofar.doorstep.length > 0,
+    'nothing found at a reach the map was not laid out for',
   )
 
   // The doors are the passages, both ways. A room with a door to somewhere
@@ -366,7 +403,7 @@ const everywhere = () => true
   const stuck: string[] = []
   const wrong: string[] = []
   // Twenty-five, which is the size the door has to be wide enough for: going
-  // through one is everybody being inside `EXIT_REACH` of it at the same
+  // through one is everybody being inside `exitReach` of it at the same
   // moment, and a raid five times as wide is where that stops being free.
   for (const chamber of CHAMBERS) {
     const hall = hallFor(chamber.id, null, everywhere)
@@ -1562,7 +1599,13 @@ const everywhere = () => true
       { moveX: -1, moveY: 0 },
     ]
     const was = new Map<number, Vec2>()
+    // And by where a body is rather than where it says it is going (#316): a
+    // body that cannot get on is told it has arrived, so its own target goes
+    // away and the count above cannot see it. A long way from the leader and
+    // not moving, for longer than a second, is stuck whatever it was told.
+    const still = new Map<number, number>()
     let pinned = 0
+    let stalled = 0
     for (let t = 0; t < 30 * 80; t++) {
       const leg = legs[Math.floor(t / (30 * 10)) % legs.length]!
       step(s, { ...leg, pressed: [] }, rng)
@@ -1572,8 +1615,14 @@ const everywhere = () => true
         was.set(a.id, { x: a.pos.x, y: a.pos.y })
         // Standing still to hit something is standing still on purpose.
         if (s.actors.some((o) => o.faction === 'boss' && o.alive && dist(o.pos, a.pos) < 400)) {
+          still.delete(a.id)
           continue
         }
+        if (before !== undefined && dist(before, a.pos) < 0.05 * a.moveSpeed * DT && dist(a.pos, lead.pos) > exitReach(s.party.length)) {
+          const n = (still.get(a.id) ?? 0) + 1
+          still.set(a.id, n)
+          if (n > 30) stalled++
+        } else still.delete(a.id)
         const want = a.ai?.moveTarget
         if (before === undefined || want === null || want === undefined) continue
         // Arrived, so nothing is owed.
@@ -1582,6 +1631,7 @@ const everywhere = () => true
       }
     }
     if (pinned > 0) adrift.push(`${where}: ${pinned} body-ticks`)
+    if (stalled > 0) adrift.push(`${where}: ${stalled} body-ticks stood still more than a second a long way from the leader`)
   }
   expect('a raid walking gets where it is walking to', adrift.length === 0, adrift.join('; '))
 }
@@ -1780,7 +1830,7 @@ for (const chamber of CHAMBERS.filter((c) => c.pad)) {
   // standing near them, so a pad on a doorway is a doorway that sometimes
   // teleports -- which is the one thing the doors here were built not to be.
   const doors = hallFor(chamber.id, null, () => true).ways
-  const on = doors.filter((way) => Math.hypot(way.at.x - at.x, way.at.y - at.y) <= EXIT_REACH * 2)
+  const on = doors.filter((way) => Math.hypot(way.at.x - at.x, way.at.y - at.y) <= PAD_REACH * 2)
   expect(
     `and clear of all ${doors.length} of its doors`,
     on.length === 0,
@@ -1829,10 +1879,10 @@ for (const chamber of CHAMBERS.filter((c) => c.pad)) {
       const dy = pad.y - me.pos.y
       const d = Math.hypot(dx, dy) || 1
       best = Math.min(best, d)
-      if (d <= EXIT_REACH) break
+      if (d <= PAD_REACH) break
       step(s, { moveX: dx / d, moveY: dy / d, pressed: [] }, rng)
     }
-    if (best > EXIT_REACH) arrived.push(`${chamber.id}: closest ${best.toFixed(0)}, wanted ${EXIT_REACH}`)
+    if (best > PAD_REACH) arrived.push(`${chamber.id}: closest ${best.toFixed(0)}, wanted ${PAD_REACH}`)
   }
   expect('a player can walk onto every pad in the building', arrived.length === 0, arrived.join('; '))
 }
@@ -3180,17 +3230,32 @@ expect(
 // The ground is always the real ground: the building's first hall with its
 // furniture, and the six passages as the party walks them, with nothing awake
 // in either so that what is measured is where the walls are and not a pack.
+//
+// And a walk is not judged as one thing. Up to a door the raid keeps its
+// distance (A); once the leader is within reach of a door the walk is asked to
+// end, with the whole raid inside that reach, and the raid gives way (the
+// spacing comes down to just clear of touching, `SQUEEZE`), so the stretch is
+// judged by what a door can fairly ask (H) and not by what open floor can.
 {
   const tank = pickFor('warrior', 'tank')!
   const dps = pickFor('warrior', 'dps')!
   const yes = () => true
+  /** The sizes the passages are walked at: the smallest a raid is, and the two a player can pick. */
+  const SIZES = [5, 10, 25] as const
   /** The ceiling for a walk: how wide the raid gathers (`huddle` in travel.ts), two and a half times over. */
-  const spread = (size: number): number => 2.5 * Math.round(PARTY_RADIUS * 1.8 * Math.sqrt(size))
+  const spread = (size: number): number => 2.5 * huddle(size)
   // What the default camera shows across the narrowest window the game is
   // played in (a phone held upright). A raid wider than the glass has lost
   // somebody off the edge of it, whatever the sim thinks.
-  const seen = 390 / 2 / computeLayout(390, 844).scale
+  const phone = computeLayout(390, 844)
+  const seenX = 390 / 2 / phone.scale
+  // Up the screen, where the floor is looked across and so runs on further: the
+  // glass below the banner, with the floor squashed by the tilt.
+  const seenY = (844 / 2 - (phone.bannerY + 3)) / (phone.scale * TILT)
+  const seen = seenX
   const far = (size: number): number => Math.min(spread(size), 0.9 * seen)
+  /** The line a pair is counted under for a raid of this size: the line it is kept to, less four. */
+  const line = (size: number): number => keepOf(size) - 4
 
   /** The whole building as one walk, on the storey of the first hall, with its furniture and nothing awake. */
   const hall = (size: 5 | 10 | 25, seed: number) => {
@@ -3238,20 +3303,26 @@ expect(
   const halls = new Map<number, Walk>()
   const shorts = new Map<number, Walk>()
   const passages = new Map<string, Walk>()
-  /** Where each passage's walk is, up to the point the leader is within reach of the door: from there the door's rule is the rule. */
+  /** Every door of each passage's room, which is where the door's rule is the rule. */
+  const doorsOf = new Map<string, Vec2[]>()
+  /** Where each passage's walk is, up to the point the leader is within reach of any door: from there the door's rule is the rule. */
   const toTheDoor = new Map<string, number>()
+  const sizeOf = (name: string): 5 | 10 | 25 => Number(name.split(' ')[0]) as 5 | 10 | 25
   for (const size of [10, 25] as const) {
     halls.set(size, hallWalk(size))
     shorts.set(size, shortWalk(size))
+  }
+  for (const size of SIZES) {
     for (const p of PASSAGES) {
       const ground = groundFor(p.from, p.to)
       if (!ground) continue
       const name = `${size} ${p.from}->${p.to}`
       const w = passage(size, p.from, p.to)
       passages.set(name, w)
-      const door = (ground.ways.find((x) => x.to === p.to) ?? ground.ways[0]!).at
-      const near = w.frames.findIndex((f) => dist(f.at[w.leader]!, door) <= EXIT_REACH)
-      toTheDoor.set(name, near < 0 ? w.frames.length : w.frames[near]!.tick)
+      const doors = ground.ways.map((way) => way.at)
+      doorsOf.set(name, doors)
+      const window = doorWindow(w, doors, exitReach(size))
+      toTheDoor.set(name, window.length === 0 ? w.frames.length : window[0]!.tick)
     }
   }
 
@@ -3263,15 +3334,20 @@ expect(
       const w = halls.get(size)!
       const q = quietFrom(w.frames, 90, WALK)
       if (q.length < 100) bad.push(`${size}-man hall: only ${q.length} quiet ticks`)
-      for (const v of judgeSpacing(q, { overlap: 0, gap: 0.05, onTop: 30 })) bad.push(`${size}-man hall: ${v}`)
+      for (const v of judgeSpacing(q, { overlap: 0, gap: 0.05, line: line(size), onTop: 30 })) bad.push(`${size}-man hall: ${v}`)
     }
     for (const [name, w] of passages) {
-      const size = Number(name.split(' ')[0])
+      const size = sizeOf(name)
       const q = quietFrom(w.frames, 90, toTheDoor.get(name))
       if (q.length < 300) bad.push(`${name}: only ${q.length} quiet ticks`)
-      for (const v of judgeSpacing(q, { overlap: 0.01, gap: 0.05, onTop: 30 })) bad.push(`${name}: ${v}`)
-      const reach = farthest(quietFrom(w.frames, 300, toTheDoor.get(name)), w.leader)
-      if (reach > far(size)) bad.push(`${name}: ${Math.round(reach)} from the leader (limit ${Math.round(far(size))})`)
+      for (const v of judgeSpacing(q, { overlap: 0.01, gap: 0.05, line: line(size), onTop: 30 })) bad.push(`${name}: ${v}`)
+      const out = quietFrom(w.frames, 300, toTheDoor.get(name))
+      const reach = farthest(out, w.leader)
+      if (size >= 25) {
+        // Twenty-five is judged by the glass itself: along each axis, edge to edge.
+        const ratio = glassRatio(out, w.leader, seenX, seenY)
+        if (ratio > 1) bad.push(`${name}: ${ratio.toFixed(2)} of the way to the edge of the glass (limit 1.00; ${Math.round(reach)} from the leader)`)
+      } else if (reach > far(size)) bad.push(`${name}: ${Math.round(reach)} from the leader (limit ${Math.round(far(size))})`)
     }
     expect('a raid walking keeps its distance: no overlap, a gap, and nobody lost off the glass', bad.length === 0, bad.join('; '))
   }
@@ -3285,7 +3361,7 @@ expect(
     for (const size of [10, 25] as const) {
       const q = quietFrom(loop(size).frames, 90)
       if (q.length < 600) bad.push(`${size}-man: only ${q.length} quiet ticks`)
-      for (const v of judgeSpacing(q, { overlap: 0.005, gap: 0.05, onTop: 15 })) bad.push(`${size}-man: ${v}`)
+      for (const v of judgeSpacing(q, { overlap: 0.005, gap: 0.05, line: line(size), onTop: 15 })) bad.push(`${size}-man: ${v}`)
       if (longestRun(q, OVERLAP) > 15) bad.push(`${size}-man: a pair overlapped for ${longestRun(q, OVERLAP)} ticks in a row`)
     }
     expect('and keeps it round a corner, where the player walks into the ones beside them', bad.length === 0, bad.join('; '))
@@ -3299,8 +3375,8 @@ expect(
       const w = shorts.get(size)!
       const after = (k: number) => quietFrom(w.frames, SHORT + k, REST)
       if (pairShare(after(90), OVERLAP) > 0) bad.push(`${size}-man: still overlapping three seconds after stopping`)
-      const late = pairShare(after(150), GAP)
-      if (late > 0.03) bad.push(`${size}-man: ${(late * 100).toFixed(1)}% of pairs under ${GAP} five seconds after stopping`)
+      const late = pairShare(after(150), line(size))
+      if (late > 0.03) bad.push(`${size}-man: ${(late * 100).toFixed(1)}% of pairs under ${line(size)} five seconds after stopping`)
       const reach = farthest(after(150), w.leader)
       if (reach > far(size)) bad.push(`${size}-man: ${Math.round(reach)} from the leader once stopped (limit ${Math.round(far(size))})`)
       const calm = w.frames.filter((f) => f.tick >= SHORT + 150 && f.tick < REST)
@@ -3314,10 +3390,7 @@ expect(
         if (reversals(calm, i) > 4) bad.push(`body ${i} turned back ${reversals(calm, i)} times in five seconds stopped`)
         last.push(lastMoved(w.frames.filter((f) => f.tick >= SHORT && f.tick < REST), i, 0.4 * stride))
       })
-      const arrived = last.filter((n) => n >= 0)
-      if (arrived.length > 0 && Math.max(...arrived) - Math.min(...arrived) < 20) {
-        bad.push(`${size}-man: all arrived within ${Math.max(...arrived) - Math.min(...arrived)} ticks of one another`)
-      }
+      for (const v of judgeArrival(last)) bad.push(`${size}-man: ${v}`)
     }
     expect('and a raid that stops settles: separate arrivals, clear of itself, still', bad.length === 0, bad.slice(0, 6).join('; '))
   }
@@ -3325,46 +3398,53 @@ expect(
   // B. A body's place in the walk is its own and is not a seat: who trails
   // carries over from one half of a long straight walk to the next, but not
   // completely. Walked on the six passages, the only straight ground long
-  // enough to have two halves, and read as the middle of the six: one passage
+  // enough to have two halves, and read as the middle of the six -- one passage
   // is one raid's walk, and where a pair of halves lands on it depends on where
-  // a corner of the furniture happened to put somebody.
+  // a corner of the furniture happened to put somebody -- and as each of the
+  // six too: a formation on any one passage is a formation, whatever the middle
+  // of six says.
   {
     const bad: string[] = []
     for (const size of [10, 25] as const) {
       const rhos: number[] = []
       for (const [name, w] of passages) {
-        if (Number(name.split(' ')[0]) !== size) continue
+        if (sizeOf(name) !== size) continue
         const end = toTheDoor.get(name)!
         const mid = Math.floor((150 + end) / 2)
         const first = meanFromLeader(quietFrom(w.frames, 150, mid), w.leader, w.ids.length)
         const second = meanFromLeader(quietFrom(w.frames, mid, end), w.leader, w.ids.length)
         rhos.push(rankAgreement(first, second))
       }
-      rhos.sort((x, y) => x - y)
-      const rho = (rhos[Math.floor((rhos.length - 1) / 2)]! + rhos[Math.ceil((rhos.length - 1) / 2)]!) / 2
-      if (!(rho >= SHUFFLED && rho <= FIXED_SLOTS)) {
-        bad.push(`${size}-man: rank agreement ${rho.toFixed(2)} over ${rhos.length} passages (wanted ${SHUFFLED} to ${FIXED_SLOTS}; ${rhos.map((r) => r.toFixed(2)).join(' ')})`)
-      }
+      for (const v of judgeRanks(rhos)) bad.push(`${size}-man: ${v}`)
     }
     expect('a raid walking has people who trail and people who lead, and not a seat each', bad.length === 0, bad.join('; '))
   }
 
-  // C. Setting off: not all on one tick.
+  // C. Setting off: not all on one tick. Counted two ways, because the first is
+  // when the body's own plan says it has set off (`moveTarget`) and the second
+  // is when it has moved: a body told to go that a crowd holds where it is has
+  // set off by the first and not by the second, and the first reads straight
+  // off a table of delays besides.
   {
     const bad: string[] = []
     for (const size of [10, 25] as const) {
       const w = shorts.get(size)!
-      const firsts: number[] = []
-      w.ids.forEach((_, i) => {
-        if (i === w.leader) return
-        const at = firstGoing(w.frames, i, REST)
-        if (at >= 0) firsts.push(at - REST)
-      })
-      const lo = Math.min(...firsts)
-      const hi = Math.max(...firsts)
-      if (firsts.length < w.ids.length - 1) bad.push(`${size}-man: ${w.ids.length - 1 - firsts.length} never set off`)
-      if (lo < 3 || hi > 25) bad.push(`${size}-man: first steps ${lo} to ${hi} ticks after the leader (wanted 3 to 25)`)
-      if (hi - lo < 15) bad.push(`${size}-man: everybody set off within ${hi - lo} ticks of each other (wanted 15 or more)`)
+      for (const [how, first] of [
+        ['planned to', (i: number) => firstGoing(w.frames, i, REST)],
+        ['moved', (i: number) => firstMoved(w.frames, i, REST, 0.4 * w.frames[REST]!.stride[i]!)],
+      ] as const) {
+        const firsts: number[] = []
+        w.ids.forEach((_, i) => {
+          if (i === w.leader) return
+          const at = first(i)
+          if (at >= 0) firsts.push(at - REST)
+        })
+        const lo = Math.min(...firsts)
+        const hi = Math.max(...firsts)
+        if (firsts.length < w.ids.length - 1) bad.push(`${size}-man: ${w.ids.length - 1 - firsts.length} never ${how} set off`)
+        if (lo < 3 || hi > 25) bad.push(`${size}-man: first ${how} ${lo} to ${hi} ticks after the leader (wanted 3 to 25)`)
+        if (hi - lo < 15) bad.push(`${size}-man: everybody ${how} set off within ${hi - lo} ticks of each other (wanted 15 or more)`)
+      }
     }
     expect('and a raid that sets off does not set off all at once', bad.length === 0, bad.join('; '))
   }
@@ -3404,7 +3484,9 @@ expect(
   }
 
   // E. A strip of floor two bodies wide: twenty-five people and a leader who
-  // gets to the end. Spacing gives way; the walk does not.
+  // gets to the end. Spacing gives way; the walk does not. And "does not" is
+  // read off where the bodies are: the walk's own account of itself says a
+  // body that cannot get on has arrived, so it cannot say who is stuck.
   {
     const strip: Corridor = {
       id: 'strip',
@@ -3416,30 +3498,58 @@ expect(
     const bad: string[] = []
     for (const size of [10, 25] as const) {
       const s = createCorridorState(3, autoParty(size, tank), strip, 'normal', 4)
-      const rng = new Rng(3)
-      const party = s.actors.filter((a) => a.faction === 'party')
-      const lead = party.find((a) => a.isPlayer)!
-      const was = new Map<number, Vec2>()
-      let pinned = 0
+      const w = record(s, new Rng(3), 30 * 40, () => ({ moveX: 0, moveY: 1 }))
+      // To the point the leader is nearly at the end, as it always was.
+      const upTo = w.frames.findIndex((f) => f.at[w.leader]!.y > 1300)
+      const walked = upTo < 0 ? w.frames : w.frames.slice(0, upTo + 1)
+      const lead = walked[walked.length - 1]!.at[w.leader]!
+      if (upTo < 0) bad.push(`${size}-man: the leader got to y=${Math.round(w.frames[w.frames.length - 1]!.at[w.leader]!.y)} of 1400`)
       let off = 0
-      for (let t = 0; t < 30 * 40 && s.outcome === 'ongoing'; t++) {
-        step(s, { moveX: 0, moveY: 1, pressed: [] }, rng)
-        for (const a of party) {
-          if (!a.alive) continue
-          if (!insideRoom(strip.room, a.pos, a.radius - 0.001)) off++
-          const before = was.get(a.id)
-          was.set(a.id, { x: a.pos.x, y: a.pos.y })
-          const want = a.ai?.moveTarget
-          if (before === undefined || want === null || want === undefined || a.id === lead.id) continue
-          if (dist(want, a.pos) >= 6 && dist(before, a.pos) < 0.01) pinned++
-        }
-        if (lead.pos.y > 1300) break
+      for (const f of walked) {
+        f.at.forEach((p, i) => {
+          if (f.alive[i] && !insideRoom(strip.room, p, PARTY_RADIUS - 0.001)) off++
+        })
       }
-      if (lead.pos.y <= 1300) bad.push(`${size}-man: the leader got to y=${Math.round(lead.pos.y)} of 1400`)
       if (off > 0) bad.push(`${size}-man: ${off} body-ticks off the floor`)
-      if (pinned > 0) bad.push(`${size}-man: ${pinned} body-ticks pinned`)
+      const held = longestStall(walked, w.leader, exitReach(size))
+      if (held > 30) bad.push(`${size}-man: a body stood still ${held} ticks a long way from the leader (limit 30)`)
+      const least = leastProgress(walked, w.leader)
+      if (least < 0.8) bad.push(`${size}-man: the slowest body made ${(least * 100).toFixed(0)}% of the leader's way (wanted 80%; the leader is at y=${Math.round(lead.y)})`)
     }
-    expect('and a raid squeezed onto a strip two bodies wide still gets down it', bad.length === 0, bad.join('; '))
+    expect('and a raid squeezed onto a strip two bodies wide still gets down it, all of it', bad.length === 0, bad.join('; '))
+  }
+
+  // H. The door. Once the leader is within reach of one the walk is asked to
+  // end, with the whole raid in that reach, and the spacing comes down to just
+  // clear of touching -- never to a heap. How long it takes and how near the
+  // nearest are is what a door can fairly ask; twenty-five is asked less than
+  // ten (the half circle in front of a door will not hold twenty-five a body's
+  // width of floor apart), and is still not allowed to be on top of itself.
+  {
+    const bad: string[] = []
+    for (const size of SIZES) {
+      const took: number[] = []
+      for (const [name, w] of passages) {
+        if (sizeOf(name) !== size) continue
+        const win = doorWindow(w, doorsOf.get(name)!, exitReach(size))
+        took.push(ticksOf(win))
+        for (const v of judgeDoor(win, size)) bad.push(`${name}: ${v}`)
+      }
+      for (const v of judgeDoorMean(took, size)) bad.push(`${size}-man: ${v}`)
+    }
+    expect('and at a door it gives way to getting through, and no further than that', bad.length === 0, bad.join('; '))
+  }
+
+  // And nobody is held where they stand on the way to it: the walk's end is the
+  // whole raid at the door, so one body pinned in a corner is a walk that does
+  // not end -- or ends late, on the time limit, which is what this is for.
+  {
+    const bad: string[] = []
+    for (const [name, w] of passages) {
+      const held = longestStall(w.frames, w.leader, exitReach(sizeOf(name)))
+      if (held > 30) bad.push(`${name}: a body stood still ${held} ticks a long way from the leader (limit 30)`)
+    }
+    expect('and nobody is left standing where they were while the rest walk on', bad.length === 0, bad.join('; '))
   }
 
   // Same seed, same walk, to the last bit. (Within one machine: the two
@@ -3453,21 +3563,45 @@ expect(
     expect('and the same walk twice is the same walk to the bit', same, 'two runs of one seed disagree')
   }
 
+  // G. The reach of a door, as numbers (#316). It is a rule of the game, and a
+  // rule that is only in the code is one a change can move without anyone
+  // being asked: the door takes the raid in once it is all within this, the pad
+  // does not take the raid in at all, and the rooms were laid out for the least.
+  {
+    const bad: string[] = []
+    const want: Record<number, number> = { 5: 90, 10: 90, 25: 110 }
+    for (const n of [5, 10, 25]) {
+      if (exitReach(n) !== want[n]) bad.push(`exitReach(${n}) is ${exitReach(n)}, not ${want[n]}`)
+      if (!Number.isInteger(exitReach(n)) || !Number.isInteger(huddle(n))) bad.push(`exitReach(${n}) or huddle(${n}) is not a whole number`)
+      if (huddle(n) > exitReach(n) - DOOR_MARGIN) bad.push(`a huddle of ${huddle(n)} does not fit a door of ${exitReach(n)} with ${DOOR_MARGIN} to spare`)
+    }
+    for (const n of RAID_SIZES) {
+      if (huddle(n) > exitReach(n) - DOOR_MARGIN) bad.push(`a raid of ${n}: a huddle of ${huddle(n)} does not fit a door of ${exitReach(n)}`)
+    }
+    if (EXIT_REACH_MIN !== 90) bad.push(`EXIT_REACH_MIN is ${EXIT_REACH_MIN}, not 90: the rooms are laid out against it`)
+    if (PAD_REACH !== 90) bad.push(`PAD_REACH is ${PAD_REACH}, not 90`)
+    if (EXIT_REACH_MAX !== Math.max(...RAID_SIZES.map(exitReach))) bad.push(`EXIT_REACH_MAX is ${EXIT_REACH_MAX}, not the biggest raid's reach`)
+    // The walk's line and the checks' are one number, or the checks are judging a different walk.
+    if (GAP !== keepOf(10) - 4) bad.push(`the checks count a pair under ${GAP} and the walk keeps ${keepOf(10)}: they differ by ${keepOf(10) - GAP}, not 4`)
+    if (keepOf(10) !== MIN_GAP + 1) bad.push(`keepOf(10) is ${keepOf(10)}, MIN_GAP is ${MIN_GAP}`)
+    expect('the reach of a door is 90, 90 and 110, a pad is 90, and a huddle fits its door', bad.length === 0, bad.join('; '))
+  }
+
   // F. The measures themselves. A check that cannot fail is not a check, so
   // walks that are wrong in the ways above are made up and must be condemned,
   // and one that is right must not be.
   {
     const bodies = 10
-    const synth = (place: (i: number, t: number) => Vec2): Walk => ({
+    const synth = (place: (i: number, t: number) => Vec2, count = bodies, ticks = 600, quiet = true): Walk => ({
       leader: 0,
-      ids: Array.from({ length: bodies }, (_, i) => i + 1),
-      frames: Array.from({ length: 600 }, (_, t) => ({
+      ids: Array.from({ length: count }, (_, i) => i + 1),
+      frames: Array.from({ length: ticks }, (_, t) => ({
         tick: t,
-        quiet: true,
-        alive: Array<boolean>(bodies).fill(true),
-        stride: Array<number>(bodies).fill(5),
-        going: Array<boolean>(bodies).fill(true),
-        at: Array.from({ length: bodies }, (_, i) => place(i, t)),
+        quiet,
+        alive: Array<boolean>(count).fill(true),
+        stride: Array<number>(count).fill(5),
+        going: Array<boolean>(count).fill(true),
+        at: Array.from({ length: count }, (_, i) => place(i, t)),
       })),
     })
     // Everybody on the leader's own point.
@@ -3502,6 +3636,97 @@ expect(
     )
     const shuffled = rankAgreement([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [10, 9, 8, 7, 6, 5, 4, 3, 2, 1])
     expect('and a reversed order agrees with nothing', shuffled < SHUFFLED, `${shuffled}`)
+
+    // Each of the rules added to A..E in the second round is shown its own
+    // failure here -- they were added because the first round's checks passed
+    // what they should not have.
+    //
+    // A pair of the same stretch that is thirty-one apart is clear under the
+    // walk's line (and one twenty-eight apart is not, which is the whole of
+    // what the line was raised for).
+    const apart = (d: number) => synth((i) => ({ x: i * d, y: 0 }), 4, 60)
+    expect(
+      `the walk's line is ${GAP}: bodies ${GAP + 1} apart pass, ${GAP - 2} apart do not`,
+      judgeSpacing(apart(GAP + 1).frames, { overlap: 0, gap: 0.05, onTop: 30 }).length === 0 &&
+        judgeSpacing(apart(GAP - 2).frames, { overlap: 0, gap: 0.05, onTop: 30 }).length > 0,
+    )
+
+    // The door. Twenty-five on one point, as the raid stood at a door in the
+    // first round, must be condemned; the same twenty-five in the half circle in
+    // front of it, spaced out, must not be.
+    const door: Vec2 = { x: 0, y: 0 }
+    const pile = synth((i) => ({ x: 0.3 * (i % 5), y: 0.3 * Math.floor(i / 5) }), 25, 100)
+    const crowd = synth((i) => ({ x: (i % 5) * 4, y: 60 + Math.floor(i / 5) * 4 }), 25, 100)
+    // A half circle of the hexagonal packing, 28 apart: the nearest 25 places to the door
+    // on its far side.
+    const hex: Vec2[] = []
+    for (let row = 0; row < 12; row++) {
+      for (let col = -6; col <= 6; col++) {
+        hex.push({ x: 28 * (col + (row % 2) * 0.5), y: 24.2 * row })
+      }
+    }
+    hex.sort((a, b) => Math.hypot(a.x - door.x, a.y - door.y) - Math.hypot(b.x - door.x, b.y - door.y))
+    const half = hex.filter((p) => p.y > 0).slice(0, 25)
+    const spaced = synth((i) => half[i]!, 25, 100)
+    expect('the door measure condemns twenty-five on one point ...', judgeDoor(pile.frames, 25).length > 0, judgeDoor(pile.frames, 25).join('; '))
+    expect('... and twenty-five in a knot at the door ...', judgeDoor(crowd.frames, 25).length > 0, judgeDoor(crowd.frames, 25).join('; '))
+    expect('... and passes twenty-five spaced across the half circle in front of it', judgeDoor(spaced.frames, 25).length === 0, judgeDoor(spaced.frames, 25).join('; '))
+    // Fifteen apart for a quarter of a second, once, among bodies otherwise far
+    // apart: a squeeze that a raid of twenty-five may make at a door and a raid
+    // of ten may not.
+    const brush = (count: number) => synth((i, t) => ({ x: i * 40 + (i === 1 && t < 8 ? -25 : 0), y: 0 }), count, 100)
+    expect(
+      '... and holds ten to a stricter line than twenty-five (a brush at fifteen apart passes the one and not the other) ...',
+      judgeDoor(brush(25).frames, 25).length === 0 && judgeDoor(brush(10).frames, 10).length > 0,
+      `${judgeDoor(brush(25).frames, 25).join('; ')} / ${judgeDoor(brush(10).frames, 10).join('; ')}`,
+    )
+    expect(
+      '... and condemns a door that takes too long',
+      judgeDoor(synth((i) => ({ x: i * 40, y: 0 }), 25, 200).frames, 25).length > 0 && judgeDoor(synth((i) => ({ x: i * 40, y: 0 }), 10, 61).frames, 10).length > 0,
+    )
+
+    // Held where they stand. One body that does not move in a walk that does is
+    // stuck, whatever it is told; a walk in which all of them go is not.
+    const goes = (i: number, t: number): Vec2 => ({ x: 40 * i, y: -5 * t })
+    const pinned = synth((i, t) => (i === 3 ? { x: 40 * i, y: -5 * 20 } : goes(i, t)), 6, 200)
+    const walking = synth(goes, 6, 200)
+    expect(
+      'the stall measure condemns a body left standing a long way back, and not a walk where all go',
+      longestStall(pinned.frames, 0, 110) > 30 && longestStall(walking.frames, 0, 110) <= 30,
+      `${longestStall(pinned.frames, 0, 110)} / ${longestStall(walking.frames, 0, 110)}`,
+    )
+    expect(
+      'and the progress measure condemns one that made nothing of the leader\'s way',
+      leastProgress(pinned.frames, 0) < 0.8 && leastProgress(walking.frames, 0) >= 0.8,
+      `${leastProgress(pinned.frames, 0).toFixed(2)} / ${leastProgress(walking.frames, 0).toFixed(2)}`,
+    )
+
+    // Rank agreement, one number a passage: a middle that passes does not excuse a formation.
+    const fixedOne = [0.6, 0.55, 0.5, 0.7, 0.99, 0.4]
+    expect(
+      'the rank measure condemns one passage at 0.99 among five at 0.6, and passes six at 0.6',
+      judgeRanks(fixedOne).length > 0 && judgeRanks([0.6, 0.55, 0.5, 0.7, 0.45, 0.4]).length === 0,
+      judgeRanks(fixedOne).join('; '),
+    )
+
+    // A stop in which nobody moves has nobody arriving at once: it must not pass for a spread.
+    expect(
+      'the arrival measure condemns a stop that nobody moved in, and a stop all at once, and passes a spread',
+      judgeArrival([-1, -1, -1, -1, -1, -1]).length > 0 &&
+        judgeArrival([40, 41, 42, 40, 43, 41]).length > 0 &&
+        judgeArrival([-1, -1, -1, 20, 55, 80]).length === 0 &&
+        judgeArrival([-1, -1, -1, -1, 20, 55]).length > 0,
+    )
+
+    // The glass: a body 250 to the side is off a phone's edge and 150 is not.
+    const wide = (x: number) => synth((i) => (i === 0 ? { x: 0, y: 0 } : { x, y: 0 }), 3, 10)
+    expect(
+      'the glass measure counts along the axes, the way the glass is wider than it is tall',
+      glassRatio(wide(250).frames, 0, 222, 700) > 1 && glassRatio(wide(150).frames, 0, 222, 700) < 1,
+    )
+
+    // 3a, the door and the huddle: a huddle that does not fit the door is condemned.
+    expect('and a huddle of 99 in a door of 90 is condemned', !doorFits(99, 90) && doorFits(99, 110) && doorFits(44, 90))
   }
 }
 

@@ -48,6 +48,18 @@ export const MIN_GAP = 27
 const KEEP = MIN_GAP + 1
 
 /**
+ * The line a raid of this many walks to: `KEEP`, for every size so far.
+ *
+ * A function of the roster for the checks' sake -- they ask what line a size is
+ * held to and draw their own (`KEEP - 4`) from the answer, so that the two are
+ * not allowed to disagree.
+ */
+export function keepOf(size: number): number {
+  void size
+  return KEEP
+}
+
+/**
  * And in a doorway, the line is the overlap and a margin.
  *
  * A passage ends when everybody is within reach of the door at once, and
@@ -362,7 +374,7 @@ export function abreast(s: SimState, actor: Actor, lead: Vec2, reach: number): V
 
 /** The line to work to this tick: `KEEP`, or `SQUEEZE` with the leader at a door. */
 function keepNow(s: SimState): number {
-  return s.travel?.leaderAtDoor === true ? SQUEEZE : KEEP
+  return s.travel?.leaderAtDoor === true ? SQUEEZE : keepOf(s.party.length)
 }
 
 const slip: Vec2 = { x: 0, y: 0 }

@@ -1,5 +1,5 @@
 import { ENCOUNTERS } from './sim/encounters'
-import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
+import { EXIT_REACH_MIN, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, carried, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
 import type { Bystander, DefenderSeed, Obstacle, Prop, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
@@ -1382,9 +1382,11 @@ const DOOR_INSET = 90
 /**
  * How far in from its door the party arrives.
  *
- * Comfortably more than `EXIT_REACH`, or a party would arrive already through
- * the door it came in by and walk straight back out of the room it just
- * entered.
+ * Comfortably more than `EXIT_REACH_MIN`, or a party would arrive already
+ * through the door it came in by and walk straight back out of the room it just
+ * entered. (The rooms are laid out against the floor of the reach and not the
+ * ceiling, so the map does not move with the raid; `dungeoncheck` asks that it
+ * would survive the ceiling, `EXIT_REACH_MAX`.)
  */
 const ARRIVE_IN = 190
 
@@ -1563,7 +1565,7 @@ export function hallFor(
   // toward it is a step away from every door at once.
   const mid = roomAt(room)
   const others = doors.filter((door) => door.to !== from).map((door) => onWall(room, door.angle))
-  const clear = (at: Vec2): boolean => others.every((door) => dist(at, door) > EXIT_REACH * 1.2)
+  const clear = (at: Vec2): boolean => others.every((door) => dist(at, door) > EXIT_REACH_MIN * 1.2)
   let arrival = stood
   for (let step = 1; step <= 8 && !clear(arrival); step++) {
     const t = step / 8
@@ -1691,7 +1693,7 @@ export function padAt(id: string): Vec2 {
     const want = onWall(room, known)
     const clash = doors.some((angle) => {
       const door = onWall(room, angle)
-      return Math.hypot(door.x - want.x, door.y - want.y) <= EXIT_REACH * 2
+      return Math.hypot(door.x - want.x, door.y - want.y) <= EXIT_REACH_MIN * 2
     })
     if (!clash) return want
   }

@@ -1,6 +1,6 @@
 import { ABILITIES } from './abilities'
 import { clearTerrain, inTerrain } from './battleground'
-import { DIFFICULTIES, makeSlots, specOf, type DifficultyId, type Pick, type RaidSize } from './classes'
+import { DIFFICULTIES, RAID_SIZES, makeSlots, specOf, type DifficultyId, type Pick, type RaidSize } from './classes'
 import {
   DT,
   HEALTH,
@@ -414,8 +414,48 @@ export interface TravelState {
   leaderAtDoor: boolean
 }
 
-/** How close counts as through the far door. */
-export const EXIT_REACH = 90
+/**
+ * How close counts as through the far door, at the least: the reach of a door
+ * for a raid small enough to stand in front of it without crowding. It is also
+ * what the rooms are laid out against (`dungeon.ts`), so it does not move with
+ * the size of the raid.
+ */
+export const EXIT_REACH_MIN = 90
+
+/** How many body radii wide a raid's huddle is, at one body; it grows with the root of the head count. */
+export const HUDDLE_WIDTH = 1.8
+
+/** How much nearer the door a raid's own huddle is than the reach that takes it through. */
+export const DOOR_MARGIN = 11
+
+/**
+ * How close counts as through the far door, for a raid of this many (#316).
+ *
+ * Going through a door is everybody inside this of it at the same moment, and
+ * how much floor that is has to be enough for the raid to stand in it with
+ * room between them: a raid that keeps its distance and a door that wants it
+ * all in a ring of ninety do not fit together at twenty-five. So the reach is
+ * the raid's own huddle and a margin, and never less than it was.
+ *
+ * Of the roster (`s.party.length`) and not of who is standing, so that nobody
+ * dying at a door moves it. Multiplication, `sqrt`, `round` and `max` only
+ * (see `huddle`): the same whole number on every machine.
+ */
+export function exitReach(size: number): number {
+  return Math.max(EXIT_REACH_MIN, huddle(size) + DOOR_MARGIN)
+}
+
+/** The biggest raid's reach: what a room has to be laid out to survive. */
+export const EXIT_REACH_MAX = exitReach(Math.max(...RAID_SIZES))
+
+/**
+ * How close a body must be to a pad to stand on it.
+ *
+ * One body is measured, not the raid, so there is no crowd to make room for,
+ * and the circle drawn on the floor is this across. It is the door's old
+ * reach, kept: the pad is not a door and does not grow with the raid.
+ */
+export const PAD_REACH = 90
 
 /** What a body of trash is worth, which is a fraction of what an add is. */
 const TRASH_HP = 900
@@ -1259,7 +1299,7 @@ export function updateTravel(s: SimState, rng: Rng): void {
   defenderStep(s)
   // Apart while walking, by the walking rule; once anything is awake, by the
   // fight's, exactly as it always was.
-  trackLeader(s, EXIT_REACH)
+  trackLeader(s, exitReach(s.party.length))
   if (awake(s).length > 0) huddleApart(s)
   else spaceOut(s)
   void rng
@@ -1292,8 +1332,9 @@ export function updateTravel(s: SimState, rng: Rng): void {
   // passage left behind by half a party is a party in two rooms, which is the
   // one state the citadel does not model — and with several doors, half a
   // party through each is two evenings.
+  const reach = exitReach(s.party.length)
   for (const way of travel.corridor.ways) {
-    if (!alive.every((a) => dist(a.pos, way.at) <= EXIT_REACH)) continue
+    if (!alive.every((a) => dist(a.pos, way.at) <= reach)) continue
     travel.through = way.to
     s.outcome = 'victory'
     s.sounds.push('victory')
@@ -1316,7 +1357,7 @@ const GATHER = 60
  * size, and at twenty-five that is a knot -- three tokens visible and the rest
  * underneath.
  */
-function huddle(size: number): number {
+export function huddle(size: number): number {
   // Wide enough to look like a raid walking, narrow enough to fit a door.
   //
   // It was 1.5, which put ten bodies of radius nine inside a circle of
@@ -1331,7 +1372,7 @@ function huddle(size: number): number {
   // At 1.8 the biggest raid stands in eighty-one and the smallest in
   // fifty-one, which leaves the door its margin and doubles what a ten-man
   // takes up.
-  return Math.round(PARTY_RADIUS * 1.8 * Math.sqrt(Math.max(1, size)))
+  return Math.round(PARTY_RADIUS * HUDDLE_WIDTH * Math.sqrt(Math.max(1, size)))
 }
 
 /**

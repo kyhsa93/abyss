@@ -186,7 +186,7 @@ import {
   wingFinished,
   builtFights,
 } from './dungeon'
-import { EXIT_REACH, marchReach, standingIn, type Corridor } from './sim/travel'
+import { PAD_REACH, marchReach, standingIn, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
 import { savedKeys, wipeSaves } from './saves'
 import { reloadFresh } from './cache'
@@ -961,7 +961,7 @@ function partyMiddle(): Vec2 | null {
  * game, on any device, and the reports of one that did nothing were exactly
  * right.
  *
- * The circle drawn on the floor is `EXIT_REACH` across, so what is judged is
+ * The circle drawn on the floor is `PAD_REACH` across, so what is judged is
  * now what is drawn: walk the body you are steering into the ring.
  *
  * The half of the pad rule a `Run` cannot answer. The evening knows which
@@ -970,15 +970,16 @@ function partyMiddle(): Vec2 | null {
  * This is the second, and it is what makes the thing on the floor the
  * teleporter rather than the branch.
  *
- * Judged at `EXIT_REACH`: the distance a door is taken at, and the radius the
- * pad is drawn as, so the circle on screen is the circle being tested.
+ * Judged at `PAD_REACH`: the radius the pad is drawn as, so the circle on
+ * screen is the circle being tested. (It is the old reach of a door, and a door
+ * has since grown with the raid; a pad is judged on one body and has not.)
  */
 function onPad(): boolean {
   if (state.chamber === null || !padHere()) return false
   const who = state.actors.find((a) => a.isPlayer && a.alive) ?? null
   if (who === null) return false
   const at = padAt(state.chamber)
-  return Math.hypot(who.pos.x - at.x, who.pos.y - at.y) <= EXIT_REACH
+  return Math.hypot(who.pos.x - at.x, who.pos.y - at.y) <= PAD_REACH
 }
 
 /**
