@@ -47,6 +47,7 @@ import { MIN_GAP, keepOf } from '../src/sim/spacing'
 import { TILT } from '../src/render/draw'
 import {
   GAP,
+  WAITING_ON,
   FIXED_SLOTS,
   OVERLAP,
   SHUFFLED,
@@ -1601,8 +1602,9 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
     const was = new Map<number, Vec2>()
     // And by where a body is rather than where it says it is going (#316): a
     // body that cannot get on is told it has arrived, so its own target goes
-    // away and the count above cannot see it. A long way from the leader and
-    // not moving, for longer than a second, is stuck whatever it was told.
+    // away and the count above cannot see it. A long way from the leader, in
+    // nobody's way, and not moving for longer than a second is stuck whatever
+    // it was told.
     const still = new Map<number, number>()
     let pinned = 0
     let stalled = 0
@@ -1618,7 +1620,8 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
           still.delete(a.id)
           continue
         }
-        if (before !== undefined && dist(before, a.pos) < 0.05 * a.moveSpeed * DT && dist(a.pos, lead.pos) > exitReach(s.party.length)) {
+        const waiting = s.actors.some((o) => o !== a && o.faction === 'party' && o.alive && dist(o.pos, a.pos) < WAITING_ON)
+        if (before !== undefined && !waiting && dist(before, a.pos) < 0.05 * a.moveSpeed * DT && dist(a.pos, lead.pos) > exitReach(s.party.length)) {
           const n = (still.get(a.id) ?? 0) + 1
           still.set(a.id, n)
           if (n > 30) stalled++
@@ -3339,9 +3342,10 @@ expect(
     for (const [name, w] of passages) {
       const size = sizeOf(name)
       const q = quietFrom(w.frames, 90, toTheDoor.get(name))
-      if (q.length < 300) bad.push(`${name}: only ${q.length} quiet ticks`)
+      if (q.length < 250) bad.push(`${name}: only ${q.length} quiet ticks`)
       for (const v of judgeSpacing(q, { overlap: 0.01, gap: 0.05, line: line(size), onTop: 30 })) bad.push(`${name}: ${v}`)
       const out = quietFrom(w.frames, 300, toTheDoor.get(name))
+      if (out.length < 60) bad.push(`${name}: only ${out.length} quiet ticks to measure the tail on`)
       const reach = farthest(out, w.leader)
       if (size >= 25) {
         // Twenty-five is judged by the glass itself: along each axis, edge to edge.

@@ -387,26 +387,42 @@ export function doorFits(huddle: number, reach: number, margin = 11): boolean {
 // --- being held up, which is not the same as being told you have arrived --------
 
 /**
- * The longest a body stood where it was while a long way from the leader, over the frames, in ticks.
+ * How near another body has to be for a body that is not moving to be waiting on it.
+ *
+ * A line apart and a body's width over: past that nobody is in its way.
+ */
+export const WAITING_ON = GAP + 20
+
+/**
+ * The longest a body stood where it was while a long way from the leader and in nobody's way, over the frames, in ticks.
  *
  * Asked of where the body is and not of where it has been told to go: a body
  * that cannot get on is, by design, told it has arrived (`moveTarget` goes
  * null), so the walk's own account of itself cannot say it is stuck. "Standing
  * still" is a step of under a twentieth of a stride; "a long way" is further
- * than the door's reach.
+ * than the door's reach; and "in nobody's way" is nobody within `WAITING_ON`
+ * -- a body at the back of a crowd that the leader is pressed against a wall
+ * ahead of, or in a file that has yet to unfold, is waiting its turn and not
+ * stuck, and what is stuck is the body with open floor round it that does not
+ * take a step (against a rock, or a wall, with nothing to stop it going round).
  */
 export function longestStall(frames: Frame[], leader: number, farther: number): number {
   const run = new Map<number, number>()
   let worst = 0
   for (let k = 1; k < frames.length; k++) {
-    for (let i = 0; i < frames[k]!.at.length; i++) {
-      if (i === leader || !frames[k]!.alive[i] || !frames[k - 1]!.alive[i]) {
+    const f = frames[k]!
+    for (let i = 0; i < f.at.length; i++) {
+      if (i === leader || !f.alive[i] || !frames[k - 1]!.alive[i]) {
         run.delete(i)
         continue
       }
-      const moved = gap(frames[k - 1]!.at[i]!, frames[k]!.at[i]!)
-      const away = gap(frames[k]!.at[i]!, frames[k]!.at[leader]!)
-      if (moved < 0.05 * frames[k]!.stride[i]! && away > farther) {
+      const moved = gap(frames[k - 1]!.at[i]!, f.at[i]!)
+      const away = gap(f.at[i]!, f.at[leader]!)
+      let waiting = false
+      for (let j = 0; j < f.at.length && !waiting; j++) {
+        waiting = j !== i && f.alive[j] === true && gap(f.at[i]!, f.at[j]!) < WAITING_ON
+      }
+      if (moved < 0.05 * f.stride[i]! && away > farther && !waiting) {
         const n = (run.get(i) ?? 0) + 1
         run.set(i, n)
         worst = Math.max(worst, n)
@@ -417,16 +433,18 @@ export function longestStall(frames: Frame[], leader: number, farther: number): 
 }
 
 /**
- * How far along the leader's way the slowest living body got, as a share of how far the leader did.
+ * How far along the leader's way the slowest living body got over the last `window` ticks, as a share of how far the leader did.
  *
- * Between the first frame and the last, along the line the leader went. A raid
- * that is all there at the end of a walk has each of them at nearly all of it;
- * one in which somebody has been pinned against a wall for the whole of it has
- * a share near nothing.
+ * Over the end of a walk and not the whole of it: a raid of twenty-five in a
+ * file that two bodies wide allows is a file, and the last of it is as far
+ * behind the leader as twenty-four gaps are long however well it walks. What
+ * says somebody is pinned is that over the last seconds they went nowhere
+ * while the leader went somewhere: that has them at the leader's pace (one) in
+ * a file that is moving and near nothing in one that is stuck.
  */
-export function leastProgress(frames: Frame[], leader: number): number {
+export function leastProgress(frames: Frame[], leader: number, window = 90): number {
   if (frames.length < 2) return 1
-  const a = frames[0]!
+  const a = frames[Math.max(0, frames.length - 1 - window)]!
   const z = frames[frames.length - 1]!
   const hx = z.at[leader]!.x - a.at[leader]!.x
   const hy = z.at[leader]!.y - a.at[leader]!.y

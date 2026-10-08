@@ -1,4 +1,4 @@
-import { inTerrain } from './battleground'
+import { clearTerrain, inTerrain } from './battleground'
 import { canStand, hasteOf } from './combat'
 import { DT, MUSTER_PACE } from './constants'
 import type { Actor, SimState, Vec2 } from './types'
@@ -34,8 +34,15 @@ import type { Actor, SimState, Vec2 } from './types'
  * `imul` and bit operations. `lawcheck` greps this file for the rest.
  */
 
-/** Centre to centre, never closer than this when there is room: three body radii, half a body of floor between two. */
-export const MIN_GAP = 27
+/**
+ * Centre to centre, never closer than this when there is room: a body across
+ * (18) and most of another of floor between two.
+ *
+ * It was 27, a body and a half, and on the glass that was bodies touching: the
+ * soles of the feet met, and a middle of a raid of twenty-five could not be
+ * counted. Thirty-three is where the floor between two reads as floor.
+ */
+export const MIN_GAP = 33
 
 /**
  * The line the rest of this file works to: `MIN_GAP` and a unit of margin.
@@ -60,17 +67,25 @@ export function keepOf(size: number): number {
 }
 
 /**
- * And in a doorway, the line is the overlap and a margin.
+ * And in a doorway, the line comes down to this, which is a body and half of one.
  *
- * A passage ends when everybody is within reach of the door at once, and
- * twenty-five bodies half a body of floor apart do not fit in the half circle
- * in front of a door: measured, the raid stood at the door with the nearest
- * of them a hundred and forty units from it and the walk never ended. Getting
- * through is the point of a door and the spacing is for the walk up to it, so
- * with the leader at a door the floor comes down to just clear of overlapping,
- * as people do at one. It goes back up the moment the leader is not.
+ * A passage ends when everybody is within reach of the door at once
+ * (`exitReach`, travel.ts), and twenty-five bodies a line apart do not fit in
+ * the half circle in front of a door even at the reach they are given: measured,
+ * with no give at all the raid took from five seconds to three quarters of a
+ * minute to be through, and with this it takes about five. Getting through is
+ * the point of a door and the spacing is for the walk up to it. It goes back up
+ * the moment the leader is not at one.
+ *
+ * It is not the overlap and a margin, which is what it was (20), and the
+ * difference was on the screen: a body's feet touching its neighbour's, the
+ * raid drawn in to one point. It is not to be removed, either; the raid that
+ * keeps the whole line at a door does not get through it.
  */
-const SQUEEZE = 20
+const SQUEEZE = 27
+
+/** The nearest the pull towards a door may bring one body to another: a hair under `SQUEEZE`, and clear of overlapping. */
+const DRAWN_NO_NEARER = 22
 
 /**
  * At a door, how hard the raid is drawn in on the leader, as a share of a body's stride, and from how far.
@@ -78,12 +93,26 @@ const SQUEEZE = 20
  * Walking up to a body that is not walking (everybody at the door has arrived
  * at it) does nothing to the bodies behind it: it blocks them, and the raid
  * stands in a ring with a gap in its middle that nobody can reach. Drawing the
- * whole of it inward a little each tick, against the push that keeps it apart,
- * is what a crowd at a door does. Gentler than the push, so it settles where
- * the two balance -- a hair under the line -- and does not shake.
+ * ones that are stopped there inward a little each tick, against the push that
+ * keeps the raid apart, is what a crowd at a door does. Gentler than the push,
+ * so it settles where the two balance and does not shake. And it never takes a
+ * body nearer than `DRAWN_NO_NEARER` to another: the push and the pull
+ * balancing is not a promise about how near, and it was balancing with bodies
+ * on top of one another (the whole raid drawn at once, as it was, compressed
+ * the middle of twenty-five to eight apart).
+ *
+ * Only the ones that have been stopped (`moveTarget` null: nowhere to go
+ * this tick, as `glide` says it) and are not yet well inside the door's reach
+ * (`DRAW_INSIDE`). A raid that fits through the door on its own legs -- five
+ * and ten do -- is not drawn at all, which leaves it at the line it keeps.
  */
-const DRAW = 0.1
+const DRAW = 0.2
 const DRAW_FROM = 40
+/**
+ * And only those at the door's edge or past it: a body deeper in than reach less
+ * this is through as far as the walk is concerned and is left where it stands.
+ */
+const DRAW_INSIDE = 25
 
 /** How hard a pair under `KEEP` is pushed, per unit of what is missing. */
 const PUSH = 0.35
@@ -377,6 +406,31 @@ function keepNow(s: SimState): number {
   return s.travel?.leaderAtDoor === true ? SQUEEZE : keepOf(s.party.length)
 }
 
+/**
+ * How much nearer than the line a step may come to somebody, at most, as a raid unpacks:
+ * the four between the line a raid rests on and the one the checks count a pair
+ * under (`KEEP` less `GAP`, in `spacingmetric.ts`), so that a brush is never one they count.
+ */
+const UNPACK = 4
+
+/**
+ * How much nearer than the line a step may come to somebody, as a raid unpacks.
+ *
+ * A raid that has stood still has settled on the line, every body exactly on it
+ * from each of its neighbours, and a body on a line it may not cross cannot
+ * pass between two others that are on it, even with room: so a raid setting off
+ * would unpack from the outside in, one ring waiting for the next, and the
+ * ones at the back could not set off until the ones at the front had. A body is
+ * let brush past by up to this much for the first second of the walk, while the
+ * raid is unpacking, and not otherwise (`spaceOut` pushes it back out to the
+ * line a little each tick).
+ */
+function slackNow(s: SimState): number {
+  const travel = s.travel
+  if (!travel || travel.leaderIdle > 0) return 0
+  return UNPACK * (1 - Math.min(1, travel.leaderRun / RAMP))
+}
+
 const slip: Vec2 = { x: 0, y: 0 }
 const trial: Vec2 = { x: 0, y: 0 }
 
@@ -392,7 +446,7 @@ const trial: Vec2 = { x: 0, y: 0 }
 function cut(s: SimState, actor: Actor, sx: number, sy: number, out: Vec2): void {
   out.x = sx
   out.y = sy
-  const base = keepNow(s)
+  const base = keepNow(s) - slackNow(s)
   for (let pass = 0; pass < 2; pass++) {
     for (const o of s.actors) {
       if (o === actor || o.faction !== 'party' || !o.alive) continue
@@ -464,10 +518,11 @@ export function glide(s: SimState, actor: Actor, sx: number, sy: number): Vec2 {
   const len = Math.sqrt(len2)
   const fx = sx / len
   const fy = sy / len
-  // A step that ends off the floor or in the furniture is not a step: it is
-  // undone the moment it is taken, and a body that takes it every tick is a
-  // body standing still with somewhere to be.
-  let best = floorUnder(s, actor, slip.x, slip.y) ? slip.x * fx + slip.y * fy : -Infinity
+  // A step that ends off the floor is not a step: it is undone the moment it is
+  // taken, and a body that takes it every tick is a body standing still with
+  // somewhere to be. One that ends in the furniture is a step along it, which is
+  // what `clearTerrain` turns it into, so it is judged as that -- see `settles`.
+  let best = settles(s, actor, slip.x, slip.y) ? landed.x * fx + landed.y * fy : -Infinity
   if (best >= WORTH * len) return slip
   let bx = slip.x
   let by = slip.y
@@ -479,11 +534,14 @@ export function glide(s: SimState, actor: Actor, sx: number, sy: number): Vec2 {
     const c = quarter ? 0 : EIGHTH
     const sn = (quarter ? 1 : EIGHTH) * side
     cut(s, actor, (fx * c - fy * sn) * len, (fx * sn + fy * c) * len, trial)
-    if (!floorUnder(s, actor, trial.x, trial.y)) continue
-    const gain = trial.x * fx + trial.y * fy
+    if (!settles(s, actor, trial.x, trial.y)) continue
+    const gain = landed.x * fx + landed.y * fy
     // Only a way round that gets somewhere: one that goes nowhere much is a
     // body dithering from side to side, a step a tick, in a pocket it cannot leave.
-    if (gain > best + 1e-9 && gain >= WORTH * len) {
+    // Unless the way on is the floor running out: a wall the leader got past by
+    // a doorway a few steps along is got past by going along it, and that is
+    // sideways, which gets nowhere until it has got somewhere.
+    if (gain > best + 1e-9 && gain >= (best === -Infinity ? -1e-9 : WORTH * len)) {
       best = gain
       bx = trial.x
       by = trial.y
@@ -498,11 +556,39 @@ export function glide(s: SimState, actor: Actor, sx: number, sy: number): Vec2 {
   return slip
 }
 
-/** Whether a step from where the body is ends somewhere it can stand. */
-function floorUnder(s: SimState, actor: Actor, sx: number, sy: number): boolean {
-  probe.x = actor.pos.x + sx
-  probe.y = actor.pos.y + sy
-  return canStand(s, probe, actor.radius) && !inTerrain(s.obstacles, probe, actor.radius)
+const landed: Vec2 = { x: 0, y: 0 }
+const fin: Vec2 = { x: 0, y: 0 }
+
+/**
+ * Whether a step from where the body is ends somewhere it can stand, and what it comes to.
+ *
+ * The step as the walk takes it -- taken, then pushed off the furniture along
+ * it (`clearTerrain`) -- and not the step as it was asked for: a body walking at
+ * a rock does not stop at the rock, it goes round it, and a step that was thrown
+ * out for ending inside one is a body stood against it for good. `landed` is
+ * where it ends up, relative to where it stood.
+ */
+function settles(s: SimState, actor: Actor, sx: number, sy: number): boolean {
+  fin.x = actor.pos.x + sx
+  fin.y = actor.pos.y + sy
+  clearTerrain(s.obstacles, fin, actor.radius, sx, sy)
+  landed.x = fin.x - actor.pos.x
+  landed.y = fin.y - actor.pos.y
+  if (!canStand(s, fin, actor.radius)) return false
+  // And the slide along a rock is no licence to slide into somebody: where it
+  // comes to is held to the line as the step was.
+  const base = keepNow(s) - slackNow(s)
+  for (const o of s.actors) {
+    if (o === actor || o.faction !== 'party' || !o.alive) continue
+    const keep = o.isPlayer ? base + NOTICE : base
+    const nx = o.pos.x - actor.pos.x
+    const ny = o.pos.y - actor.pos.y
+    const mx = o.pos.x - fin.x
+    const my = o.pos.y - fin.y
+    const then = mx * mx + my * my
+    if (then < keep * keep && then < nx * nx + ny * ny) return false
+  }
+  return true
 }
 
 // --- everybody nearer than they should be ------------------------------------
@@ -607,25 +693,84 @@ function standsAfter(s: SimState, i: number): boolean {
   return canStand(s, probe, a.radius) && !inTerrain(s.obstacles, probe, a.radius)
 }
 
-/** Draws every body but the player in towards the player, a little. See `DRAW`. */
-function draw(n: number): void {
+let pullX = new Float64Array(32)
+let pullY = new Float64Array(32)
+
+/**
+ * Draws every body but the player in towards the player, a little. See `DRAW`.
+ *
+ * Every body's pull is worked out first and none applied until all of them are
+ * checked, against where everybody would stand with only the push -- so that
+ * whether one body is drawn in does not depend on whether the one before it
+ * in the list was. A body whose pull would leave it nearer than
+ * `DRAWN_NO_NEARER` to somebody is not drawn this tick.
+ */
+function draw(n: number, door: Vec2 | null, reach: number): void {
   let lead: Actor | null = null
   for (let i = 0; i < n; i++) {
     if (bodies[i]!.isPlayer) lead = bodies[i]!
   }
-  if (lead === null) return
+  if (lead === null || door === null) return
   for (let i = 0; i < n; i++) {
+    pullX[i] = 0
+    pullY[i] = 0
     const a = bodies[i]!
     if (a.isPlayer || blocked[i] === 1) continue
+    // The pull is for getting everybody inside the door's reach, and for the
+    // ones the crowd has stopped: a body that is still walking in gets there on
+    // its own legs, and one that is in already is not made to crowd in further.
+    if (a.ai?.moveTarget !== null) continue
+    const ex = door.x - a.pos.x
+    const ey = door.y - a.pos.y
+    const inside = reach - DRAW_INSIDE
+    if (ex * ex + ey * ey <= inside * inside) continue
     const dx = lead.pos.x - a.pos.x
     const dy = lead.pos.y - a.pos.y
     const d2 = dx * dx + dy * dy
     if (d2 <= DRAW_FROM * DRAW_FROM) continue
     const d = Math.sqrt(d2)
     const pull = Math.min(DRAW * a.moveSpeed * DT * hasteOf(a), d - DRAW_FROM)
-    pushX[i]! += (dx / d) * pull
-    pushY[i]! += (dy / d) * pull
+    const px = a.pos.x + pushX[i]! + (dx / d) * pull
+    const py = a.pos.y + pushY[i]! + (dy / d) * pull
+    let clear = true
+    for (let j = 0; j < n && clear; j++) {
+      if (j === i) continue
+      const o = bodies[j]!
+      const ox = o.pos.x + pushX[j]! - px
+      const oy = o.pos.y + pushY[j]! - py
+      if (ox * ox + oy * oy < DRAWN_NO_NEARER * DRAWN_NO_NEARER) clear = false
+    }
+    if (!clear) continue
+    pullX[i] = (dx / d) * pull
+    pullY[i] = (dy / d) * pull
   }
+  for (let i = 0; i < n; i++) {
+    pushX[i]! += pullX[i]!
+    pushY[i]! += pullY[i]!
+  }
+}
+
+/** The door the leader is at, which is the nearest of those within reach; null when it is at none. */
+function doorOf(s: SimState, reach: number): Vec2 | null {
+  const travel = s.travel
+  if (!travel) return null
+  let lead: Actor | null = null
+  for (const a of s.actors) {
+    if (a.isPlayer && a.alive) lead = a
+  }
+  if (lead === null) return null
+  let at: Vec2 | null = null
+  let near = reach * reach
+  for (const way of travel.corridor.ways) {
+    const ex = way.at.x - lead.pos.x
+    const ey = way.at.y - lead.pos.y
+    const d2 = ex * ex + ey * ey
+    if (d2 <= near) {
+      near = d2
+      at = way.at
+    }
+  }
+  return at
 }
 
 /**
@@ -639,7 +784,7 @@ function draw(n: number): void {
  * that is worse than one that overlaps for a few yards. Nothing is remembered,
  * so the first open floor after it undoes it.
  */
-export function spaceOut(s: SimState): void {
+export function spaceOut(s: SimState, doorReach: number): void {
   const travel = s.travel
   if (!travel) return
   let n = 0
@@ -652,6 +797,8 @@ export function spaceOut(s: SimState): void {
   if (blocked.length < n) {
     pushX = new Float64Array(n)
     pushY = new Float64Array(n)
+    pullX = new Float64Array(n)
+    pullY = new Float64Array(n)
     blocked = new Uint8Array(n)
     yielding = new Uint8Array(n)
   }
@@ -661,8 +808,9 @@ export function spaceOut(s: SimState): void {
   const hy = travel.leaderHy
 
   const keep = keepNow(s)
+  const door = travel.leaderAtDoor ? doorOf(s, doorReach) : null
   gather(n, hx, hy, keep)
-  if (travel.leaderAtDoor) draw(n)
+  if (travel.leaderAtDoor) draw(n, door, doorReach)
   let again = false
   for (let i = 0; i < n; i++) {
     cap(i)
@@ -673,7 +821,7 @@ export function spaceOut(s: SimState): void {
   }
   if (again) {
     gather(n, hx, hy, keep)
-    if (travel.leaderAtDoor) draw(n)
+    if (travel.leaderAtDoor) draw(n, door, doorReach)
     for (let i = 0; i < n; i++) cap(i)
   }
   for (let i = 0; i < n; i++) {

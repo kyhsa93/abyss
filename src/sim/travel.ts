@@ -423,7 +423,7 @@ export interface TravelState {
 export const EXIT_REACH_MIN = 90
 
 /** How many body radii wide a raid's huddle is, at one body; it grows with the root of the head count. */
-export const HUDDLE_WIDTH = 1.8
+export const HUDDLE_WIDTH = 2.2
 
 /** How much nearer the door a raid's own huddle is than the reach that takes it through. */
 export const DOOR_MARGIN = 11
@@ -1301,7 +1301,7 @@ export function updateTravel(s: SimState, rng: Rng): void {
   // fight's, exactly as it always was.
   trackLeader(s, exitReach(s.party.length))
   if (awake(s).length > 0) huddleApart(s)
-  else spaceOut(s)
+  else spaceOut(s, exitReach(s.party.length))
   void rng
 
   // Nothing awake: the party is walking, and walking is when a raid catches
@@ -1363,15 +1363,20 @@ export function huddle(size: number): number {
   // It was 1.5, which put ten bodies of radius nine inside a circle of
   // forty-three and twenty-five inside sixty-eight: a knot with two or three
   // tokens visible and the rest underneath, which is what it looked like on
-  // the screen and what it was asked to stop being.
+  // the screen and what it was asked to stop being. Then 1.8, which kept the
+  // knot a little looser and was still one at twenty-five: eighty-one across for
+  // bodies that keep a line apart (`spacing.ts`) is a raid with the floor
+  // between them visible at ten and not at twenty-five.
   //
   // The ceiling is not a taste. Going through a door is everybody inside
-  // `EXIT_REACH` of it at the same moment -- `dungeoncheck` walks a
+  // `exitReach` of it at the same moment -- `dungeoncheck` walks a
   // twenty-five man across every room in the building and fails a raid that
-  // cannot leave by one -- so ninety is the width a doorway can swallow whole.
-  // At 1.8 the biggest raid stands in eighty-one and the smallest in
-  // fifty-one, which leaves the door its margin and doubles what a ten-man
-  // takes up.
+  // cannot leave by one -- and a huddle wider than the reach, less a margin
+  // (`DOOR_MARGIN`), is a raid that cannot all be in it. So the reach follows
+  // the huddle (`exitReach`) and not the other way about, and the width is held
+  // under what the screen can show: at 2.2 the biggest raid stands in ninety-nine
+  // and the smallest in forty-four, which is the most that a raid of
+  // twenty-five can be and still be counted on a phone held upright.
   return Math.round(PARTY_RADIUS * HUDDLE_WIDTH * Math.sqrt(Math.max(1, size)))
 }
 
