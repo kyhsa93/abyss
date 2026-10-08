@@ -12,7 +12,7 @@
  *   npm run spacingprobe            # five, ten, twenty-five
  *   npm run spacingprobe -- 25      # one size
  */
-import { PASSAGES, groundFor } from '../src/dungeon'
+import { PASSAGES, citadelTerrain, citadelWorld, groundFor, hallFor, storeyOf } from '../src/dungeon'
 import { autoParty, pickFor } from '../src/sim/classes'
 import { createCorridorState } from '../src/sim/state'
 import { Rng } from '../src/sim/rng'
@@ -25,8 +25,11 @@ import {
   closest,
   doorWindow,
   farthest,
+  firstGoing,
+  firstMoved,
   glassRatio,
   judgeDoor,
+  lastMoved,
   longestRun,
   longestStall,
   meanFromLeader,
@@ -43,9 +46,51 @@ const seenX = 390 / 2 / phone.scale
 const seenY = (844 / 2 - (phone.bannerY + 3)) / (phone.scale * TILT)
 const tank = pickFor('warrior', 'tank')!
 const pct = (x: number): string => `${(x * 100).toFixed(2)}%`.padStart(7)
+const dps = pickFor('warrior', 'dps')!
 
+/** The first hall of the building, with its furniture and nothing awake, as `dungeoncheck` walks it. */
+function hall(size: 5 | 10 | 25, seed: number) {
+  const ground = { ...hallFor('threshold', null, () => true), id: 'citadel', packs: [], terrain: citadelTerrain() }
+  const s = createCorridorState(seed, autoParty(size, dps), ground, 'normal', 4, undefined, true)
+  s.chamber = 'threshold'
+  s.floor = citadelWorld()
+    .filter((cell) => cell.storeys.includes(storeyOf('threshold')))
+    .map((cell) => cell.room)
+  return s
+}
+
+const UP = { moveX: 0, moveY: -1 }
+const STILL = { moveX: 0, moveY: 0 }
 for (const size of sizes) {
   const line = keepOf(size) - 4
+  // The hall: straight on for eight seconds; round it twice; five seconds and stood ten, then off again.
+  {
+    const straight = record(hall(size, 7), new Rng(7), 30 * 8, () => UP)
+    const q = quietFrom(straight.frames, 90)
+    const legs = [UP, { moveX: 1, moveY: 0 }, { moveX: 0, moveY: 1 }, { moveX: -1, moveY: 0 }]
+    const loop = record(hall(size, 7), new Rng(7), 30 * 4 * 8, (t) => legs[Math.floor(t / 120) % 4]!)
+    const lq = quietFrom(loop.frames, 90)
+    const SHORT = 150
+    const REST = 450
+    const rest = record(hall(size, 7), new Rng(7), REST + 150, (t) => (t < SHORT || t >= REST ? UP : STILL))
+    const stoppedFrames = (k: number) => quietFrom(rest.frames, SHORT + k, REST)
+    const last: number[] = []
+    const first: number[] = []
+    const moved: number[] = []
+    rest.ids.forEach((_, i) => {
+      if (i === rest.leader) return
+      last.push(lastMoved(rest.frames.filter((f) => f.tick >= SHORT && f.tick < REST), i, 0.4 * rest.frames[SHORT]!.stride[i]!))
+      first.push(firstGoing(rest.frames, i, REST) - REST)
+      moved.push(firstMoved(rest.frames, i, REST, 0.4 * rest.frames[REST]!.stride[i]!) - REST)
+    })
+    const arrived = last.filter((n) => n >= 0)
+    console.log(
+      `\n${size}-man hall  straight: <18 ${pct(pairShare(q, OVERLAP))} <${line} ${pct(pairShare(q, line))} nearest ${closest(q).toFixed(1)} far ${farthest(q, straight.leader).toFixed(0)}` +
+        ` | corners: <18 ${pct(pairShare(lq, OVERLAP))} longest ${longestRun(lq, OVERLAP)} ticks` +
+        ` | stopped: <18 at 3s ${pct(pairShare(stoppedFrames(90), OVERLAP))}, <${line} at 5s ${pct(pairShare(stoppedFrames(150), line))}, arrived ${arrived.length}/${last.length} over ${arrived.length > 0 ? Math.max(...arrived) - Math.min(...arrived) : 0} ticks` +
+        ` | set off: planned ${Math.min(...first)}..${Math.max(...first)}, moved ${Math.min(...moved)}..${Math.max(...moved)}`,
+    )
+  }
   console.log(`\n${size}-man  keep ${keepOf(size)}  huddle ${huddle(size)}  exitReach ${exitReach(size)}  glass ${seenX.toFixed(0)} across, ${seenY.toFixed(0)} up`)
   console.log('passage'.padEnd(26) + `<18      <${line}     far  glass | door: ticks  <18      <27      <9  run18 nearest | rho  stall`)
   const took: number[] = []
