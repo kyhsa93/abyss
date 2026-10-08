@@ -21,7 +21,7 @@ import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { BOSS_FIGURE_CAP, bossFigure, bossPixelScale, ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { BOSS_CONTOUR_PHASE, BOSS_DASH_LUMA, BOSS_RING_P3_WIDTH, BOSS_RING_WIDTH, BOSS_FIGURE_CAP, bossDashColour, lumaOf, bossFigure, bossPixelScale, ICE_CRACK, RIGGING, TILT, WING_COLOUR, WING_WASH, arenaPath, bubbleBox, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { BOARDING_BEARING, boardingDoor } from '../src/sim/boss'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
@@ -1209,12 +1209,14 @@ console.log(`rendered ${frames} frames with no exceptions`)
   interface Stroke {
     r: number
     style: string
+    dashed: boolean
   }
 
   const strokeRecorder = (out: Stroke[]): CanvasRenderingContext2D => {
     const noop = () => {}
     let pending = 0
     let style = ''
+    let dashed = false
     const handler: ProxyHandler<Record<string, unknown>> = {
       get(_t, prop) {
         // The path is laid first and the colour set after it, so the radius is
@@ -1229,7 +1231,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
             pending = r
           }
         }
-        if (prop === 'stroke') return () => out.push({ r: pending, style })
+        if (prop === 'setLineDash') {
+          return (d: number[]) => {
+            dashed = d.length > 0
+          }
+        }
+        if (prop === 'stroke') return () => out.push({ r: pending, style, dashed })
         if (prop === 'measureText') return () => ({ width: 10 })
         if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
           return () => ({ addColorStop: noop })
@@ -1263,7 +1270,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       const out: Stroke[] = []
       drawWorld(strokeRecorder(out), s, 1, s.time, new Effects())
       return {
-        own: out.filter((x) => x.style === accent).length,
+        own: out.filter((x) => x.style === accent && !x.dashed).length,
         shared: out.filter((x) => x.style.startsWith(SHARED_RED)).length,
       }
     }
@@ -1281,6 +1288,209 @@ console.log(`rendered ${frames} frames with no exceptions`)
 
   expect('a boss lays a ring in its own colour for every ground it has given', wrong.length === 0, wrong.join('; '))
   expect('and the roster does not agree on one colour to do it in', accents.size > 1, `${accents.size} distinct accents`)
+}
+
+// --- the last phase must look like the last phase on its own -----------------
+//
+// The first and last phase draw a body the same size, so what says "last" has
+// to be on the floor: a dashed contour just inside the judgment ring, drawn for
+// a living boss in the last phase and no other. Counted off a recording
+// context, for every boss through the one shared path. The ring stays 3px in
+// every phase (`BOSS_RING_P3_WIDTH`), so the contour is the whole of the signal.
+{
+  updateLayout(390, 844)
+
+  interface Mark {
+    rx: number
+    ry: number
+    style: string
+    width: number
+    dash: number[]
+  }
+
+  interface Frame {
+    marks: Mark[]
+    /** The dash the context was left holding when the frame ended. */
+    left: number[]
+  }
+
+  const markRecorder = (out: Frame): CanvasRenderingContext2D => {
+    const noop = () => {}
+    let rx = 0
+    let ry = 0
+    let style = ''
+    let width = 0
+    let dash: number[] = []
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_t, prop) {
+        if (prop === 'ellipse') {
+          return (_x: number, _y: number, a: number, b: number) => {
+            rx = a
+            ry = b
+          }
+        }
+        if (prop === 'arc') {
+          return (_x: number, _y: number, r: number) => {
+            rx = r
+            ry = r
+          }
+        }
+        if (prop === 'setLineDash') {
+          return (d: number[]) => {
+            dash = [...d]
+            out.left = dash
+          }
+        }
+        if (prop === 'stroke') return () => out.marks.push({ rx, ry, style, width, dash })
+        if (prop === 'measureText') return () => ({ width: 10 })
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+          return () => ({ addColorStop: noop })
+        }
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return noop
+      },
+      set(_t, prop, value) {
+        if (prop === 'strokeStyle') style = String(value)
+        if (prop === 'lineWidth') width = Number(value)
+        return true
+      },
+    }
+    return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
+  }
+
+  const dashedKey = (m: Mark): string => `${m.rx.toFixed(4)}|${m.style}`
+  const bossOf = (s: SimState) => s.actors.find((a) => a.id === BOSS_ID || a.warden !== undefined)!
+
+  const wrong: string[] = []
+  const leaks: string[] = []
+  const gone: string[] = []
+  const guard: string[] = []
+  const hues: string[] = []
+
+  const hsl = (c: string): [number, number, number] => {
+    const r = parseInt(c.slice(1, 3), 16) / 255
+    const g = parseInt(c.slice(3, 5), 16) / 255
+    const b = parseInt(c.slice(5, 7), 16) / 255
+    const mx = Math.max(r, g, b)
+    const mn = Math.min(r, g, b)
+    const d = mx - mn
+    const l = (mx + mn) / 2
+    const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+    const h = d === 0 ? 0 : mx === r ? (((g - b) / d) % 6) * 60 : mx === g ? ((b - r) / d + 2) * 60 : ((r - g) / d + 4) * 60
+    return [(h + 360) % 360, sat, l]
+  }
+  const lumaHex = (c: string): number => lumaOf(parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16))
+
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    const accent = ENCOUNTERS[i]!.accent
+    const short = ENCOUNTERS[i]!.short
+    const frame = (phase: number, edit?: (s: SimState) => void): Frame => {
+      const s = pulled(2200 + i * 137, 8, autoParty(10, pickFor('mage', 'dps')!), 'heroic', i)
+      s.phase = phase
+      s.phaseAt = s.time - 60
+      edit?.(s)
+      const out: Frame = { marks: [], left: [] }
+      drawWorld(markRecorder(out), s, 1, s.time, new Effects())
+      return out
+    }
+    const own = (f: Frame): Mark[] => f.marks.filter((m) => m.style === accent && m.dash.length === 0 && m.width >= BOSS_RING_WIDTH)
+    const ringOf = (f: Frame): Mark | undefined => own(f).sort((a, b) => b.rx - a.rx)[0]
+    // The contour is whatever dashed stroke the last phase added to the frame.
+    const dashesOf = (f: Frame, base: Frame): Mark[] => {
+      const before = new Set(base.marks.filter((m) => m.dash.length > 0).map(dashedKey))
+      return f.marks.filter((m) => m.dash.length > 0 && !before.has(dashedKey(m)))
+    }
+
+    const one = frame(1)
+    const two = frame(2)
+    const last = frame(BOSS_CONTOUR_PHASE)
+    const dashLast = dashesOf(last, one)
+    // Nothing in the 7,5 pattern at two wide before the last phase, counted
+    // outright and not against the first phase, so a contour put in the first
+    // phase as well is not mistaken for part of the frame.
+    const contourLike = (m: Mark): boolean => m.dash.length === 2 && m.dash[0] === 7 && m.dash[1] === 5 && m.width === 2
+    if (one.marks.some(contourLike) || two.marks.some(contourLike)) wrong.push(`${short}: dashed before the last phase`)
+    if (dashLast.length !== 1) wrong.push(`${short}: ${dashLast.length} dashed contours in the last phase, wanted 1`)
+    const r1 = ringOf(one)
+    const r2 = ringOf(two)
+    const r3 = ringOf(last)
+    if (!r1 || !r2 || !r3) {
+      wrong.push(`${short}: judgment ring not found`)
+      continue
+    }
+    if (r1.width !== BOSS_RING_WIDTH || r2.width !== BOSS_RING_WIDTH) wrong.push(`${short}: ring not ${BOSS_RING_WIDTH}px before the last phase`)
+    if (r3.width !== BOSS_RING_P3_WIDTH) wrong.push(`${short}: last-phase ring is ${r3.width}px, wanted ${BOSS_RING_P3_WIDTH}`)
+    const d = dashLast[0]
+    if (d) {
+      if (d.width > 2) wrong.push(`${short}: contour ${d.width}px, wanted 2 or less`)
+      if (d.dash.length !== 2 || d.dash[0] !== 7 || d.dash[1] !== 5) wrong.push(`${short}: contour dash ${d.dash.join(',')}, wanted 7,5`)
+      if (!(d.rx < r3.rx - r3.width / 2)) wrong.push(`${short}: contour ${d.rx.toFixed(1)} reaches the ring at ${r3.rx.toFixed(1)}`)
+      if (Math.abs(d.ry / d.rx - TILT) > 1e-6) wrong.push(`${short}: contour squash ${(d.ry / d.rx).toFixed(3)}, wanted ${TILT}`)
+      if (Math.abs(r3.ry / r3.rx - TILT) > 1e-6) wrong.push(`${short}: ring squash ${(r3.ry / r3.rx).toFixed(3)}, wanted ${TILT}`)
+      // The ring is laid before the contour, never after it.
+      if (last.marks.indexOf(r3) > last.marks.indexOf(d)) wrong.push(`${short}: contour drawn before the ring`)
+      // The colour: the boss's own at or above the floor, its own hue and
+      // saturation raised to the floor below it. Read off what was drawn.
+      if (lumaHex(accent) >= BOSS_DASH_LUMA) {
+        if (d.style !== accent) hues.push(`${short}: bright boss colour ${accent} drawn as ${d.style}`)
+      } else {
+        const [h0, s0] = hsl(accent)
+        if (!/^#[0-9a-f]{6}$/.test(d.style)) hues.push(`${short}: contour colour ${d.style} is not a hex colour`)
+        else {
+          const [h1, s1] = hsl(d.style)
+          const dh = Math.min(Math.abs(h1 - h0), 360 - Math.abs(h1 - h0))
+          if (dh > 1) hues.push(`${short}: contour hue ${h1.toFixed(1)} against ${h0.toFixed(1)}`)
+          if (Math.abs(s1 - s0) > 0.01) hues.push(`${short}: contour saturation ${s1.toFixed(3)} against ${s0.toFixed(3)}`)
+          if (lumaHex(d.style) < BOSS_DASH_LUMA - 0.005) hues.push(`${short}: contour luminance ${lumaHex(d.style).toFixed(3)} under the ${BOSS_DASH_LUMA} floor`)
+        }
+      }
+    }
+    // The dash is put back: nothing drawn after the contour is dashed because of
+    // it, and the context is not left holding one.
+    if (last.left.length !== 0) leaks.push(`${short}: the frame ends holding dash ${last.left.join(',')}`)
+    const dashedOne = one.marks.filter((m) => m.dash.length > 0).length
+    const dashedLast = last.marks.filter((m) => m.dash.length > 0).length
+    if (dashedLast - dashedOne !== 1) leaks.push(`${short}: ${dashedLast - dashedOne} more dashed strokes than the first phase, wanted 1`)
+    // A boss that has died draws no contour.
+    const dead = frame(BOSS_CONTOUR_PHASE, (s) => {
+      bossOf(s).alive = false
+    })
+    const deadDashes = dashesOf(dead, one)
+    if (deadDashes.length !== 0) gone.push(`${short}: ${deadDashes.length} dashed contours on a dead boss`)
+    // A ring too small to hold a contour draws none, and does not throw.
+    for (const px of [4, 3, 0.5]) {
+      try {
+        const tiny = frame(BOSS_CONTOUR_PHASE, (s) => {
+          bossOf(s).radius = px / L.scale
+        })
+        const noRing = frame(1, (s) => {
+          bossOf(s).radius = px / L.scale
+        })
+        const extra = dashesOf(tiny, noRing)
+        if (extra.length !== 0) guard.push(`${short}: a ${px}px ring drew ${extra.length} contours`)
+        if (tiny.marks.some((m) => !(m.rx > 0) && m.dash.length > 0)) guard.push(`${short}: a ${px}px ring drew a dash with radius <= 0`)
+      } catch (e) {
+        guard.push(`${short}: a ${px}px ring threw ${(e as Error).message}`)
+      }
+    }
+  }
+  expect('the last phase draws a dashed contour inside its ring and no earlier phase does', wrong.length === 0, wrong.join('; '))
+  expect('and the contour is the boss\'s own colour, raised in lightness only where it is too dark to read', hues.length === 0, hues.join('; '))
+  expect('and the dash is put back after the contour, so nothing after it is dashed', leaks.length === 0, leaks.join('; '))
+  expect('and a boss that has died draws no contour', gone.length === 0, gone.join('; '))
+  expect('and a ring of 4px or less draws no contour and throws nothing', guard.length === 0, guard.join('; '))
+  expect('and the last-phase ring is the same 3px as the first', BOSS_RING_P3_WIDTH === BOSS_RING_WIDTH && BOSS_RING_WIDTH === 3, `${BOSS_RING_P3_WIDTH} against ${BOSS_RING_WIDTH}`)
+  // The colour rule on its own: a colour at or above the floor is returned as
+  // the very string it came in as, one below it comes back with its hue.
+  {
+    const bad: string[] = []
+    for (const e of ENCOUNTERS) {
+      const out = bossDashColour(e.accent)
+      if (lumaHex(e.accent) >= BOSS_DASH_LUMA && out !== e.accent) bad.push(`${e.short}: ${e.accent} -> ${out}`)
+      if (lumaHex(e.accent) < BOSS_DASH_LUMA && lumaHex(out) < BOSS_DASH_LUMA - 0.005) bad.push(`${e.short}: ${e.accent} -> ${out} under the floor`)
+    }
+    expect('and a boss colour at or above the contour floor comes through unchanged, every one in the roster', bad.length === 0, bad.join('; '))
+  }
 }
 
 // --- every cast the boss makes must be announced as itself ------------------

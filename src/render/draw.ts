@@ -3348,6 +3348,95 @@ export const BOSS_BODY_PX = 30
  */
 export const BOSS_RING_FILL = 0.5
 
+/** The boss's judgment ring, in the phases before the last. */
+export const BOSS_RING_WIDTH = 3
+
+/**
+ * The same ring in the last phase: 3px, the same as before it. Held apart from
+ * `BOSS_RING_WIDTH` only so the two can be told apart in a test; the 4px cut was
+ * looked at and not adopted, so the last phase differs by its dashed contour
+ * alone.
+ */
+export const BOSS_RING_P3_WIDTH = 3
+
+/** The phase that gets the dashed contour inside its ring. */
+export const BOSS_CONTOUR_PHASE = 3
+
+export function bossRingWidth(phase: number): number {
+  return phase >= BOSS_CONTOUR_PHASE ? BOSS_RING_P3_WIDTH : BOSS_RING_WIDTH
+}
+
+/**
+ * Radius of the dashed contour laid inside a boss's ring in its last phase:
+ * `r - clamp(0.14r, 5, 9)` in from the judged edge, so it can never reach past
+ * it, and never closer than that to the body's own patch of floor unless the
+ * ring itself leaves no room.
+ */
+export function bossContourRadius(r: number, stand: number): number {
+  const inset = Math.max(5, Math.min(9, r * 0.14))
+  return Math.min(r - 4, Math.max(stand + 3, r - inset))
+}
+
+/**
+ * The darkest the dashed contour may be, as WCAG relative luminance. Measured
+ * on the Bloodgorged's own face at 390x844@2: the floor under the line there is
+ * 0.029-0.051 (median 0.047), and 0.26 puts the line at 3.07:1 against the
+ * lightest of it, which is the 3:1 a non-text mark has to clear.
+ */
+export const BOSS_DASH_LUMA = 0.26
+
+export function lumaOf(r: number, g: number, b: number): number {
+  const lin = (c: number): number => {
+    const v = c / 255
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]
+}
+
+/**
+ * The colour of the dashed contour: the boss's own, except that one too dark to
+ * read on the floor it is drawn over is raised to `BOSS_DASH_LUMA` -- hue and
+ * saturation kept, only lightness moved. A colour already at or above the floor
+ * comes back as the very string it went in as, so for those bosses the line is
+ * exactly their accent. One path for every boss; nothing here knows which.
+ */
+export function bossDashColour(accent: string): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(accent)
+  if (!m) return accent
+  const r = parseInt(m[1]!, 16)
+  const g = parseInt(m[2]!, 16)
+  const b = parseInt(m[3]!, 16)
+  if (lumaOf(r, g, b) >= BOSS_DASH_LUMA) return accent
+  const top = Math.max(r, g, b)
+  const hi = top / 255
+  const lo = Math.min(r, g, b) / 255
+  const l0 = (hi + lo) / 2
+  const d = hi - lo
+  if (d === 0) return accent
+  const s = d / (1 - Math.abs(2 * l0 - 1))
+  const h = top === r ? (((g - b) / 255 / d) % 6) * 60 : top === g ? ((b - r) / 255 / d + 2) * 60 : ((r - g) / 255 / d + 4) * 60
+  const hue = (h + 360) % 360
+  let from = l0
+  let to = 1
+  for (let i = 0; i < 24; i++) {
+    const mid = (from + to) / 2
+    const [rr, gg, bb] = hslToRgb(hue, s, mid)
+    if (lumaOf(rr, gg, bb) >= BOSS_DASH_LUMA) to = mid
+    else from = mid
+  }
+  const [rr, gg, bb] = hslToRgb(hue, s, to)
+  const hex = (n: number): string => n.toString(16).padStart(2, '0')
+  return `#${hex(rr)}${hex(gg)}${hex(bb)}`
+}
+
 /**
  * The most a boss's source pixel may be drawn at: `BOSS_FIGURE_CAP` raiders'
  * worth. `BOSS_FIGURE_CAP` bounds the continuous figure, and rounding up could
@@ -3614,8 +3703,21 @@ function drawActor(
   footprint(ctx, p.x, p.y, r)
   ctx.globalAlpha = 1
   ctx.strokeStyle = enemy ? (isBoss ? accent : ENEMY_EDGE) : bodied ? color : '#0a0a0f'
-  ctx.lineWidth = enemy && isBoss ? 3 : 2
+  ctx.lineWidth = enemy && isBoss ? bossRingWidth(phase) : 2
   ctx.stroke()
+
+  // The last phase also draws a dashed outline of the ground, just inside the
+  // ring: a line, not a fill and not a core, in the boss's colour, squashed by
+  // `TILT` like everything else on the floor. It is what tells the last phase
+  // apart from the first once the body is as big in both.
+  if (isBoss && a.alive && phase >= BOSS_CONTOUR_PHASE && r - 4 > 0) {
+    footprint(ctx, p.x, p.y, bossContourRadius(r, stand))
+    ctx.strokeStyle = bossDashColour(accent)
+    ctx.lineWidth = 2
+    ctx.setLineDash([7, 5])
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
 
   // The moment it turns: one ring off the floor, out past anything else the
   // fight draws and gone in a second. The break already had a line, a sound, a
