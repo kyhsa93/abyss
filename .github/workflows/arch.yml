@@ -4,8 +4,9 @@ name: Arch
 #
 # `dungeoncheck` failed on an arm64 laptop at a tick that passed on x64 CI, and
 # the hash of the sim's state had never been set side by side. This does it:
-# `scripts/archprobe.ts` (seed 7, 2400 ticks, every party body's position, bit
-# for bit) runs on a free hosted x64 runner and a free hosted arm64 one
+# `scripts/archprobe.ts` (seeds 1-5 and 7, three inputs, a hall walk and the
+# first boss's fight; every body's position, facing and hp, bit for bit; and
+# each library math function the sim calls, hashed apart) runs on a free hosted x64 runner and a free hosted arm64 one
 # (macos-14), the two lines are compared, and `dungeoncheck` and `lawcheck`
 # run on the arm64 runner as well.
 #
@@ -43,7 +44,7 @@ jobs:
       - id: probe
         run: |
           npm run archprobe | tee probe.txt
-          echo "line=$(grep 'ARCHPROBE all' probe.txt | sed 's/^ARCHPROBE all [^ ]* node [^ ]* //')" >> "$GITHUB_OUTPUT"
+          echo "line=$(grep '^ARCHPROBE all' probe.txt)" >> "$GITHUB_OUTPUT"
           { echo '### x64'; echo '```'; cat probe.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
   arm64:
@@ -59,16 +60,28 @@ jobs:
       - name: Sim state hash (arm64) against x64
         run: |
           npm run archprobe | tee probe.txt
-          arm="$(grep 'ARCHPROBE all' probe.txt | sed 's/^ARCHPROBE all [^ ]* node [^ ]* //')"
-          x64="${{ needs.x64.outputs.line }}"
-          # Two things are compared: the sim's walk, and the library maths alone.
-          # They can part separately (the maths can differ where the sim never calls it).
-          part() { echo "$1" | sed -E "s/.*$2 ([0-9a-f]+).*/\1/"; }
-          [ "$(part "$arm" hash)" = "$(part "$x64" hash)" ] && sim=SAME || sim=DIFFERENT
-          [ "$(part "$arm" math)" = "$(part "$x64" math)" ] && lib=SAME || lib=DIFFERENT
-          line="ARCHPROBE verdict sim=$sim math=$lib | x64: $x64 | arm64: $arm"
+          arm_line="$(grep '^ARCHPROBE all' probe.txt)"
+          x64_line="${{ needs.x64.outputs.line }}"
+          node_of() { echo "$1" | sed -E 's/^ARCHPROBE all [^ ]+ node ([^ ]+).*/\1/'; }
+          val() { echo "$1" | tr ' ' '\n' | grep "^$2=" | cut -d= -f2; }
+          # Sim items decide (#353); math items are recorded per function and do not.
+          sim=SAME
+          items=""
+          for key in hall-pos hall-facing hall-hp battle-pos battle-facing battle-hp; do
+            [ "$(val "$arm_line" $key)" = "$(val "$x64_line" $key)" ] && r=SAME || { r=DIFFERENT; sim=DIFFERENT; }
+            items="$items $key=$r"
+          done
+          # macOS ships bash 3.2: no associative arrays.
+          calls() { case $1 in sin|cos) echo 23;; atan2) echo 25;; hypot) echo 28;; pow) echo 1;; sqrt) echo 12;; esac; }
+          mathitems=""
+          for fn in sin cos atan2 hypot pow sqrt; do
+            [ "$(val "$arm_line" math-$fn)" = "$(val "$x64_line" math-$fn)" ] && r=SAME || r=DIFFERENT
+            mathitems="$mathitems math-$fn=$r($(calls $fn) call sites)"
+          done
+          [ "$sim" = SAME ] && ruling='(b) 보류' || ruling='(b) 진행 권고'
+          line="ARCHPROBE verdict node x64=$(node_of "$x64_line") arm64=$(node_of "$arm_line") |$items |$mathitems | ruling: $ruling"
           echo "$line"
-          { echo '### arm64'; echo '```'; cat probe.txt; echo "$line"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '### arm64'; echo '```'; cat probe.txt; echo "x64: $x64_line"; echo "$line"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       # The results are what is wanted here, so each runs even if the one
       # before it failed, and the job is red if any did.
       - name: dungeoncheck (arm64)
@@ -77,3 +90,30 @@ jobs:
       - name: lawcheck (arm64)
         if: always()
         run: npm run lawcheck
+
+  # Is the failure that cut #313 the architecture's, or the laptop's? (#353)
+  # b8b6f16 is the commit `dungeoncheck` failed on. It runs on the arm64 runner
+  # and, as the control, on x64. Red on arm64 and green on x64 is the
+  # architecture; red on both, or green on arm64, is the local machine.
+  b8b6f16:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-14, ubuntu-latest]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: b8b6f168461b6934548e64e1bcc0a80b86cab181
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.x
+          cache: npm
+      - run: npm ci
+      - name: dungeoncheck at b8b6f16
+        run: |
+          if npm run dungeoncheck; then r=PASS; else r=FAIL; fi
+          line="ARCHPROBE b8b6f16 dungeoncheck $r runner ${{ matrix.runner }} $(uname -sm) node $(node -v)"
+          echo "$line"
+          { echo '### b8b6f16'; echo '```'; echo "$line"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          [ "$r" = PASS ]

@@ -78,10 +78,10 @@ jobs:
       - run: npm run dungeoncheck
       - run: npm run touchcheck
       # The x64 half of the arm64 comparison in `arch.yml` (#350, after #313):
-      # the sim's state hash for seed 7, 2400 ticks, as one `ARCHPROBE all`
+      # the sim's state hash for seed 7, 2400 ticks (`--quick`), as one `ARCHPROBE all`
       # line in this log. Seconds, and logging only -- it fails nothing.
       - name: Sim state hash (x64)
-        run: npm run archprobe | tee -a "$GITHUB_STEP_SUMMARY" | grep 'ARCHPROBE all' || true
+        run: npm run archprobe -- --quick | tee -a "$GITHUB_STEP_SUMMARY" | grep 'ARCHPROBE all' || true
       # Every table of the sweep that is cut into pieces has to be the table a
       # single process prints. The full sweep is an hour on a core and cannot
       # be run twice here, so this runs each cut table both ways on a slice of
