@@ -25,7 +25,7 @@ import { BOSS_CONTOUR_PHASE, BOSS_DASH_LUMA, BOSS_RING_P3_WIDTH, BOSS_RING_WIDTH
 import { BOARDING_BEARING, boardingDoor } from '../src/sim/boss'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
-import { pixelScale, walkFrame } from '../src/render/lpcimage'
+import { hasBody, pixelScale, walkFrame } from '../src/render/lpcimage'
 import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_FRAMES, LPC_ROW } from '../src/render/lpc'
 import { BODY_SWING_TIME, Effects, FALLBACK_REACH, TRAIL_ALPHA, TRAIL_WIDTH, pairSwing, trailBounds, trailEnd, trailLength } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
@@ -12377,6 +12377,83 @@ for (const [label, w, h] of [
   }) as unknown as CanvasRenderingContext2D
   drawWorld(ctx, s, 1, s.time, new Effects())
   expect('no ring on the floor is drawn in a class colour', worn.length === 0, [...new Set(worn)].join(', '))
+  updateLayout(1280, 800)
+}
+
+// --- the ceiling reaches the picture, not only `bossPixelScale` (#329) ---------
+//
+// The checks on #320 hold `bossPixelScale` against the table, but `drawWorld`
+// has to hand `drawBody` the ceiling as its thirteenth argument for a boss to
+// be drawn at it; drop that argument and every check above still passes. So
+// this one draws: a fake `Image` gives `drawBody` a sheet, the context records
+// the width each `drawImage` is given, and a boss one and a half raiders tall
+// at phase 1 is held against the same footprint on a body that is not one.
+// Scale is the drawn width over the source width, so the cell it was cut from
+// does not matter, and it is taken as a multiple of a raider's.
+
+{
+  const g = globalThis as unknown as { Image?: unknown }
+  const had = g.Image
+  g.Image = class {
+    width = 2048
+    height = 2048
+    decoding = ''
+    onload: (() => void) | null = null
+    set src(_v: string) {
+      this.onload?.()
+    }
+  }
+  // `drawBody` loads its sheet the first time it is asked, and so do the floor
+  // and the bolts, which want a `document`. Ask for the bodies here, with the
+  // fake in place, and take the fake away before anything else can ask.
+  hasBody('add-thrall')
+  g.Image = had
+  for (const [w, h, device] of [[1280, 800, 1], [390, 844, 2]] as const) {
+    updateLayout(w, h)
+    const person = PARTY_RADIUS * L.scale
+    const s = pulled(0x51ed, 0, undefined, 'normal', 0)
+    const boss = s.actors.find((a) => a.id === BOSS_ID)!
+    s.actors = [boss]
+    // Phase 1, no gauge: `bossFigure` is the radius, so the footprint is 1.5
+    // raiders and the one thing that differs between the two draws is who it is.
+    s.phase = 1
+    boss.radius = (1.5 * person) / L.scale
+    boss.hp = boss.maxHp
+    const scales: number[] = []
+    const noop = () => {}
+    const pen: Record<string, unknown> = {}
+    const ctx = new Proxy(pen, {
+      get(_t, prop) {
+        if (prop === 'getTransform') return () => ({ a: device })
+        if (prop === 'drawImage') {
+          return (_img: unknown, _sx: number, _sy: number, sw: number, _sh: number, _dx: number, _dy: number, dw: number) => {
+            scales.push(dw / sw)
+          }
+        }
+        if (prop === 'measureText') return () => ({ width: 10 })
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') return () => ({ addColorStop: noop })
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return noop
+      },
+      set: (_t, prop, value) => {
+        pen[prop as string] = value
+        return true
+      },
+    }) as unknown as CanvasRenderingContext2D
+    const party = pixelScale(person, device)
+    const drawn = (): number[] => {
+      scales.length = 0
+      drawWorld(ctx, s, 1, s.time, new Effects())
+      return [...new Set(scales.map((v) => Math.round((v / party) * 100) / 100))]
+    }
+    const asBoss = drawn()
+    // The same body under another id: no longer the boss, so `drawWorld` draws
+    // it as an add and passes no ceiling.
+    boss.id = 9999
+    const asAdd = drawn()
+    expect(`a boss 1.5 raiders tall at ${w}x${h}@${device} is drawn at 2.00 raiders' scale through drawWorld`, asBoss.length === 1 && asBoss[0] === 2, asBoss.join(', ') || 'no drawImage')
+    expect(`the same footprint on a body that is not the boss is drawn at 1.00 raiders' scale at ${w}x${h}@${device}`, asAdd.length === 1 && asAdd[0] === 1, asAdd.join(', ') || 'no drawImage')
+  }
   updateLayout(1280, 800)
 }
 
