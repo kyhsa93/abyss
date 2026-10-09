@@ -35,7 +35,7 @@ about sixteen points, so anything tighter would be measuring the seed.
 | No spec is a trap | every spec wins ≥ 50% | lowest is 70% (Warrior DPS, Warlock, Paladin Heal, two tanks) |
 | Every fight is winnable by pull 9 | every size/difficulty cell ≥ 50% | lowest is 68% (Choir 5 normal) |
 | A battleground rewards playing it | `ai` beats `idle` by ≥ 20 points | 47, 50 and 57 across the three maps |
-| A raid rewards playing it | `played` beats `idle` by ≥ 20 points, as a ratchet | 6 of 11 fights; the other five held at today's value in `RAID_SHORT` |
+| A raid rewards playing it | `played` beats `idle` by ≥ 20 points, as a ratchet | 7 of 11 fights; the other four held at today's value in `RAID_SHORT` |
 
 **No spec is a trap.** The class screen is the one decision this game asks of
 you, and a spec that cannot clear the reference fight makes that screen a lie.
@@ -64,8 +64,8 @@ band, but a band that is red the day it lands teaches the wrong lesson: the
 first thing anybody would do is widen it. It goes in once the fight is fixed.
 
 **A raid rewards playing it** is in, as a ratchet rather than a line, because
-five fights are short of the twenty points and a band that is red the day it
-lands is a band somebody widens. Those five are written down in `RAID_SHORT` at
+four fights are short of the twenty points and a band that is red the day it
+lands is a band somebody widens. Those four are written down in `RAID_SHORT` at
 what playing is worth in them today; each may not fall below that, and each has
 to come off the list the run it reaches twenty, so the list only shortens. The
 `raid / drive` table is in the harness output on every run; on 59cf949 it was:
@@ -78,10 +78,10 @@ to come off the list the run it reaches twenty, so the list only shortens. The
 | The Three Crowns | 94% | 58% | +36 |
 | The Two Flasks | 72% | 40% | +32 |
 | The Bonegrinder | 68% | 48% | +20 |
+| The Crimson Gift | 94% | 74% | +20 (CI run 37937143855, after the Gift became unstoppable in #301; was 99% / 99% / 0 here) |
 | The Last Whisper | 94% | 78% | +16 (held) |
 | The Bloodgorged | 87% | 72% | +15 (held) |
 | The Reeking Host | 100% | 100% | 0 (held) |
-| The Crimson Gift | 99% | 99% | 0 (held) |
 | The One You Save | 91% | 100% | −9 (held) |
 
 A held number may only be lowered in a commit that says why, and the job may not

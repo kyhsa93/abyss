@@ -97,7 +97,6 @@ const RAID_SHORT: Record<string, number> = {
   'The Bloodgorged': 15,
   'The Last Whisper': 16,
   'The One You Save': -9,
-  'The Crimson Gift': 0,
 }
 
 const BANDS: Band[] = [
