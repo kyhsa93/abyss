@@ -36,6 +36,7 @@
     "bosscanary": "esbuild scripts/bosscanary.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/bosscanary.mjs --log-level=error && node node_modules/.cache/bosscanary.mjs",
     "spacingprobe": "esbuild scripts/spacingprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spacingprobe.mjs --log-level=error && node node_modules/.cache/spacingprobe.mjs",
     "spacingshots": "esbuild scripts/spacingshots.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/spacingshots.mjs --log-level=error && node node_modules/.cache/spacingshots.mjs",
+    "archprobe": "esbuild scripts/archprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/archprobe.mjs --log-level=error && node node_modules/.cache/archprobe.mjs",
     "walkprobe": "esbuild scripts/walkprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/walkprobe.mjs --log-level=error && node node_modules/.cache/walkprobe.mjs",
     "deadprobe": "esbuild scripts/deadprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/deadprobe.mjs --log-level=error && node node_modules/.cache/deadprobe.mjs"
   },
