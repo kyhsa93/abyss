@@ -27,7 +27,7 @@ import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
 import { pixelScale, walkFrame } from '../src/render/lpcimage'
 import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_FRAMES, LPC_ROW } from '../src/render/lpc'
-import { Effects, FALLBACK_REACH, TRAIL_ALPHA, TRAIL_WIDTH, pairSwing, trailBounds, trailEnd, trailLength } from '../src/render/effects'
+import { BODY_SWING_TIME, Effects, FALLBACK_REACH, TRAIL_ALPHA, TRAIL_WIDTH, pairSwing, trailBounds, trailEnd, trailLength } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
   MARK_LETTER,
@@ -3594,6 +3594,71 @@ for (const [label, w, h] of [
     return `${run.outcome} ${run.time.toFixed(2)} ${boss(run).hp}`
   }
   expect('drawing changes nothing about the fight', replay(true) === replay(false), replay(true))
+}
+
+// The body's weapon swing is tied to the blow, not to the global cooldown
+// (#321 R6). It starts when the simulation lands a swing, lasts one swing, and
+// is keyed by who threw it.
+{
+  const swing = { kind: 'swing', pos: { x: 0, y: 0 }, angle: 0.3, abilityId: null, power: 0, crit: false, radius: 0, empowered: false } as const
+  const hit = { ...swing, kind: 'impact' as const, pos: { x: 100, y: 0 }, power: 10 }
+  const at = (x: number, y: number) => ({ pos: { x, y }, prevPos: { x, y }, radius: 9, moveSpeed: 0 })
+  const tick = { actors: [{ id: 7, faction: 'party', ...at(0, 0) }, { id: 8, faction: 'party', ...at(50, 50) }, { id: 99, faction: 'boss', ...at(100, 0), radius: 20 }], effects: [swing, hit] } as never
+  const fx = new Effects(false)
+  expect('a body that has not swung has no swing', fx.swingOf(7) === null, '')
+  fx.ingest(tick)
+  const first = fx.swingOf(7)
+  expect('the body that threw the swing starts it', first !== null && first < 0.01, `${first}`)
+  expect('and only that body', fx.swingOf(8) === null && fx.swingOf(99) === null, `${fx.swingOf(8)} ${fx.swingOf(99)}`)
+  fx.age(BODY_SWING_TIME / 2)
+  const mid = fx.swingOf(7)
+  expect('half a swing later it is half through', mid !== null && Math.abs(mid - 0.5) < 1e-9, `${mid}`)
+  fx.age(BODY_SWING_TIME / 2 + 0.01)
+  expect('it ends after one swing', fx.swingOf(7) === null, `${fx.swingOf(7)}`)
+  expect('a swing lasts 0.4 seconds, as the body animation always did', BODY_SWING_TIME === 0.4, `${BODY_SWING_TIME}`)
+  // A second blow plays it again, with nothing from a global cooldown.
+  fx.ingest(tick)
+  expect('the next blow plays it again', fx.swingOf(7) !== null, '')
+  // A swing with no struck body still finds who threw it, by where it began.
+  const alone = new Effects(false)
+  alone.ingest({ actors: [{ id: 3, faction: 'party', ...at(0, 0) }], effects: [swing] } as never)
+  expect('an unpaired swing still moves the body that threw it', alone.swingOf(3) !== null, '')
+  // Two bodies on the thrower's spot: it is the one on the other side from what was struck.
+  const crowd = new Effects(false)
+  crowd.ingest({ actors: [{ id: 1, faction: 'boss', ...at(0, 0), radius: 27 }, { id: 2, faction: 'party', ...at(0, 0) }, { id: 99, faction: 'boss', ...at(100, 0), radius: 20 }], effects: [swing, hit] } as never)
+  expect('on a shared spot the swinger is not on the struck body\'s side', crowd.swingOf(2) !== null && crowd.swingOf(1) === null, `${crowd.swingOf(2)} ${crowd.swingOf(1)}`)
+
+  // Against the real fight: every weapon swing the simulation lands moves the
+  // body that threw it, including the ones thrown with the global cooldown
+  // idle, which is what the old reading missed.
+  let swings = 0
+  let moved = 0
+  let idle = 0
+  let idleMoved = 0
+  for (const enc of [0, 3, 6]) {
+    const s = createState(1, 0, autoParty(10, pickFor('warrior', 'tank')!), 'normal', enc)
+    s.countdown = 0
+    const rng = new Rng(1)
+    const live = new Effects(false)
+    for (let t = 0; t < 30 * 30; t++) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const seen = s.effects.filter((e) => e.kind === 'swing')
+      const before = seen.map((e) => s.actors.find((a) => Math.hypot(a.pos.x - e.pos.x, a.pos.y - e.pos.y) < 0.5)).map((a) => (a ? { id: a.id, gcd: a.gcd, cast: a.castId } : null))
+      live.ingest(s)
+      for (const b of before) {
+        swings++
+        if (b && live.swingOf(b.id) !== null) moved++
+        if (b && b.gcd <= 0 && b.cast === null) {
+          idle++
+          if (live.swingOf(b.id) !== null) idleMoved++
+        }
+      }
+      live.age(DT)
+    }
+  }
+  expect('the fights land weapon swings', swings > 100, `${swings}`)
+  expect('nearly every swing moves a body', moved >= swings * 0.98, `${moved} of ${swings}`)
+  expect('swings thrown with the global cooldown idle move the body too', idle > 0 && idleMoved >= idle * 0.98, `${idleMoved} of ${idle}`)
 }
 
 // A weapon swing's line runs from the attacker to the edge of the body it
