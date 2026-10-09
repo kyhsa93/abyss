@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { Rng } from '../src/sim/rng'
 import { createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
@@ -744,9 +746,27 @@ function objectiveGoal(s: SimState) {
 // read 48% against a floor of 50 and read 53% at this count, having changed
 // nothing — a band failing inside its own error, which the damage spread did
 // twice before it and which this file's own comments warn about by name.
-const SPEC_RUNS = 20
+//
+// The two environment knobs below exist for one caller: the build's
+// `Verify spec parts match harness` step, which has to prove the split table
+// equals the single-process one and cannot afford twenty-two minutes to do it.
+// Unset they are 20 pulls across every boss, which is the table the band reads.
+const envCount = (name: string, whole: number): number => {
+  const n = Number(process.env[name] ?? '')
+  return Number.isInteger(n) && n >= 1 && n <= whole ? n : whole
+}
+const SPEC_RUNS = envCount('ABYSS_SPEC_RUNS', 20)
+const SPEC_BOSSES = envCount('ABYSS_SPEC_BOSSES', ENCOUNTERS.length)
 const SPEC_SIZE: RaidSize = 10
-if (want('spec')) {
+// The table is one shard on a person's terminal and seventeen in the build,
+// one a spec: `spec:i` measures SPEC_OPTIONS[i] and prints its four numbers on
+// one line, and `spec:merge` reads those seventeen lines back and prints the
+// table. Both go through the same sort-and-print below, so the split table is
+// the single one by construction rather than by a second copy of the code.
+const specShard = /^spec:(\d+)$/.exec(SHARD)
+const specRowsDir = (): string => resolve(process.cwd(), process.env.ABYSS_SPEC_ROWS ?? 'spec-rows')
+const specRowFile = (i: number): string => resolve(specRowsDir(), `spec-${String(i).padStart(2, '0')}.txt`)
+if (want('spec') || specShard !== null || SHARD === 'spec:merge') {
   const roleOf = (p: Pick) => specOf(p).role
   /**
    * The raid the spec under test is dropped into, and the slot it lands in.
@@ -785,7 +805,10 @@ if (want('spec')) {
     let healedBack = 0
     let wins = 0
     let runs = 0
-    for (let boss = 0; boss < ENCOUNTERS.length; boss++) {
+    for (let boss = 0; boss < SPEC_BOSSES; boss++) {
+      // On stderr, so the build log says which boss of which spec is the
+      // expensive one; stdout is the table and does not move.
+      const began = Date.now()
       for (let n = 0; n < SPEC_RUNS; n++) {
         const seed = 3000 + n * 7919 + boss * 131
         const s = unattended(createState(seed, 6, lineup(test), 'normal', boss))
@@ -816,12 +839,37 @@ if (want('spec')) {
         if (s.outcome === 'victory') wins++
         runs++
       }
+      console.error(`spec ${specLabel(test)}|${ENCOUNTERS[boss]!.name}|${Date.now() - began}`)
     }
     return { out: out / runs, taken: (taken / runs) * 100, healedBack: healedBack / runs, win: (wins / runs) * 100 }
   }
 
-  const rows = SPEC_OPTIONS.map((p) => ({ p, role: roleOf(p), ...measure(p) }))
-  for (const role of ['dps', 'healer', 'tank'] as const) {
+  type Measured = ReturnType<typeof measure>
+  const KEYS = ['out', 'taken', 'healedBack', 'win'] as const
+  let measured: Measured[]
+  if (specShard !== null) {
+    const i = Number(specShard[1])
+    const test = SPEC_OPTIONS[i]
+    if (test === undefined) throw new Error(`no spec ${i}: there are ${SPEC_OPTIONS.length}`)
+    const m = measure(test)
+    // JS number strings round-trip exactly, so the merge sees the same doubles
+    // a single process would have held.
+    process.stdout.write(`${KEYS.map((k) => String(m[k])).join(' ')}\n`)
+    measured = []
+  } else if (SHARD === 'spec:merge') {
+    measured = SPEC_OPTIONS.map((_, i) => {
+      const nums = readFileSync(specRowFile(i), 'utf8').trim().split(' ').map(Number)
+      if (nums.length !== KEYS.length || nums.some((n) => !Number.isFinite(n))) {
+        throw new Error(`spec row ${i} is not four numbers: ${specRowFile(i)}`)
+      }
+      return { out: nums[0]!, taken: nums[1]!, healedBack: nums[2]!, win: nums[3]! }
+    })
+  } else {
+    measured = SPEC_OPTIONS.map((p) => measure(p))
+  }
+  const rows = measured.map((m, i) => ({ p: SPEC_OPTIONS[i]!, role: roleOf(SPEC_OPTIONS[i]!), ...m }))
+  // A `spec:i` shard has printed its one line and has no table to show.
+  for (const role of specShard === null ? (['dps', 'healer', 'tank'] as const) : []) {
     const list = rows.filter((r) => r.role === role)
     const key = (r: (typeof list)[number]) => (role === 'tank' ? r.taken : r.out)
     list.sort((a, b) => (role === 'tank' ? key(a) - key(b) : key(b) - key(a)))
@@ -829,7 +877,7 @@ if (want('spec')) {
       role === 'tank'
         ? 'spec                net taken %bar  healed/s   win%'
         : `spec                ${role === 'healer' ? 'hps' : 'dps'}       win%`
-    console.log(`\nspec: ${role} (${SPEC_SIZE} normal, ${ENCOUNTERS.length} bosses x ${SPEC_RUNS} pulls a row)`)
+    console.log(`\nspec: ${role} (${SPEC_SIZE} normal, ${SPEC_BOSSES} bosses x ${SPEC_RUNS} pulls a row)`)
     console.log(head)
     for (const r of list) {
       console.log(
