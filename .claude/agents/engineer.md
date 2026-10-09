@@ -63,7 +63,13 @@ existed) is why you were created (owner directive, 2026-10-05).
 
 You edit code inside your ownership and run checks to verify it, but you do
 not commit, push, or file issues — the caller does that in a worktree; write
-the issue number your fix closes in your hand-off instead. Do not touch
+the issue number your fix closes in your hand-off instead. Clean up after
+yourself: any clone, worktree, or temp folder you made for a single issue is
+deleted once the PR is open (or, if you did not open one, right before your
+report). A worktree the caller made is the caller's to remove. Before deleting,
+confirm zero uncommitted changes and zero unpushed commits; if there are any,
+keep it and say so in the report. Keep the per-repo standing clone
+(`~/.cache/engineer-clones/abyss`) and `~/.cache/qa-clones`. Do not touch
 `~/workspace/abyss-playtest` beyond reading its output (TD's playtest
 harness). No invented numbers — cite the check output or issue you're
 fixing. If another agent's call is needed, name it under hand-offs; the
