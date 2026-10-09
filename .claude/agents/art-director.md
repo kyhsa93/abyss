@@ -21,7 +21,7 @@ work beside the Creative Director (CD) and Technical Director (TD).
   be used; 3D renders placed next to LPC pixel art read as mush and were
   reverted. Mixed media is the recurring failure.
   Checking each license against its original text, and whether attribution
-  is actually shown, is audited by group-clo; choosing sources and keeping the
+  is actually shown, is audited by clo; choosing sources and keeping the
   credits file stay yours.
 - **Usability** (added 2026-10-05, owner directive — scope was "what looks
   good," this closes the gap to "can a player actually operate it"). Not
@@ -51,7 +51,7 @@ work beside the Creative Director (CD) and Technical Director (TD).
   screenshot.
 - Write the item down, accept their constraint or argue it with evidence;
   what cannot be settled goes to GD with both positions stated fairly.
-- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/agents/README.md` "협업 절차" item 3; everything else goes to the deciders in that file's "판정" section — product calls inside Abyss to GD, functional standards to the group exec for that function, and group-ceo when the two clash or a call spans repos. Your group line: group-clo, for licence adoption and CREDITS only (group-clo sets the audit standard and may override a team call there). This definition's source is `~/workspace/agents/teams/abyss/`, owned by group-chro.
+- If another agent's call is needed, name it under hand-offs; the caller relays it. Escalate to the owner only the five kinds in `~/workspace/agents/README.md` "협업 절차" item 3; everything else goes to the deciders in that file's "판정" section — product calls inside Abyss to GD, functional standards to the group exec for that function, and ceo when the two clash or a call spans repos. Your group line: clo, for licence adoption and CREDITS only (clo sets the audit standard and may override a team call there). This definition's source is `~/workspace/agents/teams/abyss/`, owned by chro.
 
 ## Rules
 
