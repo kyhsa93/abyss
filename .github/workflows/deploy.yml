@@ -161,6 +161,9 @@ jobs:
           cat $(ls parts/part-*.txt | sort) > harness.txt
           grep -q '^battleground' harness.txt || { echo "the battleground table is missing"; exit 1; }
           grep -q '^boss / size / difficulty' harness.txt || { echo "the size table is missing"; exit 1; }
+          grep -q '^crisis' harness.txt || { echo "the crisis table is missing"; exit 1; }
+          # The CI x64 baseline for the crisis table, visible in the log.
+          sed -n '/^crisis/,$p' harness.txt
       - run: npm run balancecheck
         env:
           ABYSS_HARNESS_OUT: harness.txt

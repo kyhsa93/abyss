@@ -56,6 +56,15 @@ interface Report {
   playerHits: number
   playerTaken: number
   playerDied: boolean
+  /** Party bodies dead at the end of the pull, the player's slot included. */
+  partyDeaths: number
+  /**
+   * The lowest the raid's pooled health got during the pull, as a percentage of
+   * its pooled maximum (sum of hp over sum of maxHp across the whole party side,
+   * the dead counted as zero), to one decimal. Pooled: one body at the floor is
+   * averaged into everyone else.
+   */
+  minRaidHp: number
 }
 
 /**
@@ -87,6 +96,7 @@ function run(
   const walked: Record<string, number> = {}
   const walkedQuiet: Record<string, number> = {}
   let ticks = 0
+  let minRaidHp = 100
 
   while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
     const pressed: number[] = []
@@ -103,6 +113,15 @@ function run(
 
     step(s, drive === 'played' ? playerInput(s, pressed) : { moveX: 0, moveY: 0, pressed }, rng)
     ticks++
+
+    let hpNow = 0
+    let hpMax = 0
+    for (const a of s.actors) {
+      if (a.faction !== 'party') continue
+      hpNow += a.alive ? a.hp : 0
+      hpMax += a.maxHp
+    }
+    if (hpMax > 0) minRaidHp = Math.min(minRaidHp, (hpNow / hpMax) * 100)
 
     for (const a of s.actors) {
       if (a.faction !== 'party' || a.isPlayer || !a.alive) continue
@@ -167,6 +186,8 @@ function run(
     playerHits: bill?.mechanicHits ?? 0,
     playerTaken: Math.round(bill?.damageTaken ?? 0),
     playerDied: me !== undefined && !me.alive,
+    partyDeaths: Object.keys(deaths).length + (me !== undefined && !me.alive ? 1 : 0),
+    minRaidHp: Math.round(minRaidHp * 10) / 10,
   }
 }
 
@@ -1005,4 +1026,60 @@ if (want('bg')) for (const bg of BATTLEGROUNDS) {
       (spread / BG_RUNS).toFixed(0),
     )
   }
+}
+
+// --- the crisis table: what a pull feels like short of winning or losing ----
+//
+// Win rate is one bit per pull. These columns are the rest of the pull: how many
+// pulls in a row a seed loses, how many bodies die, and how low the raid's
+// pooled health gets. Same cell as the size table's 10-man heroic row (same
+// party, seeds and drive), so `pullNo` 1 must read the same win% as that cell's
+// pull1. A new table at the end rather than new attempts in the old ones, which
+// would move the columns `balancecheck` reads by position.
+const CRISIS_RUNS = 40
+const CRISIS_ATTEMPTS = [0, 1, 2]
+const CRISIS_SIZE = 10 satisfies RaidSize
+if (want('crisis:0')) console.log(
+  '\n' +
+    'crisis'.padEnd(23) +
+    'pullNo  win%  streak%  dead/pull  dead0%  hpP10  hpP50  hpMin' +
+    `\n(${CRISIS_RUNS} seeds x pulls ${CRISIS_ATTEMPTS[0]! + 1}-${CRISIS_ATTEMPTS.length} a boss at ` +
+    `${CRISIS_SIZE}-man heroic, drive played; two standard errors on a win rate is about ` +
+    `${(2 * Math.sqrt(0.25 / CRISIS_RUNS) * 100).toFixed(0)} points)`,
+)
+for (let i = 0; i < ENCOUNTERS.length; i++) {
+  if (!want(`crisis:${i}`)) continue
+  const party = autoParty(CRISIS_SIZE, dps('mage'))
+  // reports[attempt][n]; a seed's streak runs through its attempts in order.
+  const reports = CRISIS_ATTEMPTS.map((attempt) =>
+    Array.from({ length: CRISIS_RUNS }, (_, n) =>
+      run(1000 + n * 137, attempt, party, 'heroic', i),
+    ),
+  )
+  const lostSoFar = new Array<boolean>(CRISIS_RUNS).fill(true)
+  CRISIS_ATTEMPTS.forEach((attempt, a) => {
+    const rs = reports[a]!
+    const wins = rs.filter((r) => r.outcome === 'victory').length
+    let streak = 0
+    rs.forEach((r, n) => {
+      lostSoFar[n] = lostSoFar[n]! && r.outcome !== 'victory'
+      if (lostSoFar[n]) streak++
+    })
+    const dead = rs.reduce((t, r) => t + r.partyDeaths, 0)
+    const clean = rs.filter((r) => r.partyDeaths === 0).length
+    const hp = rs.map((r) => r.minRaidHp).sort((x, y) => x - y)
+    const at = (q: number) => `${Math.round(hp[Math.floor(q * CRISIS_RUNS)]!)}%`
+    const pct = (k: number) => `${Math.round((k / CRISIS_RUNS) * 100)}%`
+    console.log(
+      `${ENCOUNTERS[i]!.name}`.padEnd(23) +
+        `${attempt + 1}`.padEnd(8) +
+        pct(wins).padEnd(6) +
+        pct(streak).padEnd(9) +
+        (dead / CRISIS_RUNS).toFixed(1).padEnd(11) +
+        pct(clean).padEnd(8) +
+        at(0.1).padEnd(7) +
+        at(0.5).padEnd(7) +
+        `${Math.round(hp[0]!)}%`,
+    )
+  })
 }
