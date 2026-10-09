@@ -84,6 +84,9 @@ export const TRAIL_WIDTH = 2
 /** Peak opacity of a trail. A swing used to peak at 0.85, like everything. */
 export const TRAIL_ALPHA = 0.5
 
+/** How long a body's own swing animation lasts, in seconds: what it was when it was read off the global cooldown. */
+export const BODY_SWING_TIME = 0.4
+
 /** How near a body must be to a hit's position to be the one that took it, before it is allowed any ground it covered since. */
 const PAIR_TOLERANCE = 0.5
 
@@ -120,6 +123,7 @@ export function trailEnd(length: number): number {
 }
 
 interface Body {
+  id?: number
   pos: Vec2
   prevPos?: Vec2
   radius: number
@@ -140,7 +144,7 @@ export function pairSwing(
   events: readonly EffectEvent[],
   at: number,
   bodies: ReadonlyArray<Body>,
-): { d: number; length: number } | null {
+): { d: number; length: number; by: number | null } | null {
   const swing = events[at]
   if (!swing || swing.kind !== 'swing') return null
   let hit: EffectEvent | null = null
@@ -188,7 +192,30 @@ export function pairSwing(
   if (!body) return null
   const rt = body.faction === 'party' ? PARTY_RADIUS : body.radius
   const d = Math.hypot(hit.pos.x - swing.pos.x, hit.pos.y - swing.pos.y) - rt
-  return { d, length: trailLength(d) }
+  // Who threw it: the body standing where the swing began, and on the other
+  // side from the one it struck when two share the spot.
+  const there = bodies.filter((b) => offOf(b, swing.pos) < TIE)
+  const by = (there.find((b) => b.faction !== body.faction) ?? there[0])?.id ?? null
+  return { d, length: trailLength(d), by }
+}
+
+/**
+ * Who threw a swing when it could not be paired with the body it struck: the
+ * body standing where it began, or null when nobody is or several are.
+ */
+export function swingerAt(swing: EffectEvent, bodies: ReadonlyArray<Body>): number | null {
+  let found: number | null = null
+  for (const b of bodies) {
+    if (b.id === undefined) continue
+    const off = Math.min(
+      Math.hypot(b.pos.x - swing.pos.x, b.pos.y - swing.pos.y),
+      b.prevPos ? Math.hypot(b.prevPos.x - swing.pos.x, b.prevPos.y - swing.pos.y) : Infinity,
+    )
+    if (off >= TIE) continue
+    if (found !== null) return null
+    found = b.id
+  }
+  return found
 }
 
 /** A hit is worth about this much reach at full power. */
@@ -314,6 +341,11 @@ export class Effects {
         // bodies as the last tick left them.
         const paired = pairSwing(s.effects, i, actors) ?? pairSwing(s.effects, i, this.seen)
         if (!paired) this.fallbacks++
+        // The weapon in that body's hand goes with the line. Keyed by who
+        // threw it and read back by the body when it is drawn; nothing is
+        // written to the simulation.
+        const by = paired ? paired.by : (swingerAt(event, actors) ?? swingerAt(event, this.seen))
+        if (by !== null) this.swungAt.set(by, this.clock)
         this.spawn(event, paired?.length)
       } else this.spawn(event)
     }
@@ -326,6 +358,7 @@ export class Effects {
       const b = (this.seen[i] ??= { pos: { x: 0, y: 0 }, radius: 0 })
       b.pos.x = a.pos.x
       b.pos.y = a.pos.y
+      b.id = a.id
       b.radius = a.radius
       b.moveSpeed = a.moveSpeed
       b.faction = a.faction
@@ -333,6 +366,25 @@ export class Effects {
   }
 
   private seen: Body[] = []
+
+  /** When each body last threw a weapon swing, on this clock. */
+  private swungAt = new Map<number, number>()
+
+  /**
+   * How far through its weapon swing a body is, or null when it is not
+   * swinging. One swing per blow the simulation lands, for as long as
+   * `BODY_SWING_TIME`, however long the global cooldown runs.
+   */
+  swingOf(id: number): number | null {
+    const at = this.swungAt.get(id)
+    if (at === undefined) return null
+    const gone = this.clock - at
+    if (gone >= BODY_SWING_TIME) {
+      this.swungAt.delete(id)
+      return null
+    }
+    return Math.max(0, gone / BODY_SWING_TIME)
+  }
 
   /** Swings that found no struck body and drew the old arc. Only the checks ask. */
   fallbacks = 0

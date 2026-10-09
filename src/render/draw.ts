@@ -661,6 +661,7 @@ export function drawWorld(
         Infinity,
         0,
         asBackdrop,
+        effects,
       )
       ctx.restore()
       continue
@@ -680,6 +681,7 @@ export function drawWorld(
         s.time - s.phaseAt,
         a.id === BOSS_ID ? s.gauge : 0,
         asBackdrop,
+        effects,
       )
     } else {
       drawActor(
@@ -696,6 +698,7 @@ export function drawWorld(
         Infinity,
         0,
         asBackdrop,
+        effects,
       )
     }
   }
@@ -3520,6 +3523,8 @@ function drawActor(
    * so ignores the dimming the rest of the picture takes.
    */
   asBackdrop = false,
+  /** Where a weapon swing is read from: the blow, not the global cooldown. */
+  effects: Effects | null = null,
 ): void {
   const p = screenPos(a, alpha)
   // A small thing wears what it has eaten. The simulation's radius is left
@@ -3823,7 +3828,7 @@ function drawActor(
     const casting =
       a.castId !== null && a.castTotal > 0
         ? Math.max(0, Math.min(1, 1 - a.castRemaining / a.castTotal))
-        : swingProgress(a)
+        : (effects?.swingOf(a.id) ?? swingProgress(a))
     drawBody(
       ctx,
       token,
