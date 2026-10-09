@@ -241,7 +241,8 @@ const want = (tag: string): boolean =>
  * A ceiling on the pulls of every table that is cut into pieces, for one
  * purpose: proving a cut table is the uncut one. The whole of them is an hour
  * on a core and cannot be run twice to compare, so `ABYSS_VERIFY` (in
- * `harnessrun.ts`) runs both ways with two pulls a row and diffs the text. The
+ * `harnessrun.ts`) runs both ways with `ABYSS_RUNS` pulls a row (the build sets one, a person checking by hand
+ * two) and diffs the text. The
  * headers print the real number of pulls, so a table made this way says so.
  * Unset, or not a whole number of at least one, is every pull -- which is what
  * a build runs. Nothing else may set it.

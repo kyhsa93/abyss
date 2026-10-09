@@ -164,21 +164,29 @@ const tableOf = new Map(TABLES.flatMap((t) => t.groups.flatMap((g) => g.tags.map
 const isRow = (tag: string): boolean => groupOf.get(tag)?.merge != null
 
 /**
- * What a shard costs, in seconds on the middling kind of hosted runner.
+ * What a shard costs, in seconds -- on a table whose scale is NOT uniform, and
+ * the numbers must not be read as one machine's.
  *
- * Read off run 37891192987 (`shard <tag> — Ns` in each harness job's log) for
- * the shards that were already shards. The pieces of a table that was cut since
- * (the rows of `composition`, `boss`, a boss's mechanics and rewards, the maps
- * of `bg`) are the old whole shard's cost shared out by what each piece took
- * when run on its own on a laptop, four at a time; the pieces of a size cell cut
- * by pull are the cell's cost over the number of pieces (for the two cells that sat on an EPYC 7763 in all three runs after the first split, `size:6:25:heroic` and `size:4:25:normal`, the cost is the 7763 one: about 375 and 315). Used for one thing:
- * dealing the shards out so the heaviest ones start first and no runner is
- * handed two of them while another is handed none. A shard that is not in the
- * table costs `DEFAULT_COST` (`ABYSS_LIST=1` prints every shard with the ones
- * the table has never heard of marked). A stale table makes a run slower, never
- * wrong: the output is put together by `part-NNN` number, which does not depend
- * on who ran what. Recalibrate it from the `shard` lines of a few runs after the
- * split changes.
+ * - Most entries are run 37891192987's `shard <tag> — Ns` lines, a mix of
+ *   hosts, roughly the middling runner. For the tables cut since (rows of
+ *   `composition` and `boss`, a boss's mechanics and rewards, the maps of `bg`)
+ *   that old whole-shard value is shared out by what each piece took alone on a
+ *   laptop, four at a time; a size cell cut by pull is the cell's value over its
+ *   pieces.
+ * - Three entries are the slow kind of runner, the AMD EPYC 7763, from the three
+ *   main runs after the first split: `SPEC_COST` (about 200) and the pieces of
+ *   `size:6:25:heroic` (375 over three) and `size:4:25:normal` (315 over two).
+ *   Dealing a 7763 number beside middling ones makes the spec rows look slightly
+ *   heavier than their neighbours, which is the safe way to be wrong.
+ *
+ * It is used for one thing: dealing the shards out so the heaviest ones start
+ * first and no runner is handed two of them while another is handed none. A
+ * shard that is not in the table costs `DEFAULT_COST` (`ABYSS_LIST=1` prints
+ * every shard with the ones the table has never heard of marked). A stale table
+ * makes a run slower, never wrong: the output is put together by `part-NNN`
+ * number, which does not depend on who ran what. It is recalibrated from the
+ * `shard` lines of the first runs after a split changes, in one pass, and not by
+ * hand in between.
  */
 const COSTS: Record<string, number> = {
   'size:1:25:normal': 145, 'size:8:25:normal': 137, 'reward:6:1': 135, 'size:10:25:normal': 133,
@@ -215,10 +223,9 @@ const COSTS: Record<string, number> = {
   'bg:2:0': 18, 'boss:9': 18, 'bg:1:0': 16, 'bg:2:1': 16,
   'bg:2:2': 16, 'size:9:10:normal': 16, 'bg:2:3': 13,
 }
-// The one entry that is the slow kind of runner and not the middling one: a spec
-// took 95 to 99 seconds on the fast hosts and 197 to 210 on the AMD EPYC 7763
-// ones (run 37902004103, mean 176 over the seventeen), and the table is the
-// slow runner's, so the slowest runner is what a chunk is made to fit.
+// A slow-runner entry (see the table above): a spec took 95 to 99 seconds on the
+// fast hosts and 197 to 210 on the EPYC 7763 ones (run 37902004103, mean 176
+// over the seventeen).
 const SPEC_COST = 200
 const DEFAULT_COST = 100
 
@@ -380,11 +387,11 @@ async function mergeGroup(group: Group, dir: string): Promise<{ at: number; out:
 const mergedGroups = (): Group[] => GROUPS.filter((g) => g.merge !== null && !skipped(g.tags[0]!))
 
 /**
- * Every cut table against its single-process self, on a few pulls a row.
+ * Every cut table against its single-process self, on `ABYSS_RUNS` pulls a row
+ * (the build sets one; the PR that cut them was checked at two).
  *
  * The whole sweep is an hour on a core and cannot be run twice to compare, so
- * this runs each cut table both ways with `ABYSS_RUNS` pulls a row (the build
- * sets it small) and diffs the text. What it covers is what could differ: a
+ * this runs each cut table both ways with `ABYSS_RUNS` pulls a row and diffs the text. What it covers is what could differ: a
  * row's numbers depending on the rows measured before it in the same process,
  * the sum of a cell depending on how its pulls were grouped, and the numbers
  * surviving the trip through a file. Which rows are cut, and where, is the
@@ -436,21 +443,21 @@ async function verify(): Promise<void> {
 
 /**
  * The three knobs that shrink a table. They exist so that the cut tables can be
- * diffed against the uncut ones on a few pulls a row (`ABYSS_VERIFY`), and a
+ * diffed against the uncut ones on `ABYSS_RUNS` pulls a row (one in the build, two by hand; `ABYSS_VERIFY=1`), and a
  * sweep that read one of them would hand the bands a small table that looks
  * like the real one: the header names the pulls, and the bands do not read it.
  * So the only run that may see them is the one that says it is a verification.
  */
 function refuseKnobs(): void {
   const set = ['ABYSS_RUNS', 'ABYSS_SPEC_RUNS', 'ABYSS_SPEC_BOSSES'].filter((n) => (process.env[n] ?? '') !== '')
-  if (set.length > 0 && !process.env.ABYSS_VERIFY) {
+  if (set.length > 0 && process.env.ABYSS_VERIFY !== '1') {
     throw new Error(`${set.join(', ')} shrink the tables and only ABYSS_VERIFY may be run with them; unset them for a sweep`)
   }
 }
 
 async function main(): Promise<void> {
   refuseKnobs()
-  if (process.env.ABYSS_VERIFY) {
+  if (process.env.ABYSS_VERIFY === '1') {
     await verify()
     return
   }
