@@ -839,12 +839,22 @@ async function play(
   }
 
   while (Date.now() < until) {
-    const hud = await d.ask<Hud>('hud()')
-    const hero = await d.ask<{ x: number; y: number } | null>('hero()')
+    // One evaluate, not two. The game keeps ticking between separate calls, so a
+    // `hud()` read a tick before the player died and a `hero()` read a tick after
+    // told two true stories about two different moments (#269).
+    const { hud, hero } = (await d.page.evaluate(
+      `(() => ({ hud: window.__abyss.hud(), hero: window.__abyss.hero() }))()`,
+    )) as { hud: Hud; hero: { x: number; y: number } | null }
     samples++
 
     if (hud.outcome !== 'ongoing') {
       say('fight-over', { outcome: hud.outcome, time: Math.round(hud.time), phase: hud.phase })
+      break
+    }
+    // `hero()` is null for a body that is not standing, so a player who died while
+    // the raid fights on is not a number gone missing.
+    if (hud.me !== null && !hud.me.alive && hero === null && Number.isFinite(hud.me.hp)) {
+      say('player-down', { time: Math.round(hud.time), phase: hud.phase })
       break
     }
     if (!Number.isFinite(hero?.x ?? NaN) || !Number.isFinite(hud.me?.hp ?? NaN)) {
