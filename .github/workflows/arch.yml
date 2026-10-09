@@ -101,6 +101,9 @@ jobs:
       matrix:
         runner: [macos-14, ubuntu-latest]
     runs-on: ${{ matrix.runner }}
+    # macos-14 is red by design (that is the answer this job exists to give);
+    # it must not turn the whole workflow red. The line and summary still record.
+    continue-on-error: ${{ matrix.runner == 'macos-14' }}
     steps:
       - uses: actions/checkout@v4
         with:

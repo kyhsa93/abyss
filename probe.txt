@@ -1,1 +1,0 @@
-ARCHPROBE all arm64/darwin node v22.16.0 hall-pos=2152b13549bed15a hall-facing=8f585be904583abe hall-hp=d37f142df93591b2 battle-pos=056158a0f8f07ba7 battle-facing=6ff0b6081a8fc6f7 battle-hp=d7d7f17ab5c0e2d1 math-sin=887f1ad9f0fb73ce math-cos=4f9592df376c9d70 math-atan2=bee7cfc98e58b262 math-hypot=269ad2f186c04ffe math-pow=c46b7214e47dc407 math-sqrt=5bee6234cc887e9f
