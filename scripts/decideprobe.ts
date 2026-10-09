@@ -20,6 +20,14 @@
  *   judge - X       >= 20   for every rule X that does not look
  *   judge - rotate  >= 10   and what it is worth is not just damage
  *
+ * NOTE: `standNearClean` / `standAway` are position rules for the player's body,
+ * a reference only. They are not #290's `alwaysPass` / `neverPass` (a herald
+ * that decides the handoff, which does not exist yet).
+ *
+ * And for the Crimson Gift, the same seeds paired policy against policy (`rotate - idle`,
+ * `standNearClean - idle`, `standAway - idle`, `standNearClean - standAway`) with two standard
+ * errors of the per-pull differences, and the 80 ceiling no rule may pass (#301 3a, 3b).
+ *
  * Ninety pulls a policy by default. Forty was tried on paper and rejected: the
  * gap between two win rates near one half carries about twenty-two points of
  * noise at forty pulls, which is wider than the line it would be judged by.
@@ -31,6 +39,8 @@
 import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
+import { bossOrNone, livingParty } from '../src/sim/combat'
+import { GIFT_REACH } from '../src/sim/constants'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
 import { autoParty, pickFor, type DifficultyId, type RaidSize } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
@@ -79,8 +89,66 @@ const BASE: Record<string, Policy> = {
   played: (s, _t, pressed) => dodge(s, pressed),
 }
 
+/**
+ * The two position rules, as bodies standing somewhere (#301 3a). A reference
+ * only: not #290's `alwaysPass` / `neverPass`, which are a herald deciding the
+ * handoff.
+ *
+ *
+ * Passing is proximity (`updateGifts` in `boss.ts`): a holder hands the gift to
+ * a clean body within `GIFT_REACH`. What the player controls is where it
+ * stands, so the rules are two places to stand, with the rotation pressed:
+ * beside the nearest clean body, and out past `GIFT_REACH` x 2.5 of all of
+ * them. Rebuilt from #290's 2026-10-03 write-up; the herald that would make
+ * the player's body the one that chooses is #290's, so these are the rules
+ * only, and `decisions.ts` stays empty.
+ */
+const PASS_FAR = GIFT_REACH * 2.5
+const cleanBodies = (s: SimState) => livingParty(s).filter((a) => !a.isPlayer && !s.held.includes(a.id))
+const walk = (dx: number, dy: number, pressed: number[]): PlayerInput => {
+  const d = Math.hypot(dx, dy)
+  return d < 1e-6 ? { moveX: 0, moveY: 0, pressed } : { moveX: dx / d, moveY: dy / d, pressed }
+}
+const PASS_RULES: Record<string, Policy> = {
+  standNearClean: (s, _t, pressed) => {
+    const p = s.actors.find((a) => a.isPlayer)!
+    let best: { x: number; y: number } | undefined
+    let bd = Infinity
+    for (const a of cleanBodies(s)) {
+      const d = Math.hypot(a.pos.x - p.pos.x, a.pos.y - p.pos.y)
+      if (d < bd) {
+        bd = d
+        best = a.pos
+      }
+    }
+    // Inside the reach is beside it.
+    if (!best || bd <= GIFT_REACH / 2) return { moveX: 0, moveY: 0, pressed }
+    return walk(best.x - p.pos.x, best.y - p.pos.y, pressed)
+  },
+  standAway: (s, _t, pressed) => {
+    const p = s.actors.find((a) => a.isPlayer)!
+    let ax = 0
+    let ay = 0
+    let near = Infinity
+    for (const a of cleanBodies(s)) {
+      const d = Math.hypot(p.pos.x - a.pos.x, p.pos.y - a.pos.y)
+      near = Math.min(near, d)
+      if (d < PASS_FAR) {
+        ax += (p.pos.x - a.pos.x) / (d || 1)
+        ay += (p.pos.y - a.pos.y) / (d || 1)
+      }
+    }
+    if (near >= PASS_FAR) return { moveX: 0, moveY: 0, pressed }
+    return walk(ax, ay, pressed)
+  },
+}
+
 const decision = DECISIONS[FIGHT.id]
-const POLICIES: Record<string, Policy> = { ...BASE, ...(decision?.policies ?? { judge: BASE.played! }) }
+const POLICIES: Record<string, Policy> = {
+  ...BASE,
+  ...(FIGHT.id === 'gift' ? PASS_RULES : {}),
+  ...(decision?.policies ?? { judge: BASE.played! }),
+}
 
 interface Pull {
   won: boolean
@@ -93,6 +161,16 @@ interface Pull {
    * toss, not a thing to get better at.
    */
   moments: number
+  /** Crimson bills that landed on the raid: the cast ran out, it was not cut. */
+  crimson: number
+  /** 3c: seconds the player spent `gifted` and `souring`. */
+  giftedSec: number
+  souringSec: number
+  /** 3c: mean over ticks of raiders holding `souring` (player included). */
+  souringRaiders: number
+  /** 3c: at each bill that lands, holders of `gifted` (what the bill charges) and of `souring`, summed over bills. */
+  billGifted: number
+  billSouring: number
 }
 
 /** The aura whose arrival is the decision coming up, per fight. */
@@ -104,11 +182,37 @@ function pull(seed: number, attempt: number, size: RaidSize, diff: DifficultyId,
   const rng = new Rng(seed + attempt * 7919)
   let tick = 0
   let moments = 0
+  let crimson = 0
+  let casting = false
+  let cutBefore = 0
+  let giftedSec = 0
+  let souringSec = 0
+  let souringTicks = 0
+  let souringBodies = 0
+  let billGifted = 0
+  let billSouring = 0
   const marked = new Set<number>()
   const mark = MOMENT[FIGHT.id]
   while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
+    const before = s.time
     step(s, policy(s, tick, rotation(tick)), rng)
     tick++
+    // 3c, read only.
+    const dt = s.time - before
+    const player = s.actors.find((a) => a.isPlayer)!
+    if (player.auras.some((au) => au.id === 'gifted')) giftedSec += dt
+    if (player.auras.some((au) => au.id === 'souring')) souringSec += dt
+    souringTicks++
+    souringBodies += s.actors.filter((a) => a.alive && a.auras.some((au) => au.id === 'souring')).length
+    // A crimson cast that ends without `stopped.crimson` moving was paid.
+    const now = bossOrNone(s)?.castId === 'boss_crimson'
+    if (casting && !now && (s.stopped.crimson ?? 0) === cutBefore) {
+      crimson++
+      billGifted += s.actors.filter((a) => a.alive && a.auras.some((au) => au.id === 'gifted')).length
+      billSouring += s.actors.filter((a) => a.alive && a.auras.some((au) => au.id === 'souring')).length
+    }
+    if (now && !casting) cutBefore = s.stopped.crimson ?? 0
+    casting = now
     if (mark) {
       for (const a of s.actors) {
         const on = a.auras.some((au) => au.id === mark)
@@ -124,19 +228,46 @@ function pull(seed: number, attempt: number, size: RaidSize, diff: DifficultyId,
     died: !me.alive,
     dealt: ((s.tally[me.id]?.damage ?? 0) / Math.max(1, s.time)) * 60,
     moments,
+    crimson,
+    giftedSec,
+    souringSec,
+    souringRaiders: souringBodies / Math.max(1, souringTicks),
+    billGifted: crimson > 0 ? billGifted / crimson : 0,
+    billSouring: crimson > 0 ? billSouring / crimson : 0,
   }
 }
 
 interface Row {
+  /** Per pull, in seed order, so two policies can be compared pull by pull. */
+  wins: number[]
   win: number
   death: number
   dealt: number
   moments: number
+  crimson: number
+  giftedSec: number
+  souringSec: number
+  souringRaiders: number
+  billGifted: number
+  billSouring: number
 }
 
 /** Two standard errors on the gap between two rates over n pulls each. */
 const noise = (a: number, b: number, n: number): number =>
   2 * Math.sqrt((a * (1 - a)) / n + (b * (1 - b)) / n) * 100
+
+/**
+ * The gap A - B over the same seeds, as the mean of the per-pull differences
+ * and two standard errors of that mean. Tighter than `noise` for the same
+ * pulls, because a seed that is hard for A is usually hard for B.
+ */
+const paired = (a: number[], b: number[]): { d: number; e: number } => {
+  const n = a.length
+  const diffs = a.map((x, i) => x - b[i]!)
+  const mean = diffs.reduce((x, y) => x + y, 0) / n
+  const variance = diffs.reduce((x, y) => x + (y - mean) ** 2, 0) / Math.max(1, n - 1)
+  return { d: mean * 100, e: 2 * Math.sqrt(variance / n) * 100 }
+}
 
 const pct = (x: number): string => `${Math.round(x * 100)}`.padStart(4)
 
@@ -151,21 +282,37 @@ for (const [size, diff] of CELLS) {
       let died = 0
       let dealt = 0
       let moments = 0
+      let crimson = 0
+      const diag = { giftedSec: 0, souringSec: 0, souringRaiders: 0, billGifted: 0, billSouring: 0 }
+      const wins: number[] = []
       for (let n = 0; n < PULLS; n++) {
         const r = pull(1000 + n * 137, attempt, size, diff, policy)
+        wins.push(r.won ? 1 : 0)
         if (r.won) won++
         if (r.died) died++
         dealt += r.dealt
         moments += r.moments
+        crimson += r.crimson
+        for (const k of Object.keys(diag) as Array<keyof typeof diag>) diag[k] += r[k]
       }
-      rows[name] = { win: won / PULLS, death: died / PULLS, dealt: dealt / PULLS, moments: moments / PULLS }
+      rows[name] = { wins, win: won / PULLS, death: died / PULLS, dealt: dealt / PULLS, moments: moments / PULLS, crimson: crimson / PULLS,
+        giftedSec: diag.giftedSec / PULLS, souringSec: diag.souringSec / PULLS, souringRaiders: diag.souringRaiders / PULLS,
+        billGifted: diag.billGifted / PULLS, billSouring: diag.billSouring / PULLS }
     }
 
     console.log(`${size} ${diff}, attempt ${attempt + 1}`)
-    console.log('  policy        win%  died%  dealt/min  moments/pull')
+    console.log('  policy          win%  died%  dealt/min  moments/pull  crimson/pull')
     for (const [name, r] of Object.entries(rows)) {
       console.log(
-        `  ${name.padEnd(12)} ${pct(r.win)}  ${pct(r.death)}   ${Math.round(r.dealt).toString().padStart(8)}  ${r.moments.toFixed(1).padStart(8)}`,
+        `  ${name.padEnd(14)} ${pct(r.win)}  ${pct(r.death)}   ${Math.round(r.dealt).toString().padStart(8)}  ${r.moments.toFixed(1).padStart(8)}  ${r.crimson.toFixed(1).padStart(8)}`,
+      )
+    }
+    // 3c, report only: no line, no value changed. Where the player's win% comes from.
+    console.log('  3c diagnostics (means over pulls; report only)')
+    console.log('  policy          me gifted s  me souring s  souring raiders  at bill: gifted  souring')
+    for (const [name, r] of Object.entries(rows)) {
+      console.log(
+        `  ${name.padEnd(14)} ${r.giftedSec.toFixed(1).padStart(11)}  ${r.souringSec.toFixed(1).padStart(12)}  ${r.souringRaiders.toFixed(2).padStart(15)}  ${r.billGifted.toFixed(1).padStart(15)}  ${r.billSouring.toFixed(1).padStart(7)}`,
       )
     }
     const judge = rows.judge!
@@ -173,7 +320,7 @@ for (const [size, diff] of CELLS) {
       const o = rows[other]!
       const d = (judge.win - o.win) * 100
       const e = noise(judge.win, o.win, PULLS)
-      return `  judge - ${other.padEnd(10)} ${d >= 0 ? '+' : ''}${d.toFixed(0).padStart(3)}  ±${e.toFixed(0).padStart(2)}  ` +
+      return `  judge - ${other.padEnd(14)} ${d >= 0 ? '+' : ''}${d.toFixed(0).padStart(3)}  ±${e.toFixed(0).padStart(2)}  ` +
         `${d >= line ? `>= ${line}` : `under ${line}`}`
     }
     console.log(gap('idle', 20))
@@ -182,6 +329,33 @@ for (const [size, diff] of CELLS) {
       console.log(gap(name, 20))
     }
     console.log(gap('rotate', 10))
+
+    // 3a, report only: no line to clear. The same seeds, pair by pair.
+    const pairs: Array<[string, string]> = [
+      ['rotate', 'idle'],
+      ['standNearClean', 'idle'],
+      ['standAway', 'idle'],
+      ['standNearClean', 'standAway'],
+    ]
+    const shown = pairs.filter(([a, b]) => rows[a] && rows[b])
+    if (shown.length > 0) {
+      console.log('  paired, same seeds (report only; position rules, not #290 alwaysPass/neverPass)')
+      for (const [a, b] of shown) {
+        const { d, e } = paired(rows[a]!.wins, rows[b]!.wins)
+        console.log(`  ${`${a} - ${b}`.padEnd(30)} ${d >= 0 ? '+' : ''}${d.toFixed(1).padStart(5)}  ±${e.toFixed(1).padStart(4)}`)
+      }
+    }
+    // 3b, a ceiling and not a sufficient condition: nobody wins past 80, and
+    // `judge` has to stand 20 above the better rule.
+    if (rows.standNearClean && rows.standAway) {
+      // Of the rules, not of `played` or `judge`: those are what has to beat them.
+      const top = Math.max(...Object.entries(rows).filter(([n]) => n === 'rotate' || n === 'standNearClean' || n === 'standAway' || /^cap\d/.test(n)).map(([, r]) => r.win)) * 100
+      const need = Math.max(rows.standNearClean.win, rows.standAway.win) * 100 + 20
+      console.log(
+        `  max rule win ${top.toFixed(0)} ${top <= 80 ? '<= 80' : 'over 80'}   ` +
+          `max(standNearClean, standAway) + 20 = ${need.toFixed(0)}  (the win% judge would need in #290; position-rule reference, not #290's alwaysPass/neverPass)`,
+      )
+    }
     console.log('')
   }
 }

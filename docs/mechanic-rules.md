@@ -518,6 +518,8 @@ not be used to argue that a mechanic is alive, only to explain why it is not.
   three unrelated verdicts. The Warden itself came off the roster in `fcefd05`;
   see *the five names in these notes* below.
 - **Icon colours must not collide.** rendercheck enforces it.
+- **A cast that plays the bill is not stoppable.** Do not put it in `STOPPABLE` (`sim/ai.ts`): erase the value and the decision priced by it is erased too (#301; same logic as the slam and the cones, which are left out).
+  - The `standNearClean` / `standAway` rows `decideprobe gift` prints are position rules for the player's body, a reference only; they are not #290's `alwaysPass` / `neverPass` (a herald that decides the handoff), and 3b's 80 ceiling is carried to #290's gate 0, not met here.
 - **Removing a mechanic from a boss** breaks checks that assumed that boss
   owned two particular things at once.
 - **Do not chase a peak in a tuning sweep.** A 60-run sweep showed 32pp at one

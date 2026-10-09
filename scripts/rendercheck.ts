@@ -1042,6 +1042,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // at a heroic twenty-five is a mechanic nothing throws at all.
 {
   const seen = new Set<string>()
+  const cut: Record<string, number> = {}
   let maxPhase = 1
   for (let i = 0; i < ENCOUNTERS.length; i++) {
     const s = pulled(1000 + i * 137, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', i)
@@ -1166,6 +1167,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       // that turned. Without this line an interrupt does not make a mechanic
       // quieter, it makes it never have happened.
       for (const id of Object.keys(s.stopped)) seen.add(id)
+      for (const [id, n] of Object.entries(s.stopped)) cut[id] = Math.max(cut[id] ?? 0, n)
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
@@ -1194,6 +1196,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
     `  mechanics fired: ${[...seen].sort().join(', ')} (reached phase ${maxPhase})`,
   )
   if (missing.length > 0) throw new Error(`mechanics never fired: ${missing.join(', ')}`)
+  // The crimson is the gift's bill, so it is never cut and the frostbolt is (#301).
+  expect(
+    'the frostbolt is stopped and the crimson never is',
+    (cut.frostbolt ?? 0) > 0 && (cut.crimson ?? 0) === 0,
+    `stopped: frostbolt ${cut.frostbolt ?? 0}, crimson ${cut.crimson ?? 0}`,
+  )
 }
 
 // --- a boss must wear its phase in its own colour --------------------------

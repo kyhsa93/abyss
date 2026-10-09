@@ -699,21 +699,23 @@ every skill line -- does the line I assigned to this class actually carry that
 class's mask? -- found the one that had been leaking druid spells into the
 paladin's list.
 
-**Which casts a raid may stop.** Five things the bosses cast, and only two of
-them are a decision:
+**Which casts a raid may stop.** Five things the bosses cast, and only one of
+them is a decision:
 
 | cast | what it is | stoppable |
 | --- | --- | --- |
 | `boss_slam` | the tank's hit, and the mark's share of it | no — it is what the tank's brace answers |
 | `boss_spray`, `boss_breath` | a cone that detonates | no — answered by standing elsewhere |
 | `boss_frostbolt` | a bolt at whoever is holding threat | **yes** |
-| `boss_crimson` | a bill on the whole raid | **yes** |
+| `boss_crimson` | a bill on the whole raid | no — it is the price of the gift, and a price that can be cut is never paid (#301) |
+
+(`decideprobe gift` prints `standNearClean` / `standAway` rows: position rules for the player's body, a reference only and not #290's `alwaysPass` / `neverPass`.)
 
 Named rather than "anything with a cast bar". Seven of nine classes carry an
 interrupt, so a raid told to stop everything stops everything, and every
 mechanic in the building becomes a cooldown rotation. Measured on one pull
-each: two of seven casts stopped on the second fight, six of ten on the
-eighth.
+each (with the crimson still in the set): two of seven casts stopped on the
+second fight, six of ten on the eighth.
 
 **And a mechanic the raid answered is not a mechanic that never happened.**
 Stopping those two casts turned `rendercheck`'s mechanic sweep red with

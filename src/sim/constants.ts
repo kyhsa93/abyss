@@ -1757,8 +1757,8 @@ export const FLIGHT_WARNING = 5
  * this one says every doubling is on the bill, so how many to run is a
  * decision the raid makes and then pays for on a thirty-three second clock.
  */
-export const CRIMSON_BASE = 420
-export const CRIMSON_PER_GIFT = 230
+export const CRIMSON_BASE = 340
+export const CRIMSON_PER_GIFT = 200
 export const CRIMSON_CAST = readable(2.2)
 
 // --- the one you save, whose bar goes the other way ------------------------
