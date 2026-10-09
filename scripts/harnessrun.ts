@@ -73,6 +73,9 @@ const SHARDS = [
   // can make finish sooner is the one that decides the wall clock.
   ...ENCOUNTERS.map((_, i) => `reward:${i}`),
   'bg',
+  // Last, so every piece before it keeps its number and its bytes. A shard a
+  // boss: the table is 120 pulls a boss at 10-man heroic.
+  ...ENCOUNTERS.map((_, i) => `crisis:${i}`),
 ]
 
 /**
