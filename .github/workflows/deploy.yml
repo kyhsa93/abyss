@@ -77,6 +77,28 @@ jobs:
       # something run by hand. It answers in seconds.
       - run: npm run dungeoncheck
       - run: npm run touchcheck
+      # Every table of the sweep that is cut into pieces has to be the table a
+      # single process prints. The full sweep is an hour on a core and cannot
+      # be run twice here, so this runs each cut table both ways on a slice of
+      # it -- `ABYSS_RUNS` pulls a row, one boss and one pull of each spec --
+      # and diffs the text. What the slice covers is what could differ: a
+      # row's numbers depending on the rows before it in the same process, a
+      # size cell's sum depending on how its pulls were grouped, and the
+      # numbers surviving the trip through a file. The whole sweep is diffed
+      # against a single run by hand when this code changes (PR #336).
+      #
+      # Here and not in `balance`, because nothing in it depends on the pieces:
+      # in `balance` it was nineteen seconds on the path that ends the run.
+      - name: Verify cut tables match harness
+        env:
+          ABYSS_VERIFY: 1
+          ABYSS_RUNS: 1
+          ABYSS_SPEC_RUNS: 1
+          ABYSS_SPEC_BOSSES: 1
+        run: |
+          npx esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error
+          npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
+          node node_modules/.cache/harnessrun.mjs
 
   # Two minutes since the spec sweep came out of it. Its own job rather than
   # folded back into `checks`, so the second-long ones can still go red first.
@@ -93,20 +115,27 @@ jobs:
 
   # The sweep, cut into pieces and run on a machine each.
   #
-  # Fourteen runners of four cores. There are ninety-eight shards (the spec
-  # table is seventeen of them, one a spec) and they are not evenly expensive:
-  # `boss` and `composition` are eight minutes each and a spec is under two.
-  # So they are dealt by cost, heaviest first onto the lightest runner, from the
-  # table in `scripts/harnessrun.ts`, rather than round-robin. Each writes its
-  # shards as numbered files and hands them over; the `balance` job pastes them
-  # back in number order. The spec rows are not parts: they go in their own
-  # artifact and are merged into one part there.
+  # Sixteen runners of four cores, which with `checks`, `render` and `build`
+  # is nineteen jobs at once against a limit of twenty. There are a hundred and
+  # forty-eight shards and none is longer than about three minutes: the long
+  # tables are cut until the widest piece is a spec (a spec is the widest at
+  # about two hundred seconds on the slow kind of runner), a row of the
+  # composition and boss tables, a mechanic, a drive, a map, or a handful of
+  # pulls of a big size cell. The widest thing in a chunk is what the run waits
+  # for, so a table that is a few long shards is cut until it is not -- `boss`
+  # and `composition` were eight minutes each and the run was as long as them.
+  # The shards are dealt by cost, heaviest first onto the lightest runner, from
+  # the table in `scripts/harnessrun.ts`, rather than round-robin. Each writes
+  # its shards as numbered files and hands them over; the `balance` job pastes
+  # them back in number order. The spec rows and the pulls of a cut size cell
+  # are not parts: they go in their own artifact and are merged into one part
+  # per table there. 115 parts, 148 shards, 48 raw rows.
   harness:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        chunk: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        chunk: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -119,7 +148,7 @@ jobs:
       # What this runner is, in the log and the job summary. Two runs of the
       # same commit took 916 and 1651 seconds on the spec shard and nothing in
       # a log said why; this is what lets the next one be explained. The loop is
-      # a fixed amount of work (about five seconds on a laptop), so the
+      # a fixed amount of work (about a second and a half on a laptop), so the
       # milliseconds it takes are comparable between runners.
       - name: Runner profile
         run: |
@@ -129,7 +158,7 @@ jobs:
             echo "nproc: $(nproc)"
             grep -m1 'model name' /proc/cpuinfo || true
             echo "loadavg: $(cat /proc/loadavg)"
-            node -e 'const t=Date.now();let x=1;for(let i=0;i<8e8;i++){x=(Math.imul(x,1664525)+1013904223)|0}console.log("calibration loop (8e8 iterations): "+(Date.now()-t)+" ms")'
+            node -e 'const t=Date.now();let x=1;for(let i=0;i<2e8;i++){x=(Math.imul(x,1664525)+1013904223)|0}console.log("calibration loop (2e8 iterations): "+(Date.now()-t)+" ms")'
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
       # Nothing is skipped. `spec` was, while `no spec is a trap` sat in
@@ -140,22 +169,22 @@ jobs:
       # together with suspending that band.
       - run: node node_modules/.cache/harnessrun.mjs
         env:
-          ABYSS_CHUNKS: 14
+          ABYSS_CHUNKS: 16
           ABYSS_CHUNK: ${{ matrix.chunk }}
           ABYSS_PARTS: parts
-          ABYSS_SPEC_ROWS: spec-rows
+          ABYSS_ROWS: rows
           ABYSS_CRISIS_SEEDS: ${{ inputs.crisis_seeds }}
       - uses: actions/upload-artifact@v4
         with:
           name: harness-${{ matrix.chunk }}
           path: parts
           retention-days: 1
-      # Raw spec rows, not parts: a separate artifact so `parts/` holds nothing
-      # but the pieces of the file. A runner dealt no spec shard has none.
+      # Raw rows, not parts: a separate artifact so `parts/` holds nothing but
+      # the pieces of the file. A runner dealt none has none.
       - uses: actions/upload-artifact@v4
         with:
-          name: spec-rows-${{ matrix.chunk }}
-          path: spec-rows
+          name: rows-${{ matrix.chunk }}
+          path: rows
           if-no-files-found: ignore
           retention-days: 1
 
@@ -177,40 +206,20 @@ jobs:
           path: parts
       - uses: actions/download-artifact@v4
         with:
-          pattern: spec-rows-*
+          pattern: rows-*
           merge-multiple: true
-          path: spec-rows
+          path: rows
       - run: npx esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error
       - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
-      # The spec table is seventeen rows from seventeen shards. Printed here by
-      # the same code a single process prints it with, into the slot the single
-      # table used to have, so `cat` below reads one file per piece as before.
-      - name: Merge spec rows
+      # The spec table is seventeen rows from seventeen shards, and the biggest
+      # size cells are a few pieces each. Printed here by the same code a single
+      # process prints them with, into the slot the single table used to have,
+      # so `cat` below reads one file per table as before.
+      - name: Merge raw rows
         run: |
           raw=$(ABYSS_COUNT_RAW=1 node node_modules/.cache/harnessrun.mjs)
-          test "$(ls spec-rows | wc -l)" -eq "$raw" || { echo "$(ls spec-rows | wc -l) spec rows came back, wanted $raw"; exit 1; }
-          ABYSS_SPEC_MERGE=1 ABYSS_PARTS=parts ABYSS_SPEC_ROWS=spec-rows node node_modules/.cache/harnessrun.mjs
-      # The split table has to be the single-process table. The full one is
-      # a quarter of an hour or more on a core and cannot be run here, so this runs both ways
-      # on a slice of it -- one pull of the first boss for each of the seventeen
-      # specs -- and diffs them. What it covers is what could differ: a spec's
-      # numbers depending on the specs measured before it in the same process,
-      # and the rows surviving the trip through a file. The full table is
-      # diffed against a single run by hand when this code changes (PR #336).
-      - name: Verify spec parts match harness
-        env:
-          ABYSS_SPEC_RUNS: 1
-          ABYSS_SPEC_BOSSES: 1
-        run: |
-          mkdir -p verify-rows
-          ABYSS_SHARD=spec node node_modules/.cache/harness.mjs > verify-single.txt 2>/dev/null &
-          single=$!
-          seq 0 16 | xargs -P 3 -I{} sh -c 'ABYSS_SHARD=spec:{} node node_modules/.cache/harness.mjs > verify-rows/spec-$(printf %02d {}).txt 2>/dev/null'
-          ABYSS_SHARD=spec:merge ABYSS_SPEC_ROWS=verify-rows node node_modules/.cache/harness.mjs > verify-split.txt
-          wait $single
-          test "$(grep -c '^spec: ' verify-single.txt)" -eq 3 || { echo "the single spec table has no three blocks"; exit 1; }
-          diff verify-single.txt verify-split.txt || { echo "the split spec table is not the single one"; exit 1; }
-          echo "spec: the split table equals the single-process table (1 boss x 1 pull, 17 specs)"
+          test "$(ls rows | wc -l)" -eq "$raw" || { echo "$(ls rows | wc -l) raw rows came back, wanted $raw"; exit 1; }
+          ABYSS_MERGE=1 ABYSS_PARTS=parts ABYSS_ROWS=rows node node_modules/.cache/harnessrun.mjs
       # Number order, which is the order a single process would have printed
       # them in. `cat` on a sorted glob is the whole of the reassembly, and it
       # is deliberately that simple: anything cleverer here is a second place
@@ -228,7 +237,7 @@ jobs:
       - run: |
           want=$(ABYSS_COUNT=1 node node_modules/.cache/harnessrun.mjs)
           have=$(ls parts/part-*.txt | wc -l)
-          test "$have" -ge "$want" || { echo "only $have parts came back, wanted $want"; exit 1; }
+          test "$have" -eq "$want" || { echo "only $have parts came back, wanted $want"; exit 1; }
           test "$(ls parts | wc -l)" -eq "$have" || { echo "parts/ holds something that is not a part"; exit 1; }
           cat $(ls parts/part-*.txt | sort) > harness.txt
           grep -q '^battleground' harness.txt || { echo "the battleground table is missing"; exit 1; }
