@@ -61,9 +61,14 @@ jobs:
           npm run archprobe | tee probe.txt
           arm="$(grep 'ARCHPROBE all' probe.txt | sed 's/^ARCHPROBE all [^ ]* node [^ ]* //')"
           x64="${{ needs.x64.outputs.line }}"
-          if [ "$arm" = "$x64" ]; then verdict=SAME; else verdict=DIFFERENT; fi
-          echo "ARCHPROBE verdict $verdict | x64: $x64 | arm64: $arm"
-          { echo '### arm64'; echo '```'; cat probe.txt; echo "ARCHPROBE verdict $verdict | x64: $x64 | arm64: $arm"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # Two things are compared: the sim's walk, and the library maths alone.
+          # They can part separately (the maths can differ where the sim never calls it).
+          part() { echo "$1" | sed -E "s/.*$2 ([0-9a-f]+).*/\1/"; }
+          [ "$(part "$arm" hash)" = "$(part "$x64" hash)" ] && sim=SAME || sim=DIFFERENT
+          [ "$(part "$arm" math)" = "$(part "$x64" math)" ] && lib=SAME || lib=DIFFERENT
+          line="ARCHPROBE verdict sim=$sim math=$lib | x64: $x64 | arm64: $arm"
+          echo "$line"
+          { echo '### arm64'; echo '```'; cat probe.txt; echo "$line"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       # The results are what is wanted here, so each runs even if the one
       # before it failed, and the job is red if any did.
       - name: dungeoncheck (arm64)
