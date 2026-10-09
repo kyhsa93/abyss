@@ -20,6 +20,10 @@
  *   judge - X       >= 20   for every rule X that does not look
  *   judge - rotate  >= 10   and what it is worth is not just damage
  *
+ * And for the Crimson Gift, the same seeds paired policy against policy (`rotate - idle`,
+ * `alwaysPass - idle`, `neverPass - idle`, `alwaysPass - neverPass`) with two standard
+ * errors of the per-pull differences, and the 80 ceiling no rule may pass (#301 3a, 3b).
+ *
  * Ninety pulls a policy by default. Forty was tried on paper and rejected: the
  * gap between two win rates near one half carries about twenty-two points of
  * noise at forty pulls, which is wider than the line it would be judged by.
@@ -31,7 +35,8 @@
 import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
-import { bossOrNone } from '../src/sim/combat'
+import { bossOrNone, livingParty } from '../src/sim/combat'
+import { GIFT_REACH } from '../src/sim/constants'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
 import { autoParty, pickFor, type DifficultyId, type RaidSize } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
@@ -80,8 +85,63 @@ const BASE: Record<string, Policy> = {
   played: (s, _t, pressed) => dodge(s, pressed),
 }
 
+/**
+ * The two rules a handoff has to beat, as bodies standing somewhere (#301 3a).
+ *
+ * Passing is proximity (`updateGifts` in `boss.ts`): a holder hands the gift to
+ * a clean body within `GIFT_REACH`. What the player controls is where it
+ * stands, so the rules are two places to stand, with the rotation pressed:
+ * beside the nearest clean body, and out past `GIFT_REACH` x 2.5 of all of
+ * them. Rebuilt from #290's 2026-10-03 write-up; the herald that would make
+ * the player's body the one that chooses is #290's, so these are the rules
+ * only, and `decisions.ts` stays empty.
+ */
+const PASS_FAR = GIFT_REACH * 2.5
+const cleanBodies = (s: SimState) => livingParty(s).filter((a) => !a.isPlayer && !s.held.includes(a.id))
+const walk = (dx: number, dy: number, pressed: number[]): PlayerInput => {
+  const d = Math.hypot(dx, dy)
+  return d < 1e-6 ? { moveX: 0, moveY: 0, pressed } : { moveX: dx / d, moveY: dy / d, pressed }
+}
+const PASS_RULES: Record<string, Policy> = {
+  alwaysPass: (s, _t, pressed) => {
+    const p = s.actors.find((a) => a.isPlayer)!
+    let best: { x: number; y: number } | undefined
+    let bd = Infinity
+    for (const a of cleanBodies(s)) {
+      const d = Math.hypot(a.pos.x - p.pos.x, a.pos.y - p.pos.y)
+      if (d < bd) {
+        bd = d
+        best = a.pos
+      }
+    }
+    // Inside the reach is beside it.
+    if (!best || bd <= GIFT_REACH / 2) return { moveX: 0, moveY: 0, pressed }
+    return walk(best.x - p.pos.x, best.y - p.pos.y, pressed)
+  },
+  neverPass: (s, _t, pressed) => {
+    const p = s.actors.find((a) => a.isPlayer)!
+    let ax = 0
+    let ay = 0
+    let near = Infinity
+    for (const a of cleanBodies(s)) {
+      const d = Math.hypot(p.pos.x - a.pos.x, p.pos.y - a.pos.y)
+      near = Math.min(near, d)
+      if (d < PASS_FAR) {
+        ax += (p.pos.x - a.pos.x) / (d || 1)
+        ay += (p.pos.y - a.pos.y) / (d || 1)
+      }
+    }
+    if (near >= PASS_FAR) return { moveX: 0, moveY: 0, pressed }
+    return walk(ax, ay, pressed)
+  },
+}
+
 const decision = DECISIONS[FIGHT.id]
-const POLICIES: Record<string, Policy> = { ...BASE, ...(decision?.policies ?? { judge: BASE.played! }) }
+const POLICIES: Record<string, Policy> = {
+  ...BASE,
+  ...(FIGHT.id === 'gift' ? PASS_RULES : {}),
+  ...(decision?.policies ?? { judge: BASE.played! }),
+}
 
 interface Pull {
   won: boolean
@@ -140,6 +200,8 @@ function pull(seed: number, attempt: number, size: RaidSize, diff: DifficultyId,
 }
 
 interface Row {
+  /** Per pull, in seed order, so two policies can be compared pull by pull. */
+  wins: number[]
   win: number
   death: number
   dealt: number
@@ -150,6 +212,19 @@ interface Row {
 /** Two standard errors on the gap between two rates over n pulls each. */
 const noise = (a: number, b: number, n: number): number =>
   2 * Math.sqrt((a * (1 - a)) / n + (b * (1 - b)) / n) * 100
+
+/**
+ * The gap A - B over the same seeds, as the mean of the per-pull differences
+ * and two standard errors of that mean. Tighter than `noise` for the same
+ * pulls, because a seed that is hard for A is usually hard for B.
+ */
+const paired = (a: number[], b: number[]): { d: number; e: number } => {
+  const n = a.length
+  const diffs = a.map((x, i) => x - b[i]!)
+  const mean = diffs.reduce((x, y) => x + y, 0) / n
+  const variance = diffs.reduce((x, y) => x + (y - mean) ** 2, 0) / Math.max(1, n - 1)
+  return { d: mean * 100, e: 2 * Math.sqrt(variance / n) * 100 }
+}
 
 const pct = (x: number): string => `${Math.round(x * 100)}`.padStart(4)
 
@@ -165,15 +240,17 @@ for (const [size, diff] of CELLS) {
       let dealt = 0
       let moments = 0
       let crimson = 0
+      const wins: number[] = []
       for (let n = 0; n < PULLS; n++) {
         const r = pull(1000 + n * 137, attempt, size, diff, policy)
+        wins.push(r.won ? 1 : 0)
         if (r.won) won++
         if (r.died) died++
         dealt += r.dealt
         moments += r.moments
         crimson += r.crimson
       }
-      rows[name] = { win: won / PULLS, death: died / PULLS, dealt: dealt / PULLS, moments: moments / PULLS, crimson: crimson / PULLS }
+      rows[name] = { wins, win: won / PULLS, death: died / PULLS, dealt: dealt / PULLS, moments: moments / PULLS, crimson: crimson / PULLS }
     }
 
     console.log(`${size} ${diff}, attempt ${attempt + 1}`)
@@ -197,6 +274,33 @@ for (const [size, diff] of CELLS) {
       console.log(gap(name, 20))
     }
     console.log(gap('rotate', 10))
+
+    // 3a, report only: no line to clear. The same seeds, pair by pair.
+    const pairs: Array<[string, string]> = [
+      ['rotate', 'idle'],
+      ['alwaysPass', 'idle'],
+      ['neverPass', 'idle'],
+      ['alwaysPass', 'neverPass'],
+    ]
+    const shown = pairs.filter(([a, b]) => rows[a] && rows[b])
+    if (shown.length > 0) {
+      console.log('  paired, same seeds (report only)')
+      for (const [a, b] of shown) {
+        const { d, e } = paired(rows[a]!.wins, rows[b]!.wins)
+        console.log(`  ${`${a} - ${b}`.padEnd(24)} ${d >= 0 ? '+' : ''}${d.toFixed(1).padStart(5)}  ±${e.toFixed(1).padStart(4)}`)
+      }
+    }
+    // 3b, a ceiling and not a sufficient condition: nobody wins past 80, and
+    // `judge` has to stand 20 above the better rule.
+    if (rows.alwaysPass && rows.neverPass) {
+      // Of the rules, not of `played` or `judge`: those are what has to beat them.
+      const top = Math.max(...Object.entries(rows).filter(([n]) => n === 'rotate' || n.endsWith('Pass') || /^cap\d/.test(n)).map(([, r]) => r.win)) * 100
+      const need = Math.max(rows.alwaysPass.win, rows.neverPass.win) * 100 + 20
+      console.log(
+        `  max rule win ${top.toFixed(0)} ${top <= 80 ? '<= 80' : 'over 80'}   ` +
+          `max(alwaysPass, neverPass) + 20 = ${need.toFixed(0)}  (the win% judge needs in #290)`,
+      )
+    }
     console.log('')
   }
 }
