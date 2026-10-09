@@ -2885,20 +2885,26 @@ function mayTaunt(s: SimState, actor: Actor): boolean {
 }
 
 /**
- * The casts a raid is allowed to stop, and the two it is not.
+ * The one cast a raid is allowed to stop.
  *
- * Five things the bosses cast and only two of them are a decision. The slam
+ * Five things the bosses cast and only one of them is a decision. The slam
  * is what the tank's brace answers -- stopping it would delete the mechanic
  * the fight spends its whole first minute teaching -- and the two cones are
- * answered by standing somewhere else. What is left is a bolt at one body and
- * a bill on the whole raid, and both are worth a global nobody has to spend.
+ * answered by standing somewhere else. What is left is a bolt at one body,
+ * which is worth a global nobody has to spend.
+ *
+ * The bill on the whole raid was in this set and is not (#301). It is the only
+ * value in the Crimson Gift that charges for passing the gift on, so a raid
+ * that can cut it has never been billed: measured, `CRIMSON_PER_GIFT` at 230,
+ * 460 and 690 moved no policy's win rate by a point. A cast that plays the part
+ * of the bill is not stoppable -- cut it and the decision it prices goes too.
  *
  * Named rather than "anything with a cast bar" because seven of the nine
  * classes carry an interrupt: told to stop everything, a raid would stop
  * everything, and every mechanic in the building would become a cooldown
  * rotation.
  */
-const STOPPABLE = new Set(['boss_frostbolt', 'boss_crimson'])
+const STOPPABLE = new Set(['boss_frostbolt'])
 
 /**
  * Whether this body has an interrupt and something worth spending it on.

@@ -31,6 +31,7 @@
 import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
+import { bossOrNone } from '../src/sim/combat'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
 import { autoParty, pickFor, type DifficultyId, type RaidSize } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
@@ -93,6 +94,8 @@ interface Pull {
    * toss, not a thing to get better at.
    */
   moments: number
+  /** Crimson bills that landed on the raid: the cast ran out, it was not cut. */
+  crimson: number
 }
 
 /** The aura whose arrival is the decision coming up, per fight. */
@@ -104,11 +107,19 @@ function pull(seed: number, attempt: number, size: RaidSize, diff: DifficultyId,
   const rng = new Rng(seed + attempt * 7919)
   let tick = 0
   let moments = 0
+  let crimson = 0
+  let casting = false
+  let cutBefore = 0
   const marked = new Set<number>()
   const mark = MOMENT[FIGHT.id]
   while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
     step(s, policy(s, tick, rotation(tick)), rng)
     tick++
+    // A crimson cast that ends without `stopped.crimson` moving was paid.
+    const now = bossOrNone(s)?.castId === 'boss_crimson'
+    if (casting && !now && (s.stopped.crimson ?? 0) === cutBefore) crimson++
+    if (now && !casting) cutBefore = s.stopped.crimson ?? 0
+    casting = now
     if (mark) {
       for (const a of s.actors) {
         const on = a.auras.some((au) => au.id === mark)
@@ -124,6 +135,7 @@ function pull(seed: number, attempt: number, size: RaidSize, diff: DifficultyId,
     died: !me.alive,
     dealt: ((s.tally[me.id]?.damage ?? 0) / Math.max(1, s.time)) * 60,
     moments,
+    crimson,
   }
 }
 
@@ -132,6 +144,7 @@ interface Row {
   death: number
   dealt: number
   moments: number
+  crimson: number
 }
 
 /** Two standard errors on the gap between two rates over n pulls each. */
@@ -151,21 +164,23 @@ for (const [size, diff] of CELLS) {
       let died = 0
       let dealt = 0
       let moments = 0
+      let crimson = 0
       for (let n = 0; n < PULLS; n++) {
         const r = pull(1000 + n * 137, attempt, size, diff, policy)
         if (r.won) won++
         if (r.died) died++
         dealt += r.dealt
         moments += r.moments
+        crimson += r.crimson
       }
-      rows[name] = { win: won / PULLS, death: died / PULLS, dealt: dealt / PULLS, moments: moments / PULLS }
+      rows[name] = { win: won / PULLS, death: died / PULLS, dealt: dealt / PULLS, moments: moments / PULLS, crimson: crimson / PULLS }
     }
 
     console.log(`${size} ${diff}, attempt ${attempt + 1}`)
-    console.log('  policy        win%  died%  dealt/min  moments/pull')
+    console.log('  policy        win%  died%  dealt/min  moments/pull  crimson/pull')
     for (const [name, r] of Object.entries(rows)) {
       console.log(
-        `  ${name.padEnd(12)} ${pct(r.win)}  ${pct(r.death)}   ${Math.round(r.dealt).toString().padStart(8)}  ${r.moments.toFixed(1).padStart(8)}`,
+        `  ${name.padEnd(12)} ${pct(r.win)}  ${pct(r.death)}   ${Math.round(r.dealt).toString().padStart(8)}  ${r.moments.toFixed(1).padStart(8)}  ${r.crimson.toFixed(1).padStart(8)}`,
       )
     }
     const judge = rows.judge!
