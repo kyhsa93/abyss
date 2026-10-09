@@ -24,6 +24,7 @@ import {
 import type { PlayerInput, SimState } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { boss as bossOf } from '../src/sim/combat'
+import { BG_DRIVE_COUNT, BOSS_PIECES, COMPOSITION_ROWS, REWARD_DRIVE_COUNT, SIZE_PIECES, rowFile } from './shardplan'
 
 /** Crude stand-in for a competent human: run out of any puddle, else stand still. */
 function playerInput(s: SimState, pressed: number[]): PlayerInput {
@@ -236,6 +237,76 @@ const SHARD = process.env.ABYSS_SHARD ?? ''
 const want = (tag: string): boolean =>
   SHARD === '' || SHARD === tag || tag.startsWith(`${SHARD}:`)
 
+/**
+ * A ceiling on the pulls of every table that is cut into pieces, for one
+ * purpose: proving a cut table is the uncut one. The whole of them is an hour
+ * on a core and cannot be run twice to compare, so `ABYSS_VERIFY` (in
+ * `harnessrun.ts`) runs both ways with `ABYSS_RUNS` pulls a row (the build sets one, a person checking by hand
+ * two) and diffs the text. The
+ * headers print the real number of pulls, so a table made this way says so.
+ * Unset, or not a whole number of at least one, is every pull -- which is what
+ * a build runs. Nothing else may set it.
+ */
+const RUNS_CAP = (() => {
+  const n = Number(process.env.ABYSS_RUNS ?? '')
+  return Number.isInteger(n) && n >= 1 ? n : Infinity
+})()
+const capped = (n: number): number => Math.min(n, RUNS_CAP)
+
+/**
+ * Whether this run is that tag or anything inside it: `want` for a tag the run
+ * is a parent of, and also for a tag the run is a piece of (`reward:6:1` is
+ * inside `reward:6`).
+ */
+const touches = (tag: string): boolean => want(tag) || SHARD.startsWith(`${tag}:`)
+
+/**
+ * The pulls of a row that is cut by pull, as numbers, in the order a single
+ * process makes them -- or `null` when this run was one piece of the row and
+ * has printed its share instead.
+ *
+ * A row that is an average of its pulls cannot be pasted back with `cat`, and
+ * adding partial sums is not adding the pulls: float addition is not
+ * associative, and the row's `toFixed` would one day land on the other side of
+ * a rounding. So a piece (`size:6:25:normal:2`) prints the raw numbers of every
+ * `pieces`th pull (`index n n n`, one line a pull, JS number strings, which
+ * round-trip exactly), `<tag>:merge` reads all of them back, and the caller
+ * adds them in pull order -- the order the single process adds them in. Pulls
+ * are dealt round-robin because the later attempts are not the earlier ones'
+ * length.
+ */
+function pullsOf(tag: string, count: number, pieces: number, pull: (at: number) => number[]): number[][] | null {
+  const rest = SHARD.startsWith(`${tag}:`) ? SHARD.slice(tag.length + 1) : ''
+  const piece = /^\d+$/.test(rest) ? Number(rest) : null
+  if (piece !== null && (pieces === 0 || piece >= pieces)) throw new Error(`${tag} has no piece ${piece}`)
+  if (rest === 'merge' && pieces === 0) throw new Error(`${tag} is not cut into pieces`)
+  const all = new Array<number[]>(count)
+  if (rest === 'merge') {
+    for (let k = 0; k < pieces; k++) {
+      const file = resolve(process.cwd(), process.env.ABYSS_ROWS ?? 'rows', rowFile(`${tag}:${k}`))
+      for (const line of readFileSync(file, 'utf8').split('\n').filter((l) => l !== '')) {
+        const nums = line.split(' ').map(Number)
+        const at = nums[0]!
+        if (nums.some((v) => !Number.isFinite(v)) || !(at >= 0 && at < count) || all[at] !== undefined) {
+          throw new Error(`${file} holds a pull that is not numbers or is counted twice: ${line}`)
+        }
+        all[at] = nums.slice(1)
+      }
+    }
+  } else {
+    for (let at = 0; at < count; at++) {
+      if (piece !== null && at % pieces !== piece) continue
+      all[at] = pull(at)
+    }
+    if (piece !== null) {
+      process.stdout.write(all.flatMap((nums, at) => (nums === undefined ? [] : [`${at} ${nums.join(' ')}\n`])).join(''))
+      return null
+    }
+  }
+  for (let at = 0; at < count; at++) if (all[at] === undefined) throw new Error(`${tag} came back with pull ${at} missing`)
+  return all
+}
+
 const ATTEMPTS = [0, 4, 8]
 
 /** Compositions a player might actually build, including bad ones. */
@@ -307,9 +378,17 @@ const PARTIES: Array<{ label: string; party: Pick[] }> = [
   },
 ]
 
-const RUNS = 60
-if (want('composition')) console.log('composition            ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime')
-if (want('composition')) for (const { label, party } of PARTIES) {
+const RUNS = capped(60)
+// A shard a row (`composition:3`), and `composition` still prints all of them:
+// the header belongs to the first row's shard, and a row reads nothing from the
+// one above it, so the pieces paste back with `cat`.
+if (PARTIES.length !== COMPOSITION_ROWS) {
+  throw new Error(`scripts/shardplan.ts says ${COMPOSITION_ROWS} compositions and there are ${PARTIES.length}`)
+}
+if (want('composition:0')) console.log('composition            ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime')
+for (let row = 0; row < PARTIES.length; row++) {
+  if (!want(`composition:${row}`)) continue
+  const { label, party } = PARTIES[row]!
   const cells: string[] = []
   let time = 0
   let total = 0
@@ -332,24 +411,32 @@ if (want('composition')) for (const { label, party } of PARTIES) {
 // the same party rather than assumed to inherit the first one's numbers. The
 // mechanic columns are what says they are actually different fights: a boss
 // whose puddle count and raid damage match the last one is a reskin.
-const BOSS_RUNS = 40
-if (want('boss')) console.log('\nboss                   ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  enrage%')
-if (want('boss')) for (let i = 0; i < ENCOUNTERS.length; i++) {
+const BOSS_RUNS = capped(40)
+// A shard a boss (`boss:3`), cut the way the composition table is, and the
+// longest of them cut again by pull.
+if (want('boss:0')) console.log('\nboss                   ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  enrage%')
+for (let i = 0; i < ENCOUNTERS.length; i++) {
+  if (!touches(`boss:${i}`)) continue
+  const pulls = pullsOf(`boss:${i}`, ATTEMPTS.length * BOSS_RUNS, BOSS_PIECES[i] ?? 0, (at) => {
+    const r = run(1000 + (at % BOSS_RUNS) * 137, ATTEMPTS[Math.floor(at / BOSS_RUNS)]!, PARTIES[0]!.party, 'normal', i)
+    return [r.outcome === 'victory' ? 1 : 0, r.outcome === 'enrage' ? 1 : 0, r.time]
+  })
+  if (pulls === null) continue
   const cells: string[] = []
   let time = 0
   let total = 0
   let enraged = 0
-  for (const attempt of ATTEMPTS) {
+  ATTEMPTS.forEach((_, a) => {
     let wins = 0
     for (let n = 0; n < BOSS_RUNS; n++) {
-      const r = run(1000 + n * 137, attempt, PARTIES[0]!.party, 'normal', i)
-      if (r.outcome === 'victory') wins++
-      if (r.outcome === 'enrage') enraged++
-      time += r.time
+      const [won, enrage, took] = pulls[a * BOSS_RUNS + n]!
+      if (won === 1) wins++
+      if (enrage === 1) enraged++
+      time += took!
       total++
     }
     cells.push(`${Math.round((wins / BOSS_RUNS) * 100)}%`.padEnd(9))
-  }
+  })
   console.log(
     ENCOUNTERS[i]!.name.padEnd(23),
     cells.join(''),
@@ -370,10 +457,13 @@ if (want('boss')) for (let i = 0; i < ENCOUNTERS.length; i++) {
 // swung from 93% to 43% between two neighbouring tuning values could not be
 // told from the same rung sampled twice, and a round of tuning was spent
 // chasing the difference. Forty brings it to sixteen.
-const SIZE_RUNS = 40
+const SIZE_RUNS = capped(40)
 const SIZE_ATTEMPTS = [0, 8]
 // The header belongs to the first cell of the first boss, which is the shard
 // that prints the first row under it.
+if (SIZE_PIECES[`size:0:${RAID_SIZES[0]}:normal`] !== undefined) {
+  throw new Error('the cell that carries the size table header cannot be cut into pieces')
+}
 if (want(`size:0:${RAID_SIZES[0]}:normal`)) console.log(
   '\nboss / size / difficulty  ' +
     SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') +
@@ -381,26 +471,33 @@ if (want(`size:0:${RAID_SIZES[0]}:normal`)) console.log(
     `\n(${SIZE_RUNS} pulls a cell; two standard errors on a win rate is about ` +
     `${(2 * Math.sqrt(0.25 / SIZE_RUNS) * 100).toFixed(0)} points)`,
 )
+// A big cell is cut by pull, and put back by `size:6:25:normal:merge`.
 for (let i = 0; i < ENCOUNTERS.length; i++) {
   for (const size of RAID_SIZES) {
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
-      if (!want(`size:${i}:${size}:${difficulty}`)) continue
+      const cell = `size:${i}:${size}:${difficulty}`
+      if (!touches(cell)) continue
       const party = autoParty(size, dps('mage'))
+      const pulls = pullsOf(cell, SIZE_ATTEMPTS.length * SIZE_RUNS, SIZE_PIECES[cell] ?? 0, (at) => {
+        const r = run(1000 + (at % SIZE_RUNS) * 137, SIZE_ATTEMPTS[Math.floor(at / SIZE_RUNS)]!, party, difficulty, i)
+        return [r.outcome === 'victory' ? 1 : 0, r.time, r.bossPct]
+      })
+      if (pulls === null) continue
       const cells: string[] = []
       let time = 0
       let left = 0
       let total = 0
-      for (const attempt of SIZE_ATTEMPTS) {
+      SIZE_ATTEMPTS.forEach((_, a) => {
         let wins = 0
         for (let n = 0; n < SIZE_RUNS; n++) {
-          const r = run(1000 + n * 137, attempt, party, difficulty, i)
-          if (r.outcome === 'victory') wins++
-          time += r.time
-          left += r.bossPct
+          const [won, took, bossLeft] = pulls[a * SIZE_RUNS + n]!
+          if (won === 1) wins++
+          time += took!
+          left += bossLeft!
           total++
         }
         cells.push(`${Math.round((wins / SIZE_RUNS) * 100)}%`.padEnd(9))
-      }
+      })
       console.log(
         `${ENCOUNTERS[i]!.short} ${size} ${difficulty}`.padEnd(26),
         cells.join(''),
@@ -494,7 +591,7 @@ if (want('member')) for (let i = 1; i < detailParty.length; i++) {
  * is still not small, so a row is worth acting on when it moves further than
  * that and not before.
  */
-const BG_RUNS = 90
+const BG_RUNS = capped(90)
 
 /**
  * Which way the match is going, as a sign.
@@ -764,8 +861,7 @@ const SPEC_SIZE: RaidSize = 10
 // table. Both go through the same sort-and-print below, so the split table is
 // the single one by construction rather than by a second copy of the code.
 const specShard = /^spec:(\d+)$/.exec(SHARD)
-const specRowsDir = (): string => resolve(process.cwd(), process.env.ABYSS_SPEC_ROWS ?? 'spec-rows')
-const specRowFile = (i: number): string => resolve(specRowsDir(), `spec-${String(i).padStart(2, '0')}.txt`)
+const specRowFile = (i: number): string => resolve(process.cwd(), process.env.ABYSS_ROWS ?? 'rows', rowFile(`spec:${i}`))
 if (want('spec') || specShard !== null || SHARD === 'spec:merge') {
   const roleOf = (p: Pick) => specOf(p).role
   /**
@@ -916,10 +1012,10 @@ if (want('spec') || specShard !== null || SHARD === 'spec:merge') {
 // because what it costs is not the hit, it is having to be somewhere else.
 // Reading the hit count instead is how four separate rounds of tuning in this
 // file's history went after the wrong mechanic.
-const TEACH_RUNS = 30
+const TEACH_RUNS = capped(30)
 // The header belongs to the first boss's shard, which is the one that prints
 // the first row under it.
-if (want('mechanic:0')) {
+if (want('mechanic:0:0')) {
   console.log(
     `\nmechanic / boss        hits    unpractised  practised   teaches` +
       `\n(${TEACH_RUNS} pulls a row at 10 heroic, one mechanic at a time. ` +
@@ -934,12 +1030,17 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
   // — the longest thing left in the file once the spec sweep stopped being
   // run — and it splits with nothing to reconcile: each boss prints its own
   // rows and reads nothing from the boss before it.
-  if (want(`mechanic:${e}`)) {
+  //
+  // The rows of one boss are shards of their own where that boss is long
+  // (`mechanic:6:2` is the third mechanic of the seventh boss): a row reads
+  // nothing from the one above it either, so they paste back with `cat`.
+  if (touches(`mechanic:${e}`)) {
     // A ten-man heroic buys four rungs, so a boss's fifth is not in the kit at
     // all and filtering to it leaves an empty fight. Saying so beats printing
     // a zero that reads like a finding.
     const reached = encounterKit(ENCOUNTERS[e]!, 10, 'heroic')
-    for (const mech of ENCOUNTERS[e]!.kit) {
+    for (const [k, mech] of ENCOUNTERS[e]!.kit.entries()) {
+      if (!want(`mechanic:${e}:${k}`)) continue
       if (!reached.includes(mech)) {
         console.log(`${mech} / ${ENCOUNTERS[e]!.short}`.padEnd(23), '   —  a ten-man heroic never meets it')
         continue
@@ -998,18 +1099,23 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
 // is a body that is still the player's -- zero movement, nothing pressed -- and
 // not `unattended`, which hands the slot to the AI and answers a different and
 // much kinder question.
-const REWARD_RUNS = 90
+const REWARD_RUNS = capped(90)
 const REWARD_SIZE = RAID_SIZES[0]
-if (want('reward:0')) console.log(
+const REWARD_DRIVES = ['played', 'idle'] as const
+if (want('reward:0:0')) console.log(
   `\nraid                   drive      win%     avgTime  bossHP%  hits/min  taken/min  deaths` +
     `\n(${REWARD_RUNS} pulls a row at ${REWARD_SIZE}-man heroic; two standard errors on a ` +
     `difference of win rates is about ` +
     `${(2 * Math.sqrt(0.5 / REWARD_RUNS) * 100).toFixed(0)} points)`,
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
-  if (!want(`reward:${i}`)) continue
+  if (!touches(`reward:${i}`)) continue
   const party = autoParty(REWARD_SIZE, dps('mage'))
-  for (const drive of ['played', 'idle'] as const) {
+  if (REWARD_DRIVES.length !== REWARD_DRIVE_COUNT) {
+    throw new Error(`scripts/shardplan.ts says ${REWARD_DRIVE_COUNT} drives and there are ${REWARD_DRIVES.length}`)
+  }
+  for (const [d, drive] of REWARD_DRIVES.entries()) {
+    if (!want(`reward:${i}:${d}`)) continue
     let wins = 0
     let seconds = 0
     let left = 0
@@ -1045,13 +1151,17 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
 // columns after `deaths` are the ones that can tell those apart — how often
 // the lead changed, how often the thing that scores changed hands, and how far
 // around the map the fight actually went.
-if (want('bg')) console.log(
+if (want('bg:0:0')) console.log(
   `\nbattleground           player     win%     avgTime  deaths  leadChg  turnover  spread` +
     `\n(${BG_RUNS} matches a row; two standard errors on win% is about ` +
     `${(2 * Math.sqrt(0.25 / BG_RUNS) * 100).toFixed(0)} points)`,
 )
-if (want('bg')) for (const bg of BATTLEGROUNDS) {
-  for (const drive of DRIVES) {
+if (DRIVES.length !== BG_DRIVE_COUNT) {
+  throw new Error(`scripts/shardplan.ts says ${BG_DRIVE_COUNT} drives and there are ${DRIVES.length}`)
+}
+for (const [b, bg] of BATTLEGROUNDS.entries()) {
+  for (const [d, drive] of DRIVES.entries()) {
+    if (!want(`bg:${b}:${d}`)) continue
     let wins = 0
     let time = 0
     let deaths = 0
