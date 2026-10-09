@@ -709,6 +709,8 @@ them is a decision:
 | `boss_frostbolt` | a bolt at whoever is holding threat | **yes** |
 | `boss_crimson` | a bill on the whole raid | no — it is the price of the gift, and a price that can be cut is never paid (#301) |
 
+(`decideprobe gift` prints `standNearClean` / `standAway` rows: position rules for the player's body, a reference only and not #290's `alwaysPass` / `neverPass`.)
+
 Named rather than "anything with a cast bar". Seven of nine classes carry an
 interrupt, so a raid told to stop everything stops everything, and every
 mechanic in the building becomes a cooldown rotation. Measured on one pull
