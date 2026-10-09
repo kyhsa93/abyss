@@ -3657,8 +3657,35 @@ for (const [label, w, h] of [
     }
   }
   expect('the fights land weapon swings', swings > 100, `${swings}`)
-  expect('nearly every swing moves a body', moved >= swings * 0.98, `${moved} of ${swings}`)
-  expect('swings thrown with the global cooldown idle move the body too', idle > 0 && idleMoved >= idle * 0.98, `${idleMoved} of ${idle}`)
+  // Ten bodies on a fixed seed is a count, not a rate: 198 of 198 and 86 of 86
+  // when it was measured (#342), so one swing credited to the wrong body shows.
+  expect('every swing moves a body', moved === swings, `${moved} of ${swings}`)
+  expect('swings thrown with the global cooldown idle move the body too', idle > 0 && idleMoved === idle, `${idleMoved} of ${idle}`)
+
+  // Twenty-five bodies are crowded enough that two share a spot now and then,
+  // and the one that threw it cannot always be told: 401 of 402 when measured.
+  // A floor rather than a count, as it always was.
+  let swings25 = 0
+  let moved25 = 0
+  for (const enc of [0, 3, 6]) {
+    const s = createState(1, 0, autoParty(25, pickFor('warrior', 'tank')!), 'normal', enc)
+    s.countdown = 0
+    const rng = new Rng(1)
+    const live = new Effects(false)
+    for (let t = 0; t < 30 * 30; t++) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const seen = s.effects.filter((e) => e.kind === 'swing')
+      const before = seen.map((e) => s.actors.find((a) => Math.hypot(a.pos.x - e.pos.x, a.pos.y - e.pos.y) < 0.5))
+      live.ingest(s)
+      for (const b of before) {
+        swings25++
+        if (b && live.swingOf(b.id) !== null) moved25++
+      }
+      live.age(DT)
+    }
+  }
+  expect('twenty-five bodies land weapon swings', swings25 > 100, `${swings25}`)
+  expect('nearly every swing moves a body at twenty-five', moved25 >= swings25 * 0.98, `${moved25} of ${swings25}`)
 }
 
 // A weapon swing's line runs from the attacker to the edge of the body it
@@ -12453,6 +12480,101 @@ for (const [label, w, h] of [
     const asAdd = drawn()
     expect(`a boss 1.5 raiders tall at ${w}x${h}@${device} is drawn at 2.00 raiders' scale through drawWorld`, asBoss.length === 1 && asBoss[0] === 2, asBoss.join(', ') || 'no drawImage')
     expect(`the same footprint on a body that is not the boss is drawn at 1.00 raiders' scale at ${w}x${h}@${device}`, asAdd.length === 1 && asAdd[0] === 1, asAdd.join(', ') || 'no drawImage')
+  }
+  updateLayout(1280, 800)
+}
+
+// --- drawActor reads the body's swing from the blow (#342) -----------------------
+//
+// `drawActor` takes `effects` at three call sites in `drawWorld` and falls back
+// to the global cooldown when the blow has not moved the body; drop an argument
+// or the `??` and the checks on `Effects` above still pass, because they never
+// draw. So this draws: a fake `Image` gives `drawBody` a sheet, the context
+// records which cell of it each `drawImage` is cut from, and the body is drawn
+// at the three sites with the swing on the blow, on the cooldown, and on a cast
+// that is half done, which is the reading `casting` has always had.
+
+{
+  const g = globalThis as unknown as { Image?: unknown }
+  const had = g.Image
+  g.Image = class {
+    width = 2048
+    height = 2048
+    decoding = ''
+    onload: (() => void) | null = null
+    set src(_v: string) {
+      this.onload?.()
+    }
+  }
+  hasBody('add-thrall')
+  g.Image = had
+  updateLayout(1280, 800)
+  const noop = () => {}
+  const pen: Record<string, unknown> = {}
+  const cells: string[] = []
+  const ctx = new Proxy(pen, {
+    get(_t, prop) {
+      if (prop === 'getTransform') return () => ({ a: 1 })
+      if (prop === 'drawImage') {
+        return (_img: unknown, sx: number, sy: number) => {
+          cells.push(`${sx},${sy}`)
+        }
+      }
+      if (prop === 'measureText') return () => ({ width: 10 })
+      if (prop === 'createRadialGradient' || prop === 'createLinearGradient') return () => ({ addColorStop: noop })
+      if (prop === 'canvas') return { width: L.w, height: L.h }
+      return noop
+    },
+    set: (_t, prop, value) => {
+      pen[prop as string] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  const swung = (id: number): Effects => {
+    const fx = new Effects(false)
+    const line = { kind: 'swing', pos: { x: 0, y: 0 }, angle: 0.3, abilityId: null, power: 0, crit: false, radius: 0, empowered: false } as const
+    fx.ingest({ actors: [{ id, faction: 'party', pos: { x: 0, y: 0 }, prevPos: { x: 0, y: 0 }, radius: 9, moveSpeed: 0 }], effects: [line] } as never)
+    fx.age(BODY_SWING_TIME / 2)
+    return fx
+  }
+  const sites: Array<[string, (s: SimState) => Actor]> = [
+    ['a raider', (s) => s.actors.find((a) => a.faction === 'party')!],
+    ['a boss', (s) => s.actors.find((a) => a.id === BOSS_ID)!],
+    ['a body lifted off the floor', (s) => {
+      const a = s.actors.find((x) => x.faction === 'party')!
+      addAura(a, 'aloft', BOSS_ID)
+      return a
+    }],
+  ]
+  for (const [label, pick] of sites) {
+    const s = pulled(0x51ed, 0, undefined, 'normal', 0)
+    const body = pick(s)
+    s.actors = [body]
+    body.hp = body.maxHp
+    body.castId = null
+    body.gcd = 0
+    const drawn = (fx: Effects): string => {
+      cells.length = 0
+      drawWorld(ctx, s, 1, s.time, fx)
+      return cells.join(' ')
+    }
+    const idle = drawn(new Effects(false))
+    const onBlow = drawn(swung(body.id))
+    expect(`${label} that has thrown a swing is drawn mid-swing, not idle, through drawWorld`, idle !== '' && onBlow !== '' && onBlow !== idle, `${idle} | ${onBlow}`)
+    // The swing is read as how far through it the body is: half way is the
+    // frame a cast half done would give.
+    body.castId = 'boss_probe'
+    body.castTotal = 1
+    body.castRemaining = 0.5
+    const halfCast = drawn(new Effects(false))
+    body.castId = null
+    body.castTotal = 0
+    body.castRemaining = 0
+    expect(`${label} is drawn at the swing's own progress`, onBlow === halfCast, `${onBlow} | ${halfCast}`)
+    // No blow, but the global cooldown just started: the old reading.
+    body.gcd = GLOBAL_COOLDOWN
+    const onCooldown = drawn(new Effects(false))
+    expect(`${label} with no blow falls back to the global cooldown`, onCooldown !== idle, `${onCooldown} | ${idle}`)
   }
   updateLayout(1280, 800)
 }
