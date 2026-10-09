@@ -65,6 +65,7 @@ interface Report {
    * averaged into everyone else.
    */
   minRaidHp: number
+  minMemberHp: number
 }
 
 /**
@@ -97,6 +98,7 @@ function run(
   const walkedQuiet: Record<string, number> = {}
   let ticks = 0
   let minRaidHp = 100
+  let minMemberHp = 100
 
   while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
     const pressed: number[] = []
@@ -120,6 +122,7 @@ function run(
       if (a.faction !== 'party') continue
       hpNow += a.alive ? a.hp : 0
       hpMax += a.maxHp
+      if (a.maxHp > 0) minMemberHp = Math.min(minMemberHp, ((a.alive ? a.hp : 0) / a.maxHp) * 100)
     }
     if (hpMax > 0) minRaidHp = Math.min(minRaidHp, (hpNow / hpMax) * 100)
 
@@ -188,6 +191,7 @@ function run(
     playerDied: me !== undefined && !me.alive,
     partyDeaths: Object.keys(deaths).length + (me !== undefined && !me.alive ? 1 : 0),
     minRaidHp: Math.round(minRaidHp * 10) / 10,
+    minMemberHp: Math.round(minMemberHp * 10) / 10,
   }
 }
 
@@ -1036,13 +1040,22 @@ if (want('bg')) for (const bg of BATTLEGROUNDS) {
 // party, seeds and drive), so `pullNo` 1 must read the same win% as that cell's
 // pull1. A new table at the end rather than new attempts in the old ones, which
 // would move the columns `balancecheck` reads by position.
-const CRISIS_RUNS = 40
+//
+// `memHpP10`/`memHpMin` are the same two cuts of the lowest HP any single body
+// in the raid reached during the pull (a dead body counts as 0%): the pooled
+// columns bury a near-death in the average. They are appended after `hpMin`, so
+// the columns before them print the same bytes. `ABYSS_CRISIS_SEEDS` (default
+// 40, which is what every build runs) widens the seed count for a hand-run
+// re-measurement of the cells close to a threshold.
+const CRISIS_DEFAULT_RUNS = 40
+const asked = Number(process.env.ABYSS_CRISIS_SEEDS ?? '')
+const CRISIS_RUNS = Number.isInteger(asked) && asked >= 1 ? asked : CRISIS_DEFAULT_RUNS
 const CRISIS_ATTEMPTS = [0, 1, 2]
 const CRISIS_SIZE = 10 satisfies RaidSize
 if (want('crisis:0')) console.log(
   '\n' +
     'crisis'.padEnd(23) +
-    'pullNo  win%  streak%  dead/pull  dead0%  hpP10  hpP50  hpMin' +
+    'pullNo  win%  streak%  dead/pull  dead0%  hpP10  hpP50  hpMin  memHpP10  memHpMin' +
     `\n(${CRISIS_RUNS} seeds x pulls ${CRISIS_ATTEMPTS[0]! + 1}-${CRISIS_ATTEMPTS.length} a boss at ` +
     `${CRISIS_SIZE}-man heroic, drive played; two standard errors on a win rate is about ` +
     `${(2 * Math.sqrt(0.25 / CRISIS_RUNS) * 100).toFixed(0)} points)`,
@@ -1069,6 +1082,8 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
     const clean = rs.filter((r) => r.partyDeaths === 0).length
     const hp = rs.map((r) => r.minRaidHp).sort((x, y) => x - y)
     const at = (q: number) => `${Math.round(hp[Math.floor(q * CRISIS_RUNS)]!)}%`
+    const mem = rs.map((r) => r.minMemberHp).sort((x, y) => x - y)
+    const memAt = (q: number) => `${Math.round(mem[Math.floor(q * CRISIS_RUNS)]!)}%`
     const pct = (k: number) => `${Math.round((k / CRISIS_RUNS) * 100)}%`
     console.log(
       `${ENCOUNTERS[i]!.name}`.padEnd(23) +
@@ -1079,7 +1094,9 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
         pct(clean).padEnd(8) +
         at(0.1).padEnd(7) +
         at(0.5).padEnd(7) +
-        `${Math.round(hp[0]!)}%`,
+        `${Math.round(hp[0]!)}%`.padEnd(7) +
+        memAt(0.1).padEnd(10) +
+        `${Math.round(mem[0]!)}%`,
     )
   })
 }

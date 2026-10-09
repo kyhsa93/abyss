@@ -9,6 +9,11 @@ on:
     # well still runs.
     paths-ignore: ['playtest/**']
   workflow_dispatch:
+    inputs:
+      crisis_seeds:
+        description: 'Seeds per cell for the crisis table (blank = 40, what every push runs)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -119,6 +124,7 @@ jobs:
           ABYSS_CHUNKS: 14
           ABYSS_CHUNK: ${{ matrix.chunk }}
           ABYSS_PARTS: parts
+          ABYSS_CRISIS_SEEDS: ${{ inputs.crisis_seeds }}
       - uses: actions/upload-artifact@v4
         with:
           name: harness-${{ matrix.chunk }}
