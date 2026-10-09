@@ -111,6 +111,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Same profile as the harness job, so the render time (335 to 430 seconds
+      # between runs) can be read against the CPU it ran on. Logging only:
+      # nothing here changes what render checks or how long it may take.
+      - name: Runner profile
+        run: |
+          {
+            echo "### render runner"
+            echo '```'
+            echo "nproc: $(nproc)"
+            grep -m1 'model name' /proc/cpuinfo || true
+            echo "loadavg: $(cat /proc/loadavg)"
+            node -e 'const t=Date.now();let x=1;for(let i=0;i<2e8;i++){x=(Math.imul(x,1664525)+1013904223)|0}console.log("calibration loop (2e8 iterations): "+(Date.now()-t)+" ms")'
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - run: npm run rendercheck
 
   # The sweep, cut into pieces and run on a machine each.
