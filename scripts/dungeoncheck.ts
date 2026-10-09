@@ -1606,6 +1606,14 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
     // nobody's way, and not moving for longer than a second is stuck whatever
     // it was told.
     const still = new Map<number, number>()
+    // A body that did not move at all is pinned. The bar is 0.001 a tick, not
+    // 0.01 (#352): measured on the way to this check (seed 7, 80 s of the four
+    // legs, the six size/where runs here) 281 body-ticks with a target moved
+    // less than 0.02 and the least was 0.0034 (25-man eastclimb), so 0.01 sat
+    // in the middle of that and a floating-point hair either side counted a
+    // sliding body as stopped. 0.001 is 3.4 times under that least, and a body
+    // held on the spot has a move of exactly 0.
+    const PINNED = 0.001
     let pinned = 0
     let stalled = 0
     // And the same with nobody excused (#316). The count above lets a body off
@@ -1656,7 +1664,7 @@ const placement = (reach: number): { clashes: string[]; shut: string[]; doorstep
         if (before === undefined || want === null || want === undefined) continue
         // Arrived, so nothing is owed.
         if (dist(want, a.pos) < 6) continue
-        if (dist(before, a.pos) < 0.01) pinned++
+        if (dist(before, a.pos) < PINNED) pinned++
       }
     }
     // The twenty-five are held to the one that excuses nobody and no more: the others were measured at ten.
