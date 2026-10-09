@@ -93,11 +93,14 @@ jobs:
 
   # The sweep, cut into pieces and run on a machine each.
   #
-  # Fourteen because there are sixty-one shards and four cores a runner: the
-  # pieces are dealt round-robin, so each machine gets a share of the heavy
-  # ones instead of one machine getting a boss's worth of twenty-five-man
-  # pulls. Each writes its shards as numbered files and hands them over; the
-  # job below pastes them back in number order.
+  # Fourteen runners of four cores. There are ninety-eight shards (the spec
+  # table is seventeen of them, one a spec) and they are not evenly expensive:
+  # `boss` and `composition` are eight minutes each and a spec is under two.
+  # So they are dealt by cost, heaviest first onto the lightest runner, from the
+  # table in `scripts/harnessrun.ts`, rather than round-robin. Each writes its
+  # shards as numbered files and hands them over; the `balance` job pastes them
+  # back in number order. The spec rows are not parts: they go in their own
+  # artifact and are merged into one part there.
   harness:
     runs-on: ubuntu-latest
     strategy:
@@ -113,22 +116,47 @@ jobs:
       - run: npm ci
       - run: npx esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error
       - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
+      # What this runner is, in the log and the job summary. Two runs of the
+      # same commit took 916 and 1651 seconds on the spec shard and nothing in
+      # a log said why; this is what lets the next one be explained. The loop is
+      # a fixed amount of work (about five seconds on a laptop), so the
+      # milliseconds it takes are comparable between runners.
+      - name: Runner profile
+        run: |
+          {
+            echo "### harness (${{ matrix.chunk }}) runner"
+            echo '```'
+            echo "nproc: $(nproc)"
+            grep -m1 'model name' /proc/cpuinfo || true
+            echo "loadavg: $(cat /proc/loadavg)"
+            node -e 'const t=Date.now();let x=1;for(let i=0;i<8e8;i++){x=(Math.imul(x,1664525)+1013904223)|0}console.log("calibration loop (8e8 iterations): "+(Date.now()-t)+" ms")'
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       # Nothing is skipped. `spec` was, while `no spec is a trap` sat in
       # `SUSPENDED`; the band came back on and the skip did not, so the band
-      # read an empty table and failed every push for a week. It is the one
-      # shard that cannot be split -- about twenty minutes on a core -- so it
-      # is the length of this job, and that is the price of the band being on.
-      # Skip it again only together with suspending that band.
+      # read an empty table and failed every push for a week. It is seventeen
+      # shards of a spec each now, none longer than the others, so the band
+      # being on costs nothing in the length of this job. Skip them again only
+      # together with suspending that band.
       - run: node node_modules/.cache/harnessrun.mjs
         env:
           ABYSS_CHUNKS: 14
           ABYSS_CHUNK: ${{ matrix.chunk }}
           ABYSS_PARTS: parts
+          ABYSS_SPEC_ROWS: spec-rows
           ABYSS_CRISIS_SEEDS: ${{ inputs.crisis_seeds }}
       - uses: actions/upload-artifact@v4
         with:
           name: harness-${{ matrix.chunk }}
           path: parts
+          retention-days: 1
+      # Raw spec rows, not parts: a separate artifact so `parts/` holds nothing
+      # but the pieces of the file. A runner dealt no spec shard has none.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spec-rows-${{ matrix.chunk }}
+          path: spec-rows
+          if-no-files-found: ignore
           retention-days: 1
 
   # The bands, read off the whole sweep pasted back together.
@@ -147,27 +175,66 @@ jobs:
           pattern: harness-*
           merge-multiple: true
           path: parts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: spec-rows-*
+          merge-multiple: true
+          path: spec-rows
+      - run: npx esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error
+      - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
+      # The spec table is seventeen rows from seventeen shards. Printed here by
+      # the same code a single process prints it with, into the slot the single
+      # table used to have, so `cat` below reads one file per piece as before.
+      - name: Merge spec rows
+        run: |
+          raw=$(ABYSS_COUNT_RAW=1 node node_modules/.cache/harnessrun.mjs)
+          test "$(ls spec-rows | wc -l)" -eq "$raw" || { echo "$(ls spec-rows | wc -l) spec rows came back, wanted $raw"; exit 1; }
+          ABYSS_SPEC_MERGE=1 ABYSS_PARTS=parts ABYSS_SPEC_ROWS=spec-rows node node_modules/.cache/harnessrun.mjs
+      # The split table has to be the single-process table. The full one is
+      # a quarter of an hour or more on a core and cannot be run here, so this runs both ways
+      # on a slice of it -- one pull of the first boss for each of the seventeen
+      # specs -- and diffs them. What it covers is what could differ: a spec's
+      # numbers depending on the specs measured before it in the same process,
+      # and the rows surviving the trip through a file. The full table is
+      # diffed against a single run by hand when this code changes (PR #336).
+      - name: Verify spec parts match harness
+        env:
+          ABYSS_SPEC_RUNS: 1
+          ABYSS_SPEC_BOSSES: 1
+        run: |
+          mkdir -p verify-rows
+          ABYSS_SHARD=spec node node_modules/.cache/harness.mjs > verify-single.txt 2>/dev/null &
+          single=$!
+          seq 0 16 | xargs -P 3 -I{} sh -c 'ABYSS_SHARD=spec:{} node node_modules/.cache/harness.mjs > verify-rows/spec-$(printf %02d {}).txt 2>/dev/null'
+          ABYSS_SHARD=spec:merge ABYSS_SPEC_ROWS=verify-rows node node_modules/.cache/harness.mjs > verify-split.txt
+          wait $single
+          test "$(grep -c '^spec: ' verify-single.txt)" -eq 3 || { echo "the single spec table has no three blocks"; exit 1; }
+          diff verify-single.txt verify-split.txt || { echo "the split spec table is not the single one"; exit 1; }
+          echo "spec: the split table equals the single-process table (1 boss x 1 pull, 17 specs)"
       # Number order, which is the order a single process would have printed
       # them in. `cat` on a sorted glob is the whole of the reassembly, and it
       # is deliberately that simple: anything cleverer here is a second place
       # the output could differ from the one the bands were written against.
       # Counted and then read for the tables the bands actually open. A band
       # that finds an empty table passes having checked nothing, and this file
-      # has been bitten by exactly that — so the shape of the output is
+      # has been bitten by exactly that -- so the shape of the output is
       # asserted here rather than trusted.
       #
       # The count is asked of the shard list rather than typed beside it. It
-      # was typed — fifty-five — and went stale the moment the five-man raid
+      # was typed -- fifty-five -- and went stale the moment the five-man raid
       # did: the sweep came back in forty-four pieces and the build failed on
-      # arithmetic rather than on anything being wrong.
-      - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
+      # arithmetic rather than on anything being wrong. Only `part-*.txt` is
+      # counted, and the raw spec rows are not in `parts/`.
       - run: |
           want=$(ABYSS_COUNT=1 node node_modules/.cache/harnessrun.mjs)
-          test "$(ls parts | wc -l)" -ge "$want" || { echo "only $(ls parts | wc -l) parts came back, wanted $want"; exit 1; }
+          have=$(ls parts/part-*.txt | wc -l)
+          test "$have" -ge "$want" || { echo "only $have parts came back, wanted $want"; exit 1; }
+          test "$(ls parts | wc -l)" -eq "$have" || { echo "parts/ holds something that is not a part"; exit 1; }
           cat $(ls parts/part-*.txt | sort) > harness.txt
           grep -q '^battleground' harness.txt || { echo "the battleground table is missing"; exit 1; }
           grep -q '^boss / size / difficulty' harness.txt || { echo "the size table is missing"; exit 1; }
           grep -q '^crisis' harness.txt || { echo "the crisis table is missing"; exit 1; }
+          test "$(grep -c '^spec: ' harness.txt)" -eq 3 || { echo "the spec tables are missing"; exit 1; }
           # The CI x64 baseline for the crisis table, visible in the log.
           sed -n '/^crisis/,$p' harness.txt
       - run: npm run balancecheck
