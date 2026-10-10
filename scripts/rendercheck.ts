@@ -12307,31 +12307,24 @@ for (const [label, w, h] of [
   // went in. Only ever lowered, and removed at nought.
   //
   // On the day it went in: the open composition list's edge over the board
-  // under it (#274), the result screen drawn over a HUD that keeps its words
+  // under it (#274, now gone but for one landscape screen), the result screen drawn over a HUD that keeps its words
   // (#275, #283), the chat log over the party frames, and settings turned
   // landscape.
   const WORDS_HELD: Record<string, number> = {
-    'composition 10, a slot open @390x844': 2,
-    'composition 25, a slot open @390x844': 1,
     'kill 25 @390x844': 11,
     'wipe 25 @390x844': 10,
     'settings @844x390': 7,
-    'composition 10, a slot open @844x390': 1,
     'fight 10 @844x390': 1,
     'kill 10 @844x390': 7,
     'wipe 10 @844x390': 8,
-    'composition 25, a slot open @844x390': 8,
+    'composition 25, a slot open @844x390': 6,
     'fight 25 @844x390': 2,
     'kill 25 @844x390': 13,
     'wipe 25 @844x390': 14,
-    'composition 10, a slot open @1280x800': 2,
-    'composition 25, a slot open @1280x800': 2,
     'kill 25 @1280x800': 2,
     'wipe 25 @1280x800': 2,
-    'composition 10, a slot open @360x640': 1,
     'kill 10 @360x640': 2,
     'wipe 10 @360x640': 2,
-    'composition 25, a slot open @360x640': 2,
     'kill 25 @360x640': 15,
     'wipe 25 @360x640': 15,
   }

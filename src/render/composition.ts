@@ -174,8 +174,15 @@ function tile(
   accent: string,
   active: boolean,
 ): void {
-  ctx.fillStyle = active ? 'rgba(74, 222, 128, 0.12)' : COLORS.panel
+  // The open list sits over the board under a translucent veil; the active
+  // tile is the one place its own words land on the board's, so it gets the
+  // opaque panel first and the green tint on top (#274).
+  ctx.fillStyle = COLORS.panel
   ctx.fillRect(r.x, r.y, r.w, r.h)
+  if (active) {
+    ctx.fillStyle = 'rgba(74, 222, 128, 0.12)'
+    ctx.fillRect(r.x, r.y, r.w, r.h)
+  }
   ctx.strokeStyle = active ? accent : COLORS.panelEdge
   ctx.lineWidth = active ? 2 : 1
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
