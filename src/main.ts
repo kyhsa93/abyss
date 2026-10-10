@@ -364,7 +364,7 @@ function loadUnlocked(): number {
 function loadMode(): RosterMode {
   try {
     const raw = localStorage.getItem(MODE_KEY)
-    if (raw === 'conquest' || raw === 'flags') return { kind: 'bg', bg: raw }
+    if (raw === 'conquest' || raw === 'flags' || raw === 'escort') return { kind: 'bg', bg: raw }
     return { kind: 'raid' }
   } catch {
     return { kind: 'raid' }
