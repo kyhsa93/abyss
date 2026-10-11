@@ -1,7 +1,7 @@
 import { ABILITIES } from './abilities'
 import { abilityBar, specOf } from './classes'
 import { DT } from './constants'
-import { canCast, getAura, mostHurt } from './combat'
+import { canCast, getAura, mostHurt, topThreatTarget } from './combat'
 import { playerTarget, pressTarget } from './sim'
 import type { Actor, AuraId, SimState } from './types'
 
@@ -70,7 +70,19 @@ export function autoPress(s: SimState): number[] {
     // at all (`abilityBar`), and autocast presses the bar — it does not reach
     // for buttons the screen never offered.
   } else if (player.role === 'tank') {
-    order.push(slotOf(kit.taunt), slotOf(kit.overTime), slotOf(kit.finisher))
+    // The taunt, but only for a boss that has wandered to somebody who is not
+    // a tank -- the party AI's own line (`ai.ts`, "Take the boss back off
+    // whoever it wandered to"), asked with the same `topThreatTarget`. With
+    // two tanks in a raid an autocast that taunted whenever it was off cooldown
+    // took the boss back from the other tank every time it came up, which
+    // dragged it through the melee. Passing the boss back when a stack fills
+    // is a decision, and it stays the player's: this only declines to start the
+    // trade. Raid only: a battleground has no boss threat table to read, and
+    // its rows keep pressing exactly what they pressed.
+    const holder = s.mode === 'raid' ? topThreatTarget(s) : null
+    const mayTaunt = s.mode !== 'raid' || (holder !== null && holder.role !== 'tank')
+    if (mayTaunt) order.push(slotOf(kit.taunt))
+    order.push(slotOf(kit.overTime), slotOf(kit.finisher))
     order.push(slotOf(kit.threat), slotOf(kit.filler))
   } else {
     const target = s.actors.find((a) => a.id === playerTarget(s)) ?? null

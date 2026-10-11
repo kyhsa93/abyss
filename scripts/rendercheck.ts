@@ -8788,6 +8788,41 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     patient.pos = { x: 4000, y: 4000 }
     expect('and not across the map', autoPress(healed).length === 0, `${autoPress(healed)}`)
   }
+
+  // A tank, asked directly in the same way. Two tanks in a ten-man, and the
+  // question is only who is holding the boss: the party AI taunts it off a
+  // non-tank and never off the other tank (`ai.ts`, the line that says why),
+  // and the autocast used to press the taunt every time it was off cooldown
+  // whoever held it. Threat is set by hand rather than played into, so the
+  // holder is the thing under test and not an accident of the fight.
+  {
+    const raid = pulled(0x51ed, 0, autoParty(10, pickFor('warrior', 'tank')!))
+    const me = raid.actors.find((a) => a.isPlayer)!
+    const bar = abilityBar({ classId: me.classId, spec: me.spec })
+    const kit = specOf({ classId: me.classId, spec: me.spec }).abilities
+    const other = raid.actors.find((a) => a.faction === 'party' && !a.isPlayer && a.role === 'tank')!
+    const dealer = raid.actors.find((a) => a.faction === 'party' && a.role === 'dps')!
+    // Inside every range there is, so the only thing that can stop the taunt
+    // is the autocast declining it.
+    me.pos = { ...boss(raid).pos }
+    const taunted = () => autoPress(raid).some((i) => bar[i] === kit.taunt)
+
+    raid.threat[me.id] = 100
+    raid.threat[other.id] = 5000
+    raid.threat[dealer.id] = 200
+    expect(
+      'a tank holding the boss is not taunted off by the autocast',
+      topThreatTarget(raid)?.id === other.id && !taunted(),
+      `holder ${topThreatTarget(raid)?.id}, ${autoPress(raid).map((i) => bar[i]).join(',')}`,
+    )
+
+    raid.threat[dealer.id] = 9000
+    expect(
+      'but a dealer holding it is',
+      topThreatTarget(raid)?.id === dealer.id && taunted(),
+      `holder ${topThreatTarget(raid)?.id}, ${autoPress(raid).map((i) => bar[i]).join(',')}`,
+    )
+  }
 }
 
 // --- a share is an invitation, so the link has to survive the trip ----------
