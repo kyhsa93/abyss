@@ -1054,10 +1054,12 @@ export function fixedCount(role: Role, size: number): number | null {
  * not: it warned about a wall of tanks and then pulled with it anyway. Three
  * tanks is not a composition, it is a raid that cannot kill anything before
  * the enrage, and a raid that is mostly healers just outlasts the encounter
- * without ever beating it.
+ * without ever beating it. Nor is a raid with no tank: `ROLE_LIMITS.tank.min`
+ * is one, and the generators already honour it.
  */
 export function isLegalComposition(party: Pick[]): boolean {
   const roles = countRoles(party)
+  if (roles.tank < ROLE_LIMITS.tank.min) return false
   if (roles.tank > ROLE_LIMITS.tank.max) return false
   for (const role of ['tank', 'healer', 'dps'] as Role[]) {
     const exact = fixedCount(role, party.length)
