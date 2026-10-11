@@ -3,8 +3,11 @@ name: Roleprobe
 # How much does a raid need the player's slot filled, by lead and by boss? (#369)
 #
 # `scripts/roleprobe.ts` pulls every boss of a ten-man heroic raid with the
-# player's slot idle and with it handed to the AI, for each lead asked for, and
-# prints the two win rates and their difference in points. It prints no verdict.
+# player's slot driven several ways, for each lead asked for, and prints the win
+# rates side by side with their differences in points: idle against the AI in
+# the slot, and, by role, what a choice made at the input is worth (the tank's
+# hand-over, the healer's big heal and standing still, the hunter's distance).
+# It prints no verdict. Which tables run is the `tables` input.
 # The numbers that are read come from here, from the x64 runner, and from a
 # dispatch: a number from a laptop is for direction and is not quoted (#350).
 #
@@ -29,7 +32,7 @@ name: Roleprobe
 # and only that second run is read.
 on:
   pull_request:
-    paths: ['scripts/roleprobe.ts', 'scripts/standin.ts', '.github/workflows/roleprobe.yml']
+    paths: ['scripts/roleprobe.ts', 'scripts/policies.ts', 'scripts/standin.ts', '.github/workflows/roleprobe.yml']
   workflow_dispatch:
     inputs:
       runs:
@@ -48,6 +51,10 @@ on:
         description: 'Comma-separated encounter indices from 0; empty is all eleven'
         required: false
         default: ''
+      tables:
+        description: 'Comma-separated, from slot,auto,tank,healer,ranged; empty is all five. A table is run for the leads asked for whose role it is about'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -59,7 +66,9 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    # A pool of ninety over five leads is the long case; a dry run is minutes.
+    # A pool of ninety over five leads and all five tables is the long case: by
+    # the dry run's speed about two and a half hours, an estimate and not a
+    # measurement, which is why the `tables` input exists. A dry run is minutes.
     timeout-minutes: ${{ github.event_name == 'pull_request' && 20 || 240 }}
     env:
       # A pull request has no inputs, so the dry run's numbers are set here.
@@ -67,6 +76,7 @@ jobs:
       ABYSS_PROBE_SEED_OFFSET: ${{ github.event_name == 'workflow_dispatch' && inputs.seed_offset || '0' }}
       ABYSS_PROBE_LEADS: ${{ github.event_name == 'workflow_dispatch' && inputs.leads || '' }}
       ABYSS_PROBE_BOSSES: ${{ github.event_name == 'workflow_dispatch' && inputs.bosses || '' }}
+      ABYSS_PROBE_TABLES: ${{ github.event_name == 'workflow_dispatch' && inputs.tables || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
