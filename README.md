@@ -226,19 +226,20 @@ one setting per kill along [the chain](#the-chain). Both apply to the whole
 evening. The chain still gates the rooms one at a time, so an evening walked at
 a rung you have only just opened reaches the first room and finds the next one
 shut: the citadel is somewhere to walk the chain through, not a way round it. Then the class
-screen asks what you are playing. That last one is the only pick you make, and
-the screen shows nothing else — you show up to a raid, you do not build one,
-and a board of twenty-four strangers you did not choose and cannot change is a
-readout nobody needs before a pull. Pick a class and hit WALK IN; the button
+screen asks what you are playing. Pick a class and hit WALK IN; the button
 says PULL when what is in front of you is a single fight rather than a
 building — a battleground, a link somebody sent you, or the room you stepped
-out of to change class.
+out of to change class. A THE RAID tab on that screen opens the composition
+screen, where the other slots can be changed one at a time; what a composition
+costs in a fight is still being measured, one fight at a time (#371).
 
-The rest is rolled around you. The roll keeps the role counts and leaves
-everything else to chance: which classes fill them and where they stand.
-Drawing freely would leave you without a tank about half the time, since only
-one class in eight tanks, and a pull that cannot be won is a penalty rather
-than a surprise. Your own role comes out of the counts the raid needed anyway,
+Until you change them, the rest is rolled around you. The roll keeps the role
+counts and leaves everything else to chance: which classes fill them and where
+they stand. Drawing every slot freely would leave a ten-man's other nine slots
+without a tank about one time in six and a twenty-five-man's other
+twenty-four about one time in a hundred, since three of the seventeen specs
+tank, and a pull that cannot be won is a penalty rather than a surprise. Your
+own role comes out of the counts the raid needed anyway,
 so taking the tank spot means the raid rolls one fewer tank rather than
 fielding an extra. Your pick is remembered between visits, so a return
 trip is one tap.
@@ -676,13 +677,15 @@ They stand together in the arena and the roster screen lists them one row per
 party, because grouping has consequences — a puddle dropped on one party is a
 puddle on five people.
 
-Support is capped for the whole raid rather than per party: **one or two
-tanks, one to three healers.** More tanks than that is wasted on a
-single-target fight, and the healer ceiling is what stops a larger raid simply
-out-healing the encounter. Both caps are enforced rather than advised: a
-third tank or a fourth healer cannot be selected on the party screen at all —
-the entry is drawn locked — and a roster saved before the caps existed falls
-back to the default instead of loading.
+Support is limited for the whole raid rather than per party: **one or two
+tanks, and exactly two healers in a ten or exactly four in a twenty-five.**
+More than two tanks is wasted on a single-target fight, and the healer count
+is fixed rather than capped because a ceiling reads as a target — four is
+still the ceiling over every size, for anything that wants one number. The
+limits are enforced rather than advised: a tap on the composition screen that
+would leave a raid outside them is refused, with the reason written under the
+board, and a roster saved before the limits existed falls back to the default
+instead of loading.
 
 **A battleground team of five is exact rather than capped: one tank, one
 healer, three damage.** There is no arrangement of five slots that plays, so
@@ -769,14 +772,16 @@ most bodies in the way of each other and the numbers turned up.
 ## Today's run
 
 One fight a day, the same one for everybody. The date picks the boss, the
-difficulty, the seed the fight runs on and the party rolled around you; the
-only thing left to you is which class you bring — that is the choice the game
-is about, and taking it away to make the comparison tidier would be trading
-the game for the scoreboard. The size is always twenty-five, because a
-five-player daily and a twenty-five-player daily are not one fight at two
-scales — the mechanics that split their damage among the people standing in
-them ask a different question of four bodies than of twenty-four, and a
-scoreboard across the two compares nothing.
+difficulty, the seed the fight runs on and the twenty-four others; what is left
+to you is which class you bring — that is the choice the game is about, and
+taking it away to make the comparison tidier would be trading the game for the
+scoreboard. The twenty-four are drawn from the day's seed and the class you
+bring replaces the first slot, so your role can leave the raid outside the
+role limits of [size and difficulty](#size-and-difficulty). The size is always
+twenty-five, because a five-player daily and a twenty-five-player daily are not
+one fight at two scales — the mechanics that split their damage among the
+people standing in them ask a different question of four bodies than of
+twenty-four, and a scoreboard across the two compares nothing.
 
 **What the day does not decide is what the boss does.** It used to: the daily
 drew its own kit out of every boss's vocabulary and rolled cadences for it, so
@@ -1339,6 +1344,9 @@ minute, with the rotation pressed for you:
 | Warrior | 16 | 0% | lumpy (1.18) |
 | Hunter | 10 | 0% | lumpy (1.33) |
 
+The script that produced this table is not in the repository, and the table
+cannot be reproduced.
+
 A mage spends over a third of a fight rooted in a cast; a paladin presses
 something nearly three times as often as a hunter and its damage barely moves.
 Same damage per second, different job.
@@ -1373,9 +1381,7 @@ The three tanks are not interchangeable either:
 
 A flat block is worth a great deal against a fast weapon, so the druid pays
 for having none with a far larger pool: harder to spike down, more of a drain
-on the healers. Tuned to within a few points of each other in practice — a
-druid-tank, shaman-healed five-man wins 53% by the ninth pull against the
-default composition's 73%.
+on the healers.
 
 ## Defence
 

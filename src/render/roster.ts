@@ -100,9 +100,9 @@ export function rosterLayout(): RosterLayout {
   const pad = Math.max(8, L.w * 0.02)
   const titleY = Math.max(24, L.h * 0.05)
 
-  // No slot grid: the only pick anyone makes is their own, and the rest of
-  // the raid is rolled at the door. A board of twenty-four strangers you did
-  // not choose and cannot change is a readout nobody needs before a pull.
+  // No slot grid on this screen: the pick it asks for is your own, and the
+  // rest of the raid is rolled around it unless you change it. The board of
+  // everyone else is a screen of its own (`THE RAID`, `composition.ts`).
   const gap = Math.max(3, pad * 0.3)
   const summaryY = titleY + 26 * L.ui * MENU_TEXT
   const summaryLine = 13 * L.ui * MENU_TEXT

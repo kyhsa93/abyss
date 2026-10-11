@@ -13,7 +13,7 @@ import { Rng } from './rng'
  * the only difference is how it was played.
  *
  * What the day fixes: the boss, the size, the difficulty, the seed the fight
- * runs on and the party rolled around you. What it does not fix is which class
+ * runs on and the twenty-four others. What it does not fix is which class
  * you bring — that is the choice the game is about, and taking it away to make
  * the comparison tidier would be trading the game for the scoreboard.
  *
@@ -37,7 +37,13 @@ export interface Daily {
   encounter: number
   size: RaidSize
   difficulty: DifficultyId
-  /** The four slots around the player, rolled from the day's seed. */
+  /**
+   * The raid: slot 0 is the player's own pick and the other twenty-four are
+   * rolled from the day's seed. The roll fixes the role counts before it knows
+   * what the player brings, and the player's slot replaces its first body, so
+   * a role the roll already filled can be filled again and the raid can fall
+   * outside `isLegalComposition`.
+   */
   party: Pick[]
 }
 

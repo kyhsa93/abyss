@@ -317,6 +317,20 @@ const tank = (classId: Pick['classId']): Pick => pickFor(classId, 'tank')!
 /**
  * Compositions a player might actually build, including bad ones.
  *
+ * Every row is one fight: the first boss (the Bonegrinder) on normal, because
+ * `run` defaults to `encounter = 0` and `difficulty = 'normal'` and the loop
+ * below passes neither. A row that wins here says nothing about a composition
+ * on any other fight, so the table is no evidence that composition does not
+ * matter -- per-fight figures are #371's to produce.
+ *
+ * Every row is also a roster the party screen can build: `isLegalComposition`
+ * holds exactly two healers at ten and one to two tanks. The table used to
+ * carry "three heals" and "one healer" rows, which the screen has never been
+ * able to produce -- they measured a raid nobody can field -- so they were
+ * replaced in place (the row count is `COMPOSITION_ROWS`) by the two tank
+ * variants the other five rows do not cover: every other two-tank row pairs
+ * the warrior with the druid, and the only one-tank row has a warrior alone.
+ *
  * Ten, which is the smallest raid there is. They were fives, and a five
  * stopped being a raid the day the five-man went away — the whole table was
  * measuring a setting nobody can play, and every row of it read as nought per
@@ -335,17 +349,17 @@ const PARTIES: Array<{ label: string; party: Pick[] }> = [
     ],
   },
   {
-    label: 'three heals 2t 3h 5d',
+    label: 'paladin tank 2t 2h 6d',
     party: [
-      dps('mage'), tank('warrior'), tank('druid'), heal('priest'), heal('paladin'),
-      heal('shaman'), dps('hunter'), dps('rogue'), dps('warlock'), dps('druid'),
+      dps('mage'), tank('warrior'), tank('paladin'), heal('priest'), heal('shaman'),
+      dps('hunter'), dps('rogue'), dps('warlock'), dps('druid'), dps('priest'),
     ],
   },
   {
-    label: 'one healer 2t 1h 7d',
+    label: 'druid alone 1t 2h 7d',
     party: [
-      dps('mage'), tank('warrior'), tank('druid'), heal('priest'),
-      dps('hunter'), dps('rogue'), dps('shaman'), dps('warlock'), dps('druid'), dps('paladin'),
+      dps('mage'), tank('druid'), heal('priest'), heal('paladin'),
+      dps('hunter'), dps('rogue'), dps('shaman'), dps('warlock'), dps('warrior'), dps('mage'),
     ],
   },
   {
