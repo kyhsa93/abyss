@@ -1,0 +1,90 @@
+name: Roleprobe
+
+# How much does a raid need the player's slot filled, by lead and by boss? (#369)
+#
+# `scripts/roleprobe.ts` pulls every boss of a ten-man heroic raid with the
+# player's slot idle and with it handed to the AI, for each lead asked for, and
+# prints the two win rates and their difference in points. It prints no verdict.
+# The numbers that are read come from here, from the x64 runner, and from a
+# dispatch: a number from a laptop is for direction and is not quoted (#350).
+#
+# A workflow of its own, and not a table in the harness or a job in `deploy.yml`
+# or `arch.yml`, for three reasons:
+#   - the harness is a gate: anything added to it moves the shard counts and the
+#     CI time of every push;
+#   - `deploy.yml` has a `pages` group with cancel-in-progress on, so one push
+#     during a measurement would cancel it;
+#   - `arch.yml` cancels in progress too, and a half-run pool is not a pool.
+# So: its own concurrency group, nothing cancelled, one job at a time. Do not
+# start it while a Deploy is running (nineteen of the twenty concurrent jobs).
+#
+# A dispatch only exists once this file is on the default branch, so before then
+# the one way to see it run is the pull request trigger below, the same way
+# `arch.yml` does it. That run is two pulls a cell and is a dry run: it shows
+# that the workflow runs and what the log looks like, and its numbers are not
+# readings of anything.
+#
+# Screening is forty pulls at seed offset 0. A cell that screening picks out is
+# then run on ninety pulls at offset 40, which shares no seed with the first,
+# and only that second run is read.
+on:
+  pull_request:
+    paths: ['scripts/roleprobe.ts', 'scripts/standin.ts', '.github/workflows/roleprobe.yml']
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Pulls a cell (screening 40, confirming 90)'
+        required: true
+        default: '40'
+      seed_offset:
+        description: 'First pool index; a confirming pool of 90 starts at 40 so it shares no seed with the screening 40'
+        required: true
+        default: '0'
+      leads:
+        description: 'Comma-separated, from warrior,druid,priest,shaman,hunter; empty is all five'
+        required: false
+        default: ''
+      bosses:
+        description: 'Comma-separated encounter indices from 0; empty is all eleven'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roleprobe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    # A pool of ninety over five leads is the long case; a dry run is minutes.
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 20 || 240 }}
+    env:
+      # A pull request has no inputs, so the dry run's numbers are set here.
+      ABYSS_PROBE_RUNS: ${{ github.event_name == 'workflow_dispatch' && inputs.runs || '2' }}
+      ABYSS_PROBE_SEED_OFFSET: ${{ github.event_name == 'workflow_dispatch' && inputs.seed_offset || '0' }}
+      ABYSS_PROBE_LEADS: ${{ github.event_name == 'workflow_dispatch' && inputs.leads || '' }}
+      ABYSS_PROBE_BOSSES: ${{ github.event_name == 'workflow_dispatch' && inputs.bosses || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.x
+          cache: npm
+      - run: npm ci
+      - name: roleprobe
+        run: |
+          set -o pipefail
+          npm run --silent roleprobe | tee probe.txt
+          {
+            if [ "${{ github.event_name }}" = pull_request ]; then
+              echo "### Roleprobe 건조 실행 (풀 수 $ABYSS_PROBE_RUNS): 판정값 아님"
+            else
+              echo "### Roleprobe x64 (풀 수 $ABYSS_PROBE_RUNS, 시드 오프셋 $ABYSS_PROBE_SEED_OFFSET)"
+            fi
+            echo '```'
+            cat probe.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
