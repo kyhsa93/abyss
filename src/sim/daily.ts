@@ -39,7 +39,7 @@ export interface Daily {
   difficulty: DifficultyId
   /**
    * The raid: slot 0 is the player's own pick and the other twenty-four are
-   * rolled from the day's seed. The roll fixes the role counts before it knows
+   * rolled from the date. The roll fixes the role counts before it knows
    * what the player brings, and the player's slot replaces its first body, so
    * a role the roll already filled can be filled again and the raid can fall
    * outside `isLegalComposition`.

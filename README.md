@@ -229,8 +229,8 @@ shut: the citadel is somewhere to walk the chain through, not a way round it. Th
 screen asks what you are playing. Pick a class and hit WALK IN; the button
 says PULL when what is in front of you is a single fight rather than a
 building — a battleground, a link somebody sent you, or the room you stepped
-out of to change class. A THE RAID tab on that screen opens the composition
-screen, where the other slots can be changed one at a time; what a composition
+out of to change class. A tab labelled THE RAID on that screen opens the composition
+screen, where the slots can be changed one at a time; what a composition
 costs in a fight is still being measured, one fight at a time (#371).
 
 Until you change them, the rest is rolled around you. The roll keeps the role
@@ -683,9 +683,10 @@ More than two tanks is wasted on a single-target fight, and the healer count
 is fixed rather than capped because a ceiling reads as a target — four is
 still the ceiling over every size, for anything that wants one number. The
 limits are enforced rather than advised: a tap on the composition screen that
-would leave a raid outside them is refused, with the reason written under the
-board, and a roster saved before the limits existed falls back to the default
-instead of loading.
+cannot be made to fit is refused, with the reason written under the board, and
+where a size fixes a role's count a tap that changes a slot's role swaps it with
+a slot already in that role instead. A roster saved before the limits existed
+falls back to the default instead of loading.
 
 **A battleground team of five is exact rather than capped: one tank, one
 healer, three damage.** There is no arrangement of five slots that plays, so
@@ -775,9 +776,9 @@ One fight a day, the same one for everybody. The date picks the boss, the
 difficulty, the seed the fight runs on and the twenty-four others; what is left
 to you is which class you bring — that is the choice the game is about, and
 taking it away to make the comparison tidier would be trading the game for the
-scoreboard. The twenty-four are drawn from the day's seed and the class you
-bring replaces the first slot, so your role can leave the raid outside the
-role limits of [size and difficulty](#size-and-difficulty). The size is always
+scoreboard. Twenty-five are rolled from the date with the usual role counts, and
+the first is dropped for the class you bring, so your role can leave the raid
+outside the role limits of [size and difficulty](#size-and-difficulty). The size is always
 twenty-five, because a five-player daily and a twenty-five-player daily are not
 one fight at two scales — the mechanics that split their damage among the
 people standing in them ask a different question of four bodies than of
@@ -1345,7 +1346,7 @@ minute, with the rotation pressed for you:
 | Hunter | 10 | 0% | lumpy (1.33) |
 
 The script that produced this table is not in the repository, and the table
-cannot be reproduced.
+cannot be reproduced from the repository.
 
 A mage spends over a third of a fight rooted in a cast; a paladin presses
 something nearly three times as often as a hunter and its damage barely moves.
