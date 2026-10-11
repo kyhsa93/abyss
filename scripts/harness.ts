@@ -10,7 +10,6 @@ import { createBattlegroundState } from '../src/sim/state'
 import type { Actor, BgKind, BgState, Vec2 } from '../src/sim/types'
 import {
   autoParty,
-  pickFor,
   randomAround,
   RAID_SIZES,
   SPEC_OPTIONS,
@@ -21,183 +20,10 @@ import {
   specLabel,
   specOf,
 } from '../src/sim/classes'
-import type { PlayerInput, SimState } from '../src/sim/types'
+import type { SimState } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
-import { boss as bossOf } from '../src/sim/combat'
 import { BG_DRIVE_COUNT, BOSS_PIECES, COMPOSITION_ROWS, REWARD_DRIVE_COUNT, SIZE_PIECES, rowFile } from './shardplan'
-
-/** Crude stand-in for a competent human: run out of any puddle, else stand still. */
-function playerInput(s: SimState, pressed: number[]): PlayerInput {
-  const p = s.actors.find((a) => a.isPlayer)!
-  let moveX = 0
-  let moveY = 0
-  for (const g of s.ground) {
-    const d = Math.hypot(p.pos.x - g.pos.x, p.pos.y - g.pos.y)
-    if (d <= g.radius + 20) {
-      moveX += (p.pos.x - g.pos.x) / (d || 1)
-      moveY += (p.pos.y - g.pos.y) / (d || 1)
-    }
-  }
-  return { moveX, moveY, pressed }
-}
-
-interface Report {
-  outcome: string
-  time: number
-  bossPct: number
-  inPuddle: Record<string, number>
-  /** Metres walked per second of fight. */
-  travel: Record<string, number>
-  /** Same, but only while no ground effect exists — pure wasted motion. */
-  idleTravel: Record<string, number>
-  deaths: Record<string, number>
-  /**
-   * The player's own bill, which is the one thing every other row here averages
-   * away. The party's numbers say whether the raid coped; these say whether the
-   * body a person steers was doing anything.
-   */
-  playerHits: number
-  playerTaken: number
-  playerDied: boolean
-  /** Party bodies dead at the end of the pull, the player's slot included. */
-  partyDeaths: number
-  /**
-   * The lowest the raid's pooled health got during the pull, as a percentage of
-   * its pooled maximum (sum of hp over sum of maxHp across the whole party side,
-   * the dead counted as zero), to one decimal. Pooled: one body at the floor is
-   * averaged into everyone else.
-   */
-  minRaidHp: number
-  minMemberHp: number
-}
-
-/**
- * How the player's own slot is driven.
- *
- * `played` is the stand-in above: out of any puddle, rotation on cooldown. `idle`
- * is a body that is still the player's and does nothing at all -- no movement, no
- * presses. The pair is the only way to ask whether a fight is worth playing, and
- * it is deliberately not `unattended`, which hands the slot to the AI.
- */
-type RaidDrive = 'played' | 'idle'
-
-function run(
-  seed: number,
-  attempt: number,
-  party?: Pick[],
-  difficulty: DifficultyId = 'normal',
-  encounter = 0,
-  drive: RaidDrive = 'played',
-): Report {
-  const s = createState(seed, attempt, party, difficulty, encounter)
-  // The pull's opening countdown is skipped rather than waited out. No time
-  // passes during it, so the fight is identical either way — this is only
-  // ninety ticks per run of nobody doing anything, times several thousand.
-  s.countdown = 0
-  const rng = new Rng(seed + attempt * 7919)
-  const ticksIn: Record<string, number> = {}
-  const deaths: Record<string, number> = {}
-  const walked: Record<string, number> = {}
-  const walkedQuiet: Record<string, number> = {}
-  let ticks = 0
-  let minRaidHp = 100
-  let minMemberHp = 100
-
-  while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
-    const pressed: number[] = []
-    // Fire abilities roughly on cooldown.
-    if (drive === 'played') {
-      if (ticks % 45 === 0) pressed.push(0)
-      if (ticks % 360 === 0) pressed.push(1)
-      if (ticks % 540 === 0) pressed.push(2)
-    }
-
-    // A tick with nothing on the floor is a tick nobody should be running.
-    const quiet = s.ground.length === 0
-    const before = new Map(s.actors.map((a) => [a.id, { x: a.pos.x, y: a.pos.y }]))
-
-    step(s, drive === 'played' ? playerInput(s, pressed) : { moveX: 0, moveY: 0, pressed }, rng)
-    ticks++
-
-    let hpNow = 0
-    let hpMax = 0
-    for (const a of s.actors) {
-      if (a.faction !== 'party') continue
-      hpNow += a.alive ? a.hp : 0
-      hpMax += a.maxHp
-      if (a.maxHp > 0) minMemberHp = Math.min(minMemberHp, ((a.alive ? a.hp : 0) / a.maxHp) * 100)
-    }
-    if (hpMax > 0) minRaidHp = Math.min(minRaidHp, (hpNow / hpMax) * 100)
-
-    for (const a of s.actors) {
-      if (a.faction !== 'party' || a.isPlayer || !a.alive) continue
-      const p = before.get(a.id)
-      if (!p) continue
-      const d = Math.hypot(a.pos.x - p.x, a.pos.y - p.y)
-      walked[a.name] = (walked[a.name] ?? 0) + d
-      if (quiet) walkedQuiet[a.name] = (walkedQuiet[a.name] ?? 0) + d
-    }
-
-    for (const a of s.actors) {
-      if (a.faction !== 'party' || a.isPlayer) continue
-      if (!a.alive) {
-        if (deaths[a.name] === undefined) deaths[a.name] = Math.round(s.time * 10) / 10
-        continue
-      }
-      // Anything on the floor that has gone off. It used to name the pool,
-      // because a growing ring is also "detonated" and its radius covers the
-      // arena, which marked the whole party as standing in fire. Both of those
-      // shapes are gone: what is left is floor that burns where it landed.
-      const inside = s.ground.some(
-        (g) =>
-          g.detonated &&
-          Math.hypot(a.pos.x - g.pos.x, a.pos.y - g.pos.y) <= g.radius,
-      )
-      if (inside) ticksIn[a.name] = (ticksIn[a.name] ?? 0) + 1
-    }
-  }
-
-  // `boss(s)` by id, not the last actor: adds and the stalker are appended to
-  // the roster as they spawn, so the tail of it is whatever was summoned most
-  // recently. Every row for a boss with `adds` or `hunt` in its kit — which is
-  // the Choir's and the Tidebreaker's — has been reporting an add's health as
-  // the boss's, and reading a won pull as one that left a third of the boss
-  // standing.
-  const fought = bossOf(s)
-  const pct: Record<string, number> = {}
-  for (const a of s.actors) {
-    if (a.faction !== 'party' || a.isPlayer) continue
-    pct[a.name] = Math.round(((ticksIn[a.name] ?? 0) / ticks) * 1000) / 10
-  }
-
-  const travel: Record<string, number> = {}
-  const idleTravel: Record<string, number> = {}
-  for (const a of s.actors) {
-    if (a.faction !== 'party' || a.isPlayer) continue
-    travel[a.name] = (walked[a.name] ?? 0) / Math.max(1, s.time)
-    idleTravel[a.name] = (walkedQuiet[a.name] ?? 0) / Math.max(1, s.time)
-  }
-
-  // The player's slot, by the ledger the fight writes and never reads back.
-  const me = s.actors.find((a) => a.isPlayer)
-  const bill = me ? s.tally[me.id] : undefined
-  return {
-    outcome: s.outcome,
-    time: Math.round(s.time * 10) / 10,
-    bossPct: Math.round((fought.hp / fought.maxHp) * 1000) / 10,
-    inPuddle: pct,
-    travel,
-    idleTravel,
-    deaths,
-    playerHits: bill?.mechanicHits ?? 0,
-    playerTaken: Math.round(bill?.damageTaken ?? 0),
-    playerDied: me !== undefined && !me.alive,
-    partyDeaths: Object.keys(deaths).length + (me !== undefined && !me.alive ? 1 : 0),
-    minRaidHp: Math.round(minRaidHp * 10) / 10,
-    minMemberHp: Math.round(minMemberHp * 10) / 10,
-  }
-}
-
+import { dps, heal, run, standinParty, tank } from './standin'
 
 /**
  * Which slice of this file to run, or all of it.
@@ -308,11 +134,6 @@ function pullsOf(tag: string, count: number, pieces: number, pull: (at: number) 
 }
 
 const ATTEMPTS = [0, 4, 8]
-
-/** Compositions a player might actually build, including bad ones. */
-const dps = (classId: Pick['classId']): Pick => pickFor(classId, 'dps')!
-const heal = (classId: Pick['classId']): Pick => pickFor(classId, 'healer')!
-const tank = (classId: Pick['classId']): Pick => pickFor(classId, 'tank')!
 
 /**
  * Compositions a player might actually build, including bad ones.
@@ -491,7 +312,7 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
       const cell = `size:${i}:${size}:${difficulty}`
       if (!touches(cell)) continue
-      const party = autoParty(size, dps('mage'))
+      const party = standinParty(size)
       const pulls = pullsOf(cell, SIZE_ATTEMPTS.length * SIZE_RUNS, SIZE_PIECES[cell] ?? 0, (at) => {
         const r = run(1000 + (at % SIZE_RUNS) * 137, SIZE_ATTEMPTS[Math.floor(at / SIZE_RUNS)]!, party, difficulty, i)
         return [r.outcome === 'victory' ? 1 : 0, r.time, r.bossPct]
@@ -869,6 +690,17 @@ const envCount = (name: string, whole: number): number => {
 const SPEC_RUNS = envCount('ABYSS_SPEC_RUNS', 20)
 const SPEC_BOSSES = envCount('ABYSS_SPEC_BOSSES', ENCOUNTERS.length)
 const SPEC_SIZE: RaidSize = 10
+// The difficulty the table is cut at, for a diagnostic that reads the same
+// seventeen rows at another one. Unset is `normal`, which is the table the band
+// reads and the one the build prints, so nothing that does not set it can see
+// it. A value that is neither is an error and not a quiet `normal`: a typo that
+// printed the normal table under a heroic request would read as a finding.
+const SPEC_DIFFICULTY: DifficultyId = (() => {
+  const d = process.env.ABYSS_SPEC_DIFFICULTY
+  if (d === undefined || d === '') return 'normal'
+  if (d === 'normal' || d === 'heroic') return d
+  throw new Error(`ABYSS_SPEC_DIFFICULTY is "${d}": it is normal or heroic`)
+})()
 // The table is one shard on a person's terminal and seventeen in the build,
 // one a spec: `spec:i` measures SPEC_OPTIONS[i] and prints its four numbers on
 // one line, and `spec:merge` reads those seventeen lines back and prints the
@@ -921,7 +753,7 @@ if (want('spec') || specShard !== null || SHARD === 'spec:merge') {
       const began = Date.now()
       for (let n = 0; n < SPEC_RUNS; n++) {
         const seed = 3000 + n * 7919 + boss * 131
-        const s = unattended(createState(seed, 6, lineup(test), 'normal', boss))
+        const s = unattended(createState(seed, 6, lineup(test), SPEC_DIFFICULTY, boss))
         s.countdown = 0
         const rng = new Rng(seed + 7919)
         const me = s.actors.filter((a) => a.faction === 'party')[SLOT]!
@@ -987,7 +819,7 @@ if (want('spec') || specShard !== null || SHARD === 'spec:merge') {
       role === 'tank'
         ? 'spec                net taken %bar  healed/s   win%'
         : `spec                ${role === 'healer' ? 'hps' : 'dps'}       win%`
-    console.log(`\nspec: ${role} (${SPEC_SIZE} normal, ${SPEC_BOSSES} bosses x ${SPEC_RUNS} pulls a row)`)
+    console.log(`\nspec: ${role} (${SPEC_SIZE} ${SPEC_DIFFICULTY}, ${SPEC_BOSSES} bosses x ${SPEC_RUNS} pulls a row)`)
     console.log(head)
     for (const r of list) {
       console.log(
@@ -1066,7 +898,7 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
         const seed = 3000 + n * 7919
         for (const attempt of [0, 8]) {
           const s = unattended(
-            createState(seed, attempt, autoParty(10, dps('mage')), 'heroic', e),
+            createState(seed, attempt, standinParty(10), 'heroic', e),
           )
           s.only = mech
           s.countdown = 0
@@ -1124,7 +956,7 @@ if (want('reward:0:0')) console.log(
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
   if (!touches(`reward:${i}`)) continue
-  const party = autoParty(REWARD_SIZE, dps('mage'))
+  const party = standinParty(REWARD_SIZE)
   if (REWARD_DRIVES.length !== REWARD_DRIVE_COUNT) {
     throw new Error(`scripts/shardplan.ts says ${REWARD_DRIVE_COUNT} drives and there are ${REWARD_DRIVES.length}`)
   }
@@ -1234,7 +1066,7 @@ if (want('crisis:0')) console.log(
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
   if (!want(`crisis:${i}`)) continue
-  const party = autoParty(CRISIS_SIZE, dps('mage'))
+  const party = standinParty(CRISIS_SIZE)
   // reports[attempt][n]; a seed's streak runs through its attempts in order.
   const reports = CRISIS_ATTEMPTS.map((attempt) =>
     Array.from({ length: CRISIS_RUNS }, (_, n) =>

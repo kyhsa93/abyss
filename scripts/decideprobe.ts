@@ -42,9 +42,10 @@ import { step } from '../src/sim/sim'
 import { bossOrNone, livingParty } from '../src/sim/combat'
 import { GIFT_REACH } from '../src/sim/constants'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
-import { autoParty, pickFor, type DifficultyId, type RaidSize } from '../src/sim/classes'
+import type { DifficultyId, RaidSize } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 import { DECISIONS, type Policy } from './decisions'
+import { dodge, rotation, standinParty } from './standin'
 
 const [fightArg, sizeArg, diffArg, pullsArg] = process.argv.slice(2)
 const index = /^\d+$/.test(fightArg ?? '') ? Number(fightArg) : ENCOUNTERS.findIndex((e) => e.id === fightArg)
@@ -59,29 +60,6 @@ const CELLS: Array<[RaidSize, DifficultyId]> = sizeArg
 const PULLS = Number(pullsArg ?? 90)
 /** Attempt nought is a first pull. Eight is the ninth, a party that has learned the fight's hands. */
 const ATTEMPTS = [0, 8]
-
-const rotation = (tick: number): number[] => {
-  const pressed: number[] = []
-  if (tick % 45 === 0) pressed.push(0)
-  if (tick % 360 === 0) pressed.push(1)
-  if (tick % 540 === 0) pressed.push(2)
-  return pressed
-}
-
-/** Out of anything on the floor -- the harness's own stand-in. */
-export function dodge(s: SimState, pressed: number[]): PlayerInput {
-  const p = s.actors.find((a) => a.isPlayer)!
-  let moveX = 0
-  let moveY = 0
-  for (const g of s.ground) {
-    const d = Math.hypot(p.pos.x - g.pos.x, p.pos.y - g.pos.y)
-    if (d <= g.radius + 20) {
-      moveX += (p.pos.x - g.pos.x) / (d || 1)
-      moveY += (p.pos.y - g.pos.y) / (d || 1)
-    }
-  }
-  return { moveX, moveY, pressed }
-}
 
 const BASE: Record<string, Policy> = {
   idle: () => ({ moveX: 0, moveY: 0, pressed: [] }),
@@ -177,7 +155,7 @@ interface Pull {
 const MOMENT: Record<string, string> = { gift: 'souring' }
 
 function pull(seed: number, attempt: number, size: RaidSize, diff: DifficultyId, policy: Policy): Pull {
-  const s = createState(seed, attempt, autoParty(size, pickFor('mage', 'dps')!), diff, index)
+  const s = createState(seed, attempt, standinParty(size), diff, index)
   s.countdown = 0
   const rng = new Rng(seed + attempt * 7919)
   let tick = 0
