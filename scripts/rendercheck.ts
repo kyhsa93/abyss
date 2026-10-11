@@ -2663,6 +2663,54 @@ for (const [label, w, h] of [
     expect('not five', !isLegalComposition(fill(25, 5)), 'accepted')
     expect('and not three', !isLegalComposition(fill(25, 3)), 'accepted')
   }
+
+  // The floor is the other half of the tank rule: ROLE_LIMITS.tank is one to
+  // two, and the check above only ever read the two. A raid with no tank has
+  // nothing to hold the boss, and the generators never build one, so the only
+  // way to one is the board or a roster saved before the rule.
+  {
+    const raid = (size: number, tanks: number): Pick[] => {
+      const party: Pick[] = []
+      for (let i = 0; i < tanks; i++) party.push(pickFor('warrior', 'tank')!)
+      const bench = SPEC_OPTIONS.filter((o) => roleOf(o) === 'healer')
+      for (let i = 0; i < healerCount(size); i++) party.push(bench[i % bench.length]!)
+      while (party.length < size) party.push(pickFor('mage', 'dps')!)
+      return party
+    }
+
+    // (a) No tank is refused at 10 and 25, with one and two as the control so
+    // it is the tank count being read and not the rest of the shape.
+    for (const size of [10, 25] as number[]) {
+      expect(`a ${size} with one tank is legal`, isLegalComposition(raid(size, 1)), composeSummary(raid(size, 1)))
+      expect(`a ${size} with two tanks is legal`, isLegalComposition(raid(size, 2)), composeSummary(raid(size, 2)))
+      expect(`a ${size} with no tank is refused`, !isLegalComposition(raid(size, 0)), composeSummary(raid(size, 0)))
+      expect(
+        `and a ${size} with no tank says why`,
+        (refusal(raid(size, 0)) ?? '').includes('at least 1 tank'),
+        `${refusal(raid(size, 0))}`,
+      )
+    }
+
+    // (b) A lone tank cannot be tapped into damage. A ten and a twenty-five
+    // fix neither tanks nor damage, so there is no trade to read it as, and
+    // the tap is refused instead; with a second tank in place it goes through.
+    for (const size of [10, 25] as number[]) {
+      const one = raid(size, 1)
+      const mage = pickFor('mage', 'dps')!
+      expect(`a ${size}: the lone tank cannot become damage`, selectInto(one, 0, mage) === null, 'taken')
+      const pressed = pressSpec(pressSlot(beginCompose(one), 0), mage)
+      expect(
+        `and the ${size} board refuses with a reason and leaves the slot open`,
+        pressed.refused !== null && pressed.refused.includes('tank') && pressed.selected === 0,
+        `${pressed.refused} ${pressed.selected}`,
+      )
+      const dpsSlot = one.findIndex((p) => roleOf(p) === 'dps')
+      const second = selectInto(one, dpsSlot, pickFor('paladin', 'tank')!)
+      expect(`a ${size}: a second tank can be made first`, second !== null, 'refused')
+      const freed = second === null ? null : selectInto(second, 0, mage)
+      expect(`and then the first tank can become damage`, freed !== null && isLegalComposition(freed), 'refused')
+    }
+  }
 }
 
 // --- a room on the minimap is the shape the room is --------------------------

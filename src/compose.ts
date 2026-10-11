@@ -72,6 +72,9 @@ export function refusal(party: Pick[]): string | null {
     return null
   }
 
+  if (roles.tank < ROLE_LIMITS.tank.min) {
+    return `${size} needs at least ${ROLE_LIMITS.tank.min} tank`
+  }
   if (roles.tank > ROLE_LIMITS.tank.max) {
     return `${size} fields at most ${ROLE_LIMITS.tank.max} tanks`
   }
