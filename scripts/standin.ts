@@ -11,7 +11,7 @@
  * bytes of output from the harness tables that call it.
  */
 import { Rng } from '../src/sim/rng'
-import { createState } from '../src/sim/state'
+import { createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { encounterAt } from '../src/sim/encounters'
 import { autoParty, pickFor, type DifficultyId, type Pick } from '../src/sim/classes'
@@ -95,8 +95,13 @@ export interface Report {
  * is a body that is still the player's and does nothing at all -- no movement, no
  * presses. The pair is the only way to ask whether a fight is worth playing, and
  * it is deliberately not `unattended`, which hands the slot to the AI.
+ *
+ * `unattended` is that third thing, named so a diagnostic can set it beside
+ * `idle` in the very same pull: same party, same seed, same stream, and the only
+ * difference is whether the slot's body is standing there or being run by the AI.
+ * No table the harness prints asks for it.
  */
-export type RaidDrive = 'played' | 'idle'
+export type RaidDrive = 'played' | 'idle' | 'unattended'
 
 export function run(
   seed: number,
@@ -107,6 +112,10 @@ export function run(
   drive: RaidDrive = 'played',
 ): Report {
   const s = createState(seed, attempt, party, difficulty, encounter)
+  // The attempt goes in again on purpose: `unattended` defaults to attempt 6,
+  // which is not the attempt the slot's body was built at, and the AI that takes
+  // the slot would be a different one from the AI around it.
+  if (drive === 'unattended') unattended(s, attempt)
   // The pull's opening countdown is skipped rather than waited out. No time
   // passes during it, so the fight is identical either way — this is only
   // ninety ticks per run of nobody doing anything, times several thousand.

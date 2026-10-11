@@ -38,7 +38,8 @@
     "spacingshots": "esbuild scripts/spacingshots.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/spacingshots.mjs --log-level=error && node node_modules/.cache/spacingshots.mjs",
     "archprobe": "esbuild scripts/archprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/archprobe.mjs --log-level=error && node node_modules/.cache/archprobe.mjs",
     "walkprobe": "esbuild scripts/walkprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/walkprobe.mjs --log-level=error && node node_modules/.cache/walkprobe.mjs",
-    "deadprobe": "esbuild scripts/deadprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/deadprobe.mjs --log-level=error && node node_modules/.cache/deadprobe.mjs"
+    "deadprobe": "esbuild scripts/deadprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/deadprobe.mjs --log-level=error && node node_modules/.cache/deadprobe.mjs",
+    "roleprobe": "esbuild scripts/roleprobe.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/roleprobe.mjs --log-level=error && node node_modules/.cache/roleprobe.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
