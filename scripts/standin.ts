@@ -75,6 +75,8 @@ export interface Report {
    */
   playerHits: number
   playerTaken: number
+  /** Damage the player's own body dealt, by the same ledger. Zero for `unattended`: that body is not the player's. */
+  playerDamage: number
   playerDied: boolean
   /** Party bodies dead at the end of the pull, the player's slot included. */
   partyDeaths: number
@@ -101,7 +103,15 @@ export interface Report {
  * difference is whether the slot's body is standing there or being run by the AI.
  * No table the harness prints asks for it.
  */
-export type RaidDrive = 'played' | 'idle' | 'unattended'
+export type RaidDrive = 'played' | 'idle' | 'unattended' | Steer
+
+/**
+ * A slot driven by a function of the state, once a tick, at the input: the
+ * same two things a thumb has, a direction and the buttons. Nothing it returns
+ * reaches the simulation by any other road, so a policy written as one can only
+ * do what a person could have pressed. `scripts/policies.ts` has them.
+ */
+export type Steer = (s: SimState) => PlayerInput
 
 export function run(
   seed: number,
@@ -137,7 +147,13 @@ export function run(
     const quiet = s.ground.length === 0
     const before = new Map(s.actors.map((a) => [a.id, { x: a.pos.x, y: a.pos.y }]))
 
-    step(s, drive === 'played' ? dodge(s, pressed) : { moveX: 0, moveY: 0, pressed }, rng)
+    const input =
+      typeof drive === 'function'
+        ? drive(s)
+        : drive === 'played'
+          ? dodge(s, pressed)
+          : { moveX: 0, moveY: 0, pressed }
+    step(s, input, rng)
     ticks++
 
     let hpNow = 0
@@ -212,6 +228,7 @@ export function run(
     deaths,
     playerHits: bill?.mechanicHits ?? 0,
     playerTaken: Math.round(bill?.damageTaken ?? 0),
+    playerDamage: Math.round(bill?.damage ?? 0),
     playerDied: me !== undefined && !me.alive,
     partyDeaths: Object.keys(deaths).length + (me !== undefined && !me.alive ? 1 : 0),
     minRaidHp: Math.round(minRaidHp * 10) / 10,
