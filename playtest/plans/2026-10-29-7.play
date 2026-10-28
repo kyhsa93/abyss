@@ -1,0 +1,25 @@
+# Continuation of the same menus/844x390,touch/carried session: chasing a
+# fast, cheap raid wipe to measure the wipe->retry tap count direction.md's
+# "Not yet filed" list asks for. 2026-10-29-6.play's Skyward Deck/wander tank
+# didn't reproduce the 2026-09-28 18s kill (seed differs) and was still
+# ongoing at boss 74%/10-10 alive after 37s. Trying The Last Whisper's
+# `dominate` against `flee` instead (direction.md hypothesis 1, 2026-10-03:
+# "flee's hero-boss steering has no ally-position term to answer it").
+open #b=whisper&s=10&h=1
+tap class:mage:frost
+tap pull
+waitscreen fight 15
+play flee 70
+shot after-flee
+says
+state
+play flee 60
+shot after-flee-2
+says
+state
+
+targets
+ui
+tap pull
+waitscreen fight 15
+state

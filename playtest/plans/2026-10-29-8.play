@@ -1,0 +1,17 @@
+# Final piece of the same menus/844x390,touch/carried session: THE VIGIL
+# under `melee` with a slow class (moveSpeed 158) wipes reliably -- the
+# 2026-10-28 session (playtest/plans/2026-10-28 priest:shadow/melee cell)
+# logged 9/9 wipes in a row on exactly this pairing, far more reliable than
+# chasing a boss-fight death on wall-clock luck (2026-10-29-6/-7.play tried
+# twice and only wiped once). Using `evening`, which does the walking and
+# logs its own retries, to read the retry mechanism's own journal lines
+# rather than hand-steer there.
+open
+tap raid
+tap next
+tap class:priest:discipline
+tap pull
+waitscreen fight 15
+evening melee 150 3
+shot vigil-outcome
+state

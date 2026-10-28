@@ -1,0 +1,19 @@
+# Second half of the same mode=menus/844x390,touch/carried session (split into
+# its own invocation per direction.md's "a second open #hash mid-script does
+# not reset the run" driver lesson). The front-door tap count is already
+# measured (2026-10-29-5.play: 4 taps raid->fight, 3 taps battleground->fight).
+# This half measures the other number direction.md's "Not yet filed" list asks
+# for: the tap count from a wipe back into the same pull. Skyward Deck's
+# boss_slam killed a `wander` tank in 18s (direction.md hypothesis 6 vintage
+# note, 2026-09-28) -- the fastest reliable wipe on record -- so that cell is
+# reused here on purpose, to get the wipe cheaply rather than to re-test it.
+open #b=skyward&s=10&h=1
+targets
+tap class:warrior:protection
+tap pull
+waitscreen fight 15
+state
+play wander 40
+shot after-wander
+says
+state

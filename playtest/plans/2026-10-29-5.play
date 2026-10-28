@@ -1,0 +1,52 @@
+# Cell from playpick: mode=menus, view=844x390,touch, save=carried.
+# direction.md's "Not yet filed" list has two items this session answers at
+# once: "a real player's path through the front door is still mostly
+# untested" (almost every session reaches a fight via an invite hash) and
+# "convenience/tap-count findings are accumulating informally but not yet
+# measured with `ui`". So: walk the real front page -> RAID -> setup ->
+# class pick -> PULL chain, count every tap by hand against the journal, and
+# run `ui` on each screen along the way, landscape phone / carried profile.
+open
+targets
+ui
+shot front
+
+tap raid
+targets
+ui
+shot raid-setup
+
+tap next
+targets
+ui
+shot class-pick
+
+tap class:shaman:elemental
+tap pull
+waitscreen fight 15
+shot arrived
+state
+
+# front page -> raid -> class -> pull -> standing in the first room (the
+# evening has begun; the entrance corridor is itself contested ground) took
+# 4 taps. Now the way back out, and the battleground path for comparison.
+key Escape
+targets
+shot after-escape
+tap back
+tap back
+targets
+shot back-to-front
+
+tap battleground
+targets
+ui
+shot bg-setup
+tap map:conquest
+targets
+shot bg-class-pick
+tap class:priest:discipline
+tap pull
+waitscreen fight 15
+shot bg-arrived
+state
