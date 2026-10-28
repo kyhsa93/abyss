@@ -1,0 +1,49 @@
+# cell: mode=battleground map=flags spec=paladin:retribution style=wander view=390x844,touch save=fresh
+# first wander-style battleground this job has run (hypothesis 7 so far only has
+# flee/dodge/idle/auto/good/melee), and the first paladin:retribution spec tried
+# at all. wander's random walk, unlike flee's away-from-boss vector, has no
+# reason to avoid a dropped flag -- watching whether it picks one up by accident
+# (CARRIER_SPEED/CARRIER_FRAGILITY, src/sim/battleground.ts updateFlags) and
+# whether that costs it the way #7 says a passive style should not.
+open
+shot front
+targets
+tap battleground
+shot bg-menu
+targets
+tap map:flags
+shot class-pick
+targets
+tap class:paladin:retribution
+shot paladin-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+ui
+state
+play wander 40
+shot mid-match1
+state
+bill
+wait 10
+play wander 40
+shot mid-match2
+state
+bill
+wait 10
+play wander 40
+shot mid-match3
+state
+bill
+wait 10
+play wander 40
+shot mid-match4
+state
+bill
+wait 10
+play wander 40
+shot mid-match5
+state
+bill
+says
+targets
