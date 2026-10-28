@@ -1,0 +1,15 @@
+# Probe for 2026-10-29-10.play. Cell from playpick: mode=daily, boss=cold
+# (coverage label only, per direction.md's running note -- the real daily is
+# read off the screen, not this field), spec=paladin:holy, style=good,
+# view=820x1180,touch, save=carried.
+#
+# First mode=daily + paladin:holy + style=good combination this job has run
+# (the one prior daily/paladin:holy reading was idle/fresh, 2026-09-26); also
+# the first daily-mode reading at this specific touch viewport. Probing the
+# actual daily boss and the class-grid index for paladin:holy before
+# committing the real script, since the daily screen only exposes numeric
+# class:N labels.
+open
+tap daily
+shot daily-screen
+targets

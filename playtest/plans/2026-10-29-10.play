@@ -1,0 +1,28 @@
+# Cell from playpick: mode=daily, boss=cold (coverage label only -- the probe
+# (2026-10-29-10-probe.play) found the real daily is The Bonegrinder, 25
+# player, normal, FALTERING ("healing lands for a quarter less")), spec=
+# paladin:holy, style=good, view=820x1180,touch, save=carried.
+#
+# FALTERING has shown up in three prior daily sessions (2026-09-24, two on
+# 2026-09-29) but every one of them was a tank or a melee dps under dodge/
+# melee -- zero heal output, so the affix's own described mechanic (src/sim/
+# affix.ts: affixHealing() multiplies every heal, player and AI alike, by
+# 0.75) has never actually been exercised by a body that casts heals. This is
+# the first daily session pairing a healer spec with style=good (which
+# actually targets and casts) against a FALTERING instance, and the first
+# mode=daily + paladin:holy + style=good combination this job has run at all
+# (the one prior daily/paladin:holy reading was idle/fresh, 2026-09-26).
+# Probe found Paladin Heal at class:3 on the daily grid.
+open
+tap daily
+shot daily-screen
+tap class:3
+tap start
+waitscreen fight 15
+shot opening
+ui
+play good 220
+shot ending
+says
+state
+bill
