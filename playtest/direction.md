@@ -17,6 +17,7 @@ A body that presses nothing (`idle`, and the zero-ability styles `dodge`/`flee`/
 
 **Disproved by** any cell where a zero-/blind-action style loses outright while `good` wins, same boss/size/difficulty — found for real three times (Bloodgorged's `fester`, Bloodgorged's `gorge` against forced-melee steering, The Confluence's `infection` for non-tank roles) and narrowed by role (tank-exclusion-by-design on Confluence/Crimson Gift/several hound bosses). Several apparent "enrage beats a played pull" losses (Last Whisper, Three Crowns, Skyward Deck) turned out to be an engine quirk, not a raid loss: `src/sim/sim.ts:778-792` ends the pull the instant the single `isPlayer` actor dies, before the real wipe check, regardless of the other 24 — so those are the driven body dying to its own exposure, not the AI failing.
 
+- 2026-10-29: first evening to carry `style=auto` as a genuine touch autocast (not the driver's silent fallback to `good` on desktop) all the way to a boss kill -- rogue:assassination, 25-heroic, zero manual presses the whole pull, The Bonegrinder fell at full health (journal: `played style=auto seconds=200 ... fightTime=58 ... heroHp=1530/1530 presses=0 inDanger=4%`); extends the shape to a style where the toggle itself keeps firing abilities and the body still never has to move toward anything to win.
 - 2026-10-03: holding spec/boss/save constant (mage:frost, Bonegrinder daily SWARMING, upkeep's smallest surviving gap +20), idle and good both won within 5s of each other but idle finished healthier on every non-effort axis. (journal: `idle: heroHp=988/1305 (76%) ... byMechanic={"bonestorm":18,"coldflame":2}` vs `good: heroHp=475/1305 (36%) ... byMechanic={"bonestorm":34}`)
 - 2026-10-03: The Last Whisper's `dominate` turns a random ally hostile for 12s and bills zero `mechanicHits` by design ("a burst appearing on a body says one turned without saying which"); `flee`'s `hero - boss` steering has no ally-position term to answer it — a third named mechanic, after Bloodgorged's `fester` and this boss's own enrage, built to beat a boss/floor-only style. (journal: WIPE screen `mechanics: 0` next to `taken: 1.9k`)
 - 2026-10-03: idle tank clean-kills Bonegrinder on the smallest surviving gap in upkeep's table (+20) at 4% inDanger despite real bonestorm hits landing, not a role exclusion. (journal: `heroHp=2745/2745 presses=0 inDanger=4% byMechanic={"bonestorm":10,"coldflame":1}`)
@@ -104,6 +105,14 @@ save at the stalled size/difficulty -- met once on the letter of it
 seed-luck rather than a clean disproof, since a dozen+ clean/stall pairs
 since share every other axis.
 
+- 2026-10-29: first self-loop seen outside spire/westclimb -- an `evening` under
+  `auto` (rogue:assassination, 25-heroic, carried-as-fresh) reached oratory,
+  had no unvisited door left, bounced the teleporter pad oratory->threshold->
+  oratory, and the second oratory arrival logged `crossed from=oratory
+  to=oratory aimedAt=boss:whisper closestGot=250` -- not a stall this time (the
+  boss still woke and the pull ran to 45% before the room's own 200s budget
+  ran out), but the same computed-same-coordinate shape named for westclimb/
+  spire now shows up at a boss antechamber reached by pad, not a plain door.
 - 2026-10-29: first evening to spend its entire room budget (10 rooms x 120s)
   without ever once leaving THE VIGIL -- priest:shadow/`melee`, 10-normal/
   fresh, wiped all 9 retries, `closestGot` converging to 81-82 on seven of the
