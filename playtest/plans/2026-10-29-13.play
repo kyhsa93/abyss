@@ -1,0 +1,29 @@
+# playpick cell: mode=raid boss=crowns(The Three Crowns) spec=druid:balance
+# style=idle size=10 difficulty=normal view=390x844,touch save=fresh
+#
+# direction.md hypothesis #1's "Three Crowns' untouchable-decoy steering gap"
+# note has dodge (never engages, clean), wander (clean win, zero thirst),
+# flee (real thirst damage but survives, boss to 10%), good/melee (parked on
+# the decoy at 100% thirst) -- but never idle, the style with zero movement
+# and zero action at all, closest in kind to dodge but with no steering term
+# whatsoever. Also the first time this boss has been seen on a phone-portrait
+# touch viewport rather than 1280x800 desktop -- worth a look at whether the
+# decoy's visual tell (drawCourt's filled disc/warm ring, the thing a real
+# player is supposed to read instead of hud().boss's raw coordinate) still
+# reads at this size.
+open #b=crowns&s=10&h=0
+targets
+ui
+tap class:druid:balance
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot opening
+play idle 240
+shot ending
+state
+says
+targets
+ui
+bill
