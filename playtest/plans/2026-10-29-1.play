@@ -1,0 +1,23 @@
+# playpick cell: mode=raid boss=host(The Reeking Host) spec=warrior:protection
+# style=mash size=25 difficulty=heroic view=390x844,touch save=fresh
+#
+# The Reeking Host is the one fight in upkeep.md's RAID_SHORT table that is
+# already "0 (held)" -- played and idle both win 100%. Nothing in
+# direction.md hypothesis #1's own observation list names this boss yet.
+# mash is a blind round-robin style, the same shape as idle/dodge/flee for
+# hypothesis #1's purposes. Touch viewport also re-checks #276/#279's
+# corner-button/AUTO-toggle touch-target fix at 390px wide, in a real fight.
+open #b=host&s=25&h=1
+waitscreen roster 10
+tap class:warrior:protection
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive
+state
+targets
+ui
+play mash 180
+shot after-play
+state
+bill

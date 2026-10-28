@@ -104,6 +104,16 @@ save at the stalled size/difficulty -- met once on the letter of it
 seed-luck rather than a clean disproof, since a dozen+ clean/stall pairs
 since share every other axis.
 
+- 2026-10-28: #281 was closed (5a6a8b7) and reopened the same day a session
+  checked the diff: the fix only guards `harvest()` with `state.outcome ===
+  'ongoing'`, the #271 wipe-retry-clobber mechanism, and never touches
+  `cross()`'s door-pick or `roomUnderfoot()`'s `partyMiddle()` read -- the
+  mechanism this line names. The closing commit's own verification replayed
+  #271's wipe/retry journal, not #281's stall. A replay of #281's original
+  repro (druid:guardian, `wander`, 10-normal, fresh) crossed VIGIL clean in
+  55.5s (12.1s in, 67.6s out) -- not new evidence either way, since clean
+  `wander` crossings on this exact cell were already on record before the fix
+  and already read as seed-luck, not a fix landing.
 - 2026-10-03: priest:discipline (`moveSpeed=158`) `wander` wiped on the same cell druid:guardian opened on; 3 wipes + 1 stall, zero clean crossings under `wander` at any class speed tried (158/167/167) (journal: `fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}`).
 - 2026-10-03: `melee`'s class-speed theory narrowed to a threshold -- shaman:elemental (`moveSpeed=167`) crossed clean same as rogue (178), while warlock/priest (158) both wiped; the split sits between 158 and 167, not "fastest class only" (journal: `closestGot=8, presses=3`).
 - 2026-10-02: the spire/westclimb/oratory/eastclimb door-pick-vs-arrival mismatch (see below) confirmed on a 4th spec, first time at 25-heroic, settling that size/difficulty does not predict it (journal: `"from":"spire","to":"spire","closestGot":1889`).

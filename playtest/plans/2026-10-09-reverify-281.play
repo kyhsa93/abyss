@@ -1,0 +1,25 @@
+# Re-verification of #281 (closed 2026-10-06 by commit 5a6a8b7, bundled with
+# #271). The commit's own diff only touches main.ts's harvest()/carried fold
+# (the #271 retry-clobber mechanism), theme.ts/touchcheck.ts (#279),
+# hud.ts/history.ts (#276, #283) -- nothing in cross()'s door-pick or
+# roomUnderfoot()'s partyMiddle() centroid read, which is #281's own named
+# mechanism in direction.md #6. Replaying #281's original repro verbatim to
+# check whether it was actually fixed or closed alongside #271 by mistake.
+open
+tap raid
+waitscreen raid 10
+tap next
+tap class:druid:guardian
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+evening wander 400 12
+shot after-evening
+state
+says
+targets
+ui
+bill
