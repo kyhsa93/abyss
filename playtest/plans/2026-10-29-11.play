@@ -1,0 +1,43 @@
+# Cell from playpick: mode=walk, boss=saved, spec=warlock:destruction,
+# style=dodge, size=10, difficulty=normal, view=1280x800, save=fresh.
+#
+# "walk" means the long way (no #hash shortcut): front page -> RAID -> class
+# pick -> WALK IN. boss=saved (The One You Save) is a coverage label only --
+# evening steers at no boss -- but it names a target worth checking: no
+# session in this job's history has ever actually reached or fought "saved".
+# It sits in room `dream`, the first fight of the frostwing wing, which from
+# a fresh door is threshold -> vigil -> spire(marrow) -> climb -> oratory
+# (whisper) -> mooring(skyward) -> rise(gorged) -> crossing -> dream(saved) --
+# four boss fights and the whole lower spire before the target is even in
+# range. direction.md's hypothesis 6 has `dodge` at 3-for-3 clean THE VIGIL
+# crossings (never once stalled), and #271's wipe-retry bug is closed, so
+# this is the first session positioned to actually walk that far rather than
+# die or stall at the first corridor. warlock:destruction has been walked
+# before under melee (wiped at VIGIL, #271-era) and wander (also wiped,
+# #271-era) on this exact size/difficulty/save/view cell -- dodge is the one
+# style never tried on this spec, and a controlled same-cell comparison
+# against those two prior wipes.
+open
+targets
+ui
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:warlock:destruction
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+# Chunk 1: threshold -> vigil -> spire(marrow) -> climb -> oratory(whisper) ->
+# mooring(skyward)/rise(gorged). Evening stops itself early (evening-stuck) if
+# two rooms in a row go nowhere; budget kept inside one foreground invocation.
+evening dodge 150 6
+shot after-evening-1
+state
+says
+bill
+targets

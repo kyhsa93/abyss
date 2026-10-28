@@ -106,6 +106,18 @@ save at the stalled size/difficulty -- met once on the letter of it
 seed-luck rather than a clean disproof, since a dozen+ clean/stall pairs
 since share every other axis.
 
+- 2026-10-29: first `dodge`-style wipe at this exact cell (10-normal, fresh) and
+  the sharpest convergence yet within a single evening's own retries: `mode=walk`,
+  warlock:destruction, 1280x800, `evening dodge 150 6` spent its whole 6-room
+  budget retrying THE VIGIL and never left it -- 5 wipes, `closestGot` reading
+  12, then 81, 81, 81, 82 on the four retries after the first, nearly identical
+  from the second retry on. Matches the priest:shadow/melee session's own
+  81-82 convergence above almost exactly, with a completely different spec and
+  style -- two sessions that share nothing but the cell (10-normal, fresh)
+  landing on the same coordinate is the strongest evidence yet against reading
+  this as seed-luck. Commented on #281 rather than filing a third issue for the
+  same mechanism. (journal: `closestGot=12/81/81/81/82`, wipes=1-5, `#271`'s
+  retry fix confirmed still holding -- every retry correctly reset to 1485/1485)
 - 2026-10-29: first self-loop seen outside spire/westclimb -- an `evening` under
   `auto` (rogue:assassination, 25-heroic, carried-as-fresh) reached oratory,
   had no unvisited door left, bounced the teleporter pad oratory->threshold->
