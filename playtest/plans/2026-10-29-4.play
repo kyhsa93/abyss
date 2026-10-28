@@ -1,0 +1,24 @@
+# playpick cell: mode=raid boss=crowns(The Three Crowns) spec=shaman:restoration
+# style=flee size=10 difficulty=normal view=1280x800 save=fresh
+#
+# direction.md hypothesis #1 has wander (clean win) and good/melee (parked on
+# the untouchable decoy at 100% thirst) on this boss, but never flee -- the
+# style with no toward-boss steering term at all, same shape as wander there.
+# Also the first healer spec tried on Crowns under any style; paladin:holy was
+# tried under wander/mash (0 heals cast, still carried) but never flee.
+open #b=crowns&s=10&h=0
+targets
+ui
+tap class:shaman:restoration
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot opening
+play flee 240
+shot ending
+state
+says
+targets
+ui
+bill
