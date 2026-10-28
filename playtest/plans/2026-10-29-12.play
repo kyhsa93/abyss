@@ -1,0 +1,39 @@
+# playpick cell: mode=clear spec=druid:feral style=auto size=25
+# difficulty=heroic view=820x1180,touch save=carried.
+#
+# Checked direction.md and sessions.jsonl first. druid:feral has nine prior
+# sessions (walk/clear/raid/daily/battleground, styles idle/good/auto/dodge/
+# flee/mash) but mode=clear + style=auto + 25-heroic + carried + this exact
+# tall-portrait-tablet viewport (820x1180,touch) has never been run: the one
+# style=auto evening on record for this spec (mode=walk, boss=skyward,
+# 25-heroic, carried) used 844x390,touch -- a short landscape phone, not this
+# tall portrait one. This matters for #386 (AUTO toggle's hit-circle eating
+# ability:4/5 on narrow touch) and #387 (ability-cluster self-overlap): both
+# were measured mostly on narrow viewports, and #387's own comments already
+# confirmed the overlap is viewport-independent at 390/844/1280 widths but
+# NOT yet checked at 820px tall-portrait. Also: "clear" is judged by whether
+# the evening reaches a wing's end page, for each of the four wings -- no
+# druid:feral session has ever been run long enough (room budget) to see
+# past THE VIGIL, since the one prior mode=clear for this spec+style+size+
+# difficulty combo doesn't exist and most other specs' clear attempts spend
+# their whole budget stuck in THE VIGIL per direction.md hypothesis 6.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:druid:feral
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+targets
+ui
+shot ui-check
+
+evening auto 280 12
+shot after-evening
+state
+says
+targets
+bill

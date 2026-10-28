@@ -106,6 +106,23 @@ save at the stalled size/difficulty -- met once on the letter of it
 seed-luck rather than a clean disproof, since a dozen+ clean/stall pairs
 since share every other axis.
 
+- 2026-10-29: a `mode=clear` evening (druid:feral, `auto`, 25-heroic, carried,
+  820x1180 touch -- the first time this spec's `auto` style has been run at
+  this viewport/save combo, the one prior `auto` evening for this spec being
+  844x390 touch under `mode=walk`) crossed THE VIGIL clean in 26.9s
+  (vigil@9.8s -> spire@36.7s, `closestGot=16`), then killed The Bonegrinder
+  and The Last Whisper back to back (both ran their full 280s budget, 25/25
+  then 24/25 alive) before looping oratory<->eastclimb exactly as this
+  hypothesis already describes -- a second self-loop door pair alongside the
+  already-logged oratory<->threshold one, same junction, different style
+  (`auto` again, different spec). The evening's own pad logic broke the loop
+  by taking the oratory->mooring connection, reaching room 9/12 (boss-woken
+  on The Skyward Deck) before the *session's* own tooling cut the run off
+  mid-pull -- not a game fault, see sessions.jsonl. Checked from source
+  (`src/main.ts:2826-2839`) before trusting it: oratory->mooring is a lift,
+  which draws no door and lights as a pad the moment oratory is cleared, so
+  `padded()` reporting "mooring" lit before it had ever been walked to is
+  correct behaviour, not a second mismatch on top of the self-loop one.
 - 2026-10-29: first `dodge`-style wipe at this exact cell (10-normal, fresh) and
   the sharpest convergence yet within a single evening's own retries: `mode=walk`,
   warlock:destruction, 1280x800, `evening dodge 150 6` spent its whole 6-room
