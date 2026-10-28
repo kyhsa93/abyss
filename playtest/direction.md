@@ -104,6 +104,18 @@ save at the stalled size/difficulty -- met once on the letter of it
 seed-luck rather than a clean disproof, since a dozen+ clean/stall pairs
 since share every other axis.
 
+- 2026-10-29: first evening to spend its entire room budget (10 rooms x 120s)
+  without ever once leaving THE VIGIL -- priest:shadow/`melee`, 10-normal/
+  fresh, wiped all 9 retries, `closestGot` converging to 81-82 on seven of the
+  eight later attempts rather than scattering the way a seed-luck read would
+  predict, with each PULL AGAIN correctly resetting the room (10/10 alive,
+  full hp every time, confirming #271's retry fix still holds). The shot shows
+  the party parked on the door's own campfires trading with `The Unburied`
+  under the room's own on-screen hint, "The way up starts at the far door.
+  Walk it together or not at all" -- turns the existing "melee didn't
+  replicate on slower classes" entry from a single wipe into a clean, 9-for-9
+  dead end for this style/class pairing. (journal: `wiped at=vigil
+  outcome=wipe wipes=9`, closestGot 24,81,82,81,82,81,82,81,82)
 - 2026-10-28: #281 was closed (5a6a8b7) and reopened the same day a session
   checked the diff: the fix only guards `harvest()` with `state.outcome ===
   'ongoing'`, the #271 wipe-retry-clobber mechanism, and never touches

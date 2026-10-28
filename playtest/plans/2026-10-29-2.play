@@ -1,0 +1,34 @@
+# playpick cell: mode=walk boss=confluence spec=priest:shadow style=melee
+# size=10 difficulty=normal view=1280x800 save=fresh
+#
+# boss=confluence is a coverage label only (direction.md's own driver-lesson:
+# `evening` steers at no boss, it walks in at the door same as any other). What
+# that label actually points at is worth chasing anyway: The Confluence is the
+# fifth fight, the first one inside a wing off the crossing rather than up the
+# main spire, and no `mode=walk` session on record has ever gotten past the
+# crossing -- the deepest prior evening (2026-09-27-9, druid:guardian/good)
+# reached room 7 and ran out of budget fighting The Skyward Deck, still inside
+# the lower-spire/crossing area, never having picked a wing. This session asks
+# a bigger room budget to actually reach a wing choice and a wing's first room,
+# through the real front-page -> class pick -> PULL chain rather than a hash,
+# on a spec/style pair (priest:shadow, melee) this line has not tried: a ranged
+# healing-capable spec forced into melee's beeline-at-the-nearest-threat
+# steering, which direction.md #7 has only ever seen push a body into point-
+# blank range on a boss, never on trash or a corridor pack.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:priest:shadow
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+
+evening melee 120 10
+state
+shot after-evening
+bill
