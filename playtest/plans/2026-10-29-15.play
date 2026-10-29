@@ -1,0 +1,37 @@
+# playpick cell: mode=clear spec=druid:restoration style=mash size=25
+# difficulty=heroic view=1280x800 save=fresh.
+#
+# Checked direction.md and sessions.jsonl first. This exact cell (druid:
+# restoration, mash, 25-heroic, mode=clear) was run once before, 2026-09-27,
+# but on a carried touch viewport (820x1180,touch) that #273 means behaved as
+# fresh anyway -- so the only real differences here are a genuine desktop/
+# non-touch viewport (1280x800) and a larger room/time budget. That prior
+# session crossed THE VIGIL clean in 6s, one-shot Bonegrinder heroic at
+# fightTime=78s (25/25, full hp), then ran its whole 220s room budget out on
+# The Last Whisper at 2% boss hp (fault:fight-outlasted-its-budget) -- it
+# never saw Skyward Deck (mooring) or Bloodgorged (rise), the last two fights
+# of the lower wing, and no mode=clear session on *any* spec/style has yet
+# reached a wing's own end page (`screen()==='wing'`), which is the actual
+# bar docs/playtest.md sets for a clear session and which direction.md's own
+# history shows nobody has hit. This session raises the per-room budget
+# (260s, up from 220s) and the room count (9, up from 6) specifically to get
+# past the Last Whisper stall and see whether mash's healer-targets-neediest
+# round-robin carries a heroic raid all the way to the lower wing's own exit.
+open #b=marrow&s=25&h=1
+tap back
+tap raid
+tap next
+tap class:druid:restoration
+shot class-selected
+tap pull
+waitscreen fight 15
+state
+shot arrive-threshold
+targets
+
+evening mash 260 9
+shot after-evening
+state
+says
+targets
+bill

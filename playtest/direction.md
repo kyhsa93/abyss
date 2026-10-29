@@ -107,80 +107,53 @@ save at the stalled size/difficulty -- met once on the letter of it
 seed-luck rather than a clean disproof, since a dozen+ clean/stall pairs
 since share every other axis.
 
-- 2026-10-29: a `mode=clear` evening (druid:feral, `auto`, 25-heroic, carried,
-  820x1180 touch -- the first time this spec's `auto` style has been run at
-  this viewport/save combo, the one prior `auto` evening for this spec being
-  844x390 touch under `mode=walk`) crossed THE VIGIL clean in 26.9s
-  (vigil@9.8s -> spire@36.7s, `closestGot=16`), then killed The Bonegrinder
-  and The Last Whisper back to back (both ran their full 280s budget, 25/25
-  then 24/25 alive) before looping oratory<->eastclimb exactly as this
-  hypothesis already describes -- a second self-loop door pair alongside the
-  already-logged oratory<->threshold one, same junction, different style
-  (`auto` again, different spec). The evening's own pad logic broke the loop
-  by taking the oratory->mooring connection, reaching room 9/12 (boss-woken
-  on The Skyward Deck) before the *session's* own tooling cut the run off
-  mid-pull -- not a game fault, see sessions.jsonl. Checked from source
-  (`src/main.ts:2826-2839`) before trusting it: oratory->mooring is a lift,
-  which draws no door and lights as a pad the moment oratory is cleared, so
-  `padded()` reporting "mooring" lit before it had ever been walked to is
-  correct behaviour, not a second mismatch on top of the self-loop one.
-- 2026-10-29: first `dodge`-style wipe at this exact cell (10-normal, fresh) and
-  the sharpest convergence yet within a single evening's own retries: `mode=walk`,
-  warlock:destruction, 1280x800, `evening dodge 150 6` spent its whole 6-room
-  budget retrying THE VIGIL and never left it -- 5 wipes, `closestGot` reading
-  12, then 81, 81, 81, 82 on the four retries after the first, nearly identical
-  from the second retry on. Matches the priest:shadow/melee session's own
-  81-82 convergence above almost exactly, with a completely different spec and
-  style -- two sessions that share nothing but the cell (10-normal, fresh)
-  landing on the same coordinate is the strongest evidence yet against reading
-  this as seed-luck. Commented on #281 rather than filing a third issue for the
-  same mechanism. (journal: `closestGot=12/81/81/81/82`, wipes=1-5, `#271`'s
-  retry fix confirmed still holding -- every retry correctly reset to 1485/1485)
-- 2026-10-29: first self-loop seen outside spire/westclimb -- an `evening` under
-  `auto` (rogue:assassination, 25-heroic, carried-as-fresh) reached oratory,
-  had no unvisited door left, bounced the teleporter pad oratory->threshold->
-  oratory, and the second oratory arrival logged `crossed from=oratory
-  to=oratory aimedAt=boss:whisper closestGot=250` -- not a stall this time (the
-  boss still woke and the pull ran to 45% before the room's own 200s budget
-  ran out), but the same computed-same-coordinate shape named for westclimb/
-  spire now shows up at a boss antechamber reached by pad, not a plain door.
-- 2026-10-29: first evening to spend its entire room budget (10 rooms x 120s)
-  without ever once leaving THE VIGIL -- priest:shadow/`melee`, 10-normal/
-  fresh, wiped all 9 retries, `closestGot` converging to 81-82 on seven of the
-  eight later attempts rather than scattering the way a seed-luck read would
-  predict, with each PULL AGAIN correctly resetting the room (10/10 alive,
-  full hp every time, confirming #271's retry fix still holds). The shot shows
-  the party parked on the door's own campfires trading with `The Unburied`
-  under the room's own on-screen hint, "The way up starts at the far door.
-  Walk it together or not at all" -- turns the existing "melee didn't
-  replicate on slower classes" entry from a single wipe into a clean, 9-for-9
-  dead end for this style/class pairing. (journal: `wiped at=vigil
-  outcome=wipe wipes=9`, closestGot 24,81,82,81,82,81,82,81,82)
-- 2026-10-28: #281 was closed (5a6a8b7) and reopened the same day a session
-  checked the diff: the fix only guards `harvest()` with `state.outcome ===
-  'ongoing'`, the #271 wipe-retry-clobber mechanism, and never touches
-  `cross()`'s door-pick or `roomUnderfoot()`'s `partyMiddle()` read -- the
-  mechanism this line names. The closing commit's own verification replayed
-  #271's wipe/retry journal, not #281's stall. A replay of #281's original
-  repro (druid:guardian, `wander`, 10-normal, fresh) crossed VIGIL clean in
-  55.5s (12.1s in, 67.6s out) -- not new evidence either way, since clean
-  `wander` crossings on this exact cell were already on record before the fix
-  and already read as seed-luck, not a fix landing.
-- 2026-10-03: priest:discipline (`moveSpeed=158`) `wander` wiped on the same cell druid:guardian opened on; 3 wipes + 1 stall, zero clean crossings under `wander` at any class speed tried (158/167/167) (journal: `fault:evening-stuck {"at":"vigil","after":"wipe","rooms":3}`).
+- 2026-10-29: the same exact cell (druid:restoration, `mash`, 25-heroic, fresh,
+  1280x800 desktop, `mode=clear`) read both ways on two different days --
+  clean in 6s on 2026-09-27, then four wipes converging `closestGot`
+  28/81/81/82 before a clean 82 crossing on the fifth attempt today. A third
+  spec/style pair, after priest:shadow/melee and warlock:destruction/dodge,
+  landing on the same 81-82 coordinate, and the sharpest single demonstration
+  yet of the `Date.now()`-roomSeed reading below: one cell, two outcomes, only
+  the wall clock differing. #271's retry fix held through all four wipes; the
+  healer still clean-killed Bonegrinder afterward (116s, slower than 9/27's
+  78s, likely the shared-RNG-stream cost of the retries) and reached The Last
+  Whisper's boss-woken at 519.3s before this session's own 600s foreground
+  limit cut it off -- no `mode=clear` session on any cell has yet reached a
+  wing's own end page. Commented on #281. (journal: `closestGot=28/81/81/82`,
+  then Bonegrinder `fightTime=116 aliveParty=25/25 heroHp=1440/1440`)
+- 2026-10-29: druid:feral/`auto`, 25-heroic carried (820x1180 touch) crossed
+  VIGIL clean in 26.9s, killed Bonegrinder and Last Whisper back to back, then
+  hit a second self-loop door pair (oratory<->eastclimb) before its own pad
+  logic broke out via the oratory->mooring lift and reached room 9/12
+  (Skyward Deck boss-woken) when this session's own tooling cut it off --
+  furthest any `clear` session has reached, still short of a wing's end page.
+- 2026-10-29: first `dodge` wipe at the 10-normal/fresh cell, converging
+  `closestGot` 12/81/81/81/82 across 5 retries -- near-identical to the
+  priest:shadow/melee convergence below despite sharing nothing but the cell.
+- 2026-10-29: first self-loop outside spire/westclimb -- `auto`
+  (rogue:assassination) bounced oratory->threshold->oratory, landing
+  `closestGot=250` on the second arrival; not a stall this time, the pull
+  still ran to 45% before the room's own budget ran out.
+- 2026-10-29: priest:shadow/`melee`, 10-normal/fresh, spent its entire 10-room
+  budget without ever leaving VIGIL -- 9 wipes, `closestGot` converging to
+  81-82 on seven of eight retries, each PULL AGAIN correctly resetting the
+  room (#271 still holds). Turns the 2026-09-25 "melee didn't replicate on
+  slower classes" single wipe into a clean 9-for-9 dead end.
+- 2026-10-28: #281 was closed (5a6a8b7) and reopened the same day: the fix
+  only guards `harvest()` with `state.outcome === 'ongoing'`, the #271
+  wipe-retry-clobber mechanism, and never touches `cross()`'s door-pick or
+  `roomUnderfoot()`'s `partyMiddle()` read -- the mechanism this line names.
+  A replay of #281's own repro crossed clean (55.5s) but that is not new
+  evidence either way, since clean `wander` crossings on this cell predate
+  the fix and already read as seed-luck.
 - 2026-10-03: `melee`'s class-speed theory narrowed to a threshold -- shaman:elemental (`moveSpeed=167`) crossed clean same as rogue (178), while warlock/priest (158) both wiped; the split sits between 158 and 167, not "fastest class only" (journal: `closestGot=8, presses=3`).
-- 2026-10-02: the spire/westclimb/oratory/eastclimb door-pick-vs-arrival mismatch (see below) confirmed on a 4th spec, first time at 25-heroic, settling that size/difficulty does not predict it (journal: `"from":"spire","to":"spire","closestGot":1889`).
-- 2026-10-02: same mismatch hit two more specs (rogue:assassination, druid:balance) at the identical junction, same farthest-unvisited door pick each time before self-looping.
+- 2026-10-02: the spire/westclimb/oratory/eastclimb door-pick-vs-arrival mismatch (see below) confirmed on three more specs, first time at 25-heroic, same farthest-unvisited door pick each time before self-looping -- settling that size/difficulty does not predict it (journal: `"from":"spire","to":"spire","closestGot":1889`).
 - 2026-10-01: a westclimb self-loop stall's coordinates landed within 1 unit of `x` and bit-identical `y` (13 digits) of two prior unrelated runs (different class/size/day) -- `cross()` computing the same steering target regardless of who walks it (journal: `"hero":{"x":-1383.33...,"y":-6610.624094474852}`, `closestGot":551-553`).
 - 2026-10-01: one same-spec/style/size `flee` pair produced both a VIGIL wipe and a clean crossing with no axis differing but the wall clock -- decided by `Date.now()`-keyed `roomSeed`, not by `flee` itself.
-- 2026-09-29: a same-class, same-tier split undercut both the speed and style theories at once -- druid:balance/`flee` crossed clean while druid:guardian/`wander` stalled, identical `moveSpeed` (167), same 10-normal tier.
-- 2026-09-28/29: `dodge` reached 3-for-3 clean crossings (10-normal and 25-heroic both), the one style that has never once stalled THE VIGIL.
 - 2026-09-27: mechanism read straight from source -- `roomUnderfoot()` tests `partyMiddle()`'s centroid, not the player; a lagging huddle during a corridor fight reads as room-unchanged or room-changed-backward (`wander` stalled SPIRE/WEST CLIMB this way) (journal cite: `src/main.ts:994`, `partyMiddle` comment on trailing by its own width).
-- 2026-09-27: first clean crossing matching the hypothesis's own disprove condition on the letter of it -- `good`, same class/style/size/difficulty/cell as the 2026-09-25 opening stall, only the seed differing; read as narrowing toward seed-luck, not a full disproof.
-- 2026-09-26: `good`, then `dodge`/`flee`/`mash`, crossed clean specifically at 25-heroic after stalling at 10-normal, building a "0 stalls at 25-heroic vs. 4 at 10-normal" tally -- later undercut by the 2026-09-29 same-tier split above.
 - 2026-09-26: THE WEST CLIMB (not VIGIL) also burned a full room budget parked at a door, same shape as VIGIL's stalls -- the mechanism is not specific to this one corridor.
 - 2026-09-25: corrected -- `melee`'s one clean crossing (rogue:assassination) did not replicate on slower classes (warlock, priest both wiped); the one clean pass reads as class `moveSpeed` (178) doing the work, not the style.
 - 2026-09-25: `idle` crossed clean in 33s and stayed clean on later, slower classes/viewports/sizes (paladin, druid:feral, warrior) -- unlike `melee`, not explained away by speed.
-- 2026-09-25: a fifth style, `melee` (rogue:assassination, the roster's fastest class), crossed THE VIGIL clean in 26s against four priors' 250-400s convergent stalls -- the first clean crossing on record, later narrowed above.
 - 2026-09-25: opened -- `wander`, `good` (two seeds) and `flee` all stalled within about a dozen units of each other on the same 10-normal druid:guardian/priest:discipline cell, full health, zero damage, same campfire-cluster screenshot shape (journal: `fault:fight-outlasted-its-budget`, hero≈(268-275,-1561 to -1573)).
 
 ### 7. A battleground does not carry a passive body the way a raid does
