@@ -1,0 +1,34 @@
+# Cell from playpick: mode=daily, boss=saved (coverage label only -- the probe
+# (2026-10-29-16-probe.play) found the real daily is The Long Cold, 25 player,
+# normal, FALTERING ("healing lands for a quarter less")), spec=druid:guardian
+# (tank), style=auto, view=390x844,touch, save=carried.
+#
+# First mode=daily + druid:guardian + style=auto combination this job has run
+# (the tank role has only been run on dailies under dodge/melee/idle before).
+# style=auto at a touch viewport is genuine autocast, not the desktop
+# fallback-to-good. The Long Cold is README's own "hardest single cell" and
+# docs/upkeep.md's `raid / drive` table gives it the second-widest
+# played-vs-idle gap of all eleven fights (57% vs 2%, +55) -- so a tank under
+# real autocast on the hardest fight, with FALTERING cutting every heal
+# (including the AI healers' own heals landing on this tank) by a quarter, is
+# the sharpest test yet of whether autocast actually holds up a tank's own
+# survival on the one fight the hand-played policy struggles hardest to win.
+# Probe found Druid Tank at class:7 on the daily grid.
+open
+tap daily
+shot daily-screen
+tap class:7
+shot class-selected
+tap start
+waitscreen fight 15
+shot arrive
+state
+targets
+ui
+play auto 300
+shot after-fight
+state
+says
+bill
+targets
+shot report

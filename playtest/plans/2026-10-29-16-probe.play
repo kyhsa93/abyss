@@ -1,0 +1,12 @@
+# Probe for 2026-10-29-16.play. Cell from playpick: mode=daily, boss=saved
+# (coverage label only, per direction.md's running note -- the real daily is
+# read off the screen, not this field), spec=druid:guardian, style=auto,
+# view=390x844,touch, save=carried.
+#
+# First mode=daily + druid:guardian (tank) + style=auto combination this job
+# has run. Probing the actual daily boss/affix and the class-grid index for
+# druid:guardian before committing the real script.
+open
+tap daily
+shot daily-screen
+targets
