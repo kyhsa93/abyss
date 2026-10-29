@@ -108,6 +108,14 @@ save at the stalled size/difficulty -- met once on the letter of it
 seed-luck rather than a clean disproof, since a dozen+ clean/stall pairs
 since share every other axis.
 
+- 2026-10-29: warrior:arms (moveSpeed 158, `src/sim/classes.ts:444` -- the same
+  tier as every prior melee wipe: warlock, priest:discipline x2,
+  priest:shadow 9/9) under `melee`, 10-normal/fresh, wiped THE VIGIL once
+  (`closestGot=14`) then crossed clean on the very next PULL AGAIN retry
+  (`closestGot=68`) -- a fourth class at the losing end of the class-speed
+  threshold reading, but the first to cross at all rather than converge to a
+  repeat stall, which reads as another point for seed-luck over a hard
+  158/167 split: the same class, same retry, same corridor, wipe then clean.
 - 2026-10-29: the same exact cell (druid:restoration, `mash`, 25-heroic, fresh,
   1280x800 desktop, `mode=clear`) read both ways on two different days --
   clean in 6s on 2026-09-27, then four wipes converging `closestGot`
@@ -177,6 +185,7 @@ A style that presses nothing (`flee`/`dodge`/`idle`) costs its own team the matc
 
 ### Not yet filed
 
+- **A boss fight's own clock can stall mid-pull while the boss still vanishes as if killed.** Filed as #389. Same session, same spec/style/size/difficulty (warrior:arms, melee, 10-normal, fresh): the Bonegrinder pull advanced its fight clock 82 ticked seconds in 200 real seconds and died normally; the very next boss room, Last Whisper, advanced only 2.17 ticked seconds (65 ticks) in the same 200-real-second budget, with `heroHp` still dropping (1890→1637) and `inDanger` reading 22% -- not a hard freeze (`fight-stalled`'s 5-second-no-tick-change fault never fired) but far too little tick progress for the `bossHp:down`/boss-gone outcome it ended on, against `src/sim/encounters.ts:1040`'s own health table putting Last Whisper (6.6M) and Bonegrinder (7.0M) within 6% of each other. One observation, in a room (`oratory`) this line has not separately tracked before -- not yet worth a standing hypothesis of its own, since #6 is specifically about corridor convergence and this is inside an actual boss pull.
 - **FALTERING's own described mechanic (healing lands for a quarter less) has now actually been exercised by a healer that heals.** The three prior FALTERING daily sessions (2026-09-24, 2x 2026-09-29) were all tanks/dps under `dodge`/`melee` -- zero heal output, so `affixHealing()`'s 0.75 multiplier (`src/sim/affix.ts:78`, confirmed applying to every heal, player and AI alike, via the shared `applyHeal` at `src/sim/combat.ts:1159`) had never been in front of a cast. 2026-10-29: paladin:holy under `good` on today's Bonegrinder 25-normal FALTERING killed clean at 160.4s but lost 1/25 (a second healer, Iris, died at 156s, four seconds before the kill) and finished the played healer at 565/1530 (37%) hp, last of the raid's five healers on the live hps panel (29, against 32-39 for the other four) despite actively casting the whole fight (holy_light/beacon_of_light/lay_on_hands/holy_shock all on the bar, presses=49). Not isolated from positioning (`good` beelines at the boss, and `bonestorm` hit this body 44 times, the highest mechanic count on record for this boss) -- a same-cell `idle` FALTERING pull, or any non-FALTERING Bonegrinder 25-normal baseline, would be needed before reading the death or the low hps rank as the affix biting rather than the style's own steering. One observation, not three cells; not yet worth a line of its own.
 
 - **Three Crowns' untouchable-decoy steering gap.** Every toward-boss driver style (`melee`, `good`) walks onto `hud().boss`'s raw coordinate, which is sometimes the untouchable decoy, and spends the whole fight at 100% `thirst` — `hud()` exposes only one boss body's position, so no driver style can ever learn which of the three is real. A real player gets an unambiguous visual (`drawCourt`'s filled disc/warm ring) the vocabulary cannot see. `dodge`/`wander`/`flee` all answer this differently (see [[#1]]): `dodge` never engages the puzzle at all, `wander` can still win outright with zero `thirst`, and `flee` (2026-10-29) sits between the two — real `thirst` damage but still 10/10 alive and the boss still dropping. Driver gap, not a game bug — worth an enhancement note on `hud()` exposing which body is real, once the gate reopens.

@@ -1,0 +1,41 @@
+# playpick cell: mode=walk boss=whisper spec=warrior:arms style=melee
+# size=10 difficulty=normal view=844x390,touch save=fresh
+#
+# boss=whisper is a coverage label only -- a mode=walk evening steers at no
+# named boss, the walk starts at the door same as any other. From a fresh
+# door, "whisper" (The Last Whisper) sits in oratory, the fifth room:
+# threshold -> vigil -> spire(marrow) -> climb -> oratory(whisper).
+#
+# What no session has done before: grepped sessions.jsonl for every prior
+# melee-style walk/clear -- rogue:assassination (moveSpeed 178, clean),
+# shaman:elemental x2 (167, clean), warlock:destruction (158, wiped),
+# priest:discipline x2 (158, wiped), priest:shadow (158, wiped 9/9).
+# warrior:arms has never been run under melee at all, on any mode. Its own
+# moveSpeed is 158 (src/sim/classes.ts:444) -- the same tier as every prior
+# wipe and distinct from every prior clean crossing -- so this is a third
+# class at the losing side of direction.md hypothesis 6's class-speed
+# threshold, a stronger confirmation than a second if it also wipes, and a
+# genuine overturn of the threshold if it instead crosses clean.
+open
+targets
+shot front
+tap raid
+shot raid-setup
+tap next
+tap class:warrior:arms
+shot class-selected
+tap pull
+waitscreen fight 15
+shot arrive-threshold
+state
+targets
+
+# Chunk 1: threshold -> vigil -> spire(marrow) -> climb -> oratory(whisper).
+# Evening stops itself early (evening-stuck) if two rooms in a row go
+# nowhere; budget kept inside one foreground invocation.
+evening melee 200 6
+shot after-evening-1
+state
+says
+bill
+targets
