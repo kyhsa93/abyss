@@ -1,0 +1,51 @@
+# cell: mode=battleground map=flags spec=priest:discipline style=melee view=844x390,touch save=carried
+# priest:discipline has worn melee once (walked into THE VIGIL at melee range,
+# 2026-09-28-23), and melee has worn a healer once (paladin:holy on this exact
+# map, desktop, 2026-09-30-8: died at 15s with four ready heals never pressed).
+# Neither has happened together, and never at a touch viewport: does a shield
+# kit (discipline leans on absorbs cast on itself and allies, not raw heals)
+# die the same way under melee's beeline-at-nearest-enemy steering, and does
+# touch's smaller ability bar change anything about whether an unpressed heal
+# is even reachable before the body dies.
+open
+shot front
+targets
+tap battleground
+shot bg-menu
+targets
+tap map:flags
+shot class-pick
+targets
+tap class:priest:discipline
+shot priest-picked
+tap pull
+waitscreen fight 15
+shot bg-start
+ui
+state
+play melee 40
+shot mid-match1
+state
+bill
+wait 10
+play melee 40
+shot mid-match2
+state
+bill
+wait 10
+play melee 40
+shot mid-match3
+state
+bill
+wait 10
+play melee 40
+shot mid-match4
+state
+bill
+wait 10
+play melee 40
+shot mid-match5
+state
+bill
+says
+targets
