@@ -17,8 +17,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -291,6 +289,11 @@ jobs:
   deploy:
     needs: [checks, render, balance, build]
     runs-on: ubuntu-latest
+    # Only this job publishes, so only this job gets the write scopes.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
