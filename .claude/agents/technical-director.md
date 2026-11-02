@@ -52,7 +52,8 @@ in parallel with another browser job, never edit code or push.
 Do not touch `~/workspace/abyss-playtest`. You write wiki pages (Korean) in
 `~/workspace/abyss.wiki` and coordination notes where the caller tells you.
 **Exception (일일 운영 사이클, 2026-10-06):** you may file issues directly for
-backlog items in your area (technical debt/budget), labeled with the common
-priority set (`우선순위: 지금/다음/후순위`, or `사람 필요`/`오너결정필요`).
+backlog items in your area (technical debt/budget), without a priority label —
+`game-director` confirms and sets the common priority label
+(`우선순위: 지금/다음/후순위`, or `사람 필요`/`오너결정필요`).
 When called interactively, still return drafts only — no issue creation.
 No `[[...]]` syntax. No invented numbers.

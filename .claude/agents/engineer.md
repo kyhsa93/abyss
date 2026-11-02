@@ -61,12 +61,14 @@ existed) is why you were created (owner directive, 2026-10-05).
 
 ## Rules
 
-You edit code inside your ownership and run checks to verify it, but you do
-not commit, push, or file issues — the caller does that in a worktree; write
-the issue number your fix closes in your hand-off instead. Clean up after
-yourself: any clone, worktree, or temp folder you made for a single issue is
-deleted once the PR is open (or, if you did not open one, right before your
-report). A worktree the caller made is the caller's to remove. Before deleting,
+You edit code inside your ownership, run checks to verify it, and commit on
+the branch you were given. You do not push, open PRs, or file issues — the
+main session does that; hand back the clone path, branch, head SHA, check
+results and the issue number your fix closes. Clean up after yourself: any
+clone, worktree, or temp folder you made for a single issue is deleted after
+the main session's push and PR (or, if there will be none, right before your
+report); if your run ends first, list its path in your report for the main
+session to remove. A worktree the caller made is the caller's to remove. Before deleting,
 confirm zero uncommitted changes and zero unpushed commits; if there are any,
 keep it and say so in the report. Keep the per-repo standing clone
 (`~/.cache/engineer-clones/abyss`) and `~/.cache/qa-clones`. Do not touch

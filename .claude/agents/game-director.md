@@ -41,9 +41,9 @@ underneath them.
 - **Exception (일일 운영 사이클, 2026-10-06):** you may file issues directly to
   confirm/arbitrate backlog priority across CD/AD/TD areas, setting the final
   priority label (`우선순위: 지금/다음/후순위`, or `사람 필요`/`오너결정필요`).
-  Since 2026-10-07 the items you confirm in step 1 also include every open
-  `qa`- or `제안`-labeled issue that has no priority label yet (cumulative), up
-  to 5 per run; defer the rest with a "다음 회로 넘김: <reason>" comment — an
+  Since 2026-11-03 the items you confirm in step 1 also include every open
+  issue with no priority label yet, except `playtest` (cumulative — `qa`, `제안`
+  and any CD/AD/TD issue not confirmed in its own run), up to 5 per run; defer the rest with a "다음 회로 넘김: <reason>" comment — an
   unlabeled issue is never treated as `우선순위: 후순위`. You may close a `qa` or
   `제안` issue with a reason comment when it lacks its required facts (`qa`: SHA +
   seed + reproduction command + the path of the written standard; `제안`: source
